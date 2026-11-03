@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.11
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.12
 
 
 (function () {
@@ -611,16 +611,20 @@
       if (cel && so(cel.value).length < 10) { if (t.length < 10) throw new Error('Falta celular na ficha'); await digitar(cel, t); await sleep(1500); }
       const em = campo(/^Email$/); if (em && !em.value) await digitar(em, f.email || PADRAO.email);
       await combo(/^Grau de instrução$/, 'NAO', /N[ÃA]O DECLARADO/);
+      // v3.12: a UF do documento às vezes não fica gravada (mostra RR mas o BMG acusa "UF") → seleciona de novo no fim
+      await sleep(500); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
       // endereço
       const cep = campo(/^CEP$/); if (cep && !so(cep.value)) { if (!f.cep) throw new Error('Falta CEP na ficha'); await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
       const nu = campo(/^Número$/); if (nu && (!nu.value || nu.value === '0') && so(f.numero)) await digitar(nu, so(f.numero)); else if (nu && !nu.value) await digitar(nu, '0');
       // banco
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
-      const c = real ? { banco: f.banco, agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) };
+      // v3.12 (Stefany): no BMG agência inválida/aleatória = 3880; Caixa (104) = Conta Poupança
+      const agB = a => { const x = agOk(a); return x === '0001' ? '3880' : x; };
+      const c = real ? { banco: f.banco, agencia: agB(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agB(f.agencia) };
       const cod = String(+so(c.banco));
       await combo(/^Banco$/, cod + ' - ', new RegExp('^' + cod + ' - '));
-      await combo(/^Tipo de conta$/, 'Corrente', /^Conta Corrente$/);
+      if (cod === '104') await combo(/^Tipo de conta$/, 'Poup', /^Conta Poupan/); else await combo(/^Tipo de conta$/, 'Corrente', /^Conta Corrente$/);
       await digitar(campo(/^Agência$/), c.agencia); await digitar(campo(/^Conta$/), c.conta); await digitar(campo(/^DV$/), c.dv);
       log(`BMG conta: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : ' (aleatória da sequência)'}`);
       await semErro('Dados');
