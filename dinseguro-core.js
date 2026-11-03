@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.12
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.13
 
 
 (function () {
@@ -370,7 +370,7 @@
     }
 
     // ---- 3. Dados Complementares
-    function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 11), 11); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
+    function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 14), 14); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
     async function complementares(f) {
       await sleep(1500);
       const sb = secao(/^Dados Banc[áa]rios$/);
@@ -591,7 +591,7 @@
       await clicar(/^Continuar$/, 30000);
     }
 
-    function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 11), 11); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
+    function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 14), 14); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
     async function dados(f) {
       await esperar(() => campo(/^Nome da mãe$/), 30000);
       if (!f.mae && !campo(/^Nome da mãe$/).value) throw new Error('Falta o nome da mãe na ficha');
@@ -620,18 +620,19 @@
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
       // v3.12 (Stefany): no BMG agência inválida/aleatória = 3880; Caixa (104) = Conta Poupança
-      const agB = a => { const x = agOk(a); return x === '0001' ? '3880' : x; };
+      const agB = a => { const x = agOk(a); return x === '0001' && cod0 === '104' ? '3880' : x; };
+      const cod0 = String(+so(real ? f.banco : (bancoOk(f.banco) || '001')));
       const c = real ? { banco: f.banco, agencia: agB(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agB(f.agencia) };
       const cod = String(+so(c.banco));
       await combo(/^Banco$/, cod + ' - ', new RegExp('^' + cod + ' - '));
       if (cod === '104') await combo(/^Tipo de conta$/, 'Poup', /^Conta Poupan/); else await combo(/^Tipo de conta$/, 'Corrente', /^Conta Corrente$/);
       await digitar(campo(/^Agência$/), c.agencia); await digitar(campo(/^Conta$/), c.conta); await digitar(campo(/^DV$/), c.dv);
       log(`BMG conta: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : ' (aleatória da sequência)'}`);
+      if (!real) GM_setValue('conta_seq', c.seq + 1);   // v3.13: conta aleatória usada = já passa para a próxima (nunca repetir)
       await semErro('Dados');
       await clicar(/^Continuar$/);
       await semErro('Dados');
       await esperar(() => btn(/^Gerar proposta$/), 30000) || (() => { throw new Error('Resumo não abriu'); })();
-      if (!real) GM_setValue('conta_seq', c.seq + 1);
       f._conta_aleatoria = !real;
       log('Dados ok. Resumo pronto.', 'ok');
     }
