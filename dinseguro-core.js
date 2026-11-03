@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.5
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.6
 
 
 (function () {
@@ -126,15 +126,18 @@
         if (ignorar.includes(x.id)) continue;
         const sig = x.msg.slice(0, 60);
         if (feito[x.id] === sig) continue;
-        // Chat com atendente humano (Romulo Rocha ou outro nome) fica com ele: o vigia não mexe.
+        // Chat com atendente humano: também entra na fila quando o cliente está esperando (mandou mensagem e
+        // ninguém respondeu) ou quando o atendente só disse que vai verificar/analisar. O vigia decide pelo
+        // conteúdo: CPF/simulação/link ele faz; dúvida ou assunto fora do roteiro fica com o humano.
         const humano = !!x.chip && !/credsegurobank|Dinseguro|Bot desligado/i.test(x.chip);
-        if (humano) continue;
         const handoff = /atendente humano|Aguarde um momento|Estou analisando suas informa|Assim que concluir irei avisar/i.test(x.msg);
         const nosso = /Dinseguro|Bot desligado/i.test(x.chip);
-        const esperando = !x.nossa && (handoff || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip))));
+        const verificando = x.nossa && /verific|analis|consult|um momento|aguard|j[áa] volto/i.test(x.msg);
+        const esperando = humano ? ((!x.nossa && x.naoLidas > 0) || verificando)
+                                 : (!x.nossa && (handoff || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)))));
         if (!esperando) continue;
         const velho = antiga.find(f => f.id === x.id);
-        fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, quando: velho ? velho.quando : new Date().toISOString() });
+        fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
       }
       // quem saiu da tela (rolou para baixo) continua na fila até ser marcado como feito
       for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)) fila.push(f);
