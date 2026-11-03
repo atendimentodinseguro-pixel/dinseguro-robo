@@ -1,17 +1,19 @@
 // ==UserScript==
-// @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6)
+// @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6 e Daycoval)
 // @namespace    dinseguro
-// @version      2.2
+// @version      2.3
 // @description  No Multicorban monta a ficha do cliente; no New Corban digita a proposta (auto-complete, simulação, tabela, dados, banco) e para antes de Gravar.
+// @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
+// @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @match        https://app.multicorban.com/*
 // @match        https://romulorochadesouza.newcorban.com.br/*
 // @match        https://go.botmaker.com/*
-// @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
-// @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
+// @match        https://portaldecredito.daycoval.com.br/*
 // @grant        GM_notification
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_setClipboard
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function () {
@@ -54,7 +56,7 @@
 
   // Ficha em texto (chave: valor) <-> objeto
   const CAMPOS = ['banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
-    'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta'];
+    'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -192,6 +194,288 @@
     return;
   }
 
+  // ================================================================== DAYCOVAL (Portal do Correspondente)
+  // Fluxo: Simulação de Ofertas → Cadastrar → Dados Cadastrais → Dados Complementares → Resumo → Gerar → Formalizar → link.
+  // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
+  if (location.host === 'portaldecredito.daycoval.com.br') {
+    if (window.top !== window) return;
+    const tx = e => (e && e.textContent || '').replace(/\s+/g, ' ').trim();
+    const vis = e => !!e && e.getBoundingClientRect().width > 0;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    const PENSAO = ['01', '02', '03', '19', '20', '21', '22', '23', '24', '26', '27', '28', '29', '54', '55', '56', '59', '93'];
+    const AGENTE = /JADY/i;
+
+    async function esperar(fn, ms = 20000, passo = 300) {
+      const fim = Date.now() + ms;
+      while (Date.now() < fim) { try { const r = fn(); if (r) return r; } catch (e) {} await sleep(passo); }
+      return null;
+    }
+    // digita como teclado (o portal só aceita assim em alguns campos)
+    async function digitar(inp, txt) {
+      if (!inp) throw new Error('Campo não encontrado para digitar ' + txt);
+      inp.focus(); setter.call(inp, ''); inp.dispatchEvent(new Event('input', { bubbles: true }));
+      for (const ch of String(txt)) {
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+        setter.call(inp, inp.value + ch);
+        inp.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
+        inp.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+      }
+      inp.dispatchEvent(new Event('change', { bubbles: true })); inp.dispatchEvent(new Event('blur', { bubbles: true }));
+      await sleep(250);
+    }
+    // caixa (mat-form-field) pelo rótulo, opcionalmente dentro de uma seção
+    function caixa(re, raiz = document) {
+      return [...raiz.querySelectorAll('mat-form-field')].find(f => vis(f) && re.test(tx(f.querySelector('label')).replace(/\*/g, '').trim()));
+    }
+    const entrada = (re, raiz) => { const c = caixa(re, raiz); return c && c.querySelector('input'); };
+    const lista = (re, raiz) => { const c = caixa(re, raiz); return c && c.querySelector('mat-select'); };
+    const valorSel = sel => tx(sel && sel.querySelector('.mat-mdc-select-value-text, .mat-mdc-select-min-line'));
+    async function escolher(sel, re, busca) {
+      if (!sel) throw new Error('Lista não encontrada: ' + re);
+      const atual = valorSel(sel);
+      if (atual && re.test(atual)) return atual;
+      sel.click(); await sleep(800);
+      await esperar(() => document.querySelector('mat-option'), 10000);
+      const pane = [...document.querySelectorAll('.cdk-overlay-pane')].filter(x => x.querySelector('mat-option')).pop();
+      const s = busca && pane && pane.querySelector('input');
+      if (s) { await digitar(s, busca); await sleep(900); }
+      const o = await esperar(() => [...document.querySelectorAll('mat-option')].find(x => re.test(tx(x))), 8000);
+      if (!o) { const ops = [...document.querySelectorAll('mat-option')].map(tx).slice(0, 8).join(' / '); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); throw new Error('Opção não encontrada (' + re + '). Tem: ' + ops); }
+      o.click(); await sleep(600); return tx(o);
+    }
+    const botaoTxt = (re, raiz = document) => [...raiz.querySelectorAll('button, a')].filter(vis).find(b => re.test(tx(b)));
+    const clicar = async (re, raiz) => { const b = await esperar(() => botaoTxt(re, raiz), 15000); if (!b) throw new Error('Botão não encontrado: ' + re); b.click(); await sleep(800); return b; };
+    function secao(re) {
+      const h = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div,strong')].find(e => vis(e) && e.children.length === 0 && re.test(tx(e)));
+      let e = h; while (e && !e.querySelector('mat-form-field')) e = e.parentElement; return e || document;
+    }
+    const alertas = () => [...document.querySelectorAll('.cdk-overlay-pane')].map(tx).filter(t => /Alerta|Erro|Sucesso|warning/i.test(t));
+    async function fecharAlertas() {
+      const t = alertas().join(' | ');
+      [...document.querySelectorAll('.cdk-overlay-pane button')].filter(b => /OK, ENTENDI/i.test(tx(b))).forEach(b => b.click());
+      await sleep(500); return t;
+    }
+    async function semErro(etapa) {
+      await sleep(1200);
+      const t = alertas().join(' | ');
+      if (/Erro|Alerta|obrigat|inválid|não informado/i.test(t)) { await fecharAlertas(); throw new Error(etapa + ': ' + t.replace(/close|warning|cancel|×|OK, ENTENDI/g, '').trim()); }
+    }
+    const cent = v => so(v);  // "567,34" -> "56734"
+
+    // ---- 1. Simulação
+    async function simular(f) {
+      if (!/simulacao-ofertas\/simulacao/.test(location.pathname)) {
+        const a = document.querySelector('a[href*="simulacao-ofertas/simulacao"]'); if (!a) throw new Error('Menu Simulação de Ofertas não achado (está logado?)');
+        a.click(); await sleep(2500);
+      }
+      const cpf = await esperar(() => document.querySelector('input[formcontrolname=cpf]'));
+      if (so(cpf.value) !== f.cpf) { await digitar(cpf, f.cpf); const pr = botaoTxt(/^PRÓXIMO$/); if (pr) pr.click(); }
+      await esperar(() => document.querySelector('input[formcontrolname=nome]'));
+      await sleep(1500);
+      const nome = document.querySelector('input[formcontrolname=nome]');
+      if (!nome.value) await digitar(nome, f.nome);
+      const nasc = document.querySelector('input[formcontrolname=dataNascimento]');
+      if (nasc && !so(nasc.value)) { if (!f.nascimento) throw new Error('Falta data de nascimento na ficha'); await digitar(nasc, so(f.nascimento)); }
+      const cel = document.querySelector('input[formcontrolname=nroTelefoneCelular]');
+      if (cel && so(cel.value).length < 10) { const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length < 10) throw new Error('Falta telefone (celular) na ficha'); await digitar(cel, t); }
+      log('Dados do cliente ok.');
+      const achaCard = () => [...document.querySelectorAll('a')].find(a => vis(a) && new RegExp('Matr[íi]cula ' + f.beneficio).test(tx(a)));
+      if (!achaCard()) {
+        await clicar(/Adicionar Matr[íi]cula/);
+        await esperar(() => document.querySelector('input[formcontrolname=matricula]'));
+        await escolher(lista(/^Empregador/), /^INSS$/, 'INSS');
+        await digitar(document.querySelector('input[formcontrolname=matricula]'), f.beneficio);
+        await digitar(document.querySelector('input[formcontrolname=vlrRendaLiquida]'), cent(f.renda || '1621,00'));
+        await clicar(/INCLUIR MATR[ÍI]CULA/);
+        await semErro('Incluir matrícula');
+      }
+      const card = await esperar(achaCard, 15000); if (!card) throw new Error('Matrícula não apareceu');
+      card.click(); await sleep(1500);
+      // autorização de consulta do benefício (SMS ao cliente), como a Stefany faz
+      if (alertas().join() .match(/Consulta dados do benef/i) || botaoTxt(/OK, ENVIAR/)) {
+        const env = botaoTxt(/OK, ENVIAR/); if (env) { env.click(); await sleep(2500); await fecharAlertas(); log('SMS de autorização enviado ao cliente.'); }
+        const c2 = achaCard(); if (c2) { c2.click(); await sleep(1500); }
+        if (botaoTxt(/OK, ENVIAR/)) { const cc = botaoTxt(/CANCELAR/); if (cc) cc.click(); await sleep(800); }
+      }
+      await esperar(() => /Produtos Dispon[íi]veis/.test(document.body.innerText), 20000);
+      let p = document.getElementById('margemconsignado');
+      if (!vis(p)) {
+        const h = [...document.querySelectorAll('div,span,h5,h6,button')].find(e => vis(e) && e.children.length < 4 && /^Empréstimo Consignado$/.test(tx(e)));
+        if (h) h.click(); p = await esperar(() => { const x = document.getElementById('margemconsignado'); return vis(x) && x; }, 10000);
+      }
+      if (!p) throw new Error('Painel Empréstimo Consignado/Margem não abriu');
+      const s = p.querySelectorAll('mat-select');
+      const esp = String(f.especie || '').padStart(2, '0');
+      const orgao = (esp === '87' || esp === '88') ? /LOAS/ : PENSAO.includes(esp) ? /PENSIONISTA/ : /APOSENTADO/;
+      await escolher(s[1], orgao);
+      await escolher(s[2], new RegExp('^' + (f.prazo || '108') + '$'));
+      await digitar(p.querySelector('input[formcontrolname=valorParcela]'), cent(f.parcela));
+      p.querySelectorAll('button')[0].click();   // ⟳ simular
+      const res = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && m[1] !== '0,00' && m; }, 40000);
+      await semErro('Simulação');
+      if (!res) throw new Error('Simulação não retornou valor');
+      f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].trim();
+      log(`Simulado: R$ ${res[1]} · ${f.prazo || 108}x R$ ${f.parcela} · ${res[2].trim()}`, 'ok');
+      await clicar(/^ADICIONAR OFERTA$/i);
+      await clicar(/VER RESUMO DE OFERTAS/i);
+      await sleep(1000);
+      const irRes = botaoTxt(/IR PARA O RESUMO/i); if (irRes) { irRes.click(); await sleep(1500); }
+      await clicar(/CADASTRAR PROPOSTA/i);
+      await esperar(() => /Dados de Contato/.test(document.body.innerText), 30000);
+      const n = (tx(document.body).match(/N° ?(\d{6,})/) || [])[1]; f._simulacao_daycoval = n;
+      log('Cadastro aberto Nº ' + (n || '?'), 'ok');
+    }
+
+    // ---- 2. Dados Cadastrais
+    async function cadastrais(f) {
+      await sleep(1500);
+      const email = entrada(/^Email$/); if (email && !email.value) await digitar(email, f.email || PADRAO.email);
+      const nome = f.nome || ''; const sexo = f.sexo || (/A$/i.test(nome.split(' ')[0]) ? 'FEMININO' : 'MASCULINO');
+      await escolher(lista(/^Sexo$/), new RegExp('^' + sexo + '$'));
+      await escolher(lista(/^Estado Civil$/), /^SOLTEIRO$/);
+      const mae = entrada(/^Nome M[ãa]e$/);
+      if (mae && !mae.value) { if (!f.mae) throw new Error('Falta o nome da mãe na ficha (pegue no Auto-Complete do New Corban)'); await digitar(mae, f.mae); }
+      await escolher(lista(/^Tipo DOC$/), /^RG/);
+      const doc = entrada(/^Nº DOC$/); if (doc && !doc.value) await digitar(doc, f.cpf);
+      const emi = entrada(/^Emissor$/); if (emi && !emi.value) await digitar(emi, 'SSP');
+      const sc = secao(/^Dados do Cliente$/);
+      if (f.uf) await escolher(lista(/^UF$/, sc), new RegExp('^' + f.uf + '$'), f.uf);
+      const dem = entrada(/^Data Emiss[ãa]o$/); if (dem && !so(dem.value)) await digitar(dem, so(PADRAO.dt_emissao));
+      // endereço
+      const sr = secao(/^Dados Residenciais$/);
+      const cep = entrada(/^CEP$/, sr);
+      if (cep && !so(cep.value)) {
+        if (!f.cep) throw new Error('Falta CEP na ficha');
+        await digitar(cep, f.cep);
+        const lupa = caixa(/^CEP$/, sr).querySelector('mat-icon, button, [class*=search]'); if (lupa) lupa.click();
+        await esperar(() => (entrada(/^Endere[çc]o$/, sr) || {}).value, 10000);
+      }
+      const numero = entrada(/^Nº$/, sr); if (numero && !numero.value) await digitar(numero, '0');
+      await clicar(/^PRÓXIMO$/);
+      await semErro('Dados cadastrais');
+      await esperar(() => /Natureza de Relacionamento/.test(document.body.innerText), 20000);
+      log('Dados cadastrais ok.', 'ok');
+    }
+
+    // ---- 3. Dados Complementares
+    function proximaConta() { const n = GM_getValue('daycoval_conta_seq', 10); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
+    async function complementares(f) {
+      await sleep(1500);
+      const sb = secao(/^Dados Banc[áa]rios$/);
+      const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
+      const c = real ? { banco: f.banco.padStart(3, '0'), agencia: f.agencia || '0001', conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : proximaConta();
+      const jaTem = () => [...document.querySelectorAll('*')].some(e => e.children.length === 0 && new RegExp(c.conta + '/' + c.dv).test(tx(e)));
+      if (!jaTem()) {
+        await escolher(lista(/^Banco$/, sb), new RegExp('^' + c.banco + ' -'), c.banco);
+        await digitar(entrada(/^Ag[êe]ncia$/, sb), c.agencia);
+        const contas = [...sb.querySelectorAll('mat-form-field')].filter(vis);
+        await digitar(entrada(/^Conta$/, sb), c.conta);
+        const dvs = contas.filter(x => /^DV/.test(tx(x.querySelector('label')))); const dvConta = dvs[dvs.length - 1];
+        await digitar(dvConta.querySelector('input'), c.dv);
+        await clicar(/^INCLUIR$/, sb);
+        await sleep(1200);
+        if (/outro CPF/i.test(alertas().join())) { await fecharAlertas(); if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no Daycoval.'); GM_setValue('daycoval_conta_seq', c.seq + 1); throw new Error('Conta já usada em outro CPF (' + c.conta + '-' + c.dv + ').'); }
+        await semErro('Incluir conta');
+        log(`Conta incluída: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : ' (aleatória da sequência)'}`);
+      }
+      const re = new RegExp(c.conta + '/' + c.dv);
+      const sbn = secao(/^Dados do Benef[íi]cio$/);
+      if (f.uf) await escolher(lista(/^UF Do Benef[íi]cio$/, sbn), new RegExp('^' + f.uf + '$'), f.uf);
+      const esp = String(f.especie || '').padStart(2, '0');
+      await escolher(lista(/^Tipo de Benef/, sbn), new RegExp('^' + esp + ' -'), esp + ' -');
+      await escolher(lista(/^Dados Banc[áa]rios$/, sbn), re);
+      // liberação (tabela): meio, conta, tipo
+      const lib = secao(/^Dados de Libera[çc][ãa]o$/);
+      const sels = [...lib.querySelectorAll('mat-select')].filter(vis);
+      try { await escolher(sels[0], /PIX/); } catch (e) { await escolher(sels[0], /TED/); }
+      await escolher(sels[1], re);
+      await escolher(sels[2], /CONTA CORRENTE INDIVIDUAL/);
+      // vendedor
+      const sv = secao(/^Dados do Vendedor$/);
+      await escolher(lista(/^Agente$/, sv), AGENTE);
+      const v = lista(/^Vendedor$/, sv); if (v && !valorSel(v)) await escolher(v, /\d/);
+      const cm = lista(/^Comercial$/, sv); if (cm && !valorSel(cm)) await escolher(cm, /\d/);
+      await clicar(/^PRÓXIMO$/);
+      await sleep(1500);
+      const al = alertas().join(' | ');
+      if (/j[áa] cadastrado para outro CPF/i.test(al)) {
+        await fecharAlertas();
+        if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no Daycoval.');
+        GM_setValue('daycoval_conta_seq', c.seq + 1);
+        throw new Error('Conta já usada em outro CPF. Avancei a sequência.');
+      }
+      await semErro('Dados complementares');
+      await esperar(() => /GERAR PROPOSTAS/.test(document.body.innerText), 20000);
+      if (!real) GM_setValue('daycoval_conta_seq', c.seq + 1);
+      log('Dados complementares ok. Resumo pronto.', 'ok');
+    }
+
+    // ---- 4. Gerar, formalizar e pegar o link
+    async function gerarELink(f) {
+      await clicar(/^GERAR PROPOSTAS$/);
+      await esperar(() => /cadastradas com sucesso|Link enviado/i.test(document.body.innerText + alertas().join()), 60000);
+      await semErro('Gerar propostas').catch(e => { if (!/Sucesso/i.test(e.message)) throw e; });
+      await fecharAlertas();
+      const nro = (tx(document.body).match(/N[ºo°]? ?Proposta.{0,40}?(\d{8,10})/) || tx(document.body).match(/\b(8\d{8})\b/) || [])[1] || '';
+      await clicar(/FORMALIZAR PROPOSTAS/i);
+      await esperar(() => /Formaliza[çc][ãa]o Digital/.test(document.body.innerText), 30000);
+      let copiado = '';
+      const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;   // o portal copia no contexto da página
+      try { const cb = W.navigator.clipboard; const orig = cb.writeText.bind(cb); cb.writeText = t => { copiado = String(t); try { return orig(t); } catch (e) { return Promise.resolve(); } }; } catch (e) {}
+      try { const ex = W.document.execCommand.bind(W.document); W.document.execCommand = (c, ...r) => { if (/copy/i.test(c)) { const sel = W.getSelection && String(W.getSelection()); const ta = W.document.activeElement; copiado = copiado || (ta && ta.value) || sel || ''; } return ex(c, ...r); }; } catch (e) {}
+      const icones = [...document.querySelectorAll('button, a, mat-icon')].filter(e => vis(e) && /^link$/i.test(tx(e)));
+      const icone = icones[icones.length - 1]; if (!icone) throw new Error('Ícone de link não encontrado');
+      (icone.closest('button,a') || icone).click(); await sleep(2000);
+      await fecharAlertas();
+      if (!/^https?:/.test(copiado)) { const m = tx(document.body).match(/https?:\/\/dcy\.app\/\w+/); if (m) copiado = m[0]; }
+      if (!/^https?:/.test(copiado)) { try { copiado = await navigator.clipboard.readText(); } catch (e) {} }
+      if (!/^https?:\/\//.test(copiado || '')) throw new Error('Não consegui ler o link copiado');
+      const r = { cpf: f.cpf, nome: f.nome, proposta: nro, link: copiado, liberado: f._liberado_daycoval || '', parcela: f.parcela, prazo: f.prazo || '108', banco: 'DAYCOVAL', quando: new Date().toISOString() };
+      GM_setValue('daycoval_resultado', r);
+      try { localStorage.setItem('dins_daycoval_res', JSON.stringify(r)); } catch (e) {}
+      log(`PROPOSTA ${nro} · LINK ${copiado}`, 'ok');
+      document.getElementById('dins-res').value = `Proposta Daycoval ${nro}\nLiberado R$ ${r.liberado} · ${r.prazo}x R$ ${r.parcela}\nLink: ${copiado}`;
+      return r;
+    }
+
+    // ---- painel
+    const p = painel('Digitação DAYCOVAL');
+    p.querySelector('#dins-corpo').innerHTML =
+      botao('Carregar ficha', '#475569') + botao('Fazer tudo', '#7c3aed') + botao('Digitar Daycoval', '#2563eb') + botao('Gerar e pegar link', '#16a34a') +
+      `<div style="margin-top:6px;color:#94a3b8;font-size:12px">Conta aleatória: próxima 001/0001/<span id="dins-seq"></span>-8</div>` +
+      `<textarea id="dins-res" readonly style="width:100%;height:70px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px"></textarea>`;
+    p.querySelector('#dins-seq').textContent = GM_getValue('daycoval_conta_seq', 10);
+    let rodando = false;
+    p.addEventListener('click', async e => {
+      const a = e.target.dataset.a; if (!a || rodando) return;
+      const f = GM_getValue('ficha_atual');
+      if (!f || !f.cpf) { log('Nenhuma ficha salva. No Multicorban: Gerar ficha → Salvar ficha.', 'erro'); return; }
+      if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · mãe ${f.mae || '—'}`); return; }
+      rodando = true;
+      const status = (st, extra) => { try { localStorage.setItem('dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
+      status('rodando');
+      try {
+        if (a === 'Digitar Daycoval' || a === 'Fazer tudo') {
+          const pg = location.pathname;
+          if (/dados-cliente/.test(pg)) await cadastrais(f);
+          else if (!/dados-complementares|resumo|formalizacao/.test(pg)) { await simular(f); await cadastrais(f); }
+          if (!/resumo|formalizacao/.test(location.pathname) || /dados-complementares/.test(location.pathname)) {
+            for (let i = 0; ; i++) {      // conta aleatória já usada em outro CPF → próxima da sequência, até 6 tentativas
+              try { await complementares(f); break; }
+              catch (err) { if (!/já usada em outro CPF/.test(err.message) || i >= 5) throw err; log('Conta já usada; tentando a próxima da sequência…'); await sleep(1000); }
+            }
+          }
+          GM_setValue('ficha_atual', f);
+          if (a === 'Digitar Daycoval') log('Pronto para gerar. Confira o Resumo e clique "Gerar e pegar link".', 'ok');
+        }
+        if (a === 'Gerar e pegar link' || a === 'Fazer tudo') { const r = await gerarELink(f); status('ok', r); }
+        else status('pronto_para_gerar', { liberado: f._liberado_daycoval || '' });
+      } catch (err) { log('PAROU: ' + err.message, 'erro'); status('erro', { erro: err.message }); }
+      finally { rodando = false; p.querySelector('#dins-seq').textContent = GM_getValue('daycoval_conta_seq', 10); }
+    });
+    return;
+  }
+
   // ================================================================== MULTICORBAN
   if (location.host === 'app.multicorban.com') {
     if (!/\/search\//.test(location.pathname)) return;   // só na tela de consulta (não no login)
@@ -219,7 +503,15 @@
           ddb: g(/\nDDB\s*\n+([^\n]+)/),
           cidade: g(/Munic[íi]pio\s*\n+([^\n]+)/),
           prazo: '108',
+          nascimento: g(/Data Nascimento\s*\n+(\d{2}\/\d{2}\/\d{4})/),
+          mae: (m => /^[A-ZÀ-Ú' ]{6,}$/.test(m) ? m : '')(g(/Nome da M[ãa]e\s*\n+([^\n]+)/)),
+          sexo: (m => /^(M|F|MASC|FEM)/i.test(m) ? (/^F/i.test(m) ? 'FEMININO' : 'MASCULINO') : '')(g(/\nSexo\s*\n+([^\n]+)/)),
+          uf: g(/\nUF\s*\n+([A-Z]{2})\s*\n/),
+          cep: so(g(/\nCEP\s*\n+(\d[\d.\-]{4,9})/)),
+          endereco: g(/\nEndere[çc]o\s*\n+([^\n]+)/),
         };
+        // renda = valor do benefício (salário mínimo antigo 1.518 => 1.621 de 2026)
+        { const vb = num(g(/Valor do Benef[íi]cio\s*\n+([^\n]+)/)); f.renda = brl(Math.abs(vb - 1518) < 0.01 ? 1621 : vb); }
         const margem = num(g(/Margem Dispon[íi]vel\s*\n+([^\n]+)/));
         f.parcela = margem > 0 ? brl(Math.max(0, margem - 0.01)) : '0,00';
         // Regra Stefany: margem de R$ 531,30 (35% do mínimo antigo, R$ 1.518) => considerar mínimo 2026 (R$ 1.621): parcela R$ 567,34
