@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.3
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.4
 
 
 (function () {
@@ -126,7 +126,7 @@
         // Chat com atendente humano (Romulo Rocha ou outro nome) fica com ele: o vigia não mexe.
         const humano = !!x.chip && !/credsegurobank|Dinseguro|Bot desligado/i.test(x.chip);
         if (humano) continue;
-        const handoff = /atendente humano|Aguarde um momento/i.test(x.msg);
+        const handoff = /atendente humano|Aguarde um momento|Estou analisando suas informa|Assim que concluir irei avisar/i.test(x.msg);
         const nosso = /Dinseguro|Bot desligado/i.test(x.chip);
         const esperando = handoff || (nosso && !x.nossa && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)));
         if (!esperando) continue;
