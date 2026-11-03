@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.8
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.9
 
 
 (function () {
@@ -817,6 +817,9 @@
     if (!linhas) throw new Error('Nenhuma tabela 1,85% disponível. Confira a simulação na tela.');
     let cand = linhas.filter(x => /inval/i.test(x.innerText) === invalidez);
     if (!cand.length && pagina === 'facta') cand = linhas;            // FACTA não separa invalidez
+    // v3.9 (regra da Stefany): sempre tabela SEM carência — "(+90d Car)"/"Carência" só quando ela pedir
+    const semCar = cand.filter(x => !/\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia/i.test(x.innerText));
+    if (semCar.length) cand = semCar;
     if (!cand.length) throw new Error(invalidez ? 'Sem tabela INVAL 1,85%.' : 'Sem tabela DWeb-ML (sem INVAL) 1,85%.');
     const escolhida = cand[0];
     escolhida.click();
