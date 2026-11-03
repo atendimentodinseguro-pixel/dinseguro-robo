@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.7
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.8
 
 
 (function () {
@@ -130,11 +130,18 @@
         // ninguém respondeu) ou quando o atendente só disse que vai verificar/analisar. O vigia decide pelo
         // conteúdo: CPF/simulação/link ele faz; dúvida ou assunto fora do roteiro fica com o humano.
         const humano = !!x.chip && !/credsegurobank|Dinseguro|Bot desligado/i.test(x.chip);
-        const handoff = /atendente humano|Aguarde um momento|Estou analisando suas informa|Assim que concluir irei avisar/i.test(x.msg);
+        const handoff = /atendente humano|Aguarde um momento|Estou analisando suas informa|Assim que concluir irei avisar|Para agilizar o seu atendimento|pedimos por gentileza que nos envie/i.test(x.msg);
         const nosso = /Dinseguro|Bot desligado/i.test(x.chip);
         const verificando = x.nossa && /verific|analis|consult|um momento|aguard|j[áa] volto/i.test(x.msg);
+        // v3.8: chat ainda com o bot (credsegurobank) mas o cliente escreveu e ficou sem resposta por 90s → o bot
+        // não vai responder (já passou o fluxo) → está esperando atendente
+        const pend = ler('dins_pend', {});
+        const semResposta = !x.nossa && x.naoLidas > 0;
+        if (semResposta) { if (!pend[x.id] || pend[x.id].sig !== x.msg.slice(0, 60)) pend[x.id] = { t: Date.now(), sig: x.msg.slice(0, 60) }; } else delete pend[x.id];
+        gravar('dins_pend', pend);
+        const parado = semResposta && Date.now() - pend[x.id].t > 90000;
         const esperando = humano ? ((!x.nossa && x.naoLidas > 0) || verificando)
-                                 : (!x.nossa && (handoff || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)))));
+                                 : (!x.nossa && (handoff || parado || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)))));
         if (!esperando) continue;
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
