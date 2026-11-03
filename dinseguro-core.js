@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.2
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.3
 
 
 (function () {
@@ -37,7 +37,7 @@
       else if (idade >= 58) return { banco: 'HUMANO', motivo: 'Invalidez 58–59 anos: vai para QUALI (fora deste script).' };
       else banco = 'C6';
     }
-    if (liberadoEst < 6000) banco = 'FACTA';
+    if (liberadoEst < 6000) banco = 'BMG';   // abaixo de R$ 6 mil → BMG (antes era FACTA)
     return { banco, motivo: `Liberado estimado R$ ${brl(liberadoEst)}${INVALIDEZ.includes(esp) ? ' · invalidez' : ''}` };
   }
 
