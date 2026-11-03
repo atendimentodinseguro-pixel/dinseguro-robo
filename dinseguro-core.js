@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.9
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.10
 
 
 (function () {
@@ -17,6 +17,9 @@
     '041': 'Banrisul', '070': 'BRB', '004': 'Banco do Nordeste', '037': 'Banpará', '021': 'Banestes', '047': 'Banese', '290': 'PagBank', '380': 'PicPay' };
 
   const so = s => (s || '').replace(/\D/g, '');
+  // v3.10: agência válida = 4 dígitos (ou 4 + dígito); fora disso está errada → 0001. Banco do cliente sempre que existir.
+  const agOk = a => { const d = so(a); return d.length === 4 ? d : d.length === 5 ? d.slice(0, 4) : '0001'; };
+  const bancoOk = b => { const d = so(b); return d && !/^0+$/.test(d) ? d.padStart(3, '0') : ''; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const num = s => parseFloat(String(s || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0;
   const brl = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -372,7 +375,7 @@
       await sleep(1500);
       const sb = secao(/^Dados Banc[áa]rios$/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
-      const c = real ? { banco: f.banco.padStart(3, '0'), agencia: f.agencia || '0001', conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : proximaConta();
+      const c = real ? { banco: f.banco.padStart(3, '0'), agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) };
       const jaTem = () => [...document.querySelectorAll('*')].some(e => e.children.length === 0 && new RegExp(c.conta + '/' + c.dv).test(tx(e)));
       if (!jaTem()) {
         await escolher(lista(/^Banco$/, sb), new RegExp('^' + c.banco + ' -'), c.banco);
@@ -614,7 +617,7 @@
       // banco
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
-      const c = real ? { banco: f.banco, agencia: so(f.agencia) || '0001', conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : proximaConta();
+      const c = real ? { banco: f.banco, agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) };
       const cod = String(+so(c.banco));
       await combo(/^Banco$/, cod + ' - ', new RegExp('^' + cod + ' - '));
       await combo(/^Tipo de conta$/, 'Corrente', /^Conta Corrente$/);
@@ -728,7 +731,7 @@
         f.banco = so(bancoTxt.split('-')[0]).padStart(3, '0').replace(/^000$/, '');
         f.agencia = so(g(/N[úu]mero da Ag[êe]ncia\s*\n+([^\n]+)/));
         f.conta = so(g(/N[úu]mero da Conta\s*\n+([^\n]+)/));
-        if (!f.agencia || f.agencia.length > 4) f.agencia = '0001'; else f.agencia = f.agencia.padStart(4, '0');
+        f.agencia = agOk(f.agencia);
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
@@ -891,7 +894,7 @@
         throw new Error('Cliente SEM conta bancária: NÃO gravar. Mande a simulação e, quando ele aceitar, o atalho /08 pedindo a conta.');
       }
       const banco = so(f.banco).padStart(3, '0');
-      const agencia = so(f.agencia) && so(f.agencia).length <= 4 ? so(f.agencia).padStart(4, '0') : '0001';
+      const agencia = agOk(f.agencia);
       let conta = so(f.conta), dv;
       if (conta) { dv = conta.slice(-1); conta = conta.slice(0, -1); } else { conta = '001'; dv = '1'; }
       if (pagina === 'facta') { if (!setSelect('banco', banco)) log('Banco ' + banco + ' não existe na lista do FACTA.', 'erro'); }
