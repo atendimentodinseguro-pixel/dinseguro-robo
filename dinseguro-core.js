@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.1
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.2
 
 
 (function () {
@@ -30,10 +30,12 @@
     if (idade > 73) return { banco: 'HUMANO', motivo: 'Acima de 73 anos: passar para atendente.' };
     if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'Espécie 87/88: R$400+ vai para atendente, senão /n30.' };
     if (num(f.parcela) < 20) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 20: /n30.' };
-    let banco = 'C6';
+    // regra de 03/11/2026: demais espécies → BMG; invalidez até 57 → C6, 58–59 → QUALI (humano), 60–73 → BMG
+    let banco = 'BMG';
     if (INVALIDEZ.includes(esp)) {
-      if (idade >= 60) banco = 'FACTA';
+      if (idade >= 60) banco = 'BMG';
       else if (idade >= 58) return { banco: 'HUMANO', motivo: 'Invalidez 58–59 anos: vai para QUALI (fora deste script).' };
+      else banco = 'C6';
     }
     if (liberadoEst < 6000) banco = 'FACTA';
     return { banco, motivo: `Liberado estimado R$ ${brl(liberadoEst)}${INVALIDEZ.includes(esp) ? ' · invalidez' : ''}` };
@@ -728,7 +730,7 @@
         const f = textoParaFicha(ta.value);
         if (!f.cpf) { log('Ficha vazia.', 'erro'); return; }
         GM_setValue('ficha_atual', f);
-        log(`Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
+        log(f.banco_destino === 'BMG' ? 'Ficha salva. Abra o BMG (Nova plataforma) e clique "Fazer tudo".' : `Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
       }
     });
     return;
