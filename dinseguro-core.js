@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.6
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.7
 
 
 (function () {
@@ -547,8 +547,12 @@
       await combo(/^Tipo benefício$/, String(+esp), new RegExp('^' + (+esp) + ' -'));
       if (!f.uf) throw new Error('Falta UF na ficha');
       await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
-      const renda = campo(/^Renda$/); if (!so(renda.value)) await digitar(renda, so(f.renda || '1621,00'));
-      await esperar(() => so((campo(/^Empréstimo Consignado$/) || {}).value), 8000);
+      if ((campo(/^UF$/) || {}).value !== f.uf) { await sleep(800); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$')); }
+      // v3.7: a Renda vem "R$ 0,00" (não vazia) — sem renda o BMG não presume a margem e some a oferta de empréstimo
+      const renda = campo(/^Renda$/); if (!+so(renda.value)) { await digitar(renda, so(f.renda || '1621,00')); renda.dispatchEvent(new Event('blur', { bubbles: true })); }
+      const temMargem = () => +so((campo(/^Empréstimo Consignado$/) || {}).value) > 0;
+      await esperar(temMargem, 10000);
+      if (!temMargem()) throw new Error('BMG não presumiu a margem (confira Renda e UF na Identificação)');
       log('Identificação ok · margem BMG ' + (campo(/^Empréstimo Consignado$/) || {}).value);
       await clicar(/^Continuar$/);
     }
