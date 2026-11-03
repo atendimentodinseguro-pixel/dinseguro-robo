@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6 e Daycoval)
 // @namespace    dinseguro
-// @version      2.3
+// @version      2.4
 // @description  No Multicorban monta a ficha do cliente; no New Corban digita a proposta (auto-complete, simulação, tabela, dados, banco) e para antes de Gravar.
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -230,23 +230,32 @@
     const entrada = (re, raiz) => { const c = caixa(re, raiz); return c && c.querySelector('input'); };
     const lista = (re, raiz) => { const c = caixa(re, raiz); return c && c.querySelector('mat-select'); };
     const valorSel = sel => tx(sel && sel.querySelector('.mat-mdc-select-value-text, .mat-mdc-select-min-line'));
+    async function fecharLista() {
+      const bd = document.querySelector('.cdk-overlay-backdrop'); if (bd) bd.click();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(500);
+    }
     async function escolher(sel, re, busca) {
       if (!sel) throw new Error('Lista não encontrada: ' + re);
       const atual = valorSel(sel);
       if (atual && re.test(atual)) return atual;
+      await fecharLista();
       sel.click(); await sleep(800);
-      await esperar(() => document.querySelector('mat-option'), 10000);
-      const pane = [...document.querySelectorAll('.cdk-overlay-pane')].filter(x => x.querySelector('mat-option')).pop();
-      const s = busca && pane && pane.querySelector('input');
+      // só as opções da lista que abriu agora (o portal deixa opções de outras listas no DOM)
+      const id = sel.getAttribute('aria-controls');
+      const pane = await esperar(() => (id && document.getElementById(id)) || [...document.querySelectorAll('.cdk-overlay-pane')].filter(x => x.querySelector('mat-option')).pop(), 10000);
+      if (!pane) throw new Error('Lista não abriu: ' + re);
+      const s = busca && pane.closest('.cdk-overlay-pane') && pane.closest('.cdk-overlay-pane').querySelector('input');
       if (s) { await digitar(s, busca); await sleep(900); }
-      const o = await esperar(() => [...document.querySelectorAll('mat-option')].find(x => re.test(tx(x))), 8000);
-      if (!o) { const ops = [...document.querySelectorAll('mat-option')].map(tx).slice(0, 8).join(' / '); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); throw new Error('Opção não encontrada (' + re + '). Tem: ' + ops); }
+      const o = await esperar(() => [...pane.querySelectorAll('mat-option')].find(x => re.test(tx(x))), 8000);
+      if (!o) { const ops = [...pane.querySelectorAll('mat-option')].map(tx).slice(0, 8).join(' / '); await fecharLista(); throw new Error('Opção não encontrada (' + re + '). Tem: ' + ops); }
       o.click(); await sleep(600); return tx(o);
     }
     const botaoTxt = (re, raiz = document) => [...raiz.querySelectorAll('button, a')].filter(vis).find(b => re.test(tx(b)));
     const clicar = async (re, raiz) => { const b = await esperar(() => botaoTxt(re, raiz), 15000); if (!b) throw new Error('Botão não encontrado: ' + re); b.click(); await sleep(800); return b; };
     function secao(re) {
-      const h = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div,strong')].find(e => vis(e) && e.children.length === 0 && re.test(tx(e)));
+      const t = [...document.querySelectorAll('.card-title, h5, h4')].find(e => vis(e) && re.test(tx(e)));   // cartões do formulário (o menu lateral tem os mesmos nomes)
+      const card = t && t.closest('.card'); if (card && card.querySelector('mat-form-field')) return card;
+      const h =[...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,div,strong')].find(e => vis(e) && e.children.length === 0 && re.test(tx(e)));
       let e = h; while (e && !e.querySelector('mat-form-field')) e = e.parentElement; return e || document;
     }
     const alertas = () => [...document.querySelectorAll('.cdk-overlay-pane')].map(tx).filter(t => /Alerta|Erro|Sucesso|warning/i.test(t));
@@ -314,8 +323,8 @@
       const res = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && m[1] !== '0,00' && m; }, 40000);
       await semErro('Simulação');
       if (!res) throw new Error('Simulação não retornou valor');
-      f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].trim();
-      log(`Simulado: R$ ${res[1]} · ${f.prazo || 108}x R$ ${f.parcela} · ${res[2].trim()}`, 'ok');
+      f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].replace(/border_color.*/, '').trim();
+      log(`Simulado: R$ ${res[1]} · ${f.prazo || 108}x R$ ${f.parcela} · ${f._tabela_daycoval}`, 'ok');
       await clicar(/^ADICIONAR OFERTA$/i);
       await clicar(/VER RESUMO DE OFERTAS/i);
       await sleep(1000);
@@ -387,7 +396,8 @@
       // liberação (tabela): meio, conta, tipo
       const lib = secao(/^Dados de Libera[çc][ãa]o$/);
       const sels = [...lib.querySelectorAll('mat-select')].filter(vis);
-      try { await escolher(sels[0], /PIX/); } catch (e) { await escolher(sels[0], /TED/); }
+      await esperar(() => valorSel(sels[0]), 5000);
+      if (!/PIX/.test(valorSel(sels[0]))) { try { await escolher(sels[0], /PIX/); } catch (e) { if (!/TED/.test(valorSel(sels[0]))) await escolher(sels[0], /TED/); } }
       await escolher(sels[1], re);
       await escolher(sels[2], /CONTA CORRENTE INDIVIDUAL/);
       // vendedor
@@ -416,16 +426,17 @@
       await esperar(() => /cadastradas com sucesso|Link enviado/i.test(document.body.innerText + alertas().join()), 60000);
       await semErro('Gerar propostas').catch(e => { if (!/Sucesso/i.test(e.message)) throw e; });
       await fecharAlertas();
-      const nro = (tx(document.body).match(/N[ºo°]? ?Proposta.{0,40}?(\d{8,10})/) || tx(document.body).match(/\b(8\d{8})\b/) || [])[1] || '';
+      const nro = (tx(document.body).match(/N[ºo°]? ?Proposta.{0,40}?(\d{8,10})/) || tx(document.body).match(/\b(8\d{8})\b/) || [])[1] || ('simulação ' + ((tx(document.body).match(/N° ?(\d{6,})/) || [])[1] || ''));
       await clicar(/FORMALIZAR PROPOSTAS/i);
       await esperar(() => /Formaliza[çc][ãa]o Digital/.test(document.body.innerText), 30000);
       let copiado = '';
       const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;   // o portal copia no contexto da página
       try { const cb = W.navigator.clipboard; const orig = cb.writeText.bind(cb); cb.writeText = t => { copiado = String(t); try { return orig(t); } catch (e) { return Promise.resolve(); } }; } catch (e) {}
       try { const ex = W.document.execCommand.bind(W.document); W.document.execCommand = (c, ...r) => { if (/copy/i.test(c)) { const sel = W.getSelection && String(W.getSelection()); const ta = W.document.activeElement; copiado = copiado || (ta && ta.value) || sel || ''; } return ex(c, ...r); }; } catch (e) {}
-      const icones = [...document.querySelectorAll('button, a, mat-icon')].filter(e => vis(e) && /^link$/i.test(tx(e)));
-      const icone = icones[icones.length - 1]; if (!icone) throw new Error('Ícone de link não encontrado');
-      (icone.closest('button,a') || icone).click(); await sleep(2000);
+      // ícone de link à direita de "LINK DE FORMALIZAÇÃO" (img.icon-link); a tela demora a carregar
+      const icone = await esperar(() => { const im = [...document.querySelectorAll('img.icon-link, img[class*=link]')].filter(vis).pop(); if (im) return im.closest('button,a') || im; const mi = [...document.querySelectorAll('mat-icon')].filter(e => vis(e) && /^link$/i.test(tx(e))).pop(); return mi && (mi.closest('button,a') || mi); }, 60000, 500);
+      if (!icone) throw new Error('Ícone de link não encontrado');
+      await sleep(1000); icone.click(); await sleep(2500);
       await fecharAlertas();
       if (!/^https?:/.test(copiado)) { const m = tx(document.body).match(/https?:\/\/dcy\.app\/\w+/); if (m) copiado = m[0]; }
       if (!/^https?:/.test(copiado)) { try { copiado = await navigator.clipboard.readText(); } catch (e) {} }
