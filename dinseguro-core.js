@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.10
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.11
 
 
 (function () {
@@ -613,7 +613,7 @@
       await combo(/^Grau de instrução$/, 'NAO', /N[ÃA]O DECLARADO/);
       // endereço
       const cep = campo(/^CEP$/); if (cep && !so(cep.value)) { if (!f.cep) throw new Error('Falta CEP na ficha'); await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
-      const nu = campo(/^Número$/); if (nu && !nu.value) await digitar(nu, '0');
+      const nu = campo(/^Número$/); if (nu && (!nu.value || nu.value === '0') && so(f.numero)) await digitar(nu, so(f.numero)); else if (nu && !nu.value) await digitar(nu, '0');
       // banco
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
