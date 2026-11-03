@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.4
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.5
 
 
 (function () {
@@ -106,10 +106,13 @@
         const linhas = info ? info.innerText.split('\n').map(s => s.trim()).filter(Boolean) : [];
         // linhas: [nome, (ícone check/done_all = mensagem NOSSA | nº de não lidas)?, mensagem?, hora, ...selo]
         let i = 1, nossa = false, naoLidas = 0, msg = '';
-        if (/^(check|done_all|done|schedule)$/.test(linhas[i] || '')) { nossa = true; i++; }
+        // ícone de enviada (check/done_all) aparece tanto para o bot quanto para atendente: só pula o ícone
+        if (/^(check|done_all|done|schedule)$/.test(linhas[i] || '')) { i++; }
         if (/^\d{1,3}$/.test(linhas[i] || '')) { naoLidas = +linhas[i]; i++; }
         if (linhas[i] && !/^(\d{1,2}:\d{2}|\d+\s*[smhd]|ontem|\d{1,2}\/\d{1,2})/i.test(linhas[i])) msg = linhas[i];
-        if (/^\[(🤖\s*)?Dinseguro\]|^\[R[ôo]mulo/i.test(msg)) nossa = true;
+        // regra da Stefany: mensagem de ATENDENTE vem com o nome em cima ([Dinseguro], [Rômulo Lima], Stefany…);
+        // mensagem SEM nome é do bot → o cliente ainda não foi atendido por ninguém.
+        if (/^\[[^\]]{2,40}\]/.test(msg)) nossa = true;
         return { id, nome: linhas[0] || '', chip, naoLidas, msg, nossa };
       }).filter(x => x.id);
       if (!itens.length) return;
@@ -128,7 +131,7 @@
         if (humano) continue;
         const handoff = /atendente humano|Aguarde um momento|Estou analisando suas informa|Assim que concluir irei avisar/i.test(x.msg);
         const nosso = /Dinseguro|Bot desligado/i.test(x.chip);
-        const esperando = handoff || (nosso && !x.nossa && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)));
+        const esperando = !x.nossa && (handoff || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip))));
         if (!esperando) continue;
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, quando: velho ? velho.quando : new Date().toISOString() });
