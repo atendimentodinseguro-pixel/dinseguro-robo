@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.0
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.1
 
 
 (function () {
@@ -615,8 +615,11 @@
       const ade = await esperar(() => (tx(document.body).match(/Gerada com sucesso.{0,60}?(\d{8,10})/) || [])[1], 90000);
       if (!ade) { const st = (tx(document.body).match(/Status.{0,200}/) || [''])[0]; throw new Error('Proposta não gerada. ' + st.slice(0, 150)); }
       log('Proposta BMG ' + ade, 'ok');
-      await clicar(/^Gerar link de formaliza/i, 30000);
-      await esperar(() => btn(/^Copiar link$/), 30000);
+      // o botão "Gerar link" às vezes não responde ao 1º clique: clica de novo (com eventos de mouse) até aparecer "Copiar link"
+      const cliqueReal = el => { el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); const o = { bubbles: true, cancelable: true, clientX: q.x + q.width / 2, clientY: q.y + q.height / 2, view: window }; ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(t => el.dispatchEvent(t.startsWith('pointer') ? new PointerEvent(t, o) : new MouseEvent(t, o))); };
+      await esperar(() => btn(/^Gerar link de formaliza/i), 30000);
+      for (let k = 0; k < 8 && !btn(/^Copiar link$/); k++) { const g = btn(/^Gerar link de formaliza/i); if (g) cliqueReal(g); await esperar(() => btn(/^Copiar link$/), 5000); }
+      if (!btn(/^Copiar link$/)) throw new Error('Botão Copiar link não apareceu (proposta ' + ade + ' já gerada)');
       let copiado = '';
       const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
       try { const cb = W.navigator.clipboard; const orig = cb.writeText.bind(cb); cb.writeText = t => { copiado = String(t); try { return orig(t); } catch (e) { return Promise.resolve(); } }; } catch (e) {}
