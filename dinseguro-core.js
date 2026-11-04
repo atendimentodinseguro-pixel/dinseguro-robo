@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.16
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.17
 
 
 (function () {
@@ -33,14 +33,14 @@
     if (idade > 73) return { banco: 'HUMANO', motivo: 'Acima de 73 anos: passar para atendente.' };
     if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'Espécie 87/88: R$400+ vai para atendente, senão /n30.' };
     if (num(f.parcela) < 20) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 20: /n30.' };
-    // regra de 03/11/2026: demais espécies → BMG; invalidez até 57 → C6, 58–59 → QUALI (humano), 60–73 → BMG
+    // regra de 04/11/2026: demais espécies → BMG; invalidez NUNCA no BMG: até 57 → C6, 58–59 → QUALI (humano), 60–73 → FACTA
     let banco = 'BMG';
     if (INVALIDEZ.includes(esp)) {
-      if (idade >= 60) banco = 'BMG';
+      if (idade >= 60) banco = 'FACTA';
       else if (idade >= 58) return { banco: 'HUMANO', motivo: 'Invalidez 58–59 anos: vai para QUALI (fora deste script).' };
       else banco = 'C6';
     }
-    if (liberadoEst < 6000) banco = 'BMG';   // abaixo de R$ 6 mil → BMG (antes era FACTA)
+    if (liberadoEst < 6000 && !INVALIDEZ.includes(esp)) banco = 'BMG';   // abaixo de R$ 6 mil → BMG (só não-invalidez)
     return { banco, motivo: `Liberado estimado R$ ${brl(liberadoEst)}${INVALIDEZ.includes(esp) ? ' · invalidez' : ''}` };
   }
 
