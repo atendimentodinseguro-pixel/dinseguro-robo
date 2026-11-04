@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.14
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.15
 
 
 (function () {
@@ -559,10 +559,17 @@
       await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
       if ((campo(/^UF$/) || {}).value !== f.uf) { await sleep(800); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$')); }
       // v3.7: a Renda vem "R$ 0,00" (não vazia) — sem renda o BMG não presume a margem e some a oferta de empréstimo
-      const renda = campo(/^Renda$/); if (!+so(renda.value)) { await digitar(renda, so(f.renda || '1621,00')); renda.dispatchEvent(new Event('blur', { bubbles: true })); }
+      // v3.15: renda mínima = salário mínimo (R$ 1.621,00)
+      const num = v => +String(v || '').replace(/[^\d,]/g, '').replace(',', '.') || 0;
+      const rendaOk = Math.max(num(f.renda), 1621);
+      const renda = campo(/^Renda$/); if (num(renda.value) < 1621 || !+so(renda.value)) { await digitar(renda, String(Math.round(rendaOk * 100))); renda.dispatchEvent(new Event('blur', { bubbles: true })); }
       const temMargem = () => +so((campo(/^Empréstimo Consignado$/) || {}).value) > 0;
       await esperar(temMargem, 10000);
       if (!temMargem()) throw new Error('BMG não presumiu a margem (confira Renda e UF na Identificação)');
+      // v3.15: o BMG presume 35% da renda; troca pela MARGEM REAL (Multicorban/OnlineFlash) antes de continuar
+      const mReal = num(f.margem) || (num(f.parcela) ? num(f.parcela) + 0.01 : 0);
+      const mc = campo(/^Empréstimo Consignado$/);
+      if (mReal > 0 && Math.abs(num(mc.value) - mReal) > 0.009) { const pres = mc.value; await digitar(mc, String(Math.round(mReal * 100))); mc.dispatchEvent(new Event('blur', { bubbles: true })); await sleep(800); log('Margem BMG ' + pres + ' → margem real R$ ' + mReal.toFixed(2).replace('.', ',')); }
       log('Identificação ok · margem BMG ' + (campo(/^Empréstimo Consignado$/) || {}).value);
       await clicar(/^Continuar$/);
     }
