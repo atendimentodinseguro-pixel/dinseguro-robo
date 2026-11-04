@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.15
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.16
 
 
 (function () {
@@ -616,7 +616,8 @@
       await combo(/^Estado civil$/, 'SOLT', /^SOLTEIRO$/);
       const cel = campo(/^Celular$/); const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
       if (cel && so(cel.value).length < 10) { if (t.length < 10) throw new Error('Falta celular na ficha'); await digitar(cel, t); await sleep(1500); }
-      const em = campo(/^Email$/); if (em && !em.value) await digitar(em, f.email || PADRAO.email);
+      // v3.16: BMG não aceita o mesmo e-mail em CPFs diferentes → naoinformado1@, 2@, 3@… (sequência)
+      const em = campo(/^Email$/); if (em && !em.value) { let mail = f.email; if (!mail || /^naoinformado@/i.test(mail)) { const n = GM_getValue('email_seq', 1); mail = 'naoinformado' + n + '@gmail.com'; GM_setValue('email_seq', n + 1); log('E-mail usado: ' + mail); } await digitar(em, mail); }
       await combo(/^Grau de instrução$/, 'NAO', /N[ÃA]O DECLARADO/);
       // v3.12: a UF do documento às vezes não fica gravada (mostra RR mas o BMG acusa "UF") → seleciona de novo no fim
       await sleep(500); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
