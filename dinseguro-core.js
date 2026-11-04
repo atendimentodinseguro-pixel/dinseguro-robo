@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.13
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.14
 
 
 (function () {
@@ -18,7 +18,7 @@
 
   const so = s => (s || '').replace(/\D/g, '');
   // v3.10: agência válida = 4 dígitos (ou 4 + dígito); fora disso está errada → 0001. Banco do cliente sempre que existir.
-  const agOk = a => { const d = so(a); return d.length === 4 ? d : d.length === 5 ? d.slice(0, 4) : '0001'; };
+  const agOk = a => { const d = so(a); return d.length === 4 ? d : d.length === 3 ? '0' + d : d.length === 5 ? d.slice(0, 4) : '0001'; };   // v3.14: 3 dígitos → zero na frente
   const bancoOk = b => { const d = so(b); return d && !/^0+$/.test(d) ? d.padStart(3, '0') : ''; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const num = s => parseFloat(String(s || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0;
