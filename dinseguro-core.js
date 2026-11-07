@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.44';
+  const VERSAO = '3.45';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -291,6 +291,9 @@
     // Varredura das conversas vencidas (Stefany, 07/11 16:44): quem não teve interação
     // nenhuma leva só a tag e a conversa é encerrada, sem mandar mensagem.
     classifica_fecha: { atalho: null,   tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: true },
+    // encerra sem mensagem e sem mexer nas tags (quem já tem a tag certa, como o 01 A de
+    // quem recebeu proposta, e o follow-up já saiu por fora do Botmaker).
+    fecha:            { atalho: null,   tags: [], fechar: true },
   };
   const TAG_Q15 = 'Q15 - tem margem para cartão';
   const EDICAO_LOAS = [
