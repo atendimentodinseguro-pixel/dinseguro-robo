@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.56';
+  const VERSAO = '3.57';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -737,6 +737,13 @@
     async function varrerJanelaVencida() {
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
+      // Stefany, 07/11 19:27: "esse robô roda de 8 da manhã às 8 da noite. Depois
+      // disso, não." Vale para a rodada automática E para o "rodar agora".
+      const hora = new Date().getHours();
+      if (hora < 8 || hora >= 20) {
+        log && log('Varredura: fora do horário (8h às 20h). Não vou rodar agora.', 'erro');
+        return;
+      }
       varrendo = true;
       let feitas = 0;
       const J = janelaVarredura();
