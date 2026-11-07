@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.43';
+  const VERSAO = '3.44';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1172,6 +1172,17 @@
     // Decisão da Stefany, 07/11/2026: o robô confere as regras e dispara a flash
     // sozinho. Se não couber, ou se falhar, segue com a consulta normal sem travar.
     const FLASH_DIAS = 15;
+    // lê "Data do extrato" da tela. Data completa = houve IN100/flash naquele dia.
+    // Só o mês ("10/2026") = base antiga, não conta como consulta.
+    function dataDoExtrato() {
+      const L = document.body.innerText.split('\n').map(x => x.trim()).filter(Boolean);
+      const i = L.findIndex(x => /^Data do extrato\s*:?$/i.test(x));
+      if (i < 0) return null;
+      const m = (L[i + 1] || '').match(/^([0-3]\d)\/([01]\d)\/(20\d\d)$/);
+      if (!m) return null;
+      const dt = new Date(+m[3], +m[2] - 1, +m[1]);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
     const flashFeitas = () => GM_getValue('flash_feitas', {});
     const flashRecente = ben => { const d = flashFeitas()[ben]; return d && (Date.now() - d) < FLASH_DIAS * 864e5 ? d : 0; };
     const marcarFlash = ben => { const m = flashFeitas(); m[ben] = Date.now(); GM_setValue('flash_feitas', m); };
@@ -1188,6 +1199,18 @@
       if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
       const fora = GM_getValue('flash_fora_ate', 0);
       if (fora && Date.now() < fora) return 'flash fora do ar (tentada há pouco; volta a tentar às ' + new Date(fora).toLocaleTimeString('pt-BR').slice(0, 5) + ')';
+      // ⚠️ 07/11 17:05 (Stefany): a memória do robô só conhece as flashes que ELE disparou.
+      // Consulta feita por ela, pelo Rômulo ou por outro chat era invisível, e o robô ia
+      // gastar consulta de novo. A tela do Multicorban diz a verdade: quando o benefício
+      // teve IN100/flash, o campo "Data do extrato" vira uma DATA COMPLETA (06/11/2026);
+      // sem flash recente ele mostra só o mês (10/2026).
+      const dExtrato = dataDoExtrato();
+      if (dExtrato) {
+        const dias = (Date.now() - dExtrato.getTime()) / 864e5;
+        if (dias < FLASH_DIAS)
+          return 'já teve consulta em ' + dExtrato.toLocaleDateString('pt-BR') +
+                 ' (Data do extrato na tela; limite: 1 a cada ' + FLASH_DIAS + ' dias)';
+      }
       const d = flashRecente(f.beneficio);
       if (d) return 'já teve flash em ' + new Date(d).toLocaleDateString('pt-BR') + ' (limite: 1 a cada ' + FLASH_DIAS + ' dias)';
       if (GM_getValue('extrato_hoje', '') === f.beneficio) return 'cliente mandou extrato de hoje';
