@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.45';
+  const VERSAO = '3.46';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -641,6 +641,134 @@
       }
     }
     setInterval(olharFollowups, 60000);
+
+    // =====================================================================
+    // VARREDURA AUTOMÁTICA DAS CONVERSAS COM A JANELA VENCIDA
+    // Stefany, 07/11 17:46: "isso aí tem que ser automático".
+    // Roda sozinha de 30 em 30 minutos. Regras em claude/VARREDURA-JANELA-VENCIDA.md:
+    //   entra quem está entre 12 e 48 horas sem resposta E com a janela vencida;
+    //   sem interação (sem CPF, sem proposta, sem link) → tag 01 C e encerra;
+    //   com interesse claro → NÃO encerra sozinha: entra na lista de follow-up,
+    //   porque a mensagem tem que sair pelo WhatsApp normal, que o robô não acessa.
+    // Trava: no máximo 5 conversas por rodada, e nunca mexe em chat onde um humano
+    // falou nas últimas 2 horas.
+    const VARRE_MIN = 12 * 3600000, VARRE_MAX = 48 * 3600000, VARRE_MAX_RODADA = 5;
+    const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
+
+    function idadeDaConversa() {
+      const e = document.querySelector('.entries');
+      if (!e) return null;
+      const L = e.innerText.split('\n').map(x => x.trim()).filter(Boolean);
+      // última marca "Sessão dd/mm/aaaa hh:mm" + a última hora que aparece depois dela
+      let dt = null;
+      for (let i = L.length - 1; i >= 0; i--) {
+        const m = L[i].match(/^Sess[ãa]o\s+(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+        if (m) { dt = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]); break; }
+      }
+      if (!dt) return null;
+      // a última hora solta da conversa (hh:mm, com ou sem AM/PM) refina o horário
+      const hh = L.filter(l => /^\d{1,2}:\d{2}(:\d{2})?( ?(AM|PM))?$/i.test(l)).slice(-1)[0];
+      if (hh) {
+        const m2 = hh.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+        if (m2) {
+          let h = +m2[1];
+          if (/PM/i.test(m2[3] || '') && h < 12) h += 12;
+          if (/AM/i.test(m2[3] || '') && h === 12) h = 0;
+          const d2 = new Date(dt); d2.setHours(h, +m2[2], 0, 0);
+          if (d2 >= dt) dt = d2;                  // mesma data da sessão, hora mais tarde
+        }
+      }
+      return Date.now() - dt.getTime();
+    }
+
+    function humanoRecente() {
+      const e = document.querySelector('.entries');
+      if (!e) return false;
+      // nome de atendente humano aparece como "[Fulano 👤]"
+      const t = e.innerText.slice(-3000);
+      return /\[[^\]]*👤\]/.test(t);
+    }
+
+    function perfilDaConversa() {
+      const e = document.querySelector('.entries');
+      const t = e ? e.innerText : '';
+      return {
+        cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t),
+        link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin)/i.test(t),
+        prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t)
+      };
+    }
+
+    let varrendo = false;
+    async function varrerJanelaVencida() {
+      if (varrendo || rodando || fupRodando) return;
+      if (!GM_getValue('varredura_ligada', true)) return;
+      varrendo = true;
+      let feitas = 0;
+      try {
+        const nomes = listaDeNomes();
+        for (const nome of nomes) {
+          if (feitas >= VARRE_MAX_RODADA) break;
+          if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
+          if (GM_getValue('varredura_vistos', {})[nome]) continue;
+          const ok = await abrirPeloNome(nome);
+          if (!ok) continue;
+          const idade = idadeDaConversa();
+          if (idade === null || idade < VARRE_MIN || idade > VARRE_MAX) continue;
+          if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) continue;
+          if (humanoRecente()) continue;
+          const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
+          const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
+          const p = perfilDaConversa();
+          const horas = Math.round(idade / 3600000);
+          if (p.cpf || p.link || p.prop) {
+            // tem interesse: a mensagem sai pelo WhatsApp normal, fora do robô
+            const fila = GM_getValue('varredura_followup', []);
+            if (!fila.find(x => x.hash === hash)) {
+              fila.push({ hash, fone, nome, horas, quando: Date.now() });
+              GM_setValue('varredura_followup', fila);
+              log && log('Varredura: ' + nome + ' (' + horas + 'h) entrou na fila de follow-up do WhatsApp.', 'ok');
+            }
+          } else {
+            localStorage.setItem('dins_ordem', JSON.stringify({
+              hash, acao: 'classifica_fecha', quem: 'varredura',
+              nota: 'Varredura automática ' + new Date().toLocaleString('pt-BR').slice(0, 16) +
+                    ' - janela vencida ha ' + horas + 'h, sem CPF e sem interacao.',
+              t: Date.now()
+            }));
+            log && log('Varredura: ' + nome + ' (' + horas + 'h) sem interação — classificando e encerrando.', 'ok');
+            await esp(45000);                       // deixa o desfecho terminar
+          }
+          const vistos = GM_getValue('varredura_vistos', {});
+          vistos[nome] = Date.now();
+          GM_setValue('varredura_vistos', vistos);
+          feitas++;
+        }
+      } catch (e) { log && log('Varredura parou: ' + e.message, 'erro'); }
+      finally { varrendo = false; }
+    }
+
+    // helpers da varredura: lista de nomes e abrir pelo nome
+    function listaDeNomes() {
+      return [...new Set([...document.querySelectorAll('.customer-item')]
+        .map(x => (x.innerText.split('\n').filter(Boolean)[1] || '')).filter(Boolean))];
+    }
+    async function abrirPeloNome(nome) {
+      const it = [...document.querySelectorAll('.customer-item')]
+        .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
+      if (!it) return false;
+      const alvo = [...it.querySelectorAll('*')]
+        .find(x => x.children.length === 0 && txt(x) === nome) || it;
+      clicar(alvo);
+      await esp(6000);
+      return !!document.querySelector('.entries');
+    }
+
+    // a cada 30 minutos, e a primeira 3 minutos depois de a aba abrir
+    setTimeout(varrerJanelaVencida, 3 * 60000);
+    setInterval(varrerJanelaVencida, 30 * 60000);
+    // para desligar: GM_setValue('varredura_ligada', false)
+    // fila de quem precisa de follow-up pelo WhatsApp: GM_getValue('varredura_followup', [])
 
     // gatilho de fora da aba (o atendimento manda o link e avisa o robô)
     setInterval(() => {
