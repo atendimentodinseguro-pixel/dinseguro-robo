@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.23
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.24
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.23';
+  const VERSAO = '3.24';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1030,21 +1030,29 @@
         f.representante = depois('Possui Representante');
         f.rep_dados     = depois('Dados do Representante Legal', 4).join(' | ');
         if (!f.telefone) f.telefone = so(depois('Telefone\\(s\\) do Benefici[áa]rio'));
-        // ---- conta: de onde ela vem (regra da Stefany, 07/11/2026) ----
-        // 1) conta real: Multicorban -> New Corban (Histórico Bancário) -> FullConsig (ignorar banco "V8")
-        // 2) tem banco e AGÊNCIA real, sem conta  -> conta = número da agência, dígito = último dígito dela
-        // 3) tem só o banco, sem agência         -> agência e conta aleatórias do procedimento
-        // 4) não tem nem o banco em lugar nenhum -> /08, pedir a conta ao cliente
+        // ---- conta: HIERARQUIA da Stefany (07/11/2026) ----
+        // Onde procurar a conta, nesta ordem. A primeira que tiver, manda.
+        //   1. CONSULTA FLASH — é a principal.
+        //   2. o que o CLIENTE informou — quando a flash não deu ou ele não se enquadrou.
+        //   3. MULTICORBAN (esta tela).
+        //   4. NEW CORBAN — Histórico Bancário (o robô da digitação já tenta sozinho).
+        //   5. FULLCONSIG — conferência na mão, não tem robô lá. Banco "V8" NÃO vale, desconsiderar.
+        // Não achou a conta em nenhum dos cinco:
+        //   - tem banco e AGÊNCIA real -> conta = número da agência, dígito = último dígito dela;
+        //   - tem só o banco           -> agência e conta aleatórias do procedimento;
+        //   - não tem nem o banco      -> /08, pedir a conta ao cliente.
         // Aleatório é só quando a informação não existe: tendo a agência certa, usa ela.
+        // ⚠️ Os passos 1 e 2 são do atendimento: se a flash ou o cliente deram a conta,
+        //    escreva ela no campo `conta` ANTES de salvar a ficha — ela vence esta tela.
         {
           const agRaw = so(f.agencia), agReal = agRaw.length >= 3 && !/^0+$/.test(agRaw);
           if (so(f.conta)) f.conta_origem = 'Multicorban';
-          else if (!so(f.banco)) f.conta_origem = 'SEM BANCO — conferir New Corban e FullConsig; se não houver, /08';
+          else if (!so(f.banco)) f.conta_origem = 'SEM BANCO aqui — conferir New Corban e FullConsig; se não houver em nenhum, /08';
           else if (agReal) {
-            f.conta_origem = 'conferir New Corban e FullConsig; se não tiverem, usar a derivada da agência';
+            f.conta_origem = 'sem conta aqui — conferir New Corban e FullConsig (V8 não vale); se não tiverem, usar a derivada da agência';
             f.conta_sugerida = agOk(f.agencia) + '-' + agOk(f.agencia).slice(-1);
           } else {
-            f.conta_origem = 'só o banco — agência e conta aleatórias do procedimento';
+            f.conta_origem = 'só o banco — conferir New Corban e FullConsig; se não tiverem, agência e conta aleatórias';
           }
         }
         // ---- veredito: por que NÃO atendemos ----
