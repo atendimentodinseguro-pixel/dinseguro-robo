@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.36';
+  const VERSAO = '3.37';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -20,6 +20,16 @@
   // está escrita em lugar nenhum; até ela passar, pensionista com menos de 45 anos
   // NÃO vai para a Qualibank — fica na FACTA e o robô avisa.
   const PENSAO = ['01', '02', '03', '21', '23', '27', '28', '29'];
+
+  // Janela de fim de semana (Stefany, 07/11/2026 14:55): da SEXTA às 17h até a
+  // MEIA-NOITE de DOMINGO, quem está abaixo de R$ 6 mil vai para o C6 em vez da
+  // Qualibank. Fora dessa janela (segunda a sexta até as 17h), segue na Qualibank.
+  // Usa a hora do computador, que é a hora de Brasília da Stefany.
+  function janelaC6(agora) {
+    const d = agora || new Date();
+    const dia = d.getDay();                 // 0 = domingo, 5 = sexta, 6 = sábado
+    return dia === 6 || dia === 0 || (dia === 5 && d.getHours() >= 17);
+  }
   const PADRAO = {
     dt_emissao: '01/11/2026',
     email: 'naoinformado@gmail.com',
@@ -73,7 +83,9 @@
     // de 45 anos. Pensionista com menos de 45 anos continua na FACTA até ela passar a regra.
     if (PENSAO.includes(esp) && idade < 45)
       return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil, mas é pensão com menos de 45 anos: FACTA (regra de pensão <45 ainda não escrita — confirmar com a Stefany)' + nota };
-    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil: Qualibank, tabela normal (631)' + nota };
+    if (janelaC6())
+      return { banco: 'C6', motivo: 'Abaixo de R$ 6 mil, mas é fim de semana (sexta depois das 17h até domingo): C6' + nota };
+    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil em dia de semana: Qualibank, tabela normal (631)' + nota };
   }
 
 
