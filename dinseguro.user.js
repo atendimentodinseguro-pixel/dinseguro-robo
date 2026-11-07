@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6 e Daycoval)
 // @namespace    dinseguro
-// @version      3.0
+// @version      3.1
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -33,9 +33,13 @@
     headers: { 'Cache-Control': 'no-cache' },
     onload: r => (r.status === 200 ? ok(r.responseText) : falha()), onerror: falha, ontimeout: falha });
   const usarCache = () => { const c = GM_getValue('core_cache', ''); if (c) rodar(c, 'cópia guardada'); else console.error('[Dinseguro] sem código do robô'); };
-  const baixar = ref => get('https://raw.githubusercontent.com/' + REPO + '/' + ref + '/dinseguro-core.js', codigo => {
+  // sha: só é anotado DEPOIS que o download deu certo. Antes era anotado antes, e um
+  // download que falhasse deixava o loader preso na cópia velha para sempre (07/11/2026).
+  const baixar = (ref, sha) => get('https://raw.githubusercontent.com/' + REPO + '/' + ref + '/dinseguro-core.js', codigo => {
     if (!/Dinseguro/.test(codigo)) return usarCache();
-    GM_setValue('core_cache', codigo); rodar(codigo, ref.slice(0, 7));
+    GM_setValue('core_cache', codigo);
+    if (sha) GM_setValue('core_sha', { sha, t: Date.now() });
+    rodar(codigo, ref.slice(0, 7));
   }, usarCache);
   // pega o último commit (evita o cache de 5 min do GitHub); se a API falhar, usa "main"
   // (consulta a API no máximo a cada 3 min, para não estourar o limite do GitHub)
@@ -44,8 +48,10 @@
   get('https://api.github.com/repos/' + REPO + '/commits/main', t => {
     let sha = ''; try { sha = JSON.parse(t).sha || ''; } catch (e) {}
     if (!sha) return baixar('main');
-    GM_setValue('core_sha', { sha, t: Date.now() });
-    if (sha === ult.sha && GM_getValue('core_cache', '')) return rodar(GM_getValue('core_cache'), 'cópia ' + sha.slice(0, 7));
-    baixar(sha);
+    if (sha === ult.sha && GM_getValue('core_cache', '')) {
+      GM_setValue('core_sha', { sha, t: Date.now() });
+      return rodar(GM_getValue('core_cache'), 'cópia ' + sha.slice(0, 7));
+    }
+    baixar(sha, sha);
   }, () => baixar('main'));
 })();
