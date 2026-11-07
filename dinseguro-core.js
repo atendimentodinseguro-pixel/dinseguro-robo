@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.46';
+  const VERSAO = '3.47';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -652,7 +652,9 @@
     //   porque a mensagem tem que sair pelo WhatsApp normal, que o robô não acessa.
     // Trava: no máximo 5 conversas por rodada, e nunca mexe em chat onde um humano
     // falou nas últimas 2 horas.
-    const VARRE_MIN = 12 * 3600000, VARRE_MAX = 48 * 3600000, VARRE_MAX_RODADA = 5;
+    // Stefany, 07/11 17:54: "pode pegar geral" — sem limite por rodada. O teto alto
+    // continua só como trava de segurança contra laço infinito.
+    const VARRE_MIN = 12 * 3600000, VARRE_MAX = 48 * 3600000, VARRE_MAX_RODADA = 500;
     const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
 
     function idadeDaConversa() {
@@ -706,7 +708,7 @@
       varrendo = true;
       let feitas = 0;
       try {
-        const nomes = listaDeNomes();
+        const nomes = await listaCompleta();   // rola a lista inteira antes de começar
         for (const nome of nomes) {
           if (feitas >= VARRE_MAX_RODADA) break;
           if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
@@ -752,6 +754,21 @@
     function listaDeNomes() {
       return [...new Set([...document.querySelectorAll('.customer-item')]
         .map(x => (x.innerText.split('\n').filter(Boolean)[1] || '')).filter(Boolean))];
+    }
+    // rola a lista de chats até o fim para pegar TODOS os nomes, não só os visíveis
+    async function listaCompleta() {
+      let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
+      for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
+      if (!sc) return listaDeNomes();
+      const todos = new Set();
+      sc.scrollTop = 0; await esp(700);
+      for (let n = 0; n < 40; n++) {
+        listaDeNomes().forEach(x => todos.add(x));
+        const antes = sc.scrollTop; sc.scrollTop += 500; await esp(400);
+        if (sc.scrollTop === antes) break;
+      }
+      sc.scrollTop = 0; await esp(500);
+      return [...todos];
     }
     async function abrirPeloNome(nome) {
       const it = [...document.querySelectorAll('.customer-item')]
