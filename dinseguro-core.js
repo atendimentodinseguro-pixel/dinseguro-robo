@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.60';
+  const VERSAO = '3.61';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -795,10 +795,26 @@
       if (!GM_getValue('varredura_ligada', true)) return;
       // Stefany, 07/11 19:27: "esse robô roda de 8 da manhã às 8 da noite. Depois
       // disso, não." Vale para a rodada automática E para o "rodar agora".
+      // ⚠️ 3.61 (07/11 20:45) — EXCEÇÃO DE HORÁRIO, SÓ A PEDIDO DELA E SÓ UMA VEZ.
+      // O horário de 8h às 20h é decisão da Stefany e continua valendo por padrão. Mas
+      // ela já pediu exceção duas vezes em 07/11 ("Abre uma exceção rode agora", 20:09;
+      // "rode hoje, eu quero isso consertar", 20:27), e até aqui a única saída era mexer
+      // no relógio da página, que é gambiarra. Agora existe um caminho explícito:
+      //    localStorage.setItem('dins_varrer_fora_do_horario', '1')
+      // Vale para UMA rodada: a chave é apagada assim que é usada, e a rodada fica
+      // marcada no placar (`fora_do_horario: true`). Sem a chave, nada muda.
+      // ⛔ Nunca ligar isso sozinho. Só quando ela mandar.
       const hora = new Date().getHours();
-      if (hora < 8 || hora >= 20) {
-        log && log('Varredura: fora do horário (8h às 20h). Não vou rodar agora.', 'erro');
-        return;
+      const foraDoHorario = hora < 8 || hora >= 20;
+      let excecaoHorario = false;
+      if (foraDoHorario) {
+        excecaoHorario = localStorage.getItem('dins_varrer_fora_do_horario') === '1';
+        localStorage.removeItem('dins_varrer_fora_do_horario');
+        if (!excecaoHorario) {
+          log && log('Varredura: fora do horário (8h às 20h). Não vou rodar agora.', 'erro');
+          return;
+        }
+        log && log('Varredura: fora do horário, mas rodando por exceção autorizada.', 'ok');
       }
       varrendo = true;
       let feitas = 0;
@@ -809,7 +825,8 @@
       //   JSON.parse(localStorage.dins_varredura_placar)
       const placar = { janela: J.txt, inicio: new Date().toLocaleTimeString('pt-BR').slice(0,5),
                        lista: 0, abertos: 0, idade_fora: 0, janela_aberta: 0, humano: 0,
-                       classificados: 0, followup: 0, nao_abriu: 0, fim: '' };
+                       classificados: 0, followup: 0, nao_abriu: 0, fim: '',
+                       fora_do_horario: excecaoHorario || undefined };
       const salvaPlacar = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
       salvaPlacar();
       try {
