@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.40';
+  const VERSAO = '3.41';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -286,8 +286,7 @@
     // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
     // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
     // Não fecha a conversa: quem encerra é o próprio fluxo.
-    idade_77:         { atalho: () => GM_getValue('atalho_inicio', ''), nomeFluxo: 'Início do atendimento',
-                        tags: ['Acima De 80 Anos'], fechar: false },
+    idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
   };
   const TAG_Q15 = 'Q15 - tem margem para cartão';
@@ -343,6 +342,26 @@
     // ('Início do atendimento', usado nos clientes acima de 76 anos — Stefany, 07/11 15:59).
     // No caso do nome, digita '/' + nome e escolhe a opção pelo nome, sem acento e sem caixa.
     const semAcento = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    // EXECUTAR FLOW: alguns textos não são resposta rápida com atalho, são FLUXO
+    // (Stefany, 07/11 16:18: "você clica lá naquela parte de executar flow"). Caminho:
+    // ícone .flow-selector-menu no topo do chat → campo "Buscar fluxos" → clicar no nome.
+    async function executarFluxo(nome) {
+      const botao = await ate(() => document.querySelector('.flow-selector-menu'), 8000);
+      if (!botao) throw new Error('não achei o botão de executar flow');
+      clicar(botao); await esp(1500);
+      const campo = await ate(() => [...document.querySelectorAll('input')]
+        .filter(vis).find(e => /Buscar fluxos/i.test(e.placeholder || '')), 8000);
+      if (!campo) throw new Error('a janela EXECUTAR FLOW não abriu');
+      campo.focus(); setNativo(campo, ''); await esp(500);
+      setNativo(campo, semAcento(nome).split(' ')[0]);   // "inicio" basta para filtrar
+      const op = await ate(() => [...document.querySelectorAll('.flow-selector__item-name')]
+        .filter(vis).find(e => semAcento(txt(e)) === semAcento(nome)), 8000);
+      if (!op) throw new Error('o fluxo "' + nome + '" não apareceu na busca');
+      clicar(op.closest('.flow-selector__item-data') || op);
+      await esp(3000);
+      return 'fluxo ' + nome;
+    }
+
     async function respostaRapida(atalho, editar) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
@@ -363,13 +382,17 @@
         let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
         ta2.focus(); setNativo(ta2, v); await esp(600);
       }
-      const trecho = document.querySelector('textarea').value
+      const valorEnviado = document.querySelector('textarea').value;
+      const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
         .replace(/[*_]/g, '').includes(trecho.trim().slice(0, 30));
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
+      // Stefany, 07/11 16:18: quem registra o link sou eu. Toda mensagem que sai com
+      // link (o /bn54n e o /parabens levam link) agenda sozinha o follow-up de 10 e 60 min.
+      if (/https?:\/\//.test(valorEnviado || '')) agendarSeTiverLink();
       return trecho.trim().slice(0, 40);
     }
 
@@ -501,11 +524,8 @@
       grava('rodando');
       try {
         await abrir(o.hash);                               passos.push('abriu');
-        const atalhoD = typeof d.atalho === 'function' ? d.atalho() : d.atalho;
-        if (d.nomeFluxo && !atalhoD)
-          throw new Error('a resposta rápida "' + d.nomeFluxo + '" está SEM ATALHO no Botmaker. ' +
-            'Peça à Stefany para criar o atalho e rode: GM_setValue("atalho_inicio", "/oatalho")');
-        if (atalhoD) { passos.push('msg:' + await respostaRapida(atalhoD, d.editar)); }
+        if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
+        else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
         else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
         const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
@@ -529,6 +549,15 @@
     // respondido nada nesse tempo. Era o que o robô antigo fazia e tinha se
     // perdido no caminho.
     // A fila fica no GM storage, então sobrevive a F5 e a troca de aba.
+    // chamada por quem acabou de mandar uma mensagem com link: descobre o chat aberto
+    // e agenda os dois follow-ups. É o "registrar o link" que a Stefany pediu que fosse meu.
+    function agendarSeTiverLink() {
+      const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
+      if (!hash) return;
+      const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
+      window.dinsLinkEnviado(hash, fone);
+    }
+
     const FUPS = () => GM_getValue('followups', []);
     const gravaFups = l => GM_setValue('followups', l);
 
