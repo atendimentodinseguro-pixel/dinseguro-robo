@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.30
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.31
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.30';
+  const VERSAO = '3.31';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -67,7 +67,7 @@
 
 
   // Ficha em texto (chave: valor) <-> objeto
-  const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
+  const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
     'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash'];
@@ -1202,6 +1202,7 @@
           log(`⛔ NÃO ATENDEMOS — ${r[0]}. Tag ${r[1]}. ${r[2]}`, 'erro');
         } else {
           log(`Destino: ${d.banco} — ${d.motivo}`, ['NAO', 'HUMANO'].includes(d.banco) ? 'erro' : 'ok');
+          log('↑ isso é pelo valor MÁXIMO da margem. Se o cliente quiser menos, escreva `valor:` (ou troque a `parcela:`) e salve: o banco é recalculado.');
         }
         const ddb = f.ddb.split('/').reverse().join('-'); const dias = (Date.now() - new Date(ddb)) / 864e5;
         if (dias >= 90 && margem >= 20) {
@@ -1237,6 +1238,30 @@
       if (a === 'Salvar ficha') {
         const f = textoParaFicha(ta.value);
         if (!f.cpf) { log('Ficha vazia.', 'erro'); return; }
+        // ---- o banco depende do VALOR que vai ser feito, não da margem máxima ----
+        // Quem tem margem para R$ 25 mil mas só quer R$ 15 mil vai para a FACTA, não para o C6.
+        // O valor vem do chat, então o robô não sabe dele na hora de gerar a ficha: decide aqui,
+        // quando o atendimento já escreveu `valor:` (o que o cliente quer) ou ajustou a `parcela:`.
+        {
+          const margem = num(f.margem), pedido = num(f.valor);
+          if (pedido > 0) {
+            const pNec = pedido * 648.39 / 28400;
+            const teto = margem > 0 ? margem - 0.01 : 0;
+            if (teto > 0 && pNec > teto) {
+              f.parcela = brl(teto);
+              log(`R$ ${brl(pedido)} não cabe na margem (teto ≈ R$ ${brl(teto * 28400 / 648.39)}). Usando a parcela máxima R$ ${f.parcela}.`, 'erro');
+            } else {
+              f.parcela = brl(pNec);
+              log(`Valor pedido R$ ${brl(pedido)} → parcela R$ ${f.parcela} em ${f.prazo || 108}x.`);
+            }
+          }
+          const antes = (f.banco_destino || '').toUpperCase();
+          const d2 = decidirBanco(f);
+          f.banco_destino = d2.banco;
+          if (antes && antes !== d2.banco) log(`Banco recalculado pelo valor: ${antes} → ${d2.banco}. ${d2.motivo}`, 'ok');
+          else log(`Banco: ${d2.banco} — ${d2.motivo}`);
+          ta.value = fichaParaTexto(f);
+        }
         GM_setValue('ficha_atual', f);
         if (f.recusa) {
           const r = f.recusa.split('|');
