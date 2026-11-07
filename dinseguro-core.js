@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.24
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.25
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.24';
+  const VERSAO = '3.25';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -56,7 +56,7 @@
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
-    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida'];
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -960,9 +960,47 @@
       botao('Salvar ficha', '#16a34a');
     const ta = p.querySelector('#dins-ficha');
 
-    p.addEventListener('click', async e => {
-      const a = e.target.dataset.a; if (!a) return;
-      if (a === 'Gerar ficha') {
+    // ================= CONSULTA FLASH AUTOMÁTICA =================
+    // Decisão da Stefany, 07/11/2026: o robô confere as regras e dispara a flash
+    // sozinho. Se não couber, ou se falhar, segue com a consulta normal sem travar.
+    const FLASH_DIAS = 15;
+    const flashFeitas = () => GM_getValue('flash_feitas', {});
+    const flashRecente = ben => { const d = flashFeitas()[ben]; return d && (Date.now() - d) < FLASH_DIAS * 864e5 ? d : 0; };
+    const marcarFlash = ben => { const m = flashFeitas(); m[ben] = Date.now(); GM_setValue('flash_feitas', m); };
+
+    // '' = pode fazer. Qualquer outra coisa é o motivo de não fazer.
+    function naoFazerFlash(f, margem, temEmprestimo) {
+      const h = new Date().getHours();
+      if (f.recusa) return 'cliente recusado (' + f.recusa.split('|')[0] + ')';
+      if (margem < 20) return 'sem margem';
+      if (margem < 200 && temEmprestimo) return 'margem abaixo de R$ 200 e já tem empréstimo';
+      if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
+      const d = flashRecente(f.beneficio);
+      if (d) return 'já teve flash em ' + new Date(d).toLocaleDateString('pt-BR') + ' (limite: 1 a cada ' + FLASH_DIAS + ' dias)';
+      if (GM_getValue('extrato_hoje', '') === f.beneficio) return 'cliente mandou extrato de hoje';
+      return '';
+    }
+
+    // preenche o formulário de consulta e envia. A página recarrega.
+    async function consultar(modo, beneficio) {
+      const op = document.getElementById(modo === 'flash' ? 'consultaOnlineFlash' : 'offline');
+      const mat = document.getElementById('matricula');
+      if (!op || !mat) throw new Error('não achei as opções da consulta na tela');
+      if (!op.checked) { op.click(); await sleep(1500); }
+      if (!mat.checked) { mat.click(); await sleep(1200); }   // trocar o tipo reseta para CPF
+      const inp = document.getElementById('input');
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      inp.focus(); set.call(inp, ''); inp.dispatchEvent(new Event('input', { bubbles: true }));
+      for (const ch of String(beneficio)) { set.call(inp, inp.value + ch); inp.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' })); }
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(700);
+      const b = [...document.querySelectorAll('button,input[type=submit]')].find(x => x.offsetParent && /Localizar/i.test(x.textContent || x.value || ''));
+      if (!b) throw new Error('não achei o botão Localizar');
+      b.click();
+    }
+
+    async function gerarFicha() {
+      {
         // abre "Informações complementares" para aparecer banco/agência/conta
         const acc = [...document.querySelectorAll('button.accordion-button')].find(b => /Clique aqui para exibir/i.test(b.textContent));
         if (acc && acc.classList.contains('collapsed')) { acc.click(); await sleep(1500); }
@@ -1067,12 +1105,27 @@
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
+        // ---- consulta flash: o robô decide e dispara sozinho ----
+        if (GM_getValue('flash_agora', '') === f.beneficio) { GM_setValue('flash_agora', ''); f.flash = 'feita agora'; }
+        else if (GM_getValue('flash_falhou', '') === f.beneficio) { GM_setValue('flash_falhou', ''); f.flash = 'tentou e falhou — dados da consulta normal'; }
+        else {
+          const temEmprestimo = num(depois('Parcelas atuais')) > 0 || (num(f.renda) > 0 && margem < num(f.renda) * 0.35 - 0.02);
+          const motivo = naoFazerFlash(f, margem, temEmprestimo);
+          if (!motivo) {
+            log('Flash cabe neste cliente. Disparando…');
+            GM_setValue('flash_pedido', { beneficio: f.beneficio, t: Date.now(), fase: 'flash' });
+            try { await consultar('flash', f.beneficio); } catch (er) { GM_setValue('flash_pedido', null); log('Não consegui disparar a flash: ' + er.message, 'erro'); }
+            return;   // a página recarrega; a ficha é gerada na volta
+          }
+          f.flash = 'não fez — ' + motivo;
+        }
         ta.value = fichaParaTexto(f);
         log(`${f.nome} · espécie ${f.especie} · ${f.idade} anos · margem R$ ${brl(margem)} · ${f.situacao || '?'}`);
         log(`Pensão: ${f.pensao || '?'} · Representante: ${f.representante || '?'}`);
         if (f.rmc || f.rcc) log(`RMC: ${f.rmc || '—'} · RCC: ${f.rcc || '—'}`);
         if (f.rep_dados) log('Representante legal: ' + f.rep_dados);
         if (f.conta_origem) log('Conta: ' + f.conta_origem + (f.conta_sugerida ? ' → sugerida ' + f.conta_sugerida : ''));
+        if (f.flash) log('Flash: ' + f.flash);
         if (f.recusa) {
           const r = f.recusa.split('|');
           log(`⛔ NÃO ATENDEMOS — ${r[0]}. Tag ${r[1]}. ${r[2]}`, 'erro');
@@ -1087,6 +1140,29 @@
         }
         log('Complete telefone, e-mail e endereço (se o cliente mandou) e clique Salvar ficha.');
       }
+    }
+
+    // Depois da flash a página volta com os dados novos: o robô termina sozinho.
+    // Se a flash não trouxe nada, refaz a consulta normal e segue.
+    (async () => {
+      const pedido = GM_getValue('flash_pedido', null);
+      if (!pedido || Date.now() - pedido.t > 5 * 60 * 1000) { if (pedido) GM_setValue('flash_pedido', null); return; }
+      await sleep(3500);
+      const temDados = /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText);
+      if (pedido.fase === 'flash') {
+        GM_setValue('flash_pedido', temDados ? null : { beneficio: pedido.beneficio, t: Date.now(), fase: 'normal' });
+        if (temDados) { marcarFlash(pedido.beneficio); GM_setValue('flash_agora', pedido.beneficio); log('Flash concluída.', 'ok'); await gerarFicha(); }
+        else { log('A flash não trouxe dados. Seguindo com a consulta normal.', 'erro'); await consultar('normal', pedido.beneficio); }
+      } else {
+        GM_setValue('flash_pedido', null);
+        if (temDados) { GM_setValue('flash_falhou', pedido.beneficio); await gerarFicha(); }
+        else log('Nem a flash nem a consulta normal trouxeram dados.', 'erro');
+      }
+    })();
+
+    p.addEventListener('click', async e => {
+      const a = e.target.dataset.a; if (!a) return;
+      if (a === 'Gerar ficha') await gerarFicha();
       if (a === 'Salvar ficha') {
         const f = textoParaFicha(ta.value);
         if (!f.cpf) { log('Ficha vazia.', 'erro'); return; }
