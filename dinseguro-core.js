@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.54';
+  const VERSAO = '3.55';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -690,6 +690,21 @@
       return Date.now() - dt.getTime();
     }
 
+    // ⚠️⚠️ 3.55 (07/11 19:15) — ESTE ERA O MOTIVO DE A VARREDURA NUNCA CLASSIFICAR NINGUÉM.
+    // O aviso "A janela de 24 horas está finalizada" NÃO é texto da página: é o
+    // **placeholder do campo de mensagem**. Placeholder não entra em innerText, então o
+    // teste `/janela de 24 horas/.test(document.body.innerText)` dava SEMPRE false e todas
+    // as conversas caíam em "janela_aberta" e eram puladas — inclusive as de 30h, 40h.
+    // Stefany, 19:13: "ele passou por vários aí que estão com janela e não está resolvendo".
+    // Conferido na Santaterezinha (última mensagem dela 06/11 13:34, ~30h): body não tinha
+    // nem a palavra "janela"; o placeholder tinha o aviso inteiro.
+    function janelaFechada() {
+      const ta = document.querySelector('textarea');
+      const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || '';
+      if (/janela de 24 horas est[áa] finalizada|reabri-la usando um Template/i.test(ph)) return true;
+      // reserva: em alguns chats o aviso aparece como texto mesmo
+      return /janela de 24 horas est[áa] finalizada|conversa foi encerrada 24 horas/i.test(document.body.innerText);
+    }
     function humanoRecente() {
       const e = document.querySelector('.entries');
       if (!e) return false;
@@ -767,7 +782,7 @@
             placar.abertos++;
             const idade = idadeDaConversa();
             if (idade === null || idade < J.min || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
-            if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) { placar.janela_aberta++; salvaPlacar(); continue; }
+            if (!janelaFechada()) { placar.janela_aberta++; salvaPlacar(); continue; }
             if (humanoRecente()) { placar.humano++; salvaPlacar(); continue; }
             const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
             const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
