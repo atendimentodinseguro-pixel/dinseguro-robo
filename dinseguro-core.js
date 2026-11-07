@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.27
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.28
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.27';
+  const VERSAO = '3.28';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -33,24 +33,31 @@
   const brl = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Decide banco destino pelas regras combinadas
+  // Tabela do claude/REGRAS-BANCOS.md, atualizada em 07/11/2026.
+  // ⚠️ O BMG saiu em 05/11: tudo que ia para ele vai para a FACTA.
   function decidirBanco(f) {
     const idade = parseInt(f.idade) || 0;
     const esp = String(f.especie || '').padStart(2, '0');
-    const liberadoEst = num(f.parcela) * 28400 / 648.39;
-    if (idade > 76) return { banco: 'NAO', motivo: 'Acima de 76 anos: não fazer.' };
-    if (idade > 73) return { banco: 'HUMANO', motivo: 'Acima de 73 anos: passar para atendente.' };
-    if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'Espécie 87/88: R$400+ vai para atendente, senão /n30.' };
-    if (num(f.parcela) < 20) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 20: /n30.' };
-    // regra de 04/11/2026: demais espécies → BMG; invalidez NUNCA no BMG: até 57 → C6, 58–59 → QUALI (humano), 60–73 → FACTA
-    let banco = 'BMG';
-    if (INVALIDEZ.includes(esp)) {
-      if (idade >= 60) banco = 'FACTA';
-      else if (idade >= 58) return { banco: 'HUMANO', motivo: 'Invalidez 58–59 anos: vai para QUALI (fora deste script).' };
-      else banco = 'C6';
+    const parcela = num(f.parcela);
+    const liberado = parcela * 28400 / 648.39;
+    const inval = INVALIDEZ.includes(esp);
+    if (parcela < 20) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 20: /n30.' };
+    if (idade > 76) return { banco: 'NAO', motivo: 'Acima de 76 anos: não fazemos.' };
+    if (idade >= 74) return { banco: 'HUMANO', motivo: '74 a 76 anos: perguntar à Stefany antes de simular ou digitar.' };
+    if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'LOAS (87/88): regra própria, não fazemos proposta.' };
+    const nota = ` · liberado estimado R$ ${brl(liberado)}`;
+    if (inval) {
+      if (idade >= 60) return { banco: 'FACTA', motivo: 'Invalidez 60–73: FACTA mesmo acima de R$ 20 mil' + nota };
+      if (idade >= 58) return { banco: 'QUALIBANK', motivo: 'Invalidez 58–59: Qualibank, tabela de invalidez (566), 108x' + nota };
+      if (idade >= 53) return { banco: 'C6', motivo: 'Invalidez 53–57: C6, sempre 108x' + nota };
+      if (idade >= 40) return { banco: 'QUEROMAIS', motivo: 'Invalidez 40–52: Quero Mais' + nota };
+      return { banco: 'C6', motivo: 'Invalidez até 39: C6, sempre 108x' + nota };
     }
-    if (liberadoEst < 6000 && !INVALIDEZ.includes(esp)) banco = 'BMG';   // abaixo de R$ 6 mil → BMG (só não-invalidez)
-    return { banco, motivo: `Liberado estimado R$ ${brl(liberadoEst)}${INVALIDEZ.includes(esp) ? ' · invalidez' : ''}` };
+    if (liberado < 6000) return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil: FACTA' + nota };
+    if (liberado > 20000) return { banco: 'C6', motivo: 'Acima de R$ 20 mil e não é invalidez: C6' + nota };
+    return { banco: 'FACTA', motivo: 'Demais espécies: FACTA' + nota };
   }
+
 
   // Ficha em texto (chave: valor) <-> objeto
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
@@ -1228,6 +1235,8 @@
           // deixa a ordem pronta para o robô de desfecho do Botmaker
           try { localStorage.setItem('dins_ficha_recusa', JSON.stringify({ cpf: f.cpf, nome: f.nome, motivo: r[0], tag: r[1], oque: r[2], t: Date.now() })); } catch (er) {}
           log(`Ficha salva como RECUSA (${r[0]}). No Botmaker: tag ${r[1]} · ${r[2]}`, 'erro');
+        } else if (['QUEROMAIS', 'QUALIBANK', 'HUMANO', 'NAO'].includes((f.banco_destino || '').toUpperCase())) {
+          log('Ficha salva. Destino: ' + f.banco_destino + ' — ver o REGRAS-BANCO desse banco.', 'ok');
         } else {
           log(`Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
         }
