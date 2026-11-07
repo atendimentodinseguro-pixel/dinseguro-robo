@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.31
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.32
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.31';
+  const VERSAO = '3.32';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -65,6 +65,22 @@
     return { banco: 'FACTA', motivo: 'Demais espécies: FACTA' + nota };
   }
 
+
+  // Faixas de valor e para onde cada uma vai. Pedido da Stefany em 07/11: o banco
+  // depende do valor que o cliente quiser, então o painel já mostra o quadro inteiro
+  // em vez de obrigar a recalcular quando ele responde.
+  const FAIXAS = [[1000, 5000], [5000, 10000], [10000, 15000], [15000, 20000], [20000, null]];
+  function faixasBanco(f, margem) {
+    const teto = margem > 0 ? (margem - 0.01) * 28400 / 648.39 : 0;   // quanto a margem aguenta
+    return FAIXAS.map(([a, b]) => {
+      const nome = b === null ? `R$ ${brl(a)} ou mais` : `R$ ${brl(a)} a ${brl(b)}`;
+      if (a >= teto) return `${nome} → não cabe na margem`;
+      const topo = b === null ? teto : Math.min(b, teto);
+      const d = decidirBanco(Object.assign({}, f, { parcela: brl(topo * 648.39 / 28400) }));
+      const corte = (b !== null && b > teto) ? ` (só até R$ ${brl(teto)})` : '';
+      return `${nome} → ${d.banco}${corte}`;
+    });
+  }
 
   // Ficha em texto (chave: valor) <-> objeto
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'email',
@@ -1203,6 +1219,12 @@
         } else {
           log(`Destino: ${d.banco} — ${d.motivo}`, ['NAO', 'HUMANO'].includes(d.banco) ? 'erro' : 'ok');
           log('↑ isso é pelo valor MÁXIMO da margem. Se o cliente quiser menos, escreva `valor:` (ou troque a `parcela:`) e salve: o banco é recalculado.');
+          if (!INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'))) {
+            log('Por faixa de valor:');
+            faixasBanco(f, margem).forEach(l => log('   ' + l));
+          } else {
+            log('Invalidez: o banco vem da IDADE, não do valor — qualquer faixa vai para ' + d.banco + '.');
+          }
         }
         const ddb = f.ddb.split('/').reverse().join('-'); const dias = (Date.now() - new Date(ddb)) / 864e5;
         if (dias >= 90 && margem >= 20) {
