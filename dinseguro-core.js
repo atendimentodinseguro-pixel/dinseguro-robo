@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.61';
+  const VERSAO = '3.62';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -666,6 +666,9 @@
       return { min: g[0] * 3600000, max: g[1] * 3600000, txt: g[0] + 'h a ' + g[1] + 'h' };
     };
     const VARRE_MAX_RODADA = 500;
+    // Horário da varredura (Stefany, 07/11 20:51): de 2 em 2 horas, das 8h às 16h.
+    const HORAS_VARREDURA = [8, 10, 12, 14, 16];
+    const HORA_FIM = 16;
     const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
 
     // ⚠️⚠️ 3.56 (07/11 19:28) — SEGUNDO motivo de a varredura não resolver nada.
@@ -805,13 +808,15 @@
       // marcada no placar (`fora_do_horario: true`). Sem a chave, nada muda.
       // ⛔ Nunca ligar isso sozinho. Só quando ela mandar.
       const hora = new Date().getHours();
-      const foraDoHorario = hora < 8 || hora >= 20;
+      // ⚠️ 3.62 (07/11 20:56) — Stefany: "Ele vai rodar, já decidi, de 2 em 2 horas, de
+      // segunda-feira às 8 da manhã até às 4 da tarde." Substitui o 8h-20h da V3.
+      const foraDoHorario = hora < 8 || hora > HORA_FIM;
       let excecaoHorario = false;
       if (foraDoHorario) {
         excecaoHorario = localStorage.getItem('dins_varrer_fora_do_horario') === '1';
         localStorage.removeItem('dins_varrer_fora_do_horario');
         if (!excecaoHorario) {
-          log && log('Varredura: fora do horário (8h às 20h). Não vou rodar agora.', 'erro');
+          log && log('Varredura: fora do horário (8h às ' + HORA_FIM + 'h). Não vou rodar agora.', 'erro');
           return;
         }
         log && log('Varredura: fora do horário, mas rodando por exceção autorizada.', 'ok');
@@ -925,6 +930,20 @@
                 GM_setValue('varredura_followup', fila);
                 log && log('Varredura: ' + nome + ' (' + horas + 'h) entrou na fila de follow-up do WhatsApp.', 'ok');
                 placar.followup++; salvaPlacar();
+              }
+              // 3.62: além de anotar, põe na fila que o módulo do WhatsApp manda sozinho.
+              // O caso decide o texto: quem já tem link/proposta recebe um; quem teve
+              // atendimento recebe outro; quem só não respondeu ao pedido de CPF, o terceiro.
+              const caso = (pf.link || pf.prop) ? 'link' : (pf.atendente ? 'atendimento' : 'cpf');
+              const bloqueados = GM_getValue('wa_bloqueados', []);
+              const waFila = GM_getValue('wa_fila', []);
+              if (!fone) {
+                log && log('Varredura: ' + nome + ' ficou sem telefone — follow-up só na lista.', 'erro');
+              } else if (bloqueados.includes(hash)) {
+                log && log('Varredura: ' + nome + ' está na lista de bloqueados do WhatsApp — não vou mandar.', 'ok');
+              } else if (!waFila.find(x => x.hash === hash)) {
+                waFila.push({ hash, fone, nome, caso, estado: 'pendente', criado: Date.now() });
+                GM_setValue('wa_fila', waFila);
               }
             } else {
               localStorage.setItem('dins_ordem', JSON.stringify({
@@ -1075,9 +1094,23 @@
       return !!document.querySelector('.entries');
     }
 
-    // a cada 30 minutos, e a primeira 3 minutos depois de a aba abrir
-    setTimeout(varrerJanelaVencida, 3 * 60000);
-    setInterval(varrerJanelaVencida, 30 * 60000);
+    // ⚠️ 3.62 (07/11 20:56) — HORÁRIO NOVO, DECIDIDO PELA STEFANY.
+    // Palavras dela, 20:51: "Ele vai rodar, já decidi, de 2 em 2 horas, de segunda-feira
+    // às 8 da manhã até às 4 da tarde." Isso SUBSTITUI o antigo (de 30 em 30 minutos,
+    // das 8h às 20h) e substitui a decisão V3.
+    // Roda às 8h, 10h, 12h, 14h e 16h — uma vez em cada uma dessas horas, em dias úteis.
+    // O verificador roda de 5 em 5 min só para pegar a hora certa mesmo que a aba tenha
+    // sido aberta no meio dela (abrir a aba às 8h05 ainda faz a rodada das 8h acontecer).
+    setInterval(() => {
+      const d = new Date();
+      if (!HORAS_VARREDURA.includes(d.getHours())) return;
+      if (d.getDay() === 0 || d.getDay() === 6) return;          // sábado e domingo, não
+      const marca = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + '-' + d.getHours();
+      if (GM_getValue('varredura_ultima_hora', '') === marca) return;
+      GM_setValue('varredura_ultima_hora', marca);
+      log && log('Varredura: rodada das ' + d.getHours() + 'h.', 'ok');
+      varrerJanelaVencida();
+    }, 5 * 60000);
 
     // "rodar agora", sem esperar os 30 minutos (Stefany, 07/11 18:08):
     //   localStorage.setItem('dins_varrer_agora', '1')
@@ -2362,3 +2395,162 @@
     }
   });
 })();
+
+  // ===========================================================================
+  // 3.62 (07/11/2026, 21:00) — FOLLOW-UP PELO WHATSAPP, AUTOMÁTICO
+  // ---------------------------------------------------------------------------
+  // Decisão da Stefany, 07/11 20:51: perguntada quem manda a mensagem de
+  // follow-up para o cliente, respondeu "O robô manda sozinho". E às 20:56:
+  // "Deixa tudo certinho no robô, tudo programadinho."
+  //
+  // Como funciona: a varredura roda no Botmaker e, quando acha uma conversa com
+  // a janela vencida que TEVE interação, além de anotar na fila de follow-up ela
+  // põe o cliente na fila `wa_fila`. Este módulo roda no WhatsApp Web, pega a
+  // fila e manda, um por vez.
+  //
+  // ⚠️ O texto saiu dos três casos que a Stefany aprovou em 07/11 20:54 ("o texto
+  // do seu ficou com 3 situações, ficou mais completo"), no mesmo tom do que a
+  // equipe já usava à mão no WhatsApp.
+  //
+  // ⚠️⚠️ TRAVAS DE SEGURANÇA — mexer aqui com muito cuidado:
+  //   1. Só manda para quem a varredura pôs na fila. Nunca varre o WhatsApp.
+  //   2. Confere o número do CABEÇALHO da conversa antes de digitar (erro 16).
+  //   3. Uma mensagem por cliente: depois de enviado, o item fica 'enviado'.
+  //   4. Teto de WA_MAX_RODADA por rodada.
+  //   5. Respeita o mesmo horário da varredura (dia útil, 8h às 16h).
+  //   6. `wa_bloqueados` nunca recebem nada (hash do Botmaker).
+  // ===========================================================================
+  if (location.host === 'web.whatsapp.com') {
+    const WA_MAX_RODADA = 10;
+    const esp = ms => new Promise(r => setTimeout(r, ms));
+    const soDigitos = s => String(s || '').replace(/\D/g, '');
+    // ⚠️ Comparar só os últimos 8 dígitos NÃO serve: dois clientes de DDDs diferentes
+    // com o mesmo final casariam, e aí a mensagem vai para a pessoa errada (erro 16).
+    // Aqui o número vira DDD + 8 dígitos, tirando o 55 do país e o nono dígito do
+    // celular — que é o mesmo cliente escrito de dois jeitos.
+    //    +55 83 9407-5314  ->  8394075314
+    //    5583994075314     ->  8394075314   (mesmo cliente)
+    //    +55 34 8439-2777  ->  3484392777   (outro cliente: não casa)
+    function chaveFone(v) {
+      let n = soDigitos(v);
+      if (n.length > 11 && n.slice(0, 2) === '55') n = n.slice(2);
+      if (n.length < 10) return '';
+      const ddd = n.slice(0, 2);
+      let num = n.slice(2);
+      if (num.length === 9 && num.charAt(0) === '9') num = num.slice(1);
+      if (num.length !== 8) return '';
+      return ddd + num;
+    }
+
+    // o nome do Botmaker às vezes é lixo ("Carloshenriquepinheirofer", "⚫️").
+    // Só usa como nome se parecer nome de gente.
+    function primeiroNome(n) {
+      const p = String(n || '').trim().split(/\s+/)[0] || '';
+      if (!/^[A-Za-zÀ-ÿ]{2,15}$/.test(p)) return '';
+      return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+    }
+
+    function textoDoCaso(caso, nome) {
+      const pn = primeiroNome(nome);
+      const ola = pn ? ('Oi, ' + pn + '! Aqui é da Dinseguro.') : 'Oi! Aqui é da Dinseguro.';
+      const seguranca = 'Pode ficar tranquilo(a): não cobramos nada antecipado e nada é feito sem a sua confirmação.';
+      const fecho = 'Qualquer dúvida, me chama que eu te ajudo.';
+      if (caso === 'link') {
+        return [ola,
+          'Passando para falar da sua proposta, que continua disponível e é rápido de concluir.',
+          seguranca,
+          'Quer que eu reenvie o link para você finalizar?',
+          fecho].join('\n\n');
+      }
+      if (caso === 'atendimento') {
+        return [ola,
+          'Estou retomando o seu atendimento, que ficou parado porque o WhatsApp encerra a conversa depois de 24 horas.',
+          seguranca,
+          'Posso seguir de onde a gente parou?',
+          fecho].join('\n\n');
+      }
+      return [ola,
+        'Passando para falar da sua simulação, que ficou pendente só do seu CPF para eu conferir o valor liberado certinho.',
+        seguranca,
+        'Se ainda tiver interesse, é só me mandar o número do seu CPF ou do seu benefício que eu confiro para você na hora.',
+        fecho].join('\n\n');
+    }
+
+    const filaWA = () => { try { return GM_getValue('wa_fila', []); } catch (e) { return []; } };
+    const salvaFila = f => { try { GM_setValue('wa_fila', f); } catch (e) {} };
+
+    function dentroDoHorario() {
+      const d = new Date();
+      if (d.getDay() === 0 || d.getDay() === 6) return false;
+      return d.getHours() >= 8 && d.getHours() <= 16;
+    }
+
+    async function mandar(item) {
+      // 2. confere o número do cabeçalho ANTES de escrever (erro 16)
+      const h = document.querySelector('#main header');
+      const cab = chaveFone(h && h.innerText);
+      const alvo = chaveFone(item.fone);
+      const confere = !!(cab && alvo && cab === alvo);
+      if (!confere) return { ok: false, motivo: 'numero nao confere (cabecalho ' + cab + ' x alvo ' + alvo + ')' };
+
+      const cx = document.querySelector('#main footer [contenteditable="true"]');
+      if (!cx) return { ok: false, motivo: 'caixa de mensagem nao encontrada' };
+      cx.focus();
+      await esp(300);
+      document.execCommand('insertText', false, textoDoCaso(item.caso, item.nome));
+      await esp(1200);
+      if (!cx.innerText.trim()) return { ok: false, motivo: 'o texto nao entrou na caixa' };
+
+      const icone = document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]');
+      const bt = icone && icone.closest('button');
+      if (!bt) return { ok: false, motivo: 'botao de enviar nao encontrado' };
+      bt.click();
+      await esp(2500);
+      if (cx.innerText.trim()) return { ok: false, motivo: 'a caixa continuou cheia depois de clicar em enviar' };
+      return { ok: true };
+    }
+
+    async function rodarWA() {
+      if (!dentroDoHorario()) return;
+      const fila = filaWA();
+      const pend = fila.filter(x => x.estado === 'pendente');
+      if (!pend.length) return;
+
+      const agora = new Date();
+      const marca = agora.getFullYear() + '-' + (agora.getMonth()+1) + '-' + agora.getDate() + '-' + agora.getHours();
+      const feitas = GM_getValue('wa_feitas_' + marca, 0);
+      if (feitas >= WA_MAX_RODADA) return;
+
+      // quem está na tela agora? se for o primeiro pendente, manda; senão, navega.
+      const alvo = pend[0];
+      const url = new URL(location.href);
+      const foneNaUrl = soDigitos(url.searchParams.get('phone'));
+      if (foneNaUrl !== soDigitos(alvo.fone)) {
+        location.href = 'https://web.whatsapp.com/send?phone=' + soDigitos(alvo.fone);
+        return;
+      }
+      if (!document.querySelector('#main footer [contenteditable="true"]')) return;  // ainda carregando
+
+      const r = await mandar(alvo);
+      const f2 = filaWA();
+      const i = f2.findIndex(x => x.hash === alvo.hash);
+      if (i >= 0) {
+        f2[i].estado = r.ok ? 'enviado' : 'erro';
+        f2[i].quando = Date.now();
+        if (!r.ok) f2[i].motivo = r.motivo;
+        salvaFila(f2);
+      }
+      GM_setValue('wa_feitas_' + marca, feitas + 1);
+      try {
+        localStorage.setItem('dins_wa_ultimo', JSON.stringify({
+          nome: alvo.nome, caso: alvo.caso, ok: r.ok, motivo: r.motivo || '',
+          hora: agora.toLocaleTimeString('pt-BR').slice(0, 5) }));
+      } catch (e) {}
+      console.log('[Dinseguro WA] ' + alvo.nome + ': ' + (r.ok ? 'enviado' : 'ERRO - ' + r.motivo));
+    }
+
+    setInterval(rodarWA, 60000);
+    setTimeout(rodarWA, 20000);
+    // para desligar o envio automático:  GM_setValue('wa_fila', [])
+    // para ver como foi o último:        JSON.parse(localStorage.dins_wa_ultimo)
+  }
