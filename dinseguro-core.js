@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.42';
+  const VERSAO = '3.43';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -288,6 +288,9 @@
     // Não fecha a conversa: quem encerra é o próprio fluxo.
     idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
+    // Varredura das conversas vencidas (Stefany, 07/11 16:44): quem não teve interação
+    // nenhuma leva só a tag e a conversa é encerrada, sem mandar mensagem.
+    classifica_fecha: { atalho: null,   tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: true },
   };
   const TAG_Q15 = 'Q15 - tem margem para cartão';
   const EDICAO_LOAS = [
