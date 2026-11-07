@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.53';
+  const VERSAO = '3.54';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -715,6 +715,7 @@
       varrendo = true;
       let feitas = 0;
       const J = janelaVarredura();
+      const LIMITE_DESCIDA = J.max + 86400000;   // até onde vale a pena descer na lista
       log && log('Varredura: começando (janela ' + J.txt + ').');
       // placar da rodada, para dar para conferir sem abrir chat nenhum:
       //   JSON.parse(localStorage.dins_varredura_placar)
@@ -734,6 +735,17 @@
         for (let pagina = 0; pagina < 60; pagina++) {
           if (sc) { sc.scrollTop = pos; await esp(450); }
           const itens = [...document.querySelectorAll('.customer-item')];
+          // 3.54: a lista vem da mais NOVA para a mais VELHA. Quando o rótulo de tempo
+          // da página inteira já passou da janela, tudo que está embaixo também passou:
+          // não há motivo para continuar descendo nem para o Botmaker ficar buscando
+          // conversa antiga no servidor. (Stefany, 19:06: "ele desceu demais, está lá
+          // no dia 20". Uma folga de 1 dia, porque o rótulo é grosso: "Sex", "20/10".)
+          const idadesPag = itens.map(idadeDoItem).filter(x => x !== null);
+          if (idadesPag.length && Math.min.apply(null, idadesPag) > LIMITE_DESCIDA) {
+            placar.parou_na_data = true; salvaPlacar();
+            log && log('Varredura: cheguei ao fim da janela (' + J.txt + '). Parei de descer.', 'ok');
+            break;
+          }
           const nomes = itens.map(x => (x.innerText.split('\n').filter(Boolean)[1] || ''))
             .filter(n => n && !jaVistos.has(n));
           placar.lista = jaVistos.size + nomes.length; salvaPlacar();
@@ -746,6 +758,9 @@
             const it = [...document.querySelectorAll('.customer-item')]
               .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
             if (!it) { placar.nao_abriu++; salvaPlacar(); continue; }
+            // 3.54: o rótulo já diz que está fora da janela — não gasta 5s abrindo
+            const idadeRot = idadeDoItem(it);
+            if (idadeRot !== null && idadeRot > LIMITE_DESCIDA) { placar.idade_fora++; salvaPlacar(); continue; }
             const alvo = [...it.querySelectorAll('*')].find(x => x.children.length === 0 && txt(x) === nome) || it;
             clicar(alvo); await esp(5000);
             if (!document.querySelector('.entries')) { placar.nao_abriu++; salvaPlacar(); continue; }
@@ -798,6 +813,56 @@
     }
 
     // helpers da varredura: lista de nomes e abrir pelo nome
+    // ⚠️ 3.54 (07/11 19:06) — Stefany, vendo a varredura rodar: "ele desceu demais, está
+    // lá no dia 20". A 3.53 carregava a lista INTEIRA (240 conversas) antes de começar.
+    // Não precisa: a lista vem da mais nova para a mais velha, então assim que o rótulo
+    // de tempo passa da janela, TUDO que está embaixo também passou. Agora ela para ali.
+    //
+    // Rótulos que o Botmaker usa, nessa ordem: "14:32" (hoje) · "3h" · "Sex" (últimos 7
+    // dias) · "20/10" (mais velho). Devolve a idade em ms, ou null se não souber ler.
+    const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    // Devolve { idade (ms), forca }. A `forca` existe porque o item da lista também
+    // mostra DURAÇÕES no mesmo formato de hora ("36:47" = 36 min e 47 s de atendimento),
+    // e lendo de trás para a frente a duração aparecia antes do rótulo de verdade e
+    // fazia a conversa de 20/10 parecer de hoje. Rótulo mais forte vence.
+    function idadePeloRotulo(t) {
+      t = String(t || '').trim().toLowerCase().replace(/á/g, 'a');
+      let m;
+      if (m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)) {              // data: mais forte
+        const hoje = new Date();
+        const ano = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : hoje.getFullYear();
+        const dt = new Date(ano, +m[2] - 1, +m[1]);
+        if (!m[3] && dt > hoje) dt.setFullYear(ano - 1);
+        return { idade: hoje - dt, forca: 4 };
+      }
+      if (m = t.match(/^(dom|seg|ter|qua|qui|sex|sab)$/)) {                      // dia da semana
+        const alvo = DIAS_SEMANA.indexOf(m[1]);
+        let dif = new Date().getDay() - alvo;
+        if (dif <= 0) dif += 7;
+        return { idade: dif * 86400000, forca: 3 };
+      }
+      if (/^ontem$/.test(t)) return { idade: 86400000, forca: 3 };
+      if (m = t.match(/^(\d+)\s*min/)) return { idade: +m[1] * 60000, forca: 2 };
+      if (m = t.match(/^(\d+)\s*m$/)) return { idade: +m[1] * 60000, forca: 2 };
+      if (m = t.match(/^(\d+)\s*h$/)) return { idade: +m[1] * 3600000, forca: 2 };
+      if (m = t.match(/^(\d+)\s*d$/)) return { idade: +m[1] * 86400000, forca: 2 };
+      if (m = t.match(/^(\d{1,2}):(\d{2})$/)) {                                  // hora de hoje
+        if (+m[1] > 23 || +m[2] > 59) return null;                              // é duração
+        return { idade: 0, forca: 1 };
+      }
+      return null;
+    }
+    // idade de UM item da lista, pelo rótulo de tempo que ele mostra
+    function idadeDoItem(el) {
+      if (!el) return null;
+      const L = el.innerText.split('\n').map(x => x.trim()).filter(Boolean);
+      let melhor = null;
+      for (let j = L.length - 1; j >= 0; j--) {
+        const r = idadePeloRotulo(L[j]);
+        if (r && (!melhor || r.forca > melhor.forca)) melhor = r;
+      }
+      return melhor ? melhor.idade : null;
+    }
     function listaDeNomes() {
       return [...new Set([...document.querySelectorAll('.customer-item')]
         .map(x => (x.innerText.split('\n').filter(Boolean)[1] || '')).filter(Boolean))];
