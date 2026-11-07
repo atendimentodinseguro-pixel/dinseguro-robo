@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.38';
+  const VERSAO = '3.39';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -283,6 +283,10 @@
     representante_sm: { atalho: '/inss13', tags: ['03 B - Loas Com Rep Sem Margem'], fechar: true },
     pensao:           { atalho: null,   tags: ['07 - Nao Identificado'], fechar: true,
                         texto: 'Infelizmente não atendemos benefício com pensão alimentícia. Agradecemos o seu contato!' },
+    // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
+    // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
+    // Não fecha a conversa: quem encerra é o próprio fluxo.
+    idade_77:         { atalho: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
   };
   const TAG_Q15 = 'Q15 - tem margem para cartão';
@@ -334,13 +338,21 @@
     }
 
     // 2. resposta rápida
+    // `atalho` pode ser um atalho de verdade ('/n30') ou o NOME de um fluxo sem atalho
+    // ('Início do atendimento', usado nos clientes acima de 76 anos — Stefany, 07/11 15:59).
+    // No caso do nome, digita '/' + nome e escolhe a opção pelo nome, sem acento e sem caixa.
+    const semAcento = t => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     async function respostaRapida(atalho, editar) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
-      ta.focus(); setNativo(ta, atalho);
+      const porNome = !/^\//.test(atalho);
+      ta.focus(); setNativo(ta, porNome ? '/' + atalho : atalho);
       await esp(2500);
-      const linha = await ate(() => [...document.querySelectorAll('tr,li,div')]
-        .filter(vis).find(x => x.children.length < 8 && new RegExp('^\\' + atalho + '\\b').test(txt(x))), 10000);
+      const linha = porNome
+        ? await ate(() => [...document.querySelectorAll('.slash-menu-options,tr,li,div')]
+            .filter(vis).find(x => x.children.length < 8 && semAcento(txt(x)) === semAcento(atalho)), 10000)
+        : await ate(() => [...document.querySelectorAll('tr,li,div')]
+            .filter(vis).find(x => x.children.length < 8 && new RegExp('^\\' + atalho + '\\b').test(txt(x))), 10000);
       if (!linha) throw new Error('resposta rápida ' + atalho + ' não apareceu');
       clicar(linha);
       const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
@@ -1210,7 +1222,7 @@
         else if (!negativo(f.pensao))        f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|/inss13 — não fazemos proposta com representante legal';
         else if (margem < 20)                f.recusa = 'SEM_MARGEM|01 I|/n30';
-        else if (idadeF > 76)                f.recusa = 'IDADE|—|acima de 76 anos: não fazemos em banco nenhum. Avisar a Stefany';
+        else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|acima de 76 anos: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
         else if (idadeF >= 74)               f.recusa = 'IDADE_PERGUNTAR|—|74 a 76 anos: perguntar à Stefany ANTES de simular, digitar ou gastar consulta';
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
