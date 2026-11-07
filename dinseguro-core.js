@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.55';
+  const VERSAO = '3.56';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -664,30 +664,40 @@
     const VARRE_MAX_RODADA = 500;
     const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
 
+    // ⚠️⚠️ 3.56 (07/11 19:28) — SEGUNDO motivo de a varredura não resolver nada.
+    // Ela media a idade da ÚLTIMA MENSAGEM DA CONVERSA — e a última mensagem quase
+    // sempre é NOSSA. Então toda conversa que o atendimento tocou hoje parecia recente
+    // e caía fora da janela, mesmo com o cliente calado há dois dias.
+    // Medido na tela em 07/11 (última atividade  ×  última mensagem DO CLIENTE):
+    //    Maria Abadia ....  3h  ×  42,8h
+    //    Cleodiceia .....   3h  ×  51,2h
+    //    Luiz Carlos ....  23h  ×  43,4h
+    //    Santaterezinha .  24h  ×  29,9h
+    // O que interessa é há quanto tempo o CLIENTE está calado — é isso que fecha a
+    // janela de 24h. Agora é isso que a função devolve.
+    //
+    // Como se distingue: a nossa mensagem termina com o "visto" (done_all/done/check);
+    // a do cliente, não. Sem conseguir separar, cai no comportamento antigo.
     function idadeDaConversa() {
       const e = document.querySelector('.entries');
       if (!e) return null;
       const L = e.innerText.split('\n').map(x => x.trim()).filter(Boolean);
-      // última marca "Sessão dd/mm/aaaa hh:mm" + a última hora que aparece depois dela
-      let dt = null;
-      for (let i = L.length - 1; i >= 0; i--) {
-        const m = L[i].match(/^Sess[ãa]o\s+(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
-        if (m) { dt = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]); break; }
+      let data = null, doCliente = null, dequalquerUm = null;
+      for (let i = 0; i < L.length; i++) {
+        const ms = L[i].match(/^Sess[ãa]o\s+(\d{2})\/(\d{2})\/(\d{4})/);
+        if (ms) { data = new Date(+ms[3], +ms[2] - 1, +ms[1]); continue; }
+        const mh = L[i].match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+        if (!mh || !data) continue;
+        if (+mh[1] > 23 || +mh[2] > 59) continue;          // é duração, não hora
+        let h = +mh[1];
+        if (/PM/i.test(mh[3] || '') && h < 12) h += 12;
+        if (/AM/i.test(mh[3] || '') && h === 12) h = 0;
+        const dt = new Date(data); dt.setHours(h, +mh[2], 0, 0);
+        dequalquerUm = dt;
+        if (!/^(done_all|done|check|schedule)$/.test(L[i + 1] || '')) doCliente = dt;
       }
-      if (!dt) return null;
-      // a última hora solta da conversa (hh:mm, com ou sem AM/PM) refina o horário
-      const hh = L.filter(l => /^\d{1,2}:\d{2}(:\d{2})?( ?(AM|PM))?$/i.test(l)).slice(-1)[0];
-      if (hh) {
-        const m2 = hh.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
-        if (m2) {
-          let h = +m2[1];
-          if (/PM/i.test(m2[3] || '') && h < 12) h += 12;
-          if (/AM/i.test(m2[3] || '') && h === 12) h = 0;
-          const d2 = new Date(dt); d2.setHours(h, +m2[2], 0, 0);
-          if (d2 >= dt) dt = d2;                  // mesma data da sessão, hora mais tarde
-        }
-      }
-      return Date.now() - dt.getTime();
+      const ref = doCliente || dequalquerUm;
+      return ref ? Date.now() - ref.getTime() : null;
     }
 
     // ⚠️⚠️ 3.55 (07/11 19:15) — ESTE ERA O MOTIVO DE A VARREDURA NUNCA CLASSIFICAR NINGUÉM.
@@ -781,8 +791,10 @@
             if (!document.querySelector('.entries')) { placar.nao_abriu++; salvaPlacar(); continue; }
             placar.abertos++;
             const idade = idadeDaConversa();
-            if (idade === null || idade < J.min || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
+            // a ordem importa: a janela fechada já é a prova de que o cliente está
+            // calado há mais de 24h. Conferir ela ANTES do mínimo, que é só uma folga.
             if (!janelaFechada()) { placar.janela_aberta++; salvaPlacar(); continue; }
+            if (idade === null || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
             if (humanoRecente()) { placar.humano++; salvaPlacar(); continue; }
             const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
             const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
