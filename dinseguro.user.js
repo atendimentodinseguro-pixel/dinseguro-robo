@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6 e Daycoval)
 // @namespace    dinseguro
-// @version      3.1
+// @version      3.2
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -20,38 +20,72 @@
 // @connect      api.github.com
 // ==/UserScript==
 
+/* Carregador 3.2 — reescrito em 07/11/2026.
+   Dois problemas do 3.0/3.1, resolvidos aqui:
+
+   1. Ele só sabia baixar com GM_xmlhttpRequest, que o Tampermonkey às vezes
+      bloqueia esperando uma confirmação que ninguém vê. Quando isso acontecia,
+      o robô ficava rodando a cópia guardada para sempre, sem avisar.
+      → Agora tenta primeiro o fetch normal do navegador, que não precisa de
+        permissão nenhuma (raw.githubusercontent.com libera CORS), e só cai no
+        GM_xmlhttpRequest se o fetch falhar.
+
+   2. Ele decidia na hora se baixava ou não, e a decisão dependia de um commit
+      anotado que podia estar errado — o que travava tudo.
+      → Agora é simples: roda JÁ a cópia guardada (início rápido, sempre
+        funciona offline) e baixa a versão nova em segundo plano, que passa a
+        valer no próximo F5. Sem travar, sem poder ficar preso.
+
+   Para saber qual versão está rodando: localStorage.getItem('dins_versao') */
+
 (function () {
   'use strict';
   const REPO = 'atendimentodinseguro-pixel/dinseguro-robo';
+  const URL_CORE = 'https://raw.githubusercontent.com/' + REPO + '/main/dinseguro-core.js';
+
   const rodar = (codigo, origem) => {
     try {
-      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', codigo)(GM_getValue, GM_setValue, GM_notification, GM_setClipboard, typeof unsafeWindow !== 'undefined' ? unsafeWindow : window);
+      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', codigo)(
+        GM_getValue, GM_setValue, GM_notification, GM_setClipboard,
+        typeof unsafeWindow !== 'undefined' ? unsafeWindow : window);
       console.log('[Dinseguro] robô carregado (' + origem + ')');
     } catch (e) { console.error('[Dinseguro] erro ao rodar o robô', e); }
   };
-  const get = (url, ok, falha) => GM_xmlhttpRequest({ method: 'GET', url, nocache: true, timeout: 15000,
-    headers: { 'Cache-Control': 'no-cache' },
-    onload: r => (r.status === 200 ? ok(r.responseText) : falha()), onerror: falha, ontimeout: falha });
-  const usarCache = () => { const c = GM_getValue('core_cache', ''); if (c) rodar(c, 'cópia guardada'); else console.error('[Dinseguro] sem código do robô'); };
-  // sha: só é anotado DEPOIS que o download deu certo. Antes era anotado antes, e um
-  // download que falhasse deixava o loader preso na cópia velha para sempre (07/11/2026).
-  const baixar = (ref, sha) => get('https://raw.githubusercontent.com/' + REPO + '/' + ref + '/dinseguro-core.js', codigo => {
-    if (!/Dinseguro/.test(codigo)) return usarCache();
-    GM_setValue('core_cache', codigo);
-    if (sha) GM_setValue('core_sha', { sha, t: Date.now() });
-    rodar(codigo, ref.slice(0, 7));
-  }, usarCache);
-  // pega o último commit (evita o cache de 5 min do GitHub); se a API falhar, usa "main"
-  // (consulta a API no máximo a cada 3 min, para não estourar o limite do GitHub)
-  const ult = GM_getValue('core_sha', { sha: '', t: 0 });
-  if (ult.sha && Date.now() - ult.t < 3 * 60 * 1000 && GM_getValue('core_cache', '')) { rodar(GM_getValue('core_cache'), 'cópia ' + ult.sha.slice(0, 7)); return; }
-  get('https://api.github.com/repos/' + REPO + '/commits/main', t => {
-    let sha = ''; try { sha = JSON.parse(t).sha || ''; } catch (e) {}
-    if (!sha) return baixar('main');
-    if (sha === ult.sha && GM_getValue('core_cache', '')) {
-      GM_setValue('core_sha', { sha, t: Date.now() });
-      return rodar(GM_getValue('core_cache'), 'cópia ' + sha.slice(0, 7));
+
+  // baixa: fetch primeiro (não precisa de permissão), GM_xmlhttpRequest como reserva
+  const baixar = () => new Promise(resolve => {
+    const url = URL_CORE + '?t=' + Date.now();
+    const reserva = () => {
+      try {
+        GM_xmlhttpRequest({ method: 'GET', url, nocache: true, timeout: 15000,
+          headers: { 'Cache-Control': 'no-cache' },
+          onload: r => resolve(r.status === 200 ? r.responseText : ''),
+          onerror: () => resolve(''), ontimeout: () => resolve('') });
+      } catch (e) { resolve(''); }
+    };
+    try {
+      fetch(url, { cache: 'no-store' })
+        .then(r => (r.ok ? r.text() : ''))
+        .then(t => (t ? resolve(t) : reserva()))
+        .catch(reserva);
+    } catch (e) { reserva(); }
+  });
+
+  const guardado = GM_getValue('core_cache', '');
+
+  // 1. começa já com o que tem guardado
+  if (guardado) rodar(guardado, 'cópia guardada');
+
+  // 2. busca a versão nova em segundo plano; vale no próximo F5
+  baixar().then(codigo => {
+    if (!codigo || !/Dinseguro/.test(codigo)) {
+      if (!guardado) console.error('[Dinseguro] não consegui baixar o robô e não tenho cópia guardada');
+      return;
     }
-    baixar(sha, sha);
-  }, () => baixar('main'));
+    if (codigo === guardado) return;
+    GM_setValue('core_cache', codigo);
+    const v = (codigo.match(/Versão: ([\d.]+)/) || [])[1] || '?';
+    if (guardado) console.log('[Dinseguro] versão ' + v + ' baixada; entra no próximo F5');
+    else rodar(codigo, 'baixado ' + v);   // primeira vez: roda na hora
+  });
 })();
