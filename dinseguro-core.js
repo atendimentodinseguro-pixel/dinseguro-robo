@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.22
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.23
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.22';
+  const VERSAO = '3.23';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -56,7 +56,7 @@
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
-    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados'];
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -1030,6 +1030,23 @@
         f.representante = depois('Possui Representante');
         f.rep_dados     = depois('Dados do Representante Legal', 4).join(' | ');
         if (!f.telefone) f.telefone = so(depois('Telefone\\(s\\) do Benefici[áa]rio'));
+        // ---- conta: de onde ela vem (regra da Stefany, 07/11/2026) ----
+        // 1) conta real: Multicorban -> New Corban (Histórico Bancário) -> FullConsig (ignorar banco "V8")
+        // 2) tem banco e AGÊNCIA real, sem conta  -> conta = número da agência, dígito = último dígito dela
+        // 3) tem só o banco, sem agência         -> agência e conta aleatórias do procedimento
+        // 4) não tem nem o banco em lugar nenhum -> /08, pedir a conta ao cliente
+        // Aleatório é só quando a informação não existe: tendo a agência certa, usa ela.
+        {
+          const agRaw = so(f.agencia), agReal = agRaw.length >= 3 && !/^0+$/.test(agRaw);
+          if (so(f.conta)) f.conta_origem = 'Multicorban';
+          else if (!so(f.banco)) f.conta_origem = 'SEM BANCO — conferir New Corban e FullConsig; se não houver, /08';
+          else if (agReal) {
+            f.conta_origem = 'conferir New Corban e FullConsig; se não tiverem, usar a derivada da agência';
+            f.conta_sugerida = agOk(f.agencia) + '-' + agOk(f.agencia).slice(-1);
+          } else {
+            f.conta_origem = 'só o banco — agência e conta aleatórias do procedimento';
+          }
+        }
         // ---- veredito: por que NÃO atendemos ----
         // ⛔ BLOQUEIO DE EMPRÉSTIMO NÃO ENTRA AQUI. Decisão da Stefany em 07/11/2026:
         //    "Você não analisa bloqueio de empréstimo" — padrão. Nem o rótulo "Bloqueado para
@@ -1047,6 +1064,7 @@
         log(`Pensão: ${f.pensao || '?'} · Representante: ${f.representante || '?'}`);
         if (f.rmc || f.rcc) log(`RMC: ${f.rmc || '—'} · RCC: ${f.rcc || '—'}`);
         if (f.rep_dados) log('Representante legal: ' + f.rep_dados);
+        if (f.conta_origem) log('Conta: ' + f.conta_origem + (f.conta_sugerida ? ' → sugerida ' + f.conta_sugerida : ''));
         if (f.recusa) {
           const r = f.recusa.split('|');
           log(`⛔ NÃO ATENDEMOS — ${r[0]}. Tag ${r[1]}. ${r[2]}`, 'erro');
@@ -1212,17 +1230,28 @@
     } else {
       const m = el('integrationsv2-bank-history-modal'); if (m && $) $(m).modal('hide');
       await sleep(500);
+      // Sem BANCO em lugar nenhum (nem Multicorban, nem Histórico do New Corban, nem FullConsig):
+      // aí sim é /08. Com banco, a conta sai pela cascata abaixo. (Regra da Stefany, 07/11/2026.)
       if (!so(f.banco) || /^0+$/.test(so(f.banco))) {
-        throw new Error('Cliente SEM conta bancária: NÃO gravar. Mande a simulação e, quando ele aceitar, o atalho /08 pedindo a conta.');
+        throw new Error('Cliente SEM BANCO: NÃO gravar. Confira o FullConsig (banco "V8" não vale). Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
       }
       const banco = so(f.banco).padStart(3, '0');
       const agencia = agOk(f.agencia);
-      let conta = so(f.conta), dv;
-      if (conta) { dv = conta.slice(-1); conta = conta.slice(0, -1); } else { conta = '001'; dv = '1'; }
+      const agReal = so(f.agencia).length >= 3 && !/^0+$/.test(so(f.agencia));
+      let conta = so(f.conta), dv, origemConta;
+      if (conta) { dv = conta.slice(-1); conta = conta.slice(0, -1); origemConta = 'conta real da ficha'; }
+      else if (agReal) {
+        // agência certa na mão: o número dela vira a conta, e o último dígito dela vira o DV.
+        conta = agencia; dv = agencia.slice(-1); origemConta = 'derivada da agência ' + agencia;
+      } else {
+        const n = Math.max(GM_getValue('conta_seq', 14), 14);
+        conta = String(n); dv = '8'; GM_setValue('conta_seq', n + 1);
+        origemConta = 'aleatória da sequência (não havia agência)';
+      }
       if (pagina === 'facta') { if (!setSelect('banco', banco)) log('Banco ' + banco + ' não existe na lista do FACTA.', 'erro'); }
       else setv('banco', banco);
       setv('agencia', agencia); setv('conta', conta); setv('conta_digito', dv);
-      log(`Conta da ficha: ${banco} ag ${agencia} (${so(f.conta) ? 'Multicorban/ficha' : 'padrão 001-1'}).`, so(f.conta) ? 'ok' : 'erro');
+      log(`Conta: ${banco} ag ${agencia} cc ${conta}-${dv} — ${origemConta}.`, so(f.conta) ? 'ok' : 'erro');
     }
     if (pagina === 'c6') {   // C6 também pede o banco do benefício
       ['banco', 'agencia', 'conta', 'conta_digito'].forEach(k => { if (el('beneficio_' + k) && !el('beneficio_' + k).value) setv('beneficio_' + k, el(k).value); });
