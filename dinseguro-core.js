@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.57';
+  const VERSAO = '3.58';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -658,7 +658,11 @@
     //   localStorage.setItem('dins_varre_janela', '6,72')   -> passa a valer 6h a 72h
     //   localStorage.setItem('dins_varre_janela', 'padrao') -> volta para 12h a 48h
     const janelaVarredura = () => {
-      const g = GM_getValue('varre_janela', [12, 48]);
+      // ⚠️ 3.58 (07/11 19:52) — Stefany: "essa varredura vai pegar TODOS que estão com a
+      // conversa encerrada 24 horas após a última mensagem. Todos, então."
+      // O critério passou a ser UM SÓ: a janela de 24h vencida. A faixa de horas deixou
+      // de ser peneira e virou só um teto de segurança, altíssimo por padrão.
+      const g = GM_getValue('varre_janela', [0, 24000]);
       return { min: g[0] * 3600000, max: g[1] * 3600000, txt: g[0] + 'h a ' + g[1] + 'h' };
     };
     const VARRE_MAX_RODADA = 500;
@@ -723,13 +727,21 @@
       return /\[[^\]]*👤\]/.test(t);
     }
 
+    // ⚠️ 3.58 — a regra "sem CPF e sem link = sem interação" é cega para conversa que
+    // teve ATENDIMENTO DE VERDADE. Caso real pego em 07/11: a Santaterezinha estava sem
+    // CPF e sem link, mas tinha falado da doença na família, pedido urgência, e a equipe
+    // respondeu duas vezes "já passei com prioridade, te retorno". Pela regra antiga ela
+    // seria tagueada e ENCERRADA. Encerrar essa conversa é o pior desfecho possível.
+    // Agora: qualquer mensagem escrita por nós (as que vêm com "[Nome]" na frente, que o
+    // fluxo automático do bot não usa) conta como interação e manda para o follow-up.
     function perfilDaConversa() {
       const e = document.querySelector('.entries');
       const t = e ? e.innerText : '';
       return {
         cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t),
-        link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin)/i.test(t),
-        prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t)
+        link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin)/i.test(t),
+        prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t),
+        atendente: /\[[^\]\n]{2,40}\]/.test(t)
       };
     }
 
@@ -807,7 +819,7 @@
             const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
             const pf = perfilDaConversa();
             const horas = Math.round(idade / 3600000);
-            if (pf.cpf || pf.link || pf.prop) {
+            if (pf.cpf || pf.link || pf.prop || pf.atendente) {
               const fila = GM_getValue('varredura_followup', []);
               if (!fila.find(x => x.hash === hash)) {
                 fila.push({ hash, fone, nome, horas, quando: Date.now() });
