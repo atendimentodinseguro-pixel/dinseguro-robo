@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.51';
+  const VERSAO = '3.52';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -716,18 +716,27 @@
       let feitas = 0;
       const J = janelaVarredura();
       log && log('Varredura: começando (janela ' + J.txt + ').');
+      // placar da rodada, para dar para conferir sem abrir chat nenhum:
+      //   JSON.parse(localStorage.dins_varredura_placar)
+      const placar = { janela: J.txt, inicio: new Date().toLocaleTimeString('pt-BR').slice(0,5),
+                       lista: 0, abertos: 0, idade_fora: 0, janela_aberta: 0, humano: 0,
+                       classificados: 0, followup: 0, nao_abriu: 0, fim: '' };
+      const salvaPlacar = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
+      salvaPlacar();
       try {
         const nomes = await listaCompleta();   // rola a lista inteira antes de começar
+        placar.lista = nomes.length; salvaPlacar();
         for (const nome of nomes) {
           if (feitas >= VARRE_MAX_RODADA) break;
           if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
           if (GM_getValue('varredura_vistos', {})[nome]) continue;
           const ok = await abrirPeloNome(nome);
-          if (!ok) continue;
+          if (!ok) { placar.nao_abriu++; salvaPlacar(); continue; }
+          placar.abertos++;
           const idade = idadeDaConversa();
-          if (idade === null || idade < J.min || idade > J.max) continue;
-          if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) continue;
-          if (humanoRecente()) continue;
+          if (idade === null || idade < J.min || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
+          if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) { placar.janela_aberta++; salvaPlacar(); continue; }
+          if (humanoRecente()) { placar.humano++; salvaPlacar(); continue; }
           const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
           const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
           const p = perfilDaConversa();
@@ -739,6 +748,7 @@
               fila.push({ hash, fone, nome, horas, quando: Date.now() });
               GM_setValue('varredura_followup', fila);
               log && log('Varredura: ' + nome + ' (' + horas + 'h) entrou na fila de follow-up do WhatsApp.', 'ok');
+              placar.followup++; salvaPlacar();
             }
           } else {
             localStorage.setItem('dins_ordem', JSON.stringify({
@@ -748,6 +758,7 @@
               t: Date.now()
             }));
             log && log('Varredura: ' + nome + ' (' + horas + 'h) sem interação — classificando e encerrando.', 'ok');
+            placar.classificados++; salvaPlacar();
             await esp(45000);                       // deixa o desfecho terminar
           }
           const vistos = GM_getValue('varredura_vistos', {});
@@ -755,8 +766,14 @@
           GM_setValue('varredura_vistos', vistos);
           feitas++;
         }
-      } catch (e) { log && log('Varredura parou: ' + e.message, 'erro'); }
-      finally { varrendo = false; }
+      } catch (e) { placar.erro = e.message; log && log('Varredura parou: ' + e.message, 'erro'); }
+      finally {
+        placar.fim = new Date().toLocaleTimeString('pt-BR').slice(0,5);
+        salvaPlacar();
+        log && log('Varredura terminou: ' + placar.abertos + ' conversas abertas, ' +
+          placar.classificados + ' classificadas, ' + placar.followup + ' para follow-up.', 'ok');
+        varrendo = false;
+      }
     }
 
     // helpers da varredura: lista de nomes e abrir pelo nome
