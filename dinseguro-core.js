@@ -724,48 +724,68 @@
       const salvaPlacar = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
       salvaPlacar();
       try {
-        const nomes = await listaCompleta();   // rola a lista inteira antes de começar
-        log && log('Varredura: ' + nomes.length + ' conversas na lista.');
-        placar.lista = nomes.length; salvaPlacar();
-        for (const nome of nomes) {
-          if (feitas >= VARRE_MAX_RODADA) break;
-          if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
-          if (GM_getValue('varredura_vistos', {})[nome]) continue;
-          const ok = await abrirPeloNome(nome);
-          if (!ok) { placar.nao_abriu++; salvaPlacar(); continue; }
-          placar.abertos++;
-          const idade = idadeDaConversa();
-          if (idade === null || idade < J.min || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
-          if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) { placar.janela_aberta++; salvaPlacar(); continue; }
-          if (humanoRecente()) { placar.humano++; salvaPlacar(); continue; }
-          const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
-          const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
-          const p = perfilDaConversa();
-          const horas = Math.round(idade / 3600000);
-          if (p.cpf || p.link || p.prop) {
-            // tem interesse: a mensagem sai pelo WhatsApp normal, fora do robô
-            const fila = GM_getValue('varredura_followup', []);
-            if (!fila.find(x => x.hash === hash)) {
-              fila.push({ hash, fone, nome, horas, quando: Date.now() });
-              GM_setValue('varredura_followup', fila);
-              log && log('Varredura: ' + nome + ' (' + horas + 'h) entrou na fila de follow-up do WhatsApp.', 'ok');
-              placar.followup++; salvaPlacar();
+        // ⚠️ 07/11 18:58: a versão anterior voltava ao topo e rolava a lista inteira para
+        // achar CADA cliente — dois chats por minuto. Agora ela caminha a lista em ordem,
+        // aproveitando a posição onde já está: a volta inteira cai para poucos minutos.
+        let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
+        for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
+        const jaVistos = new Set();
+        let pos = 0;
+        for (let pagina = 0; pagina < 60; pagina++) {
+          if (sc) { sc.scrollTop = pos; await esp(450); }
+          const itens = [...document.querySelectorAll('.customer-item')];
+          const nomes = itens.map(x => (x.innerText.split('\n').filter(Boolean)[1] || ''))
+            .filter(n => n && !jaVistos.has(n));
+          placar.lista = jaVistos.size + nomes.length; salvaPlacar();
+          for (const nome of nomes) {
+            jaVistos.add(nome);
+            if (feitas >= VARRE_MAX_RODADA) break;
+            if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
+            if (GM_getValue('varredura_vistos', {})[nome]) continue;
+            if (sc) { sc.scrollTop = pos; await esp(300); }
+            const it = [...document.querySelectorAll('.customer-item')]
+              .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
+            if (!it) { placar.nao_abriu++; salvaPlacar(); continue; }
+            const alvo = [...it.querySelectorAll('*')].find(x => x.children.length === 0 && txt(x) === nome) || it;
+            clicar(alvo); await esp(5000);
+            if (!document.querySelector('.entries')) { placar.nao_abriu++; salvaPlacar(); continue; }
+            placar.abertos++;
+            const idade = idadeDaConversa();
+            if (idade === null || idade < J.min || idade > J.max) { placar.idade_fora++; salvaPlacar(); continue; }
+            if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) { placar.janela_aberta++; salvaPlacar(); continue; }
+            if (humanoRecente()) { placar.humano++; salvaPlacar(); continue; }
+            const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
+            const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
+            const pf = perfilDaConversa();
+            const horas = Math.round(idade / 3600000);
+            if (pf.cpf || pf.link || pf.prop) {
+              const fila = GM_getValue('varredura_followup', []);
+              if (!fila.find(x => x.hash === hash)) {
+                fila.push({ hash, fone, nome, horas, quando: Date.now() });
+                GM_setValue('varredura_followup', fila);
+                log && log('Varredura: ' + nome + ' (' + horas + 'h) entrou na fila de follow-up do WhatsApp.', 'ok');
+                placar.followup++; salvaPlacar();
+              }
+            } else {
+              localStorage.setItem('dins_ordem', JSON.stringify({
+                hash, acao: 'classifica_fecha', quem: 'varredura',
+                nota: 'Varredura automática ' + new Date().toLocaleString('pt-BR').slice(0, 16) +
+                      ' - janela vencida ha ' + horas + 'h, sem CPF e sem interacao.',
+                t: Date.now()
+              }));
+              log && log('Varredura: ' + nome + ' (' + horas + 'h) sem interação — classificando e encerrando.', 'ok');
+              placar.classificados++; salvaPlacar();
+              await esp(45000);
             }
-          } else {
-            localStorage.setItem('dins_ordem', JSON.stringify({
-              hash, acao: 'classifica_fecha', quem: 'varredura',
-              nota: 'Varredura automática ' + new Date().toLocaleString('pt-BR').slice(0, 16) +
-                    ' - janela vencida ha ' + horas + 'h, sem CPF e sem interacao.',
-              t: Date.now()
-            }));
-            log && log('Varredura: ' + nome + ' (' + horas + 'h) sem interação — classificando e encerrando.', 'ok');
-            placar.classificados++; salvaPlacar();
-            await esp(45000);                       // deixa o desfecho terminar
+            const vistos = GM_getValue('varredura_vistos', {});
+            vistos[nome] = Date.now();
+            GM_setValue('varredura_vistos', vistos);
+            feitas++;
           }
-          const vistos = GM_getValue('varredura_vistos', {});
-          vistos[nome] = Date.now();
-          GM_setValue('varredura_vistos', vistos);
-          feitas++;
+          if (!sc) break;
+          const antes = sc.scrollTop; sc.scrollTop = pos + 400; await esp(400);
+          if (sc.scrollTop === antes) break;
+          pos = sc.scrollTop;
         }
       } catch (e) { placar.erro = e.message; log && log('Varredura parou: ' + e.message, 'erro'); }
       finally {
