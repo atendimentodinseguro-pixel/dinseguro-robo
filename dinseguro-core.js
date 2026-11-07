@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.47';
+  const VERSAO = '3.48';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -801,11 +801,27 @@
     return;
   }
 
-  // ================================================================== DAYCOVAL (Portal do Correspondente)
-  // Fluxo: Simulação de Ofertas → Cadastrar → Dados Cadastrais → Dados Complementares → Resumo → Gerar → Formalizar → link.
+  // ============================================== DAYCOVAL e QUERO MAIS (Portal do Correspondente)
+  // É o MESMO sistema nos dois: Simulação de Ofertas → Cadastrar → Dados Cadastrais → Dados Complementares
+  // → Resumo → Gerar → Formalizar → link. Muda o endereço, o vendedor, a tabela e a conta aleatória.
   // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
-  if (location.host === 'portaldecredito.daycoval.com.br') {
+  if (/^portaldecredito\.(daycoval|queromaisconsignado)\.com\.br$/.test(location.host)) {
     if (window.top !== window) return;
+    const QM = /queromais/.test(location.host);
+    // 3.48 — tudo que difere entre os dois portais fica aqui.
+    const PORTAL = QM ? {
+      nome: 'QUERO MAIS',
+      agente: /343999/, vendedor: /^378385/, comercial: /^500001/,
+      // tabela por caso (regra da Stefany): invalidez 32/92 → 800999 · acima de R$ 15 mil → 800998 · demais → 800991
+      tabela: (esp, liberado) => (esp === '32' || esp === '92') ? '800999' : (liberado > 15000 ? '800998' : '800991'),
+      // conta aleatória combinada: Caixa 104, ag 3880, conta 111113-1, POUPANÇA
+      aleatoria: () => ({ banco: '104', agencia: '3880', conta: '111113', dv: '1', seq: 0, poupanca: true }),
+    } : {
+      nome: 'DAYCOVAL',
+      agente: /JADY/i, vendedor: /\d/, comercial: /\d/,
+      tabela: null,                       // no Daycoval a tabela ainda é conferida à mão
+      aleatoria: null,                    // usa a sequência 001/0001/N-8 de sempre
+    };
     const tx = e => (e && e.textContent || '').replace(/\s+/g, ' ').trim();
     const vis = e => !!e && e.getBoundingClientRect().width > 0;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -848,16 +864,37 @@
       await fecharLista();
       sel.click(); await sleep(800);
       // só as opções da lista que abriu agora (o portal deixa opções de outras listas no DOM)
+      // 3.48 — neste portal o painel abre DENTRO do próprio <mat-select>, não no .cdk-overlay-container.
       const id = sel.getAttribute('aria-controls');
-      const pane = await esperar(() => (id && document.getElementById(id)) || [...document.querySelectorAll('.cdk-overlay-pane')].filter(x => x.querySelector('mat-option')).pop(), 10000);
+      const pane = await esperar(() => (sel.querySelector('mat-option') && sel) || (id && document.getElementById(id))
+        || [...document.querySelectorAll('.cdk-overlay-pane')].filter(x => x.querySelector('mat-option')).pop(), 10000);
       if (!pane) throw new Error('Lista não abriu: ' + re);
-      const s = busca && pane.closest('.cdk-overlay-pane') && pane.closest('.cdk-overlay-pane').querySelector('input');
-      if (s) { await digitar(s, busca); await sleep(900); }
+      // 3.48 — ⚠️ lista grande (Agente, Vendedor, Comercial, Empregador) NÃO mostra tudo: só com a caixa
+      // "Pesquisar …", que fica no mat-form-field, FORA do <mat-select>. Sem isso o robô conclui que
+      // o item não existe (07/11: disse que o agente 343999 não estava cadastrado, e estava).
+      const ff = sel.closest('mat-form-field');
+      const s = busca && (
+        (ff && [...ff.querySelectorAll('input')].filter(vis).find(i => /Pesquisar/i.test(i.placeholder || '')))
+        || (pane.closest('.cdk-overlay-pane') && pane.closest('.cdk-overlay-pane').querySelector('input')));
+      if (s) { await digitar(s, busca); await sleep(1500); }
       const o = await esperar(() => [...pane.querySelectorAll('mat-option')].find(x => re.test(tx(x))), 8000);
-      if (!o) { const ops = [...pane.querySelectorAll('mat-option')].map(tx).slice(0, 8).join(' / '); await fecharLista(); throw new Error('Opção não encontrada (' + re + '). Tem: ' + ops); }
+      if (!o) { const ops = [...pane.querySelectorAll('mat-option')].map(tx).slice(0, 8).join(' / ');
+        await fecharLista();
+        throw new Error('Opção não encontrada (' + re + ')' + (busca ? ' nem pesquisando "' + busca + '"' : '') + '. Tem: ' + ops); }
       o.click(); await sleep(600); return tx(o);
     }
-    const botaoTxt = (re, raiz = document) => [...raiz.querySelectorAll('button, a')].filter(vis).find(b => re.test(tx(b)));
+    // 3.48 — CADASTRAR PROPOSTA e GERAR PROPOSTAS são BARRAS DE RODAPÉ, não <button>: querySelector('button') não acha.
+    const botaoTxt = (re, raiz = document) => {
+      const b = [...raiz.querySelectorAll('button, a')].filter(vis).find(x => re.test(tx(x)));
+      if (b) return b;
+      // a barra tem a classe .resumo-oferta neste portal; fora dela, o elemento mais "justo" ao texto
+      const dentro = x => !x.closest('nav, header, .navbar, .nav-link');
+      const barra = [...raiz.querySelectorAll('.resumo-oferta')].filter(x => vis(x) && re.test(tx(x)));
+      if (barra.length) return barra[barra.length - 1];
+      const cand = [...raiz.querySelectorAll('div, span, [role=button]')]
+        .filter(x => vis(x) && dentro(x) && x.children.length <= 2 && re.test(tx(x)));
+      return cand.sort((x, y) => tx(x).length - tx(y).length)[0];
+    };
     const clicar = async (re, raiz) => { const b = await esperar(() => botaoTxt(re, raiz), 15000); if (!b) throw new Error('Botão não encontrado: ' + re); b.click(); await sleep(800); return b; };
     function secao(re) {
       const t = [...document.querySelectorAll('.card-title, h5, h4')].find(e => vis(e) && re.test(tx(e)));   // cartões do formulário (o menu lateral tem os mesmos nomes)
@@ -932,6 +969,34 @@
       if (!res) throw new Error('Simulação não retornou valor');
       f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].replace(/border_color.*/, '').trim();
       log(`Simulado: R$ ${res[1]} · ${f.prazo || 108}x R$ ${f.parcela} · ${f._tabela_daycoval}`, 'ok');
+
+      // 3.48 — ⚠️ A SIMULAÇÃO VEM NA TABELA ERRADA por padrão. Foi o erro do Luiz Carlos (06/11) e o da
+      // Kerliane (07/11): espécie 32 simulada na 800991, quando o certo é a 800999. Conferir SEMPRE.
+      if (PORTAL.tabela) {
+        const certa = PORTAL.tabela(esp, num(res[1]));
+        if (!new RegExp('\\b' + certa + '\\b').test(f._tabela_daycoval)) {
+          log('Tabela veio ' + f._tabela_daycoval + ' — o certo para este caso é a ' + certa + '. Trocando…');
+          await clicar(/^Editar Tabela$/i, p);
+          const modal = await esperar(() => [...document.querySelectorAll('div.modal-dialog, .cdk-overlay-pane')].filter(vis).find(m => /Taxa/i.test(tx(m))), 15000);
+          if (!modal) throw new Error('A janela "Editar Tabela" não abriu para trocar para a ' + certa);
+          const td = await esperar(() => [...modal.querySelectorAll('td')].filter(vis).find(x => tx(x) === certa), 10000);
+          if (!td) throw new Error('A tabela ' + certa + ' não aparece na lista do portal. Avise a Stefany.');
+          const seta = [...td.closest('tr').querySelectorAll('i, button, mat-icon')].filter(vis).pop();
+          if (!seta) throw new Error('Não achei a seta da linha da tabela ' + certa);
+          seta.click(); await sleep(2500);
+          await fecharAlertas();
+          const novo = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && new RegExp('\\b' + certa + '\\b').test(m[2]) && m; }, 30000);
+          if (!novo) throw new Error('Troquei a tabela mas o painel não confirmou a ' + certa);
+          f._liberado_daycoval = novo[1]; f._tabela_daycoval = novo[2].replace(/border_color.*/, '').trim();
+          log('Tabela trocada: ' + f._tabela_daycoval + ' · novo liberado R$ ' + novo[1], 'ok');
+        } else log('Tabela conferida: ' + certa + ' ✓');
+      }
+
+      // 3.48 — trava final: liberado ÷ parcela tem que dar ~43 a 45 em 108x a 1,85%
+      const razao = num(f._liberado_daycoval) / (num(f.parcela) || 1);
+      if ((f.prazo || '108') === '108' && (razao < 40 || razao > 48))
+        throw new Error('Valor não confere: liberado ÷ parcela = ' + razao.toFixed(2) + ' (o certo é ~43 a 45). Não vou cadastrar.');
+
       await clicar(/^ADICIONAR OFERTA$/i);
       await clicar(/VER RESUMO DE OFERTAS/i);
       await sleep(1000);
@@ -966,6 +1031,16 @@
         const lupa = caixa(/^CEP$/, sr).querySelector('mat-icon, button, [class*=search]'); if (lupa) lupa.click();
         await esperar(() => (entrada(/^Endere[çc]o$/, sr) || {}).value, 10000);
       }
+      // 3.48 — ⚠️ CEP geral de cidade (termina em -000) não traz NADA pela lupa e não dá erro:
+      // fica tudo vazio e o PRÓXIMO reclama. Preencher à mão com o que veio do Multicorban.
+      const endr = entrada(/^Endere[çc]o$/, sr);
+      if (endr && !endr.value) {
+        await digitar(endr, (f.endereco && !/^UF$/i.test(f.endereco) && f.endereco) || 'CENTRO');
+        const bai = entrada(/^Bairro$/, sr); if (bai && !bai.value) await digitar(bai, f.bairro || 'CENTRO');
+        const cid = entrada(/^Cidade$/, sr); if (cid && !cid.value) await digitar(cid, f.cidade || 'CENTRO');
+        if (f.uf) { const ufr = lista(/^UF$/, sr); if (ufr && !valorSel(ufr)) await escolher(ufr, new RegExp('^' + f.uf + '$'), f.uf); }
+        log('A lupa do CEP não trouxe o endereço (CEP geral de cidade). Preenchi com os dados do Multicorban.');
+      }
       const numero = entrada(/^Nº$/, sr); if (numero && !numero.value) await digitar(numero, '0');
       await clicar(/^PRÓXIMO$/);
       await semErro('Dados cadastrais');
@@ -974,12 +1049,22 @@
     }
 
     // ---- 3. Dados Complementares
-    function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 14), 14); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
+    // 3.48 — no Quero Mais a aleatória combinada é fixa (Caixa 104 / 3880 / 111113-1, POUPANÇA);
+    // no Daycoval continua a sequência 001 / 0001 / N-8.
+    function proximaConta() {
+      if (PORTAL.aleatoria) return PORTAL.aleatoria();
+      const n = Math.max(GM_getValue('conta_seq', 14), 14);
+      return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n };
+    }
     async function complementares(f) {
       await sleep(1500);
       const sb = secao(/^Dados Banc[áa]rios$/);
       const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
-      const c = real ? { banco: f.banco.padStart(3, '0'), agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) } : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) };
+      // 3.48 — no Quero Mais a conta aleatória é a combinada (Caixa 104 / 3880 / 111113-1), inteira,
+      // sem herdar banco nem agência do cliente. No Daycoval segue a sequência de sempre.
+      const c = real
+        ? { banco: f.banco.padStart(3, '0'), agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) }
+        : (PORTAL.aleatoria ? proximaConta() : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) });
       const jaTem = () => [...document.querySelectorAll('*')].some(e => e.children.length === 0 && new RegExp(c.conta + '/' + c.dv).test(tx(e)));
       if (!jaTem()) {
         await escolher(lista(/^Banco$/, sb), new RegExp('^' + c.banco + ' -'), c.banco);
@@ -990,7 +1075,7 @@
         await digitar(dvConta.querySelector('input'), c.dv);
         await clicar(/^INCLUIR$/, sb);
         await sleep(1200);
-        if (/outro CPF/i.test(alertas().join())) { await fecharAlertas(); if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no Daycoval.'); GM_setValue('conta_seq', c.seq + 1); throw new Error('Conta já usada em outro CPF (' + c.conta + '-' + c.dv + ').'); }
+        if (/outro CPF/i.test(alertas().join())) { await fecharAlertas(); if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + '.'); if (!PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1); else throw new Error('A conta aleatória combinada já está cadastrada para outro CPF no Quero Mais. Avise a Stefany.'); throw new Error('Conta já usada em outro CPF (' + c.conta + '-' + c.dv + ').'); }
         await semErro('Incluir conta');
         log(`Conta incluída: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : ' (aleatória da sequência)'}`);
       }
@@ -1006,24 +1091,32 @@
       await esperar(() => valorSel(sels[0]), 5000);
       if (!/PIX/.test(valorSel(sels[0]))) { try { await escolher(sels[0], /PIX/); } catch (e) { if (!/TED/.test(valorSel(sels[0]))) await escolher(sels[0], /TED/); } }
       await escolher(sels[1], re);
-      await escolher(sels[2], /CONTA CORRENTE INDIVIDUAL/);
+      // 3.48 — Caixa é POUPANÇA INDIVIDUAL; os demais, CORRENTE INDIVIDUAL.
+      await escolher(sels[2], (c.poupanca || c.banco === '104') ? /CONTA POUPAN[ÇC]A INDIVIDUAL/ : /CONTA CORRENTE INDIVIDUAL/);
       // vendedor
+      // 3.48 — ⚠️ a ordem importa: Comercial → Vendedor → Agente (uma lista alimenta a outra).
+      // E o Agente só aparece PESQUISANDO (a lista mostra 51 nomes e a 343999 não está entre eles).
       const sv = secao(/^Dados do Vendedor$/);
-      await escolher(lista(/^Agente$/, sv), AGENTE);
-      const v = lista(/^Vendedor$/, sv); if (v && !valorSel(v)) await escolher(v, /\d/);
-      const cm = lista(/^Comercial$/, sv); if (cm && !valorSel(cm)) await escolher(cm, /\d/);
+      const cm = lista(/^Comercial$/, sv); if (cm) await escolher(cm, PORTAL.comercial);
+      await sleep(1200);
+      const v = lista(/^Vendedor$/, sv); if (v) await escolher(v, PORTAL.vendedor);
+      await sleep(1200);
+      await escolher(lista(/^Agente$/, sv), PORTAL.agente, QM ? '343999' : '');
+      const ag = valorSel(lista(/^Agente$/, sv));
+      if (QM && /WALESKA/i.test(ag)) throw new Error('O agente ficou na WALESKA. Tem que ser 343999 STEFANY MONARA SOUZA.');
+      log('Vendedor: ' + valorSel(cm) + ' · ' + valorSel(v) + ' · ' + ag);
       await clicar(/^PRÓXIMO$/);
       await sleep(1500);
       const al = alertas().join(' | ');
       if (/j[áa] cadastrado para outro CPF/i.test(al)) {
         await fecharAlertas();
-        if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no Daycoval.');
-        GM_setValue('conta_seq', c.seq + 1);
+        if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no ' + PORTAL.nome + '.');
+        if (!PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1);
         throw new Error('Conta já usada em outro CPF. Avancei a sequência.');
       }
       await semErro('Dados complementares');
       await esperar(() => /GERAR PROPOSTAS/.test(document.body.innerText), 20000);
-      if (!real) GM_setValue('conta_seq', c.seq + 1);
+      if (!real && !PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1);
       log('Dados complementares ok. Resumo pronto.', 'ok');
     }
 
@@ -1045,24 +1138,25 @@
       if (!icone) throw new Error('Ícone de link não encontrado');
       await sleep(1000); icone.click(); await sleep(2500);
       await fecharAlertas();
-      if (!/^https?:/.test(copiado)) { const m = tx(document.body).match(/https?:\/\/dcy\.app\/\w+/); if (m) copiado = m[0]; }
-      if (!/^https?:/.test(copiado)) { try { copiado = await navigator.clipboard.readText(); } catch (e) {} }
+      if (!/^https?:/.test(copiado)) { const m = tx(document.body).match(/https?:\/\/(dcy\.app|\S+?)\/\w{4,}/); if (m) copiado = m[0]; }
+      // 3.48 — ⚠️ NÃO ler a área de transferência por JS: navigator.clipboard.readText() congela a aba
+      // (07/11: o comando morreu com timeout de 45 s, "the renderer may be frozen").
       if (!/^https?:\/\//.test(copiado || '')) throw new Error('Não consegui ler o link copiado');
-      const r = { cpf: f.cpf, nome: f.nome, proposta: nro, link: copiado, liberado: f._liberado_daycoval || '', parcela: f.parcela, prazo: f.prazo || '108', banco: 'DAYCOVAL', quando: new Date().toISOString() };
-      GM_setValue('daycoval_resultado', r);
-      try { localStorage.setItem('dins_daycoval_res', JSON.stringify(r)); } catch (e) {}
+      const r = { cpf: f.cpf, nome: f.nome, proposta: nro, link: copiado, liberado: f._liberado_daycoval || '', parcela: f.parcela, prazo: f.prazo || '108', tabela: f._tabela_daycoval || '', banco: PORTAL.nome, quando: new Date().toISOString() };
+      GM_setValue(QM ? 'queromais_resultado' : 'daycoval_resultado', r);
+      try { localStorage.setItem(QM ? 'dins_queromais_res' : 'dins_daycoval_res', JSON.stringify(r)); } catch (e) {}
       log(`PROPOSTA ${nro} · LINK ${copiado}`, 'ok');
-      document.getElementById('dins-res').value = `Proposta Daycoval ${nro}\nLiberado R$ ${r.liberado} · ${r.prazo}x R$ ${r.parcela}\nLink: ${copiado}`;
+      document.getElementById('dins-res').value = `Proposta ${PORTAL.nome} ${nro}\nLiberado R$ ${r.liberado} · ${r.prazo}x R$ ${r.parcela}\n${r.tabela}\nLink: ${copiado}`;
       return r;
     }
 
     // ---- painel
-    const p = painel('Digitação DAYCOVAL');
+    const p = painel('Digitação ' + PORTAL.nome);
     p.querySelector('#dins-corpo').innerHTML =
-      botao('Carregar ficha', '#475569') + botao('Fazer tudo', '#7c3aed') + botao('Digitar Daycoval', '#2563eb') + botao('Gerar e pegar link', '#16a34a') +
-      `<div style="margin-top:6px;color:#94a3b8;font-size:12px">Conta aleatória: próxima 001/0001/<span id="dins-seq"></span>-8</div>` +
+      botao('Carregar ficha', '#475569') + botao('Fazer tudo', '#7c3aed') + botao('Digitar', '#2563eb') + botao('Gerar e pegar link', '#16a34a') +
+      `<div style="margin-top:6px;color:#94a3b8;font-size:12px">${QM ? 'Conta aleatória combinada: Caixa 104 / 3880 / 111113-1 (poupança)' : 'Conta aleatória: próxima 001/0001/<span id="dins-seq"></span>-8'}</div>` +
       `<textarea id="dins-res" readonly style="width:100%;height:70px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px"></textarea>`;
-    p.querySelector('#dins-seq').textContent = Math.max(GM_getValue('conta_seq', 11), 11);
+    const seq = p.querySelector('#dins-seq'); if (seq) seq.textContent = Math.max(GM_getValue('conta_seq', 11), 11);
     let rodando = false;
     p.addEventListener('click', async e => {
       const a = e.target.dataset.a; if (!a || rodando) return;
@@ -1071,10 +1165,10 @@
       if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · mãe ${f.mae || '—'}`); return; }
       if (f.recusa) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }
       rodando = true;
-      const status = (st, extra) => { try { localStorage.setItem('dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
+      const status = (st, extra) => { try { localStorage.setItem(QM ? 'dins_queromais_status' : 'dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, portal: PORTAL.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
       status('rodando');
       try {
-        if (a === 'Digitar Daycoval' || a === 'Fazer tudo') {
+        if (a === 'Digitar' || a === 'Fazer tudo') {
           const pg = location.pathname;
           if (/dados-cliente/.test(pg)) await cadastrais(f);
           else if (!/dados-complementares|resumo|formalizacao/.test(pg)) { await simular(f); await cadastrais(f); }
@@ -1085,12 +1179,12 @@
             }
           }
           GM_setValue('ficha_atual', f);
-          if (a === 'Digitar Daycoval') log('Pronto para gerar. Confira o Resumo e clique "Gerar e pegar link".', 'ok');
+          if (a === 'Digitar') log('Pronto para gerar. Confira o Resumo e clique "Gerar e pegar link".', 'ok');
         }
         if (a === 'Gerar e pegar link' || a === 'Fazer tudo') { const r = await gerarELink(f); status('ok', r); }
         else status('pronto_para_gerar', { liberado: f._liberado_daycoval || '' });
       } catch (err) { log('PAROU: ' + err.message, 'erro'); status('erro', { erro: err.message }); }
-      finally { rodando = false; p.querySelector('#dins-seq').textContent = Math.max(GM_getValue('conta_seq', 11), 11); }
+      finally { rodando = false; const sq = p.querySelector('#dins-seq'); if (sq) sq.textContent = Math.max(GM_getValue('conta_seq', 11), 11); }
     });
     return;
   }
@@ -1652,7 +1746,9 @@
           // deixa a ordem pronta para o robô de desfecho do Botmaker
           try { localStorage.setItem('dins_ficha_recusa', JSON.stringify({ cpf: f.cpf, nome: f.nome, motivo: r[0], tag: r[1], oque: r[2], t: Date.now() })); } catch (er) {}
           log(`Ficha salva como RECUSA (${r[0]}). No Botmaker: tag ${r[1]} · ${r[2]}`, 'erro');
-        } else if (['QUEROMAIS', 'QUALIBANK', 'HUMANO', 'NAO'].includes((f.banco_destino || '').toUpperCase())) {
+        } else if ((f.banco_destino || '').toUpperCase() === 'QUEROMAIS') {
+          log('Ficha salva. Abra o portal do Quero Mais (pelo menu, sem F5) e clique "Fazer tudo".', 'ok');
+        } else if (['HUMANO', 'NAO'].includes((f.banco_destino || '').toUpperCase())) {
           log('Ficha salva. Destino: ' + f.banco_destino + ' — ver o REGRAS-BANCO desse banco.', 'ok');
         } else {
           log(`Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
@@ -1663,7 +1759,7 @@
   }
 
   // ================================================================== NEW CORBAN
-  const pagina = (location.search.match(/p=(facta|c6)\b/) || [])[1];
+  const pagina = (location.search.match(/p=(facta|c6|qualibank)\b/) || [])[1];
   if (!pagina) return;
   const $ = window.jQuery || (window.unsafeWindow && window.unsafeWindow.jQuery);
 
@@ -1687,7 +1783,7 @@
     return null;
   }
 
-  const p = painel(`Digitação ${pagina.toUpperCase()}`);
+  const p = painel('Digitação ' + (pagina === 'qualibank' ? 'QUALIBANK' : pagina.toUpperCase()));
   p.querySelector('#dins-corpo').innerHTML =
     botao('Carregar ficha', '#2563eb') +
     `<textarea id="dins-ficha" style="width:100%;height:170px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px" placeholder="Cole a ficha aqui (chave: valor) ou clique Carregar ficha"></textarea>` +
@@ -1716,8 +1812,23 @@
     setv('valor_parcela', f.parcela);
     const prazoId = pagina === 'facta' ? 'facta-prazo' : 'prazo';
     setSelect(prazoId, String(f.prazo || '108'));
-    el('btn_simular').click();
     const invalidez = INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'));
+    // Qualibank: a tabela é escolhida ANTES de simular, num select. Regra da Stefany:
+    // invalidez = tabela de invalidez (566 "Novo 108x 1,85% BEN INVALIDEZ"), demais = normal
+    // (631 "Novo 108x 1,85%"). Nunca "Entrante", nunca carência, nunca 96x.
+    if (pagina === 'qualibank') {
+      const selTab = el('tabela');
+      const opts = [...selTab.options].filter(o => o.value && /1,85/.test(o.text) && /108x/.test(o.text)
+        && /novo/i.test(o.text) && !/entrante/i.test(o.text) && !/car[êe]ncia|90d/i.test(o.text));
+      const alvo = opts.find(o => /inval/i.test(o.text) === invalidez);
+      if (!alvo) throw new Error(invalidez
+        ? 'Sem tabela de invalidez 108x 1,85% sem carência na Qualibank (esperado 566).'
+        : 'Sem tabela normal 108x 1,85% sem carência na Qualibank (esperado 631).');
+      if (!setSelect('tabela', alvo.value)) throw new Error('Não consegui escolher a tabela ' + alvo.value + ' na Qualibank.');
+      log('Tabela escolhida: ' + alvo.text.trim().slice(0, 60), 'ok');
+      await sleep(800);
+    }
+    el('btn_simular').click();
     const linhas = await esperar(() => {
       const r = [...document.querySelectorAll('table tbody tr')].filter(x => x.offsetParent && /1,85\s*%/.test(x.innerText)
         && !x.classList.contains('bg-light') && !x.classList.contains('iv2-offer-refused') && !/n[ãa]o dispon[íi]vel|n[ãa]o pode|extrapola/i.test(x.innerText));
@@ -1725,7 +1836,7 @@
     }, 30000, 700);
     if (!linhas) throw new Error('Nenhuma tabela 1,85% disponível. Confira a simulação na tela.');
     let cand = linhas.filter(x => /inval/i.test(x.innerText) === invalidez);
-    if (!cand.length && pagina === 'facta') cand = linhas;            // FACTA não separa invalidez
+    if (!cand.length && pagina !== 'c6') cand = linhas;            // FACTA não separa invalidez
     // v3.9 (regra da Stefany): sempre tabela SEM carência — "(+90d Car)"/"Carência" só quando ela pedir
     const semCar = cand.filter(x => !/\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia/i.test(x.innerText));
     if (semCar.length) cand = semCar;
@@ -1775,6 +1886,11 @@
       else log('Cidade não preenchida' + (alvo ? ' (' + alvo + ' não achada)' : '') + '. Escolha na tela.', 'erro');
     }
     const origem = el('proposta-origem_venda'); if (origem && $) { $(origem).selectpicker && $(origem).selectpicker('val', ''); }
+    // Qualibank: marcar "Documentos enviados pelo próprio cliente durante a formalização"
+    if (pagina === 'qualibank') {
+      const ck = el('check-documentos_formalizacao');
+      if (ck && !ck.checked) { ck.click(); log('Marcado: documentos enviados pelo cliente na formalização.', 'ok'); }
+    }
     log('Dados pessoais preenchidos.', 'ok');
   }
 
@@ -1822,7 +1938,7 @@
         conta = String(n); dv = '8'; GM_setValue('conta_seq', n + 1);
         origemConta = 'aleatória da sequência (não havia agência)';
       }
-      if (pagina === 'facta') { if (!setSelect('banco', banco)) log('Banco ' + banco + ' não existe na lista do FACTA.', 'erro'); }
+      if (pagina === 'facta' || pagina === 'qualibank') { if (!setSelect('banco', banco)) log('Banco ' + banco + ' não existe na lista do ' + pagina.toUpperCase() + '.', 'erro'); }
       else setv('banco', banco);
       setv('agencia', agencia); setv('conta', conta); setv('conta_digito', dv);
       log(`Conta: ${banco} ag ${agencia} cc ${conta}-${dv} — ${origemConta}.`, /aleat|derivada/.test(origemConta) ? 'erro' : 'ok');
@@ -1837,11 +1953,11 @@
         }
       }
     }
-    if (pagina === 'c6') {   // C6 também pede o banco do benefício
+    if (pagina === 'c6' || pagina === 'qualibank') {   // C6 e Qualibank também pedem o banco do benefício
       ['banco', 'agencia', 'conta', 'conta_digito'].forEach(k => { if (el('beneficio_' + k) && !el('beneficio_' + k).value) setv('beneficio_' + k, el(k).value); });
     }
-    // FACTA: confere se o banco visível bate com o valor real
-    if (pagina === 'facta') {
+    // FACTA/Qualibank: confere se o banco visível bate com o valor real
+    if (pagina === 'facta' || pagina === 'qualibank') {
       const bs = el('banco').closest('.bootstrap-select');
       const vis = bs ? ((bs.querySelector('.filter-option-inner-inner, .filter-option') || {}).innerText || '') : '';
       if (vis && !vis.startsWith(el('banco').value)) {
