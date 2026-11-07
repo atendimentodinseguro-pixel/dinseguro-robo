@@ -1,8 +1,16 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.21
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.22
 
 
 (function () {
   'use strict';
+
+  const VERSAO = '3.22';
+  // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
+  try {
+    const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
+    m[location.host] = { v: VERSAO, t: Date.now() };
+    localStorage.setItem('dins_versao', JSON.stringify(m));
+  } catch (e) {}
 
   // ------------------------------------------------------------------ REGRAS
   const PEGAR_LINK = false;   // true = depois de gravar também busca o link e copia a mensagem /n54n
