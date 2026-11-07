@@ -784,6 +784,19 @@
     // a cada 30 minutos, e a primeira 3 minutos depois de a aba abrir
     setTimeout(varrerJanelaVencida, 3 * 60000);
     setInterval(varrerJanelaVencida, 30 * 60000);
+
+    // "rodar agora", sem esperar os 30 minutos (Stefany, 07/11 18:08):
+    //   localStorage.setItem('dins_varrer_agora', '1')
+    // Com '1' ele respeita quem já foi visto; com 'tudo' ele esquece os vistos e
+    // reavalia a lista inteira.
+    setInterval(() => {
+      const v = localStorage.getItem('dins_varrer_agora');
+      if (!v) return;
+      localStorage.removeItem('dins_varrer_agora');
+      if (v === 'tudo') GM_setValue('varredura_vistos', {});
+      log && log('Varredura: rodando agora a pedido.', 'ok');
+      varrerJanelaVencida();
+    }, 3000);
     // para desligar: GM_setValue('varredura_ligada', false)
     // fila de quem precisa de follow-up pelo WhatsApp: GM_getValue('varredura_followup', [])
 
