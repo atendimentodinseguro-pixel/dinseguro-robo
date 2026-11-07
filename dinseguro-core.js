@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.29
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.30
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.29';
+  const VERSAO = '3.30';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -29,7 +29,14 @@
   const agOk = a => { const d = so(a); return d.length === 4 ? d : d.length === 3 ? '0' + d : d.length === 5 ? d.slice(0, 4) : '0001'; };   // v3.14: 3 dígitos → zero na frente
   const bancoOk = b => { const d = so(b); return d && !/^0+$/.test(d) ? d.padStart(3, '0') : ''; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const num = s => parseFloat(String(s || '').replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+  // ⚠️ 07/11/2026: a versão antiga apagava o sinal de menos (o filtro era [^\d,]).
+  // Margem "R$ -322,18" virava +322,18 e o robô montava proposta para quem está com a
+  // margem estourada. Cliente João Bosco — pego pela Stefany a um clique de gravar.
+  const num = s => {
+    const t = String(s || '').trim().replace(/[^\d,.\-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    const n = parseFloat(t);
+    return isNaN(n) ? 0 : n;
+  };
   const brl = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Decide banco destino pelas regras combinadas
@@ -1088,6 +1095,7 @@
         { const vb = num(g(/Valor do Benef[íi]cio\s*\n+([^\n]+)/)); f.renda = brl(Math.abs(vb - 1518) < 0.01 ? 1621 : vb); }
         const margem = num(g(/Margem Dispon[íi]vel\s*\n+([^\n]+)/));
         f.parcela = margem > 0 ? brl(Math.max(0, margem - 0.01)) : '0,00';
+        if (margem < 0) log('⚠️ MARGEM NEGATIVA (' + brl(margem) + '): margem estourada, não tem margem.', 'erro');
         // Regra Stefany: margem de R$ 531,30 (35% do mínimo antigo, R$ 1.518) => considerar mínimo 2026 (R$ 1.621): parcela R$ 567,34
         if (Math.abs(margem - 531.30) < 0.005) { f.parcela = '567,34'; log('Margem 531,30 → parcela 567,34 (salário mínimo 2026).', 'ok'); }
         const bancoTxt = g(/Dados Banc[áa]rio[s]?\s*\n+([^\n]+)/);
