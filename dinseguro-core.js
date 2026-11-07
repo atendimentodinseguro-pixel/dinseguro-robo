@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.39';
+  const VERSAO = '3.40';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -286,7 +286,8 @@
     // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
     // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
     // Não fecha a conversa: quem encerra é o próprio fluxo.
-    idade_77:         { atalho: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
+    idade_77:         { atalho: () => GM_getValue('atalho_inicio', ''), nomeFluxo: 'Início do atendimento',
+                        tags: ['Acima De 80 Anos'], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
   };
   const TAG_Q15 = 'Q15 - tem margem para cartão';
@@ -500,7 +501,11 @@
       grava('rodando');
       try {
         await abrir(o.hash);                               passos.push('abriu');
-        if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
+        const atalhoD = typeof d.atalho === 'function' ? d.atalho() : d.atalho;
+        if (d.nomeFluxo && !atalhoD)
+          throw new Error('a resposta rápida "' + d.nomeFluxo + '" está SEM ATALHO no Botmaker. ' +
+            'Peça à Stefany para criar o atalho e rode: GM_setValue("atalho_inicio", "/oatalho")');
+        if (atalhoD) { passos.push('msg:' + await respostaRapida(atalhoD, d.editar)); }
         else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
         const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
@@ -515,6 +520,98 @@
       } finally { rodando = false; }
     }
     setInterval(olharOrdem, 3000);
+
+    // ---------------------------------------------------------------------
+    // FOLLOW-UP AUTOMÁTICO DO LINK (Stefany, 07/11/2026 16:03)
+    // Todo link mandado ao cliente (pelo /bn54n ou pelo /parabens) gera dois
+    // compromissos: 10 minutos depois, "Conseguiu acessar? Ficou com alguma
+    // dúvida?"; 60 minutos depois, /132 — este só se o cliente NÃO tiver
+    // respondido nada nesse tempo. Era o que o robô antigo fazia e tinha se
+    // perdido no caminho.
+    // A fila fica no GM storage, então sobrevive a F5 e a troca de aba.
+    const FUPS = () => GM_getValue('followups', []);
+    const gravaFups = l => GM_setValue('followups', l);
+
+    // Registrar: window.dinsLinkEnviado('HASH', '55619...')  — ou, de fora,
+    // localStorage.setItem('dins_link_enviado', JSON.stringify({hash, fone}))
+    window.dinsLinkEnviado = function (hash, fone) {
+      const agora = Date.now();
+      const l = FUPS().filter(f => f.hash !== hash);
+      l.push({ hash, fone: fone || '', etapa: '10', quando: agora + 10 * 60000, linkT: agora });
+      l.push({ hash, fone: fone || '', etapa: '60', quando: agora + 60 * 60000, linkT: agora });
+      gravaFups(l);
+      log && log('Follow-up do link agendado: 10 min e 60 min.', 'ok');
+      return 'agendado';
+    };
+
+    // o cliente falou depois do link? Lê o fim da conversa de trás para frente.
+    // Marca nossa: toda mensagem que sai leva "done_all" (o visto duplo) logo depois.
+    // Nota interna é um bloco: entra em "~ Criado por" e sai em "[Nota interna]".
+    function clienteRespondeu() {
+      const e = document.querySelector('.entries');
+      if (!e) return false;
+      const linhas = e.innerText.split('\n').map(x => x.trim()).filter(Boolean);
+      let dentroDaNota = false;
+      for (let i = linhas.length - 1; i >= 0; i--) {
+        const l = linhas[i];
+        if (/^~ Criado por/.test(l)) { dentroDaNota = true; continue; }
+        if (/^\[Nota interna\]/.test(l)) { dentroDaNota = false; continue; }
+        if (dentroDaNota) continue;
+        if (/^done_all$/.test(l)) return false;                 // a última foi nossa
+        if (/^\[Dinseguro\]/.test(l)) return false;
+        if (/Enviado pelo credsegurobank/.test(l)) return false; // o robô do bot falou
+        if (/^(check|info_outline|security|list_alt|schedule|bolt|open_in_new|play_arrow|person|Home|Lar)$/.test(l)) continue;
+        if (/^Enviado por Dinseguro$/.test(l)) continue;         // rótulo do canal, não é autoria
+        if (/^S(e|É)X|^SÁB|^DOM|^SEG|^TER|^QUA|^QUI/i.test(l) && /\d{1,2}:\d{2}/.test(l)) continue;
+        if (/^Sess[ãa]o /.test(l)) continue;
+        if (/^\d{1,2}:\d{2}(:\d{2})?( (AM|PM))?$/.test(l)) continue;
+        if (l.length > 1) return true;                          // texto que não é nosso
+      }
+      return false;
+    }
+
+    let fupRodando = false;
+    async function olharFollowups() {
+      if (fupRodando || rodando) return;
+      const l = FUPS();
+      const i = l.findIndex(f => Date.now() >= f.quando);
+      if (i < 0) return;
+      const f = l[i];
+      fupRodando = true;
+      try {
+        await abrir(f.hash);
+        if (f.fone) {
+          const p = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1];
+          if (p && p !== f.fone) throw new Error('chat aberto não é o do follow-up (' + p + ')');
+        }
+        if (f.etapa === '60' && clienteRespondeu()) {
+          log && log('Follow-up de 60 min cancelado: o cliente respondeu.', 'ok');
+        } else {
+          const atalho = f.etapa === '10' ? GM_getValue('atalho_conseguiu', '') : '/132';
+          if (!atalho) {
+            log && log('Follow-up de 10 min parado: a resposta rápida "Conseguiu acessar?" está SEM ATALHO no ' +
+              'Botmaker. Peça o atalho à Stefany e rode GM_setValue("atalho_conseguiu", "/oatalho").', 'erro');
+          } else {
+            await respostaRapida(atalho, false);
+            log && log('Follow-up de ' + f.etapa + ' min enviado (' + atalho + ').', 'ok');
+          }
+        }
+      } catch (e) {
+        log && log('Follow-up falhou: ' + e.message, 'erro');
+      } finally {
+        gravaFups(FUPS().filter(x => !(x.hash === f.hash && x.etapa === f.etapa)));
+        fupRodando = false;
+      }
+    }
+    setInterval(olharFollowups, 60000);
+
+    // gatilho de fora da aba (o atendimento manda o link e avisa o robô)
+    setInterval(() => {
+      let o; try { o = JSON.parse(localStorage.getItem('dins_link_enviado') || 'null'); } catch (e) { return; }
+      if (!o || !o.hash) return;
+      localStorage.removeItem('dins_link_enviado');
+      window.dinsLinkEnviado(o.hash, o.fone);
+    }, 3000);
   })();
 
     setInterval(vigiar, 30000);
