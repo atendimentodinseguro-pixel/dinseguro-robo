@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.52';
+  const VERSAO = '3.53';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -725,6 +725,7 @@
       salvaPlacar();
       try {
         const nomes = await listaCompleta();   // rola a lista inteira antes de começar
+        log && log('Varredura: ' + nomes.length + ' conversas na lista.');
         placar.lista = nomes.length; salvaPlacar();
         for (const nome of nomes) {
           if (feitas >= VARRE_MAX_RODADA) break;
@@ -782,18 +783,41 @@
         .map(x => (x.innerText.split('\n').filter(Boolean)[1] || '')).filter(Boolean))];
     }
     // rola a lista de chats até o fim para pegar TODOS os nomes, não só os visíveis
+    // ⚠️ 3.53 (07/11 19:00) — a varredura entregava ZERO e parecia quebrada. Não estava:
+    // ela só enxergava PARTE da lista. Dois motivos, os dois corrigidos aqui.
+    //
+    //  1. A lista do Botmaker é VIRTUALIZADA: só ~7 conversas existem no HTML por vez,
+    //     numa barra de rolagem de ~6.300px. Tem que rolar e colher a cada passo.
+    //  2. ⚠️ O principal: as conversas antigas são BUSCADAS NO SERVIDOR quando a rolagem
+    //     chega ao fundo. A versão anterior parava assim que o scrollTop não mudava mais
+    //     ("cheguei ao fim") — mas nesse instante o fim ainda era o fim do que estava
+    //     carregado, e o resto vinha depois. Medido em 07/11 18:47: a varredura montou
+    //     uma lista de 30 nomes; rolando com paciência, a mesma lista tinha 59.
+    //     Por isso ela nunca via as conversas velhas, que são justamente o alvo dela.
+    //
+    // Agora: chegou ao fundo → ESPERA carregar e tenta de novo. Só desiste depois de
+    // 6 passadas seguidas sem nenhum nome novo.
     async function listaCompleta() {
       let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
       for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
       if (!sc) return listaDeNomes();
       const todos = new Set();
-      sc.scrollTop = 0; await esp(700);
-      for (let n = 0; n < 40; n++) {
-        listaDeNomes().forEach(x => todos.add(x));
-        const antes = sc.scrollTop; sc.scrollTop += 500; await esp(400);
-        if (sc.scrollTop === antes) break;
+      const colher = () => listaDeNomes().forEach(x => todos.add(x));
+      sc.scrollTop = 0; await esp(900);
+      let semNovidade = 0;
+      for (let n = 0; n < 400 && semNovidade < 6; n++) {
+        const antesQtd = todos.size;
+        colher();
+        const antesTopo = sc.scrollTop;
+        sc.scrollTop = Math.min(sc.scrollTop + 400, sc.scrollHeight);
+        await esp(650);
+        colher();
+        const noFundo = sc.scrollTop <= antesTopo + 5;
+        if (noFundo) await esp(1200);          // deixa o Botmaker buscar as mais antigas
+        colher();
+        semNovidade = (todos.size === antesQtd && noFundo) ? semNovidade + 1 : 0;
       }
-      sc.scrollTop = 0; await esp(500);
+      sc.scrollTop = 0; await esp(700);
       return [...todos];
     }
     // ⚠️ 07/11 18:25: a versão anterior só olhava os chats JÁ renderizados na tela.
