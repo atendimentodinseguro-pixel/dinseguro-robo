@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.32
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.33
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.32';
+  const VERSAO = '3.33';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -69,7 +69,11 @@
   // Faixas de valor e para onde cada uma vai. Pedido da Stefany em 07/11: o banco
   // depende do valor que o cliente quiser, então o painel já mostra o quadro inteiro
   // em vez de obrigar a recalcular quando ele responde.
-  const FAIXAS = [[1000, 5000], [5000, 10000], [10000, 15000], [15000, 20000], [20000, null]];
+  // As faixas quebram nos cortes de verdade: R$ 6.000 e R$ 20.000 são onde muda a
+  // TABELA do banco ("Tkt até 6k", "Tkt 6k a 20k", "Tkt > 20k") — por isso o 6.000
+  // é uma faixa própria, e não some dentro do 5.000–10.000. (Stefany, 07/11.)
+  const FAIXAS = [[1000, 5000], [5000, 6000], [6000, 10000], [10000, 15000], [15000, 20000], [20000, null]];
+  const tkt = v => v < 6000 ? 'Tkt até 6k' : v <= 20000 ? 'Tkt 6k a 20k' : 'Tkt > 20k';
   function faixasBanco(f, margem) {
     const teto = margem > 0 ? (margem - 0.01) * 28400 / 648.39 : 0;   // quanto a margem aguenta
     return FAIXAS.map(([a, b]) => {
@@ -78,7 +82,7 @@
       const topo = b === null ? teto : Math.min(b, teto);
       const d = decidirBanco(Object.assign({}, f, { parcela: brl(topo * 648.39 / 28400) }));
       const corte = (b !== null && b > teto) ? ` (só até R$ ${brl(teto)})` : '';
-      return `${nome} → ${d.banco}${corte}`;
+      return `${nome} → ${d.banco} · ${tkt(topo)}${corte}`;
     });
   }
 
