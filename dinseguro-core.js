@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.35';
+  const VERSAO = '3.36';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -15,6 +15,11 @@
   // ------------------------------------------------------------------ REGRAS
   const PEGAR_LINK = false;   // true = depois de gravar também busca o link e copia a mensagem /n54n
   const INVALIDEZ = ['04', '05', '06', '32', '33', '34', '51', '83', '92'];
+  // Pensão por morte (urbana e rural). Usado só para a trava de idade da Qualibank.
+  // ⚠️ CONFIRMAR COM A STEFANY: a "regra de pensão abaixo de 45 anos" dela ainda não
+  // está escrita em lugar nenhum; até ela passar, pensionista com menos de 45 anos
+  // NÃO vai para a Qualibank — fica na FACTA e o robô avisa.
+  const PENSAO = ['01', '02', '03', '21', '23', '27', '28', '29'];
   const PADRAO = {
     dt_emissao: '01/11/2026',
     email: 'naoinformado@gmail.com',
@@ -62,8 +67,13 @@
     }
     // Mudança da Stefany, 07/11/2026 12:53, "por enquanto": não sendo invalidez,
     // ACIMA de R$ 6.000 vai para o C6. Antes o corte era R$ 20.000.
-    if (liberado < 6000) return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil: FACTA' + nota };
-    return { banco: 'C6', motivo: 'Acima de R$ 6 mil e não é invalidez: C6' + nota };
+    if (liberado >= 6000) return { banco: 'C6', motivo: 'Acima de R$ 6 mil e não é invalidez: C6' + nota };
+    // Mudança da Stefany, 07/11/2026 14:41: abaixo de R$ 6 mil pode ir para a QUALIBANK,
+    // desde que não caia na regra de invalidez (tratada acima) nem na de pensão abaixo
+    // de 45 anos. Pensionista com menos de 45 anos continua na FACTA até ela passar a regra.
+    if (PENSAO.includes(esp) && idade < 45)
+      return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil, mas é pensão com menos de 45 anos: FACTA (regra de pensão <45 ainda não escrita — confirmar com a Stefany)' + nota };
+    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil: Qualibank, tabela normal (631)' + nota };
   }
 
 
