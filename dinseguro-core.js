@@ -1,4 +1,4 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.17
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.21
 
 
 (function () {
@@ -45,8 +45,10 @@
   }
 
   // Ficha em texto (chave: valor) <-> objeto
-  const CAMPOS = ['banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
-    'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta'];
+  const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'prazo', 'telefone', 'email',
+    'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
+    // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -192,6 +194,244 @@
            <span data-abrir="${f.id}" style="cursor:pointer;text-decoration:underline">${hora(f.quando)} · ${f.nome || 'sem nome'}</span>
            <span data-ok="${f.id}" title="Já atendido" style="cursor:pointer">✓</span></div>`).join('');
     }
+  // ================================================================ DESFECHO (patches 3.19 + 3.21)
+  // O Claude tria e consulta; este robô só executa a ordem já decidida:
+  // resposta rápida (ou texto livre) + tag + nota + fechar conversa.
+  // Ordem em localStorage.dins_ordem, resultado em localStorage.dins_ordem_status.
+  const DESFECHOS = {
+    sem_margem:       { atalho: '/n30', tags: ['01 I - INSS Sem margem 2026'], fechar: true },
+    sem_margem_k:     { atalho: '/n30', tags: ['01 k SEM Margem Nao Rodar Whats'], fechar: true },
+    loas_sem:         { atalho: '/n30', tags: ['02 I - LOAS Sem margem 2026'], fechar: true },
+    loas_com:         { atalho: '/n30', tags: ['02 A - Loas Sem Rep Com Margem'], fechar: true, editar: true },
+    especie_fora:     { atalho: '/07',  tags: ['07 - Nao Identificado'], fechar: true },
+    sem_cpf:          { atalho: '/n23', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
+    com_margem:       { atalho: null,   tags: ['01 A - Inss Com Margem - SEM 87 E 88'], fechar: false },
+    representante:    { atalho: '/inss13', tags: ['03 A - Loas Com Rep Com Margem'], fechar: true },
+    representante_sm: { atalho: '/inss13', tags: ['03 B - Loas Com Rep Sem Margem'], fechar: true },
+    pensao:           { atalho: null,   tags: ['07 - Nao Identificado'], fechar: true,
+                        texto: 'Infelizmente não atendemos benefício com pensão alimentícia. Agradecemos o seu contato!' },
+    so_tag:           { atalho: null,   tags: [], fechar: false },
+  };
+  const TAG_Q15 = 'Q15 - tem margem para cartão';
+  const EDICAO_LOAS = [
+    [/não há margem disponível para liberar seu empréstimo/i,
+     'não temos propostas disponíveis e por isso estamos encerrando este atendimento'],
+    [/avisar assim que surgir margem de crédito/i, 'avisar assim que surgir uma nova oportunidade'],
+  ];
+
+  (function desfecho() {
+    const esp = ms => new Promise(r => setTimeout(r, ms));
+    const vis = e => !!e && e.offsetParent !== null;
+    const txt = e => ((e && e.textContent) || '').replace(/\s+/g, ' ').trim();
+    const setNativo = (el, v) => {
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const clicar = el => ['mousedown', 'mouseup', 'click'].forEach(t =>
+      el.dispatchEvent(new MouseEvent(t, { bubbles: true, view: window })));
+    async function ate(fn, ms = 15000, passo = 300) {
+      const fim = Date.now() + ms;
+      while (Date.now() < fim) { try { const r = fn(); if (r) return r; } catch (e) {} await esp(passo); }
+      return null;
+    }
+    // ⚠️ erro 33: conferir tag no texto da PÁGINA dá falso positivo (o nome está na lista aberta).
+    // A área das tags vai do rótulo "Tags" até "Variáveis".
+    function areaTags() {
+      const T = document.body.innerText;
+      const i = T.indexOf('Tags'); if (i < 0) return '';
+      const j = T.indexOf('Variáveis');
+      return T.slice(i, j > i ? j : i + 400);
+    }
+    async function fecharMenus() {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      const bd = document.querySelector('.cdk-overlay-backdrop,.MuiBackdrop-root');
+      if (bd) clicar(bd);
+      await esp(1500);
+    }
+
+    // 1. abrir o chat certo  ⚠️ o hash fica na janela de CIMA
+    async function abrir(hash) {
+      const alvo = '#/chats/' + hash.replace(/^#\/chats\//, '');
+      if (window.top.location.hash !== alvo) { window.top.location.hash = alvo; await esp(4000); }
+      const ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 15000);
+      if (!ok) throw new Error('não consegui abrir o chat ' + hash);
+      if (/Chat em atendimento com/.test(document.body.innerText))
+        throw new Error('chat bloqueado por atendente — liberar no ⋮ antes');
+    }
+
+    // 2. resposta rápida
+    async function respostaRapida(atalho, editar) {
+      const ta = await ate(() => document.querySelector('textarea'));
+      if (!ta) throw new Error('caixa de mensagem não encontrada');
+      ta.focus(); setNativo(ta, atalho);
+      await esp(2500);
+      const linha = await ate(() => [...document.querySelectorAll('tr,li,div')]
+        .filter(vis).find(x => x.children.length < 8 && new RegExp('^\\' + atalho + '\\b').test(txt(x))), 10000);
+      if (!linha) throw new Error('resposta rápida ' + atalho + ' não apareceu');
+      clicar(linha);
+      const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
+      if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
+      if (editar) {
+        const ta2 = document.querySelector('textarea');
+        let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
+        ta2.focus(); setNativo(ta2, v); await esp(600);
+      }
+      const trecho = document.querySelector('textarea').value
+        .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
+      clicar(await ate(() => document.querySelector('button.send-button-component')));
+      await esp(4000);
+      const chegou = document.querySelector('.entries').innerText.slice(-4000)
+        .replace(/[*_]/g, '').includes(trecho.trim().slice(0, 30));
+      if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
+      return trecho.trim().slice(0, 40);
+    }
+
+    // 2b. texto escrito, sem atalho (pensão alimentícia)
+    async function mensagemLivre(texto) {
+      const ta = await ate(() => document.querySelector('textarea'));
+      if (!ta) throw new Error('caixa de mensagem não encontrada');
+      ta.focus(); setNativo(ta, texto); await esp(800);
+      clicar(await ate(() => document.querySelector('button.send-button-component')));
+      await esp(4000);
+      const chegou = document.querySelector('.entries').innerText.slice(-4000)
+        .replace(/[*_]/g, '').includes(texto.replace(/[*_]/g, '').slice(0, 30));
+      if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
+      return texto.slice(0, 40);
+    }
+
+    // o botão "+" ao lado de um rótulo do painel direito (Tags, Notas)
+    function maisDe(rotuloRe) {
+      const rot = [...document.querySelectorAll('*')]
+        .filter(e => e.children.length === 0 && rotuloRe.test(txt(e)))[0];
+      if (!rot) return null;
+      let cx = rot, mais = null;
+      for (let k = 0; k < 5 && cx && !mais; k++) {
+        cx = cx.parentElement;
+        mais = cx && [...cx.querySelectorAll('*')].find(x => x.children.length === 0 && /add_circle/.test(txt(x)));
+      }
+      return mais;
+    }
+
+    // 3. tag (a caixa de busca tem id "addtag")
+    async function addTag(nome) {
+      if (new RegExp(nome.slice(0, 12).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(areaTags())) return nome + ' (já tinha)';
+      const mais = maisDe(/^Tags$/);
+      if (!mais) throw new Error('botão + das Tags não encontrado');
+      clicar(mais);
+      const campo = await ate(() => document.getElementById('addtag'), 10000);
+      if (!campo) throw new Error('caixa de tag não abriu');
+      campo.focus(); setNativo(campo, nome.slice(0, 11));
+      const op = await ate(() => [...document.querySelectorAll('li,[role=option]')]
+        .filter(vis).find(o => txt(o) === nome), 10000);
+      if (!op) {
+        const ops = [...document.querySelectorAll('li,[role=option]')].filter(vis).map(txt).slice(0, 8).join(' / ');
+        await fecharMenus();
+        throw new Error('tag "' + nome + '" não apareceu na lista. Tem: ' + ops);
+      }
+      clicar(op); await esp(1500);
+      const add = await ate(() => [...document.querySelectorAll('button')]
+        .filter(vis).find(b => /^Adicionar$/i.test(txt(b)) && !b.disabled), 8000);
+      if (!add) throw new Error('botão Adicionar da tag não ficou disponível');
+      clicar(add); await esp(3000);
+      await fecharMenus();
+      if (!new RegExp(nome.slice(0, 12).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(areaTags()))
+        throw new Error('a tag "' + nome + '" NÃO entrou (conferido na área das tags)');
+      return nome;
+    }
+
+    // 4. nota permanente
+    async function addNota(texto) {
+      const mais = maisDe(/^Notas$/);
+      if (!mais) throw new Error('botão + das Notas não encontrado');
+      clicar(mais);
+      const principal = document.querySelector('textarea');
+      const cxTexto = await ate(() => [...document.querySelectorAll('textarea')]
+        .filter(vis).find(t => t !== principal), 10000);
+      if (!cxTexto) throw new Error('caixa da nota não abriu');
+      cxTexto.focus(); setNativo(cxTexto, texto); await esp(800);
+      const perm = [...document.querySelectorAll('input[type=checkbox]')].filter(vis)
+        .find(c => /Permanente/i.test(txt(c.closest('label,div')) || ''));
+      if (perm && !perm.checked) clicar(perm);
+      const criar = await ate(() => [...document.querySelectorAll('button')]
+        .filter(vis).find(b => /^Criar$/i.test(txt(b))), 8000);
+      if (!criar) throw new Error('botão Criar da nota não encontrado');
+      clicar(criar); await esp(2500);
+      return 'nota criada';
+    }
+
+    // 5. fechar a conversa: ícone "stop" no topo -> escolher o tipo -> Confirmar
+    async function fecharConversa() {
+      const ic = [...document.querySelectorAll('*')].filter(vis)
+        .find(e => e.children.length === 0 && txt(e) === 'stop' && e.getBoundingClientRect().top < 140);
+      if (!ic) throw new Error('ícone de fechar conversa (stop) não encontrado');
+      clicar(ic.closest('button') || ic);
+      const lista = await ate(() => [...document.querySelectorAll('[role=combobox],.MuiSelect-select,input')]
+        .filter(vis).find(x => /Selecionar tipo de conversa/i.test(txt(x) || x.placeholder || '')), 10000);
+      if (lista) {
+        clicar(lista); await esp(1500);
+        const op = await ate(() => [...document.querySelectorAll('li,[role=option]')]
+          .filter(vis).find(o => /^Fechar Conversa$/i.test(txt(o))), 8000);
+        if (!op) throw new Error('tipo de conversa "Fechar Conversa" não apareceu');
+        clicar(op); await esp(1200);
+      }
+      const conf = await ate(() => [...document.querySelectorAll('button')]
+        .filter(vis).find(b => /^Confirmar$/i.test(txt(b)) && !b.disabled), 8000);
+      if (!conf) throw new Error('botão Confirmar não ficou disponível (faltou escolher o tipo?)');
+      clicar(conf); await esp(3000);
+      return 'fechada';
+    }
+
+    // 6. limpar o filtro da lista (senão a triagem não vê clientes novos)
+    function limparFiltro() {
+      const chip = [...document.querySelectorAll('*')].filter(vis)
+        .find(e => /^Usuários com o texto/i.test(txt(e)) && txt(e).length < 60);
+      if (chip) { const x = chip.querySelector('svg,button') || chip.nextElementSibling; if (x) clicar(x); }
+    }
+
+    // de `recusa` (ficha do Multicorban) para a ação da tabela
+    window.dinsAcaoDaRecusa = recusa => {
+      const s = String(recusa || ''), m = s.split('|')[0];
+      if (m === 'PENSAO') return 'pensao';
+      if (m === 'REPRESENTANTE') return /03 B/.test(s) ? 'representante_sm' : 'representante';
+      if (m === 'SEM_MARGEM') return 'sem_margem';
+      return '';
+    };
+
+    // laço: a cada 3s procura uma ordem nova
+    let rodando = false, ultima = '';
+    async function olharOrdem() {
+      if (rodando) return;
+      let o; try { o = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) { return; }
+      if (!o || !o.hash || !o.acao) return;
+      const id = o.hash + '|' + o.acao + '|' + (o.t || '');
+      if (id === ultima) return;
+      const d = DESFECHOS[o.acao];
+      if (!d) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', erro: 'ação desconhecida: ' + o.acao })); ultima = id; return; }
+      rodando = true; ultima = id;
+      const passos = [];
+      const grava = (st, extra) => localStorage.setItem('dins_ordem_status',
+        JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
+      grava('rodando');
+      try {
+        await abrir(o.hash);                               passos.push('abriu');
+        if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
+        else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
+        const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
+        if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
+        for (const t of tags) { passos.push('tag:' + await addTag(t)); }
+        if (o.nota) { passos.push(await addNota(o.nota)); }
+        if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
+        grava('ok');
+        log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
+      } catch (e) {
+        grava('erro', { erro: e.message });
+        log && log('Desfecho PAROU: ' + e.message, 'erro');
+      } finally { rodando = false; }
+    }
+    setInterval(olharOrdem, 3000);
+  })();
+
     setInterval(vigiar, 30000);
     setTimeout(vigiar, 4000);
     return;
@@ -465,6 +705,7 @@
       const f = GM_getValue('ficha_atual');
       if (!f || !f.cpf) { log('Nenhuma ficha salva. No Multicorban: Gerar ficha → Salvar ficha.', 'erro'); return; }
       if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · mãe ${f.mae || '—'}`); return; }
+      if (f.recusa) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }
       rodando = true;
       const status = (st, extra) => { try { localStorage.setItem('dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
       status('rodando');
@@ -680,6 +921,7 @@
       const f = GM_getValue('ficha_atual');
       if (!f || !f.cpf) { log('Nenhuma ficha salva. No Multicorban: Gerar ficha → Salvar ficha.', 'erro'); return; }
       if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · ${f.cidade || '?'} · mãe ${f.mae || '—'}`); return; }
+      if (f.recusa) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }
       rodando = true;
       const status = (st, extra) => { try { localStorage.setItem('dins_bmg_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, t: Date.now() }, extra || {}))); } catch (er) {} };
       status('rodando');
@@ -718,6 +960,30 @@
         if (acc && acc.classList.contains('collapsed')) { acc.click(); await sleep(1500); }
         const t = document.body.innerText;
         const g = r => ((t.match(r) || [])[1] || '').trim();
+        // Leitor por rótulo: a tela mostra o rótulo numa linha e o valor na linha seguinte.
+        // Funciona igual na Versão 1 e na Versão 2.
+        const LINHAS = t.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        // ⚠️ Campo VAZIO não aparece vazio: a linha seguinte é o PRÓXIMO RÓTULO.
+        // (No Marcos Aurélio, "RG" vinha seguido de "DIB".) Esta lista evita gravar rótulo como valor.
+        const ROTULOS = /^(Nome|CPF|RG|DIB|DDB|UF|CEP|Endere[çc]o|Munic[íi]pio|Sexo|Idade|Benef[íi]cio|Esp[ée]cie|Situa[çc][ãa]o|Margem|Somar|Nome da M[ãa]e|Data Nascimento|Data Inclus[ãa]o|Data da Extin[çc][ãa]o|Tipo de conta|Dados Banc[áa]rio[s]?|N[úu]mero da (Ag[êe]ncia|Conta)|Valor (do Benef[íi]cio|L[íi]quido|da parcela)|Limite Cart[ãa]o|Banco|Sistema|Prazo|Informa[çc][õo]es complementares|Clique aqui para exibir\.?|Telefone\(s\) do Benefici[áa]rio|Margem Dispon[íi]vel|Margem Benef[íi]cio|Observa[çc][ãa]o do Bloqueio|Descri[çc][ãa]o do Bloqueio|Pens[ãa]o Aliment[íi]cia|Possui Representante|Bloqueado para Empr[ée]stimo|Eleg[íi]vel para Empr[ée]stimo|Dados do Representante Legal|Liberado p\/ Desbloqueio|Consulta Saque BMG|Cart[ãa]o (Pessoal|Benef[íi]cio) \(R[MC]C\))$/i;
+        const depois = (lbl, q = 1) => {
+          const re = new RegExp('^' + lbl + '\\s*:?$', 'i');
+          const i = LINHAS.findIndex(x => re.test(x));
+          if (i < 0) return q === 1 ? '' : [];
+          const v = [];
+          for (let k = i + 1; k < i + 1 + q && k < LINHAS.length; k++) { if (ROTULOS.test(LINHAS[k])) break; v.push(LINHAS[k]); }
+          return q === 1 ? (v[0] || '') : v;
+        };
+        // RMC / RCC não têm rótulo próprio: cabeçalho da seção -> primeira "Margem" depois dele -> valor.
+        // "NNN - Banco" no meio é o banco que já está com aquele cartão.
+        const cartao = re => {
+          const i = LINHAS.findIndex(x => re.test(x)); if (i < 0) return '';
+          const j = LINHAS.findIndex((x, k) => k > i && /^Margem$/i.test(x)); if (j < 0) return '';
+          const bco = LINHAS.slice(i + 1, j).find(x => /^\d{3} - /.test(x)) || '';
+          return (LINHAS[j + 1] || '') + (bco ? ' (' + bco + ')' : '');
+        };
+        // "Não é pensão alimentícia" / "Não possui representante legal" => negativo
+        const negativo = v => !v || /^n[ãa]o\b/i.test(v);
         const f = {
           nome: g(/\nNome\s*\n+([^\n]+)/),
           cpf: so(g(/\nCPF\s*\n+(\d[\d.\-]*)\s*\n/)).padStart(11, '0'),
@@ -745,12 +1011,40 @@
         f.agencia = so(g(/N[úu]mero da Ag[êe]ncia\s*\n+([^\n]+)/));
         f.conta = so(g(/N[úu]mero da Conta\s*\n+([^\n]+)/));
         f.agencia = agOk(f.agencia);
+        // ---- campos de análise (decidem se atendemos) ----
+        f.tipo_conta    = depois('Tipo de conta');
+        f.rg            = so(depois('RG'));
+        f.situacao      = depois('Situa[çc][ãa]o');
+        f.margem        = brl(margem);
+        f.rmc           = cartao(/Cart[ãa]o Pessoal \(RMC\)/i);
+        f.rcc           = cartao(/Cart[ãa]o Benef[íi]cio \(RCC\)/i);
+        f.pensao        = depois('Pens[ãa]o Aliment[íi]cia');
+        f.representante = depois('Possui Representante');
+        f.rep_dados     = depois('Dados do Representante Legal', 4).join(' | ');
+        if (!f.telefone) f.telefone = so(depois('Telefone\\(s\\) do Benefici[áa]rio'));
+        // ---- veredito: por que NÃO atendemos ----
+        // ⛔ BLOQUEIO DE EMPRÉSTIMO NÃO ENTRA AQUI. Decisão da Stefany em 07/11/2026:
+        //    "Você não analisa bloqueio de empréstimo" — padrão. Nem o rótulo "Bloqueado para
+        //    Empréstimo", nem a "Descrição do Bloqueio", nem "Elegível para Empréstimo".
+        // formato MOTIVO|tag|o que fazer  -> o robô de desfecho lê isso
+        f.recusa = '';
+        if (!negativo(f.pensao))             f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
+        else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|/inss13 — não fazemos proposta com representante legal';
+        else if (margem < 20)                f.recusa = 'SEM_MARGEM|01 I|/n30';
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
         ta.value = fichaParaTexto(f);
-        log(`${f.nome} · espécie ${f.especie} · ${f.idade} anos · margem R$ ${brl(margem)}`);
-        log(`Destino: ${d.banco} — ${d.motivo}`, ['NAO', 'HUMANO'].includes(d.banco) ? 'erro' : 'ok');
+        log(`${f.nome} · espécie ${f.especie} · ${f.idade} anos · margem R$ ${brl(margem)} · ${f.situacao || '?'}`);
+        log(`Pensão: ${f.pensao || '?'} · Representante: ${f.representante || '?'}`);
+        if (f.rmc || f.rcc) log(`RMC: ${f.rmc || '—'} · RCC: ${f.rcc || '—'}`);
+        if (f.rep_dados) log('Representante legal: ' + f.rep_dados);
+        if (f.recusa) {
+          const r = f.recusa.split('|');
+          log(`⛔ NÃO ATENDEMOS — ${r[0]}. Tag ${r[1]}. ${r[2]}`, 'erro');
+        } else {
+          log(`Destino: ${d.banco} — ${d.motivo}`, ['NAO', 'HUMANO'].includes(d.banco) ? 'erro' : 'ok');
+        }
         const ddb = f.ddb.split('/').reverse().join('-'); const dias = (Date.now() - new Date(ddb)) / 864e5;
         if (dias >= 90 && margem >= 20) {
           const h = new Date().getHours();
@@ -763,7 +1057,14 @@
         const f = textoParaFicha(ta.value);
         if (!f.cpf) { log('Ficha vazia.', 'erro'); return; }
         GM_setValue('ficha_atual', f);
-        log(f.banco_destino === 'BMG' ? 'Ficha salva. Abra o BMG (Nova plataforma) e clique "Fazer tudo".' : `Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
+        if (f.recusa) {
+          const r = f.recusa.split('|');
+          // deixa a ordem pronta para o robô de desfecho do Botmaker
+          try { localStorage.setItem('dins_ficha_recusa', JSON.stringify({ cpf: f.cpf, nome: f.nome, motivo: r[0], tag: r[1], oque: r[2], t: Date.now() })); } catch (er) {}
+          log(`Ficha salva como RECUSA (${r[0]}). No Botmaker: tag ${r[1]} · ${r[2]}`, 'erro');
+        } else {
+          log(`Ficha salva. Abra o New Corban em ?p=${(f.banco_destino || 'facta').toLowerCase()} e clique "Digitar".`, 'ok');
+        }
       }
     });
     return;
@@ -983,6 +1284,7 @@
       if (a === 'Digitar') {
         const f = textoParaFicha(ta.value);
         if (!so(f.cpf) || !so(f.beneficio) || !num(f.parcela)) return log('Ficha precisa de cpf, beneficio e parcela.', 'erro');
+        if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
         e.target.disabled = true;
         await autoComplete(f);
