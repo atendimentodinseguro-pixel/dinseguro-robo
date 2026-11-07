@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.41';
+  const VERSAO = '3.42';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -616,10 +616,12 @@
         if (f.etapa === '60' && clienteRespondeu()) {
           log && log('Follow-up de 60 min cancelado: o cliente respondeu.', 'ok');
         } else {
-          const atalho = f.etapa === '10' ? GM_getValue('atalho_conseguiu', '') : '/132';
+          // Stefany criou o atalho em 07/11 16:43: /bot2 = "Conseguiu acessar? Ficou com
+          // alguma duvida?". Dá para trocar sem mexer no código: GM_setValue('atalho_conseguiu', '/x').
+          const atalho = f.etapa === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132';
           if (!atalho) {
-            log && log('Follow-up de 10 min parado: a resposta rápida "Conseguiu acessar?" está SEM ATALHO no ' +
-              'Botmaker. Peça o atalho à Stefany e rode GM_setValue("atalho_conseguiu", "/oatalho").', 'erro');
+            log && log('Follow-up de 10 min parado: falta o atalho da mensagem "Conseguiu acessar?". ' +
+              'Rode GM_setValue("atalho_conseguiu", "/oatalho").', 'erro');
           } else {
             await respostaRapida(atalho, false);
             log && log('Follow-up de ' + f.etapa + ' min enviado (' + atalho + ').', 'ok');
