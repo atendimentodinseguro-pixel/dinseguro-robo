@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.37';
+  const VERSAO = '3.38';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -20,6 +20,13 @@
   // está escrita em lugar nenhum; até ela passar, pensionista com menos de 45 anos
   // NÃO vai para a Qualibank — fica na FACTA e o robô avisa.
   const PENSAO = ['01', '02', '03', '21', '23', '27', '28', '29'];
+
+  // Espécies que a Dinseguro atende (Prompt-Atendimento, passo 4.2). Fora desta lista
+  // é /07 e fecha. 87 e 88 (LOAS) têm regra própria: também não fazemos proposta.
+  const ESPECIES_OK = ['01','02','03','04','05','06','07','08','19','20','21','22','23','24','26','27','28','29',
+    '32','33','34','37','38','41','42','43','44','45','46','49','51','52','54','55','56','57','58','59',
+    '72','78','82','83','89','92','93'];
+  const LOAS = ['87', '88'];
 
   // Janela de fim de semana (Stefany, 07/11/2026 14:55): da SEXTA às 17h até a
   // MEIA-NOITE de DOMINGO, quem está abaixo de R$ 6 mil vai para o C6 em vez da
@@ -1031,6 +1038,9 @@
       const h = new Date().getHours();
       if (f.recusa) return 'cliente recusado (' + f.recusa.split('|')[0] + ')';
       if (margem < 20) return 'sem margem';
+      // trava de reforço: nada de consulta paga para quem a tabela de bancos já descarta
+      const dd = decidirBanco(f);
+      if (dd.banco === 'NAO' || dd.banco === 'HUMANO') return 'fora dos critérios (' + dd.motivo + ')';
       if (margem < 200 && temEmprestimo) return 'margem abaixo de R$ 200 e já tem empréstimo';
       if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
       const fora = GM_getValue('flash_fora_ate', 0);
@@ -1188,10 +1198,20 @@
         //    "Você não analisa bloqueio de empréstimo" — padrão. Nem o rótulo "Bloqueado para
         //    Empréstimo", nem a "Descrição do Bloqueio", nem "Elegível para Empréstimo".
         // formato MOTIVO|tag|o que fazer  -> o robô de desfecho lê isso
+        // ⚠️ 07/11 15:55: a ordem é a do Prompt (passo 4) — ESPÉCIE, pensão alimentícia,
+        // representante, margem, IDADE. Antes faltavam espécie e idade aqui, e por isso o
+        // robô chegava a disparar a consulta flash (que é PAGA) em cliente que já estava
+        // fora dos nossos critérios. A flash só pode rodar com `recusa` vazia.
+        const espF = String(f.especie || '').padStart(2, '0');
+        const idadeF = parseInt(f.idade) || 0;
         f.recusa = '';
-        if (!negativo(f.pensao))             f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
+        if (LOAS.includes(espF))             f.recusa = 'LOAS|02 I (ou 02 A se margem ≥ R$ 400)|/n30 pela regra do LOAS e FECHAR a conversa';
+        else if (espF && !ESPECIES_OK.includes(espF)) f.recusa = 'ESPECIE_FORA|07|/07 — espécie ' + espF + ' não é atendida, e FECHAR a conversa';
+        else if (!negativo(f.pensao))        f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|/inss13 — não fazemos proposta com representante legal';
         else if (margem < 20)                f.recusa = 'SEM_MARGEM|01 I|/n30';
+        else if (idadeF > 76)                f.recusa = 'IDADE|—|acima de 76 anos: não fazemos em banco nenhum. Avisar a Stefany';
+        else if (idadeF >= 74)               f.recusa = 'IDADE_PERGUNTAR|—|74 a 76 anos: perguntar à Stefany ANTES de simular, digitar ou gastar consulta';
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
