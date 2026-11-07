@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.25
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.26
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.25';
+  const VERSAO = '3.26';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -999,6 +999,26 @@
       b.click();
     }
 
+    // ⚠️ A consulta do Multicorban é AJAX: NÃO recarrega a página. Esperar os dados
+    // na própria execução. (Erro de 07/11: o robô disparava a flash e parava ali.)
+    const temDados = () => /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText);
+    const aviso = () => [...document.querySelectorAll('.modal.show,.swal2-popup')].filter(x => x.offsetParent)
+      .map(x => x.textContent.replace(/\s+/g, ' ').replace(/Fechar/g, '').replace(/^\s*!?\s*Aten[çc][ãa]o!?\s*/i, '').trim())[0] || '';
+    async function fecharAviso() {
+      const b = [...document.querySelectorAll('button')].filter(x => x.offsetParent).find(x => /^Fechar$/i.test(x.textContent.trim()));
+      if (b) { b.click(); await sleep(1200); }
+    }
+    // devolve true se os dados chegaram, false se veio aviso ou deu o tempo
+    async function esperarConsulta(ms = 25000) {
+      const fim = Date.now() + ms;
+      while (Date.now() < fim) {
+        if (temDados()) return true;
+        if (aviso()) return false;
+        await sleep(500);
+      }
+      return temDados();
+    }
+
     async function gerarFicha() {
       {
         // abre "Informações complementares" para aparecer banco/agência/conta
@@ -1113,9 +1133,30 @@
           const motivo = naoFazerFlash(f, margem, temEmprestimo);
           if (!motivo) {
             log('Flash cabe neste cliente. Disparando…');
+            // o flash_pedido serve só para o caso raro de a página recarregar
             GM_setValue('flash_pedido', { beneficio: f.beneficio, t: Date.now(), fase: 'flash' });
-            try { await consultar('flash', f.beneficio); } catch (er) { GM_setValue('flash_pedido', null); log('Não consegui disparar a flash: ' + er.message, 'erro'); }
-            return;   // a página recarrega; a ficha é gerada na volta
+            try {
+              await consultar('flash', f.beneficio);
+              const ok = await esperarConsulta();
+              GM_setValue('flash_pedido', null);
+              if (ok) {
+                marcarFlash(f.beneficio); GM_setValue('flash_agora', f.beneficio);
+                log('Flash concluída com dados novos.', 'ok');
+              } else {
+                const msg = aviso() || 'sem resposta';
+                log('Flash não trouxe dados (' + msg + '). Seguindo com a consulta normal.', 'erro');
+                GM_setValue('flash_falhou', f.beneficio);
+                await fecharAviso();
+                await consultar('normal', f.beneficio);
+                if (!await esperarConsulta()) { log('A consulta normal também não voltou. Refaça na mão.', 'erro'); return; }
+              }
+              return await gerarFicha();   // refaz a ficha com o que está na tela agora
+            } catch (er) {
+              GM_setValue('flash_pedido', null);
+              log('Não consegui disparar a flash: ' + er.message + '. Seguindo com a ficha atual.', 'erro');
+              GM_setValue('flash_falhou', f.beneficio);
+              return await gerarFicha();
+            }
           }
           f.flash = 'não fez — ' + motivo;
         }
