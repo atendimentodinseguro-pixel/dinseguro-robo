@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.34
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.35
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.34';
+  const VERSAO = '3.35';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -60,9 +60,10 @@
       if (idade >= 40) return { banco: 'QUEROMAIS', motivo: 'Invalidez 40–52: Quero Mais' + nota };
       return { banco: 'C6', motivo: 'Invalidez até 39: C6, sempre 108x' + nota };
     }
+    // Mudança da Stefany, 07/11/2026 12:53, "por enquanto": não sendo invalidez,
+    // ACIMA de R$ 6.000 vai para o C6. Antes o corte era R$ 20.000.
     if (liberado < 6000) return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil: FACTA' + nota };
-    if (liberado > 20000) return { banco: 'C6', motivo: 'Acima de R$ 20 mil e não é invalidez: C6' + nota };
-    return { banco: 'FACTA', motivo: 'Demais espécies: FACTA' + nota };
+    return { banco: 'C6', motivo: 'Acima de R$ 6 mil e não é invalidez: C6' + nota };
   }
 
 
