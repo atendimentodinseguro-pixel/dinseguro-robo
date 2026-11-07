@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.50';
+  const VERSAO = '3.51';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -779,9 +779,23 @@
       sc.scrollTop = 0; await esp(500);
       return [...todos];
     }
+    // ⚠️ 07/11 18:25: a versão anterior só olhava os chats JÁ renderizados na tela.
+    // Depois de rolar a lista inteira para montar os nomes, a lista volta ao topo e a
+    // maioria dos itens some do DOM — então a varredura "passava" por quase todo mundo
+    // sem abrir nada, e parecia que não fazia nada. Agora ela ROLA ATÉ ACHAR.
     async function abrirPeloNome(nome) {
-      const it = [...document.querySelectorAll('.customer-item')]
-        .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
+      let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
+      for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
+      let it = null;
+      if (sc) { sc.scrollTop = 0; await esp(500); }
+      for (let n = 0; n < 40 && !it; n++) {
+        it = [...document.querySelectorAll('.customer-item')]
+          .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
+        if (!it && sc) {
+          const antes = sc.scrollTop; sc.scrollTop += 400; await esp(380);
+          if (sc.scrollTop === antes) break;
+        } else if (!it) break;
+      }
       if (!it) return false;
       const alvo = [...it.querySelectorAll('*')]
         .find(x => x.children.length === 0 && txt(x) === nome) || it;
