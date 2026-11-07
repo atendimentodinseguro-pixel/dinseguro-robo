@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.26
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.27
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.26';
+  const VERSAO = '3.27';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -975,6 +975,8 @@
       if (margem < 20) return 'sem margem';
       if (margem < 200 && temEmprestimo) return 'margem abaixo de R$ 200 e já tem empréstimo';
       if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
+      const fora = GM_getValue('flash_fora_ate', 0);
+      if (fora && Date.now() < fora) return 'flash fora do ar (tentada há pouco; volta a tentar às ' + new Date(fora).toLocaleTimeString('pt-BR').slice(0, 5) + ')';
       const d = flashRecente(f.beneficio);
       if (d) return 'já teve flash em ' + new Date(d).toLocaleDateString('pt-BR') + ' (limite: 1 a cada ' + FLASH_DIAS + ' dias)';
       if (GM_getValue('extrato_hoje', '') === f.beneficio) return 'cliente mandou extrato de hoje';
@@ -1005,15 +1007,24 @@
     const aviso = () => [...document.querySelectorAll('.modal.show,.swal2-popup')].filter(x => x.offsetParent)
       .map(x => x.textContent.replace(/\s+/g, ' ').replace(/Fechar/g, '').replace(/^\s*!?\s*Aten[çc][ãa]o!?\s*/i, '').trim())[0] || '';
     async function fecharAviso() {
-      const b = [...document.querySelectorAll('button')].filter(x => x.offsetParent).find(x => /^Fechar$/i.test(x.textContent.trim()));
-      if (b) { b.click(); await sleep(1200); }
+      for (let k = 0; k < 4 && aviso(); k++) {
+        const b = [...document.querySelectorAll('button,.btn-close,[data-bs-dismiss=modal],[data-dismiss=modal]')]
+          .filter(x => x.offsetParent)
+          .find(x => /^(fechar|ok|×|x)$/i.test((x.textContent || '').trim()) || x.classList.contains('btn-close')
+                  || /modal/.test(x.getAttribute('data-bs-dismiss') || x.getAttribute('data-dismiss') || ''));
+        if (!b) break;
+        b.click(); await sleep(1200);
+      }
+      return !aviso();
     }
-    // devolve true se os dados chegaram, false se veio aviso ou deu o tempo
-    async function esperarConsulta(ms = 25000) {
+    // true = dados chegaram. false = veio aviso NOVO ou estourou o tempo.
+    // ⚠️ o aviso da consulta anterior pode continuar na tela: por isso o `ignorar`.
+    async function esperarConsulta(ms = 25000, ignorar = '') {
       const fim = Date.now() + ms;
       while (Date.now() < fim) {
         if (temDados()) return true;
-        if (aviso()) return false;
+        const a = aviso();
+        if (a && a !== ignorar) return false;
         await sleep(500);
       }
       return temDados();
@@ -1136,19 +1147,23 @@
             // o flash_pedido serve só para o caso raro de a página recarregar
             GM_setValue('flash_pedido', { beneficio: f.beneficio, t: Date.now(), fase: 'flash' });
             try {
+              const antes = aviso();
               await consultar('flash', f.beneficio);
-              const ok = await esperarConsulta();
+              const ok = await esperarConsulta(25000, antes);
               GM_setValue('flash_pedido', null);
               if (ok) {
                 marcarFlash(f.beneficio); GM_setValue('flash_agora', f.beneficio);
                 log('Flash concluída com dados novos.', 'ok');
               } else {
-                const msg = aviso() || 'sem resposta';
+                const msg = (aviso() || 'sem resposta').replace(/^[×x!]*\s*Aten[çc][ãa]o!?\s*/i, '').replace(/(No|Cancel|Fechar|OK)+$/i, '').trim();
                 log('Flash não trouxe dados (' + msg + '). Seguindo com a consulta normal.', 'erro');
                 GM_setValue('flash_falhou', f.beneficio);
+                // flash fora do ar: não insistir a cada clique nos próximos 30 min
+                if (/n[ãa]o foram encontrado|cr[ée]dito|indispon/i.test(msg)) GM_setValue('flash_fora_ate', Date.now() + 30 * 60 * 1000);
                 await fecharAviso();
+                const antes2 = aviso();
                 await consultar('normal', f.beneficio);
-                if (!await esperarConsulta()) { log('A consulta normal também não voltou. Refaça na mão.', 'erro'); return; }
+                if (!await esperarConsulta(25000, antes2)) { log('A consulta normal também não voltou. Refaça na mão.', 'erro'); return; }
               }
               return await gerarFicha();   // refaz a ficha com o que está na tela agora
             } catch (er) {
