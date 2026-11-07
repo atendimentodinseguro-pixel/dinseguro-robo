@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.58';
+  const VERSAO = '3.59';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -712,13 +712,37 @@
     // Stefany, 19:13: "ele passou por vários aí que estão com janela e não está resolvendo".
     // Conferido na Santaterezinha (última mensagem dela 06/11 13:34, ~30h): body não tinha
     // nem a palavra "janela"; o placeholder tinha o aviso inteiro.
+    // ⚠️⚠️ 3.59 (07/11 20:35) — O TERCEIRO motivo de a varredura não resolver nada, e o
+    // que sobrou depois da 3.55. O Botmaker usa DUAS redações para o mesmo aviso, e a
+    // 3.58 só reconhecia a primeira **no placeholder**:
+    //    a) "A janela de 24 horas está finalizada. Clique aqui para reabri-la usando um
+    //        Template do WhatsApp."
+    //    b) "A conversa foi encerrada 24 horas após a última mensagem do usuário."
+    //       (às vezes seguida de "A conversa foi iniciada por meio de um anúncio Meta e
+    //        você está dentro de 72 horas desde o início da conversa.")
+    // A (b) só era testada em document.body.innerText — onde placeholder NUNCA aparece,
+    // que é justamente o erro que a 3.55 tinha corrigido para a (a). Resultado: toda
+    // conversa com a redação (b) caía em "janela_aberta" e era pulada.
+    // Conferido à mão em 07/11 20:10-20:20, nas 8 conversas vencidas da caixa:
+    //    Amélia ............................... redação (a)  -> era a ÚNICA reconhecida
+    //    Maria Abadia, Cleodiceia, Luiz Carlos,
+    //    Mayc, Silvia, Fernando, Vanda ........ redação (b)  -> 7 de 8 passavam batido
+    // Placar da rodada automática das 20:14 com o defeito: janela_aberta 4, followup 0.
+    // ⚠️ Quem mexer aqui: o teste é SEMPRE no placeholder. Body é só reserva.
+    const RE_JANELA_VENCIDA =
+      /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i;
     function janelaFechada() {
       const ta = document.querySelector('textarea');
       const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || '';
-      if (/janela de 24 horas est[áa] finalizada|reabri-la usando um Template/i.test(ph)) return true;
+      if (RE_JANELA_VENCIDA.test(ph)) return true;
       // reserva: em alguns chats o aviso aparece como texto mesmo
-      return /janela de 24 horas est[áa] finalizada|conversa foi encerrada 24 horas/i.test(document.body.innerText);
+      return RE_JANELA_VENCIDA.test(document.body.innerText);
     }
+    // ⚠️ 3.59 — A janela de 72h do anúncio Meta NÃO muda nada. Algumas conversas avisam
+    // que vieram de anúncio e que novos modelos não teriam custo adicional. Stefany,
+    // 07/11 20:18: "mesmo quem está dentro das 72 horas do anúncio da meta, eles também
+    // vão ser qualificados, encerrados e fazer o contato no outro WhatsApp se necessário,
+    // se for de acordo com os nossos critérios." Mesmo tratamento das outras.
     function humanoRecente() {
       const e = document.querySelector('.entries');
       if (!e) return false;
@@ -741,8 +765,28 @@
         cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t),
         link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin)/i.test(t),
         prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t),
+        // qualquer "[Nome]" conta: mensagem nossa E nota interna. Nota interna quer dizer
+        // que alguém já trabalhou essa conversa, então ela não é "sem interação".
+        // Na dúvida o robô erra para o lado seguro: follow-up, nunca encerrar.
         atendente: /\[[^\]\n]{2,40}\]/.test(t)
       };
+    }
+
+    // ⚠️⚠️ 3.59 (07/11 20:33) — TRAVA DE SEGURANÇA PEDIDA PELA STEFANY.
+    // Caso real: a varredura das 19:31 encerrou a Santaterezinha e ainda pôs nela a tag
+    // "01 C - Inss Nao Informou CPF" — numa cliente que já tinha "01 D - Inss Fechou
+    // Negocio" e "01 k SEM Margem Nao Rodar Whats". Stefany, 20:32: "Caso 01C não cabe
+    // nela. Se ela já contratou, já fechou o negócio, ela não pode ter a 01C. Mas ela
+    // pode ter contratado 01D e pode estar com 01K. Os clientes que já contrataram e
+    // agora estão sem margem, a gente não usa 01I, a gente usa 01K só para esses."
+    // Regra: QUEM TEM 01 D NUNCA RECEBE 01 C, e a varredura não encerra essa conversa.
+    // (A outra metade da regra — sem margem com 01 D leva 01 k, e não 01 I — já está na
+    // tabela de recusa; aqui a trava é só para a varredura não desfazer o 01 D.)
+    function temTagFechouNegocio() {
+      const p = document.querySelector('.user-info-panel');
+      if (!p) return false;
+      return [...p.querySelectorAll('[class*=MuiChip-root]')]
+        .some(c => /^01 D\b|Fechou Negocio/i.test((c.textContent || '').trim()));
     }
 
     let varrendo = false;
@@ -799,8 +843,20 @@
             if (NAO_MEXER.some(n => nome.startsWith(n))) continue;
             if (GM_getValue('varredura_vistos', {})[nome]) continue;
             if (sc) { sc.scrollTop = pos; await esp(300); }
-            const it = [...document.querySelectorAll('.customer-item')]
+            const achaPeloNome = () => [...document.querySelectorAll('.customer-item')]
               .find(x => (x.innerText.split('\n').filter(Boolean)[1] || '') === nome);
+            let it = achaPeloNome();
+            // ⚠️ 3.59 — abrir uma conversa REORDENA a lista (a que foi aberta sobe). Então
+            // o item que estava nesta posição pode já não estar mais aqui, e a 3.58
+            // desistia dele (placar.nao_abriu). Agora, se não achar na posição atual,
+            // procura descendo a lista inteira antes de desistir. Medido em 07/11 20:15:
+            // sem isso, pedir o "Mayc" abria o "Luiz Carlos" de novo.
+            if (!it && sc) {
+              for (let y = 0; y <= sc.scrollHeight && !it; y += 300) {
+                sc.scrollTop = y; await esp(220); it = achaPeloNome();
+              }
+              if (!it) { sc.scrollTop = pos; await esp(250); }
+            }
             if (!it) { placar.nao_abriu++; salvaPlacar(); continue; }
             // 3.54: o rótulo já diz que está fora da janela — não gasta 5s abrindo
             const idadeRot = idadeDoItem(it);
@@ -819,7 +875,10 @@
             const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
             const pf = perfilDaConversa();
             const horas = Math.round(idade / 3600000);
-            if (pf.cpf || pf.link || pf.prop || pf.atendente) {
+            // 3.59: quem já fechou negócio (01 D) nunca é encerrado pela varredura nem
+            // recebe o 01 C. Se está calado, vira follow-up como qualquer outro.
+            const fechouNegocio = temTagFechouNegocio();
+            if (pf.cpf || pf.link || pf.prop || pf.atendente || fechouNegocio) {
               const fila = GM_getValue('varredura_followup', []);
               if (!fila.find(x => x.hash === hash)) {
                 fila.push({ hash, fone, nome, horas, quando: Date.now() });
