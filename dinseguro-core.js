@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.59';
+  const VERSAO = '3.60';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -819,6 +819,28 @@
         let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
         for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
         const jaVistos = new Set();
+        // ⚠️⚠️ 3.60 (07/11 20:42) — A LISTA É VIRTUALIZADA E PERDE ITENS SE A ROLAGEM FOR
+        // RÁPIDA. Caminhando de 400px em 400px com 450ms, a rodada via só uma parte da
+        // caixa. Medido em 07/11 20:41, na mesma lista, sem nada mudar entre as duas:
+        //    passo 120px / 130ms, 1 volta  -> 15 conversas
+        //    passo 100px / 260ms, 3 voltas -> 18 conversas  (o número certo)
+        // Faltaram Fernando Espínola e Vanda Marques, ambos vencidos e com mensagem nossa.
+        // Agora a lista inteira é colhida ANTES de abrir qualquer conversa — que é também
+        // o único jeito seguro, porque abrir uma conversa REORDENA a lista.
+        const nomesTodos = [];
+        for (let volta = 0; volta < 3; volta++) {
+          for (let y = 0; sc && y <= sc.scrollHeight; y += 100) {
+            sc.scrollTop = y; await esp(260);
+            for (const el of document.querySelectorAll('.customer-item')) {
+              const n = (el.innerText.split('\n').filter(Boolean)[1] || '');
+              if (n && !nomesTodos.includes(n)) nomesTodos.push(n);
+            }
+          }
+          if (!sc) break;
+        }
+        if (sc) { sc.scrollTop = 0; await esp(300); }
+        placar.lista = nomesTodos.length; salvaPlacar();
+        log && log('Varredura: ' + nomesTodos.length + ' conversas na lista.', 'ok');
         let pos = 0;
         for (let pagina = 0; pagina < 60; pagina++) {
           if (sc) { sc.scrollTop = pos; await esp(450); }
@@ -834,9 +856,10 @@
             log && log('Varredura: cheguei ao fim da janela (' + J.txt + '). Parei de descer.', 'ok');
             break;
           }
-          const nomes = itens.map(x => (x.innerText.split('\n').filter(Boolean)[1] || ''))
-            .filter(n => n && !jaVistos.has(n));
-          placar.lista = jaVistos.size + nomes.length; salvaPlacar();
+          // 3.60: os nomes saem da lista colhida no começo, não do que está no DOM agora.
+          // Assim nenhuma conversa é perdida quando a lista reordena ao abrir uma delas.
+          const nomes = nomesTodos.filter(n => !jaVistos.has(n));
+          if (!nomes.length) break;
           for (const nome of nomes) {
             jaVistos.add(nome);
             if (feitas >= VARRE_MAX_RODADA) break;
