@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.33
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.34
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.33';
+  const VERSAO = '3.34';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -82,7 +82,8 @@
       const topo = b === null ? teto : Math.min(b, teto);
       const d = decidirBanco(Object.assign({}, f, { parcela: brl(topo * 648.39 / 28400) }));
       const corte = (b !== null && b > teto) ? ` (só até R$ ${brl(teto)})` : '';
-      return `${nome} → ${d.banco} · ${tkt(topo)}${corte}`;
+      // o topo exato da faixa cai no degrau seguinte (6.000 não é "6k a 20k"): tirar um centavo
+      return `${nome} → ${d.banco} · ${tkt(b === null ? topo : topo - 0.01)}${corte}`;
     });
   }
 
