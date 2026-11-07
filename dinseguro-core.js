@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.49';
+  const VERSAO = '3.50';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -654,7 +654,14 @@
     // falou nas últimas 2 horas.
     // Stefany, 07/11 17:54: "pode pegar geral" — sem limite por rodada. O teto alto
     // continua só como trava de segurança contra laço infinito.
-    const VARRE_MIN = 12 * 3600000, VARRE_MAX = 48 * 3600000, VARRE_MAX_RODADA = 500;
+    // A janela da varredura é configurável, para poder testar sem mexer no código:
+    //   localStorage.setItem('dins_varre_janela', '6,72')   -> passa a valer 6h a 72h
+    //   localStorage.setItem('dins_varre_janela', 'padrao') -> volta para 12h a 48h
+    const janelaVarredura = () => {
+      const g = GM_getValue('varre_janela', [12, 48]);
+      return { min: g[0] * 3600000, max: g[1] * 3600000, txt: g[0] + 'h a ' + g[1] + 'h' };
+    };
+    const VARRE_MAX_RODADA = 500;
     const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
 
     function idadeDaConversa() {
@@ -707,6 +714,8 @@
       if (!GM_getValue('varredura_ligada', true)) return;
       varrendo = true;
       let feitas = 0;
+      const J = janelaVarredura();
+      log && log('Varredura: começando (janela ' + J.txt + ').');
       try {
         const nomes = await listaCompleta();   // rola a lista inteira antes de começar
         for (const nome of nomes) {
@@ -716,7 +725,7 @@
           const ok = await abrirPeloNome(nome);
           if (!ok) continue;
           const idade = idadeDaConversa();
-          if (idade === null || idade < VARRE_MIN || idade > VARRE_MAX) continue;
+          if (idade === null || idade < J.min || idade > J.max) continue;
           if (!/janela de 24 horas est[áa] finalizada/i.test(document.body.innerText)) continue;
           if (humanoRecente()) continue;
           const hash = (window.top.location.hash.match(/chats\/([A-Z0-9]+)/i) || [])[1] || '';
@@ -790,6 +799,13 @@
     // Com '1' ele respeita quem já foi visto; com 'tudo' ele esquece os vistos e
     // reavalia a lista inteira.
     setInterval(() => {
+      const j = localStorage.getItem('dins_varre_janela');
+      if (j) {
+        localStorage.removeItem('dins_varre_janela');
+        if (/^padrao$/i.test(j)) GM_setValue('varre_janela', [12, 48]);
+        else { const p = j.split(',').map(x => parseInt(x.trim())); if (p.length === 2 && p.every(n => n > 0)) GM_setValue('varre_janela', p); }
+        log && log('Varredura: janela agora é ' + janelaVarredura().txt + '.', 'ok');
+      }
       const v = localStorage.getItem('dins_varrer_agora');
       if (!v) return;
       localStorage.removeItem('dins_varrer_agora');
