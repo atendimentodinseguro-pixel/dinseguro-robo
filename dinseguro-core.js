@@ -1,10 +1,10 @@
-// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.28
+// Dinseguro - código principal do robô (carregado pelo dinseguro.user.js). Versão: 3.29
 
 
 (function () {
   'use strict';
 
-  const VERSAO = '3.28';
+  const VERSAO = '3.29';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1379,17 +1379,25 @@
     } else {
       const m = el('integrationsv2-bank-history-modal'); if (m && $) $(m).modal('hide');
       await sleep(500);
-      // Sem BANCO em lugar nenhum (nem Multicorban, nem Histórico do New Corban, nem FullConsig):
-      // aí sim é /08. Com banco, a conta sai pela cascata abaixo. (Regra da Stefany, 07/11/2026.)
-      if (!so(f.banco) || /^0+$/.test(so(f.banco))) {
-        throw new Error('Cliente SEM BANCO: NÃO gravar. Confira o FullConsig (banco "V8" não vale). Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
-      }
-      const banco = so(f.banco).padStart(3, '0');
-      const agencia = agOk(f.agencia);
-      const agReal = so(f.agencia).length >= 3 && !/^0+$/.test(so(f.agencia));
-      let conta = so(f.conta), dv, origemConta;
-      if (conta) { dv = conta.slice(-1); conta = conta.slice(0, -1); origemConta = 'conta real da ficha'; }
-      else if (agReal) {
+      // ⚠️ O auto-complete do New Corban JÁ preenche banco/agência/conta na tela.
+      // Isso é o passo "New Corban" da hierarquia da conta e estava sendo ignorado:
+      // o robô dizia "Cliente SEM BANCO" com os campos preenchidos (Elaine, 07/11).
+      const tela = { banco: so((el('banco') || {}).value), agencia: so((el('agencia') || {}).value),
+                     conta: so((el('conta') || {}).value), dv: so((el('conta_digito') || {}).value) };
+      const vale = b => b && !/^0+$/.test(b);
+      // Hierarquia: a ficha (flash > cliente > Multicorban) vence a tela; a tela vence o nada.
+      // Lembrando que o auto-complete traz o banco ANTIGO do INSS, por isso é o segundo.
+      let banco, agRaw, contaCheia, origemConta;
+      if (vale(so(f.banco)) && so(f.conta)) { banco = so(f.banco); agRaw = so(f.agencia); contaCheia = so(f.conta); origemConta = 'ficha (Multicorban/flash/cliente)'; }
+      else if (vale(tela.banco) && tela.conta) { banco = tela.banco; agRaw = tela.agencia; contaCheia = tela.conta + tela.dv; origemConta = 'New Corban (auto-complete)'; }
+      else if (vale(so(f.banco))) { banco = so(f.banco); agRaw = so(f.agencia); contaCheia = ''; origemConta = 'ficha, sem conta'; }
+      else if (vale(tela.banco)) { banco = tela.banco; agRaw = tela.agencia; contaCheia = ''; origemConta = 'New Corban, sem conta'; }
+      else throw new Error('Cliente SEM BANCO: NÃO gravar. Confira o FullConsig (banco "V8" não vale). Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
+      banco = banco.padStart(3, '0');
+      const agencia = agOk(agRaw);
+      let conta, dv;
+      if (contaCheia) { dv = contaCheia.slice(-1); conta = contaCheia.slice(0, -1); }
+      else if (so(agRaw).length >= 3 && !/^0+$/.test(so(agRaw))) {
         // agência certa na mão: o número dela vira a conta, e o último dígito dela vira o DV.
         conta = agencia; dv = agencia.slice(-1); origemConta = 'derivada da agência ' + agencia;
       } else {
@@ -1400,7 +1408,17 @@
       if (pagina === 'facta') { if (!setSelect('banco', banco)) log('Banco ' + banco + ' não existe na lista do FACTA.', 'erro'); }
       else setv('banco', banco);
       setv('agencia', agencia); setv('conta', conta); setv('conta_digito', dv);
-      log(`Conta: ${banco} ag ${agencia} cc ${conta}-${dv} — ${origemConta}.`, so(f.conta) ? 'ok' : 'erro');
+      log(`Conta: ${banco} ag ${agencia} cc ${conta}-${dv} — ${origemConta}.`, /aleat|derivada/.test(origemConta) ? 'erro' : 'ok');
+      // Caixa é poupança (regra do projeto; o robô do BMG já fazia assim).
+      const tc = el('tipo_conta');
+      if (tc) {
+        const alvo = [...tc.options].find(o => (banco === '104' ? /poupan/i : /corrente/i).test(o.text));
+        if (alvo && tc.value !== alvo.value) {
+          if ($ && $(tc).selectpicker) { $(tc).selectpicker('val', alvo.value); $(tc).trigger('change'); }
+          else { tc.value = alvo.value; tc.dispatchEvent(new Event('change', { bubbles: true })); }
+          log('Tipo de conta: ' + alvo.text + (banco === '104' ? ' (Caixa)' : ''));
+        }
+      }
     }
     if (pagina === 'c6') {   // C6 também pede o banco do benefício
       ['banco', 'agencia', 'conta', 'conta_digito'].forEach(k => { if (el('beneficio_' + k) && !el('beneficio_' + k).value) setv('beneficio_' + k, el(k).value); });
