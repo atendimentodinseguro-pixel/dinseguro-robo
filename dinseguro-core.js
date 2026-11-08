@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.62';
+  const VERSAO = '3.63';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1123,6 +1123,38 @@
         if (/^padrao$/i.test(j)) GM_setValue('varre_janela', [12, 48]);
         else { const p = j.split(',').map(x => parseInt(x.trim())); if (p.length === 2 && p.every(n => n > 0)) GM_setValue('varre_janela', p); }
         log && log('Varredura: janela agora é ' + janelaVarredura().txt + '.', 'ok');
+      }
+      // 3.63 — jeito de mexer na fila do WhatsApp de fora (o GM storage não é
+      // acessível pela página). Os dois recebem uma lista de hashes do Botmaker:
+      //   localStorage.setItem('dins_wa_bloquear', '["HASH1","HASH2"]')
+      //      -> nunca recebem mensagem automática
+      //   localStorage.setItem('dins_wa_ja_enviado', '["HASH3"]')
+      //      -> já receberam (à mão, por exemplo), não recebem de novo
+      const bq = localStorage.getItem('dins_wa_bloquear');
+      if (bq) {
+        localStorage.removeItem('dins_wa_bloquear');
+        try {
+          const lista = JSON.parse(bq);
+          const atual = GM_getValue('wa_bloqueados', []);
+          lista.forEach(h => { if (h && !atual.includes(h)) atual.push(h); });
+          GM_setValue('wa_bloqueados', atual);
+          log && log('WhatsApp: ' + atual.length + ' conversa(s) bloqueada(s) para envio automático.', 'ok');
+        } catch (e) { log && log('WhatsApp: lista de bloqueio inválida.', 'erro'); }
+      }
+      const je = localStorage.getItem('dins_wa_ja_enviado');
+      if (je) {
+        localStorage.removeItem('dins_wa_ja_enviado');
+        try {
+          const lista = JSON.parse(je);
+          const f = GM_getValue('wa_fila', []);
+          lista.forEach(h => {
+            const i = f.findIndex(x => x.hash === h);
+            if (i >= 0) { f[i].estado = 'enviado'; f[i].quando = Date.now(); }
+            else f.push({ hash: h, fone: '', nome: '(marcado a mão)', caso: '', estado: 'enviado', quando: Date.now() });
+          });
+          GM_setValue('wa_fila', f);
+          log && log('WhatsApp: ' + lista.length + ' conversa(s) marcada(s) como já enviadas.', 'ok');
+        } catch (e) { log && log('WhatsApp: lista de já enviados inválida.', 'erro'); }
       }
       const v = localStorage.getItem('dins_varrer_agora');
       if (!v) return;
