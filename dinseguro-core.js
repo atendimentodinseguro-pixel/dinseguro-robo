@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.64';
+  const VERSAO = '3.65';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2450,30 +2450,21 @@
     const WA_MAX_RODADA = 10;
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const soDigitos = s => String(s || '').replace(/\D/g, '');
-    // ⚠️ Comparar só os últimos 8 dígitos NÃO serve: dois clientes de DDDs diferentes
-    // com o mesmo final casariam, e aí a mensagem vai para a pessoa errada (erro 16).
-    // Aqui o número vira DDD + 8 dígitos, tirando o 55 do país e o nono dígito do
-    // celular — que é o mesmo cliente escrito de dois jeitos.
-    //    +55 83 9407-5314  ->  8394075314
-    //    5583994075314     ->  8394075314   (mesmo cliente)
-    //    +55 34 8439-2777  ->  3484392777   (outro cliente: não casa)
+    // ⚠️ A comparação é pelos ÚLTIMOS 8 DÍGITOS. Decisão da Stefany, 07/11 21:08:
+    // "pode considerar só os 8 dígitos mesmos. Porque tem clientes que vêm com 9, sem 9,
+    // então é os 8 dígitos finais sempre. A gente já testou aqui e isso já está validado."
+    // Resolve o nono dígito do celular e o 55 do país de uma vez: o que sobra dos dois
+    // lados são os mesmos 8 dígitos.
+    //    +55 83 9407-5314   ->  94075314
+    //    5583994075314      ->  94075314   (mesmo cliente, com o 9)
+    //    +55 34 8439-2777   ->  84392777   (outro cliente: não casa)
+    // ⚠️ Isto NÃO distingue DDD: dois clientes de estados diferentes com os mesmos 8
+    // dígitos finais casariam. Ela conhece a base e disse que já testaram — se um dia
+    // uma mensagem sair para a pessoa errada, é o primeiro lugar para olhar.
     function chaveFone(v) {
-      let n = soDigitos(v);
-      if (n.length > 11 && n.slice(0, 2) === '55') n = n.slice(2);
-      if (n.length < 10) return '';
-      const ddd = n.slice(0, 2);
-      let num = n.slice(2);
-      if (num.length === 9 && num.charAt(0) === '9') num = num.slice(1);
-      if (num.length !== 8) return '';
-      return ddd + num;
-    }
-
-    // o nome do Botmaker às vezes é lixo ("Carloshenriquepinheirofer", "⚫️").
-    // Só usa como nome se parecer nome de gente.
-    function primeiroNome(n) {
-      const p = String(n || '').trim().split(/\s+/)[0] || '';
-      if (!/^[A-Za-zÀ-ÿ]{2,15}$/.test(p)) return '';
-      return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+      const n = soDigitos(v);
+      if (n.length < 8) return '';
+      return n.slice(-8);
     }
 
     function textoDoCaso(caso, nome) {
