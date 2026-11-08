@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.63';
+  const VERSAO = '3.64';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -28,15 +28,8 @@
     '72','78','82','83','89','92','93'];
   const LOAS = ['87', '88'];
 
-  // Janela de fim de semana (Stefany, 07/11/2026 14:55): da SEXTA às 17h até a
-  // MEIA-NOITE de DOMINGO, quem está abaixo de R$ 6 mil vai para o C6 em vez da
-  // Qualibank. Fora dessa janela (segunda a sexta até as 17h), segue na Qualibank.
-  // Usa a hora do computador, que é a hora de Brasília da Stefany.
-  function janelaC6(agora) {
-    const d = agora || new Date();
-    const dia = d.getDay();                 // 0 = domingo, 5 = sexta, 6 = sábado
-    return dia === 6 || dia === 0 || (dia === 5 && d.getHours() >= 17);
-  }
+  // A janela de fim de semana (Stefany, 07/11/2026 14:55) foi REVOGADA por ela em
+  // 08/11/2026 10:18: abaixo de R$ 6 mil vai para a Qualibank todos os dias.
   const PADRAO = {
     dt_emissao: '01/11/2026',
     email: 'naoinformado@gmail.com',
@@ -90,9 +83,10 @@
     // de 45 anos. Pensionista com menos de 45 anos continua na FACTA até ela passar a regra.
     if (PENSAO.includes(esp) && idade < 45)
       return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil, mas é pensão com menos de 45 anos: FACTA (regra de pensão <45 ainda não escrita — confirmar com a Stefany)' + nota };
-    if (janelaC6())
-      return { banco: 'C6', motivo: 'Abaixo de R$ 6 mil, mas é fim de semana (sexta depois das 17h até domingo): C6' + nota };
-    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil em dia de semana: Qualibank, tabela normal (631)' + nota };
+    // Mudança da Stefany, 08/11/2026 10:18: abaixo de R$ 6 mil vai para a QUALIBANK
+    // SEMPRE, inclusive no fim de semana. Isso REVOGA a janela de fim de semana de
+    // 07/11 14:55, que mandava esses clientes para o C6 de sexta 17h a domingo.
+    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil, não é invalidez nem pensão <45: Qualibank, tabela normal (631)' + nota };
   }
 
 
