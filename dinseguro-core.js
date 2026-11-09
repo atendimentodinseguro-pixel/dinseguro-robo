@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.65';
+  const VERSAO = '3.66';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -964,6 +964,22 @@
       finally {
         placar.fim = new Date().toLocaleTimeString('pt-BR').slice(0,5);
         salvaPlacar();
+        // 3.66 (09/11 11:45) — Stefany escolheu, por ora, que o envio do WhatsApp fica
+        // com o atendimento e não com o robô ("2", 09/11 11:42). Para esse combinado
+        // funcionar, a fila precisa estar À VISTA: ela vivia só no GM storage, que a
+        // página não enxerga, então nem ela nem o chat conseguiam ver quem estava
+        // esperando sem abrir conversa por conversa.
+        // ⛔ Sem CPF, sem conta e sem link — a regra de não escrever isso vale aqui também.
+        try {
+          const fWA = GM_getValue('wa_fila', []);
+          const pend = fWA.filter(x => x.estado === 'pendente')
+                          .map(x => ({ nome: x.nome, caso: x.caso, fone: x.fone, hash: x.hash }));
+          localStorage.setItem('dins_followup_lista', JSON.stringify({
+            quando: new Date().toLocaleString('pt-BR').slice(0, 16),
+            esperando: pend.length,
+            lista: pend
+          }));
+        } catch (e) {}
         log && log('Varredura terminou: ' + placar.abertos + ' conversas abertas, ' +
           placar.classificados + ' classificadas, ' + placar.followup + ' para follow-up.', 'ok');
         varrendo = false;
