@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.20a';
+  const VERSAO = '4.20b';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -223,7 +223,10 @@
     const cemPorPagina = () => { const sel = [...document.querySelectorAll('select')].find(x => /_length$/.test(x.name || '') || [...x.options].some(o => o.value === '100') && [...x.options].some(o => o.value === '15'));
       if (sel && sel.value !== '100' && [...sel.options].some(o => o.value === '100')) { sel.value = '100'; sel.dispatchEvent(new Event('change', { bubbles: true })); try { const jq = (typeof unsafeWindow !== 'undefined' && unsafeWindow.jQuery) || window.jQuery; jq && jq(sel).trigger('change'); } catch (e) {} return true; } return false; };
     // 4.20a: mudar o "Mostrar N" por script esvazia a tabela do New Corban (ela é carregada pelo servidor) → não mexe; só lê.
-    [8000, 20000, 40000].forEach(ms => setTimeout(() => { if (/[?&]p=propostas/.test(location.search)) lerEsteira(); }, ms));
+    // 4.20b: 100 por página pelo jQuery da própria página (o servidor recarrega), só quando a tabela já tem linhas
+    const cem = () => { try { const jq = (typeof unsafeWindow !== 'undefined' && unsafeWindow.jQuery) || window.jQuery; const sel = document.querySelector('select[name$="_length"]');
+      if (jq && sel && sel.value !== '100' && document.querySelectorAll('table tbody tr td').length > 3) { jq(sel).val('100').trigger('change'); return true; } } catch (e) {} return false; };
+    [8000, 20000, 40000].forEach(ms => setTimeout(() => { if (/[?&]p=propostas/.test(location.search)) { cem(); setTimeout(lerEsteira, 8000); } }, ms));
     setInterval(() => {
       if (!/[?&]p=propostas/.test(location.search)) return;
       if (document.querySelector('.modal.show')) return;                       // ninguém mexendo num modal
