@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.15';
+  const VERSAO = '4.16';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -739,7 +739,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem } : {};
+      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0 } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -777,13 +777,13 @@
       const c = classificar();
       r[hash] = { hash, fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       if (mud) { gravaRG(r); desenharRegua(); }
     }
@@ -1158,6 +1158,7 @@
         top.body.appendChild(q);
         q.addEventListener('click', ev => {
           const id = ev.target.dataset.abrir; if (id) window.top.location.hash = '#/chats/' + id;
+          if (ev.target.closest && ev.target.closest('[data-tabela]')) { const tb = top.getElementById('dins-tabela'); localStorage.setItem('dins_tabela_aberta', tb && tb.style.display !== 'none' ? '0' : '1'); desenharRegua(); return; }
           if (ev.target.closest && ev.target.closest('[data-min]')) { q.dataset.min = q.dataset.min === '1' ? '' : '1'; desenharRegua(); }
         });
       }
@@ -1185,8 +1186,9 @@
       const grupos = {}; lista.forEach(x => (grupos[bloco(x)] = grupos[bloco(x)] || []).push(x));
       const nAlerta = (grupos.R || []).length;
       const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
-        `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}</div>`;
-      if (q.dataset.min === '1') { q.innerHTML = cab; return; }
+        `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}` +
+        ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>`;
+      const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
@@ -1205,15 +1207,68 @@
           <span style="color:#94a3b8"> · ${x.semLink ? 'sem link' : 'link ' + hhmm(x.linkT)}${quando}</span><br>
           <span style="color:${cor}">${esc(situacao(x, k))}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + esc(ult.st) + '</span>' : ''}${x.resumo ? '<br><span style="color:#cbd5e1;font-style:italic">' + esc(x.resumo) + '</span>' : ''}</div>`;
       };
-      q.innerHTML = cab + BL.map(([k, nome, cor]) => {
+      q.innerHTML = minimizado ? cab : cab + BL.map(([k, nome, cor]) => {
         const g = (grupos[k] || []).sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
         if (!g.length) return '';
         const corpo = k === 'E' ? '<div style="margin-top:3px;line-height:1.6">' + g.map(x => linha(x, cor, k)).join(' · ') + '</div>' : g.map(x => linha(x, cor, k)).join('');
         return `<div style="margin-top:8px;font-weight:700;color:${cor}">${nome} (${g.length})</div>` + corpo;
       }).join('');
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
+      // 4.16 — TABELA (Stefany 10/11 18:51: "mais organizadinho, tabelado, cronômetro… tempo para próximo contato, data do último
+      // contato, tentativa de contato… mesmo que fique mais largo… fácil de identificar"). Botão 📊 Tabela abre por cima da tela.
+      try { desenharTabela(top, grupos, BL, agora, { atras, vermelhoCalc, situacao, esc, haMin }); } catch (e) {}
     }
-    setInterval(desenharRegua, 30000); setTimeout(desenharRegua, 3000);
+    function desenharTabela(top, grupos, BL, agora, F) {
+      let tb = top.getElementById('dins-tabela');
+      const aberta = localStorage.getItem('dins_tabela_aberta') === '1';
+      if (!tb) {
+        tb = top.createElement('div'); tb.id = 'dins-tabela'; tb.setAttribute('translate', 'no'); tb.classList.add('notranslate');
+        tb.style.cssText = 'position:fixed;left:12px;right:12px;top:56px;bottom:12px;z-index:99999;background:#0b1220;color:#e2e8f0;border-radius:12px;' +
+          'padding:10px 14px;font:13px system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.6);overflow:auto;display:none';
+        top.body.appendChild(tb);
+        tb.addEventListener('click', ev => {
+          const id = ev.target.dataset && ev.target.dataset.abrir; if (id) { window.top.location.hash = '#/chats/' + id; localStorage.setItem('dins_tabela_aberta', '0'); tb.style.display = 'none'; return; }
+          if (ev.target.closest && ev.target.closest('[data-fechar]')) { localStorage.setItem('dins_tabela_aberta', '0'); tb.style.display = 'none'; }
+        });
+        tb.addEventListener('mouseenter', () => { tb.dataset.mouse = '1'; }); tb.addEventListener('mouseleave', () => { tb.dataset.mouse = ''; });
+      }
+      // o vigia vai clicar na tela → a tabela fecha sozinha (se ninguém está com o mouse em cima dela)
+      const vigiaAgindo = Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 20000;
+      if (!aberta || (vigiaAgindo && tb.dataset.mouse !== '1')) { tb.style.display = 'none'; return; }
+      tb.style.display = 'block';
+      const { esc, haMin, situacao, atras } = F;
+      const hm = t => t ? new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+      const emQuanto = t => { if (!t) return ''; const d = Math.round((t - agora) / M); return d >= 0 ? (d < 60 ? 'em ' + d + ' min' : 'em ' + Math.floor(d / 60) + 'h' + String(d % 60).padStart(2, '0')) : '<b style="color:#f87171">atrasado ' + (-d) + ' min</b>'; };
+      const quem = x => x.ultLado === 'cli' ? '👤 cliente' : x.botParado ? '🤖 bot' : x.ultLado === 'nos' ? (x.comQuem ? '🧑 ' + esc(x.comQuem) : '💬 nós') : '—';
+      const th = 'style="position:sticky;top:0;background:#1e293b;text-align:left;padding:6px 8px;font-weight:700;border-bottom:2px solid #334155"';
+      const td = 'style="padding:6px 8px;border-bottom:1px solid #1e293b;vertical-align:top"';
+      const linha = (x, k, cor) => {
+        const tq = x.toques || []; const feitos = tq.filter(q => q.feito && !/pulado/.test(q.st || '')); const prox = tq.find(q => !q.feito);
+        const ultToque = [...tq].reverse().find(q => q.feito && !/pulado/.test(q.st || ''));
+        const ultContT = Math.max(x.ultT || 0, ultToque ? ultToque.feito : 0) || x.linkT;
+        const esperaT = k === 'R' ? (x.handoffT && x.ultLado !== 'cli' ? x.handoffT : x.contornoT && x.ultLado !== 'cli' ? x.contornoT : x.ultT) : 0;
+        const proxTxt = k === 'R' ? '<b style="color:#f87171">AGORA</b>' : prox && x.estado === 'ativa' ? (prox.tipo === 'manha' ? '08:00 (manhã)' : prox.tipo + ' min') + ' · ' + hm(prox.quando) + '<br>' + emQuanto(prox.quando) : '—';
+        return `<tr>
+          <td ${td}><span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor};font-weight:700">${esc(x.nome || x.hash.slice(0, 6))}</span><br><span style="color:#64748b;font-size:11px">${x.semLink ? 'sem link' : 'link ' + hm(x.linkT)}</span></td>
+          <td ${td}><span style="color:${cor}">${esc(situacao(x, k))}</span>${x.resumo ? '<br><i style="color:#cbd5e1">' + esc(x.resumo) + '</i>' : ''}</td>
+          <td ${td}>${quem(x)}<br><span style="color:#94a3b8">${hm(ultContT)}</span></td>
+          <td ${td}>${esperaT ? '<b style="color:#f87171;font-size:15px">⏱ ' + haMin(esperaT).replace('há ', '') + '</b>' : '—'}</td>
+          <td ${td}>${proxTxt}</td>
+          <td ${td}>${tq.length ? feitos.length + ' de ' + tq.length + '<br><span style="color:#94a3b8;font-size:11px">' + tq.map(q => q.tipo + (q.feito ? (/pulado/.test(q.st || '') ? ' ⤼' : ' ✓') : ' ·')).join(' ') + '</span>' : '—'}</td>
+        </tr>`;
+      };
+      tb.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:16px;font-weight:800">📋 Acompanhamento dos clientes — tabela <span style="color:#94a3b8;font-weight:400;font-size:12px">atualiza a cada 15 s · ${hm(agora)}</span></div>
+          <button data-fechar="1" style="padding:4px 12px;border:0;border-radius:8px;background:#475569;color:#fff;font-weight:700;cursor:pointer">✕ Fechar</button></div>
+        <table style="width:100%;border-collapse:collapse"><thead><tr>
+          <th ${th}>Cliente</th><th ${th}>Situação / o que fazer</th><th ${th}>Último contato</th><th ${th}>Esperando há</th><th ${th}>Próximo contato</th><th ${th}>Tentativas</th>
+        </tr></thead><tbody>` +
+        BL.map(([k, nome, cor]) => { const g = grupos[k] || []; if (!g.length) return '';
+          const ord = [...g].sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
+          return `<tr><td colspan="6" style="padding:10px 8px 4px;font-weight:800;font-size:14px;color:${cor}">${nome} (${g.length})</td></tr>` + ord.map(x => linha(x, k, cor)).join(''); }).join('') +
+        '</tbody></table>';
+    }
+    setInterval(desenharRegua, 15000); setTimeout(desenharRegua, 3000);
 
     // =====================================================================
     // VARREDURA AUTOMÁTICA DAS CONVERSAS COM A JANELA VENCIDA
