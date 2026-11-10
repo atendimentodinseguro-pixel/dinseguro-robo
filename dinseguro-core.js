@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.83';
+  const VERSAO = '3.84';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1912,6 +1912,8 @@
       // trava de reforço: nada de consulta paga para quem a tabela de bancos já descarta
       const dd = decidirBanco(f);
       if (dd.banco === 'NAO' || dd.banco === 'HUMANO') return 'fora dos critérios (' + dd.motivo + ')';
+      // v3.84 (Stefany 10/11 13:01): piso da flash = R$ 100 de margem (nossa parcela mínima). Abaixo disso não gasta consulta.
+      if (margem < 100) return 'margem abaixo de R$ 100 (nossa parcela mínima)';
       if (margem < 200 && temEmprestimo) return 'margem abaixo de R$ 200 e já tem empréstimo';
       if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
       // v3.82 (Stefany 10/11 12:55, caso Idervã): NÃO existe "flash fora do ar". A falha de um cliente (ex.: "não foram
