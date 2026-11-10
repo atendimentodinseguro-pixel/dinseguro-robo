@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.73';
+  const VERSAO = '3.74';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1450,7 +1450,7 @@
     async function cadastrais(f) {
       await sleep(1500);
       const email = entrada(/^Email$/); if (email && !email.value) await digitar(email, f.email || PADRAO.email);
-      const nome = f.nome || ''; const sexo = f.sexo || (/A$/i.test(nome.split(' ')[0]) ? 'FEMININO' : 'MASCULINO');
+      const nome = f.nome || ''; const sx0 = (f.sexo || '').trim().toUpperCase(); const sexo = /^F/.test(sx0) ? 'FEMININO' : /^M/.test(sx0) ? 'MASCULINO' : (/A$/i.test(nome.split(' ')[0]) ? 'FEMININO' : 'MASCULINO');  // 3.74: ficha traz M/F
       await escolher(lista(/^Sexo$/), new RegExp('^' + sexo + '$'));
       await escolher(lista(/^Estado Civil$/), /^SOLTEIRO$/);
       const mae = entrada(/^Nome M[ãa]e$/);
@@ -1746,7 +1746,7 @@
       const de = campo(/^Data da emissão$/); if (de && !de.value) { de.focus(); setter.call(de, dataISO(PADRAO.dt_emissao)); de.dispatchEvent(new Event('input', { bubbles: true })); de.dispatchEvent(new Event('change', { bubbles: true })); de.dispatchEvent(new Event('blur', { bubbles: true })); }
       await combo(/^Órgão emissor$/, 'SECRETARIA', /SECRETARIA DA SEGURAN/);
       await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
-      const sexo = f.sexo || (/A$/i.test((f.nome || '').split(' ')[0]) ? 'FEMININO' : 'MASCULINO');
+      const sx1 = (f.sexo || '').trim().toUpperCase(); const sexo = /^F/.test(sx1) ? 'FEMININO' : /^M/.test(sx1) ? 'MASCULINO' : (/A$/i.test((f.nome || '').split(' ')[0]) ? 'FEMININO' : 'MASCULINO');  // 3.74
       await combo(/^Sexo$/, sexo.slice(0, 4), new RegExp('^' + sexo + '$', 'i'));
       await combo(/^Estado de nascimento$/, f.uf, new RegExp('^' + f.uf + '$'));
       const cn = campo(/^Cidade de nascimento$/);
