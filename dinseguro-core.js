@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.74';
+  const VERSAO = '3.75';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -186,7 +186,7 @@
       // nossa última mensagem não está esperando nada → conta como resolvido (sai da lista, conversa continua).
       const iu = L.map((s, k) => /^(done_all|check|done)$/.test(s) ? k : -1).filter(k => k >= 0).pop();
       if (iu !== undefined && iu < ix) {
-        const cli = L.slice(iu + 1).filter(s => !/^(\d{1,2}:\d{2}\s*(AM|PM)?|\d{1,3})$/.test(s)).join(' ').trim();
+        const cli = L.slice(iu + 1).filter(s => !/^(\d{1,2}:\d{2}\s*(AM|PM)?|\d{1,3}|Sessão \d\d\/\d\d\/\d{4}.*|(SEG|TER|QUA|QUI|SEX|S[ÁA]B|DOM) \d{1,2} [A-ZÇ]+ \d{1,2}:\d{2})$/.test(s)).join(' ').trim();  // 3.75: ignora a linha de sessão nova
         if (cli && cli.length <= 40 && /^(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|blz|beleza|t[áa] bom|t[áa]|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊|ok obrigad[oa])[\s.!,👍🙏😊❤️]*$/i.test(cli)) return true;
       }
       if (!/^(done_all|check|done)$/m.test(L.slice(ix + 1).join('\n'))) return false;
