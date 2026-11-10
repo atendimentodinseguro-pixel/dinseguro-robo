@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.17b';
+  const VERSAO = '4.18';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -190,6 +190,43 @@
   if (window.top === window && /multicorban\.com|newcorban\.com\.br/.test(location.host)) {
     const ehLogin = () => /login|entrar/i.test(document.title) || !!document.querySelector('input[type=password]');
     setInterval(() => { if (!ehLogin()) fetch(location.href, { credentials: 'include', cache: 'no-store' }).catch(() => {}); }, 10 * 60 * 1000);
+  }
+
+  // ================================================================== 4.18 ESTEIRA DO BANCO → QUADRO
+  // Stefany 10/11 19:22 ("pode fazer"): o robô lê sozinho a lista de Propostas do New Corban (a coluna "Status Banco" e o
+  // status real do balão: "12 - AGUARDANDO ASSINATURA DIGITAL", "215 - AGUARDA AVERBACAO - ASSINATURA DIGITAL OK", "AVERBE JA",
+  // "AGUARDA ANUENCIA"…) e guarda por LINK e por CPF em GM 'esteira'. O quadro do Botmaker mostra e escolhe o próximo passo.
+  // Deixe uma aba do New Corban aberta em ?p=propostas: ela atualiza a lista a cada 5 min (botão ↻ da própria página).
+  if (window.top === window && /newcorban\.com\.br/.test(location.host)) {
+    const lerEsteira = () => {
+      if (!/[?&]p=propostas/.test(location.search)) return 0;
+      const linhas = [...document.querySelectorAll('table tbody tr')].filter(r => r.children.length >= 6);
+      if (!linhas.length) return 0;
+      const E = GM_getValue('esteira', {}) || {}; const agora = Date.now(); let n = 0;
+      for (const r of linhas) {
+        const c = [...r.children];
+        const cpf = ((c[1].innerText.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/) || [])[0] || '').replace(/\D/g, '');
+        const nome = (c[1].innerText.split('\n').map(x => x.trim()).filter(x => x && !/^[A-Z]{2}$/.test(x))[0] || '').trim();
+        const link = ([...r.querySelectorAll('[data-bs-content]')].map(e => e.getAttribute('data-bs-content')).find(v => /^https?:\/\//.test(v || '')) || '').trim();
+        const badge = c[5] && c[5].querySelector('.badge');
+        const statusBanco = badge ? badge.innerText.trim() : (c[5] ? c[5].innerText.trim() : '');
+        const real = badge ? (badge.getAttribute('data-bs-content') || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+        const status = c[4] ? c[4].innerText.trim() : '';
+        const banco = ((c[2].innerText.match(/Banco ([A-Za-z0-9 ]+)|(FACTA|C6|QUALIBANK|Quali[a-z]*|Quero Mais|Daycoval|Presen[cç]a|BMG)/i) || [])[0] || '').replace(/\s+INSS$/, '').trim();
+        const reg = { cpf, nome, link, banco, status, statusBanco, real, t: agora };
+        if (link) E['L:' + link] = reg; if (cpf) E['C:' + cpf + ':' + (link || status)] = reg; n++;
+      }
+      for (const k in E) if (agora - (E[k].t || 0) > 3 * 24 * 3600000) delete E[k];   // limpa o que tem mais de 3 dias
+      GM_setValue('esteira', E); GM_setValue('esteira_t', agora); return n;
+    };
+    setTimeout(lerEsteira, 5000);
+    setInterval(() => {
+      if (!/[?&]p=propostas/.test(location.search)) return;
+      if (document.querySelector('.modal.show')) return;                       // ninguém mexendo num modal
+      const b = document.getElementById('esteira_refresh'); if (b) b.click();
+      setTimeout(lerEsteira, 8000);
+    }, 5 * 60 * 1000);
+    window.dinsEsteiraLer = lerEsteira;
   }
 
   // ================================================================== BOTMAKER: VIGIA
@@ -688,6 +725,20 @@
       }
       GM_setValue('regua', out); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(out))); } catch (e) {}
     };
+    // 4.18 — fase da esteira do banco (lida pela aba do New Corban em ?p=propostas)
+    const faseEsteira = x => {
+      if (!x || !x.link) return null;
+      const E = GM_getValue('esteira', {}) || {}; const e = E['L:' + x.link]; if (!e) return null;
+      const t = (e.real + ' ' + e.statusBanco + ' ' + e.status).toUpperCase();
+      let fase = 'andamento', acao = '';
+      if (/PAG[OA]\b|INTEGRAD|FINALIZAD|CONCRETIZ/.test(t)) { fase = 'pago'; }
+      else if (/CANCEL|REPROV|RECUS|NEGAD/.test(t)) { fase = 'recusada'; acao = 'banco recusou/cancelou → ver com a Stefany'; }
+      else if (/ANUENCIA|ANUÊNCIA/.test(t)) { fase = 'falta anuência'; acao = 'mandar linha pessoal + /anuencia + /anuencia2'; }
+      else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA/.test(t)) { fase = 'falta desbloquear'; acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
+      else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
+      return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t };
+    };
+    window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
     // compatibilidade: quem ainda chama FUPS/gravaFups
     const FUPS = () => [];
     const gravaFups = () => {};
@@ -1121,6 +1172,8 @@
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
       if (toque.tipo === 'manha' && !dentroDoHorario(agora)) return;
+      // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
+      { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
       if (toque.tipo === 'manha' && agora - toque.quando > 3 * H) { reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
       fupRodando = true;
@@ -1198,6 +1251,10 @@
         return '';
       };
       const bloco = x => {
+        const fe = faseEsteira(x);
+        if (fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase)) return 'R';
+        if (fe && fe.fase === 'pago') return 'E';
+        if (fe && fe.fase === 'recusada') return 'J';
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if (x.estado === 'humano' || x.junto || (x.comQuem && x.ultLado !== 'cli') || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'ativa') return 'F';
@@ -1214,6 +1271,8 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
+        const fe = faseEsteira(x);
+        if (fe && fe.fase !== 'andamento' && fe.fase !== 'não assinou') return '🏦 ' + fe.fase.toUpperCase() + (fe.acao ? ' → ' + fe.acao : '') + ' (' + fe.real + ')';
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
         if (x.junto) return (['alerta', 'erro'].includes(x.estado) ? (x.motivo || x.estado) + ' · ⚠ ' : '') + x.junto;
         if (x.comQuem && x.ultLado !== 'cli' && x.semLink) return 'com ' + x.comQuem + ' — mensagem dele(a) é a última';
@@ -1278,17 +1337,18 @@
           <td ${td}>${esperaT ? '<b style="color:#f87171;font-size:15px">⏱ ' + haMin(esperaT).replace('há ', '') + '</b>' : '—'}</td>
           <td ${td}>${proxTxt}</td>
           <td ${td}>${tq.length ? feitos.length + ' de ' + tq.length + '<br><span style="color:#94a3b8;font-size:11px">' + tq.map(q => q.tipo + (q.feito ? (/pulado/.test(q.st || '') ? ' ⤼' : ' ✓') : ' ·')).join(' ') + '</span>' : '—'}</td>
+          <td ${td}>${(() => { const fe = faseEsteira(x); return fe ? '<b>' + esc(fe.fase) + '</b><br><span style="color:#94a3b8;font-size:11px">' + esc(fe.banco) + ' · ' + esc(fe.real) + '<br>lido ' + hm(fe.t) + '</span>' : (x.link ? '<span style="color:#64748b">sem leitura</span>' : '—'); })()}</td>
         </tr>`;
       };
       tb.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div style="font-size:16px;font-weight:800">📋 Acompanhamento dos clientes — tabela <span style="color:#94a3b8;font-weight:400;font-size:12px">atualiza a cada 15 s · ${hm(agora)}</span></div>
           <button data-fechar="1" style="padding:4px 12px;border:0;border-radius:8px;background:#475569;color:#fff;font-weight:700;cursor:pointer">✕ Fechar</button></div>
         <table style="width:100%;border-collapse:collapse"><thead><tr>
-          <th ${th}>Cliente</th><th ${th}>Situação / o que fazer</th><th ${th}>Último contato</th><th ${th}>Esperando há</th><th ${th}>Próximo contato</th><th ${th}>Tentativas</th>
+          <th ${th}>Cliente</th><th ${th}>Situação / o que fazer</th><th ${th}>Último contato</th><th ${th}>Esperando há</th><th ${th}>Próximo contato</th><th ${th}>Tentativas</th><th ${th}>Banco (esteira)</th>
         </tr></thead><tbody>` +
         BL.map(([k, nome, cor]) => { const g = grupos[k] || []; if (!g.length) return '';
           const ord = [...g].sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
-          return `<tr><td colspan="6" style="padding:10px 8px 4px;font-weight:800;font-size:14px;color:${cor}">${nome} (${g.length})</td></tr>` + ord.map(x => linha(x, k, cor)).join(''); }).join('') +
+          return `<tr><td colspan="7" style="padding:10px 8px 4px;font-weight:800;font-size:14px;color:${cor}">${nome} (${g.length})</td></tr>` + ord.map(x => linha(x, k, cor)).join(''); }).join('') +
         '</tbody></table>';
     }
     setInterval(desenharRegua, 15000); setTimeout(desenharRegua, 3000);
