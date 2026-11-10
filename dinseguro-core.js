@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.05';
+  const VERSAO = '4.06';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -890,7 +890,9 @@
         const t = TW.__tail(300);
         if (/janela|em atendimento com/i.test(t[1] || '') || /Chat em atendimento com/.test(DOCF().body.innerText)) return 'NÃO ENVIADO: chat com atendente / janela';
         if (!forca && !/(done_all|check)\s*\n0\s*\n?$/.test(t[2])) return 'ULTIMA MSG DO CLIENTE: ' + t[2].slice(-160).replace(/\n/g, ' ');
-        if (/90 dias|bloquead[oa] para empr[eé]stimo|benef[ií]cio foi concedido|concedido em|prazo (dos 90 dias )?vence|desbloque/i.test(msg)) {
+        // 4.06 — "90 dias" de CARÊNCIA (1ª parcela mais tarde) não é o bloqueio dos 90 dias: não trava (caso Celmo 10/11 16:58).
+        const msgTrava = String(msg).replace(/car[eê]ncia[^\n]{0,40}?90 dias|90 dias[^\n]{0,20}?car[eê]ncia/gi, ' ');
+        if (/90 dias|bloquead[oa] para empr[eé]stimo|benef[ií]cio foi concedido|concedido em|prazo (dos 90 dias )?vence|desbloque/i.test(msgTrava)) {
           const hoje = new Date().toISOString().slice(0, 10);
           const aprovado = TW.__tags().some(x => /^01 D/.test(x)) || localStorage.getItem('dins_aprovado') === id + '|' + hoje;
           if (!aprovado) return 'BLOQUEADO: data de pagamento / 90 dias só para cliente APROVADO (tag 01 D ou dins_aprovado).';
