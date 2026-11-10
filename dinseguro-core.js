@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.66';
+  const VERSAO = '3.67';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -219,7 +219,10 @@
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
       }
       // quem saiu da tela (rolou para baixo) continua na fila até ser marcado como feito
-      for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)) fila.push(f);
+      // v3.67: ...mas só por 24h (depois disso a janela do WhatsApp fechou e não dá para responder). Só sai da LISTA;
+      // a conversa NÃO é encerrada. O Claude também tira da lista (dins_feito) quem já foi respondido.
+      for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)
+        && Date.now() - new Date(f.quando).getTime() < 24 * 3600 * 1000) fila.push(f);
       const novos = fila.filter(f => !antiga.some(g => g.id === f.id));
       gravar('dins_fila', fila);
       try {
