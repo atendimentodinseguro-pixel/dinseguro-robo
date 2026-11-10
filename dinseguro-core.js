@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.12';
+  const VERSAO = '4.13';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -734,12 +734,17 @@
       if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
-      if (clienteRespondeu()) return { estado: 'alerta', motivo: 'cliente esperando resposta' };
-      if (tem(/^01 A/i)) return { estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' };
-      if (tem(/^01 C/i)) return { estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' };
+      let L = null; try { L = lados(); } catch (e) {}
+      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem } : {};
+      if (clienteRespondeu()) {
+        const u = L && L.ult.lado === 'cli' ? L.ult : null;
+        return Object.assign({ estado: 'alerta', motivo: u ? 'cliente escreveu "' + u.txt.slice(0, 50) + '"' + (u.t ? ' às ' + hhmm(u.t) : '') : 'cliente esperando resposta' }, ex);
+      }
+      if (tem(/^01 A/i)) return Object.assign({ estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' }, ex);
+      if (tem(/^01 C/i)) return Object.assign({ estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' }, ex);
       const fim = (document.querySelector('.entries') || {}).innerText || '';
-      if (/Enviado pelo credsegurobank[\s\S]{0,1500}$/.test(fim.slice(-1600))) return { estado: 'acompanhando', motivo: 'no bot (autoatendimento)' };
-      return { estado: 'acompanhando', motivo: 'última mensagem é nossa — aguardando o cliente' };
+      if (ex.botParado || (!L && /Enviado pelo credsegurobank[\s\S]{0,1500}$/.test(fim.slice(-1600)))) return Object.assign({ estado: 'acompanhando', motivo: 'no bot (autoatendimento)' }, ex);
+      return Object.assign({ estado: 'acompanhando', motivo: 'última mensagem é nossa — aguardando o cliente' }, ex);
     }
     // 4.02 — TELA PRONTA (erro 10/11 15:42: o link do Gerson foi gravado no chat seguinte, que o robô abriu logo depois,
     // porque a tela ainda mostrava a conversa anterior). Só lê a conversa quando o endereço está parado há 6 s
@@ -759,12 +764,15 @@
       const c = classificar();
       r[hash] = { hash, fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
+      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); gravaRG(r); desenharRegua(); }
+      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
+      if (mud) { gravaRG(r); desenharRegua(); }
     }
     // 4.10 — o mapeamento NÃO pode brigar com o vigia (10/11 17:52: trocava de chat enquanto o vigia atendia).
     // O vigia marca  dins_vigia_ocupado  e o mapeamento usa a própria marca  dins_mapeando  (não apaga a do vigia).
@@ -819,6 +827,7 @@
           const id = (ci.parentElement || {}).id; const x = r[id]; if (!x) return;
           const t = ci.innerText || ''; if (/ARCHIVED|Arquivad/i.test(t)) return;
           const nossa = /\b(done_all|check)\b/.test(t);
+          const sig = t.replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig) { x.ultT = Date.now(); mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
           const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada'].includes(x.estado));
           if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)';
@@ -838,6 +847,10 @@
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
     window.dinsReguaPular = (hash, tipo, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q || q.feito) return false; q.feito = Date.now(); q.st = 'pulado (' + (motivo || 'manual') + ')'; x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' pulado: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); return true; };
+
+    // 4.13 — "precisa de alguém junto" à mão (decisão da Stefany etc.): dinsReguaJunto('HASH', 'motivo') / dinsReguaSoltar('HASH')
+    window.dinsReguaJunto = (hash, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; x.junto = motivo || 'decisão da Stefany'; x.hist.push(hhmm(Date.now()) + ' junto: ' + x.junto); gravaRG(r); desenharRegua(); return true; };
+    window.dinsReguaSoltar = hash => { const r = RG(), x = r[hash]; if (!x) return false; delete x.junto; gravaRG(r); desenharRegua(); return true; };
 
     // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
     // qualquer link NOSSO que não seja de grupo/rede social/material (o /n30 e o /parabens do PDF levam links que não são proposta)
@@ -981,7 +994,39 @@
     // o cliente falou depois do link? Lê o fim da conversa de trás para frente.
     // Marca nossa: toda mensagem que sai leva "done_all" (o visto duplo) logo depois.
     // Nota interna é um bloco: entra em "~ Criado por" e sai em "[Nota interna]".
+    // 4.13 — QUEM FALOU POR ÚLTIMO, pelo DOM (Stefany 10/11 18:13, caso Donizete/Ramão): o texto da tela confundia os botões
+    // do bot (que aparecem depois do ✓) com resposta do cliente. No DOM: .entries-li.left = cliente, .right = nós/bot;
+    // o 1º balão do grupo (first-from) com "Enviado pelo credsegurobank" = bot. Hora de cada balão pela data da sessão.
+    const CONTORNO_RE = /20260804-P5gmFiMS|Simula[çc][ãa]o 10 a 18 mil/i;
+    function lados() {
+      const els = [...document.querySelectorAll('[class*="entries-li"]')]; if (!els.length) return null;
+      let dia = null, grpBot = false; const ms = [];
+      for (const el of els) {
+        const c = String(el.className || ''); const txt = (el.innerText || '').trim();
+        if (/entries-li-session-date/.test(c)) { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(txt); if (m) dia = [+m[3], +m[2] - 1, +m[1]]; continue; }
+        if (!el.classList.contains('left') && !el.classList.contains('right')) continue;
+        if (/^\[Nota interna\]|~ Criado por/.test(txt)) continue;
+        const lado = el.classList.contains('left') ? 'cli' : 'nos';
+        if (lado === 'nos' && el.classList.contains('first-from')) grpBot = /Enviado pelo credsegurobank/.test(txt);
+        let t = null; const h = /(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(done_all|check|done)?\s*$/i.exec(txt);
+        if (h && dia) { let hh = +h[1] % 12; if (/PM/i.test(h[3] || '')) hh += 12; if (!h[3]) hh = +h[1]; t = new Date(dia[0], dia[1], dia[2], hh, +h[2]).getTime(); }
+        ms.push({ lado, bot: lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
+      }
+      for (let i = ms.length - 2; i >= 0; i--) if (!ms[i].t) ms[i].t = ms[i + 1].t;   // balão sem hora: hora do próximo do grupo
+      if (!ms.length) return null;
+      const ult = ms[ms.length - 1], ultCli = [...ms].reverse().find(m => m.lado === 'cli');
+      const iCli = ultCli ? ms.lastIndexOf(ultCli) : -1;
+      const depois = ms.slice(iCli + 1);
+      const iCont = depois.map(m => m.lado === 'nos' && !m.bot && CONTORNO_RE.test(m.raw)).lastIndexOf(true);
+      const linkDepois = iCont >= 0 && depois.slice(iCont + 1).some(m => m.lado === 'nos' && /https?:\/\/(?!chat\.whatsapp|wa\.me|fb\.me|g\.co)/i.test(m.raw));
+      const contorno = iCont >= 0 && !linkDepois ? depois[iCont] : null;
+      const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));   // CPF mandado PELO CLIENTE
+      const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw));
+      const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem };
+    }
     function clienteRespondeu() {
+      try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
       const e = document.querySelector('.entries');
       if (!e) return false;
       const linhas = e.innerText.split('\n').map(x => x.trim()).filter(Boolean);
@@ -1091,17 +1136,54 @@
         });
       }
       const atras = x => x.estado === 'ativa' && x.toques.some(k => !k.feito && k.quando < agora - 5 * M && dentroDoHorario(agora));
-      const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || x.estado === 'alerta' || atras(x)).length;
-      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
+      // 4.13 — QUADRO EM 5 BLOCOS (Stefany 10/11 18:16 "pode fazer"): quem responder agora, follow-up do robô, quem precisa de
+      // alguém junto, quem está aguardando o cliente e quem já encerrou. Cada linha: nome · situação · há quanto tempo · resumo.
+      const min = t => t ? Math.max(0, Math.round((agora - t) / M)) : null;
+      const haMin = t => { const n = min(t); return n == null ? '' : n < 60 ? 'há ' + n + ' min' : 'há ' + Math.floor(n / 60) + 'h' + String(n % 60).padStart(2, '0'); };
+      const vermelhoCalc = x => {
+        if (x.semLink && x.contornoT && x.ultLado !== 'cli' && agora - x.contornoT > 15 * M && !['humano', 'encerrado'].includes(x.estado))
+          return 'contorno ' + hhmm(x.contornoT) + ' sem resposta ' + haMin(x.contornoT) + ' → digitar no valor escolhido (16a)';
+        if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && x.ultT && agora - x.ultT > 30 * M)
+          return 'parado no bot ' + haMin(x.ultT) + ', sem CPF → mandar mensagem pedindo o CPF';
+        return '';
+      };
+      const bloco = x => {
+        if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
+        if (x.estado === 'humano' || x.junto || (x.comQuem && x.ultLado !== 'cli') || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
+        if (x.estado === 'ativa') return 'F';
+        if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
+        return 'A';
+      };
+      const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
+        ['A', '🔵 Aguardando o cliente', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+      const grupos = {}; lista.forEach(x => (grupos[bloco(x)] = grupos[bloco(x)] || []).push(x));
+      const nAlerta = (grupos.R || []).length;
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
+        `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}</div>`;
       if (q.dataset.min === '1') { q.innerHTML = cab; return; }
-      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || x.estado === 'alerta' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : x.estado === 'humano' ? '#fbbf24' : x.estado === 'acompanhando' ? '#93c5fd' : '#94a3b8';
-      q.innerHTML = cab + lista.map(x => {
-        const prox = x.toques.find(k => !k.feito); const ult = [...x.toques].reverse().find(k => k.feito);
-        const txtEst = x.semLink ? (x.motivo || x.estado) : x.estado === 'ativa' ? (prox ? 'próximo: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—') : x.estado + (x.motivo ? ' · ' + x.motivo : '');
-        return `<div style="margin-top:5px;border-top:1px solid #334155;padding-top:4px">
-          <span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor(x)}">${(x.nome || x.hash.slice(0, 6))}</span>
-          <span style="color:#94a3b8"> · ${x.semLink ? 'sem link' : 'link ' + hhmm(x.linkT)}</span><br>
-          <span style="color:${cor(x)}">${txtEst}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + ult.st + '</span>' : ''}${x.resumo ? '<br><span style="color:#cbd5e1;font-style:italic">' + x.resumo.replace(/</g, '&lt;') + '</span>' : ''}</div>`;
+      const esc = t => String(t || '').replace(/</g, '&lt;');
+      const situacao = (x, k) => {
+        const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
+        if (x.junto) return x.junto;
+        if (x.comQuem && x.ultLado !== 'cli' && x.semLink) return 'com ' + x.comQuem + ' — mensagem dele(a) é a última';
+        if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
+        if (atras(x)) return 'toque atrasado';
+        return (x.semLink ? '' : x.estado + ' · ') + (x.motivo || x.estado);
+      };
+      const linha = (x, cor, k) => {
+        const ult = [...(x.toques || [])].reverse().find(q2 => q2.feito);
+        const quando = x.ultT ? ' · ' + haMin(x.ultT) : '';
+        if (k === 'E') return `<span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor}">${esc(x.nome || x.hash.slice(0, 6))}</span>`;
+        return `<div style="margin-top:4px;border-top:1px solid #334155;padding-top:3px">
+          <span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor};font-weight:600">${esc(x.nome || x.hash.slice(0, 6))}</span>
+          <span style="color:#94a3b8"> · ${x.semLink ? 'sem link' : 'link ' + hhmm(x.linkT)}${quando}</span><br>
+          <span style="color:${cor}">${esc(situacao(x, k))}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + esc(ult.st) + '</span>' : ''}${x.resumo ? '<br><span style="color:#cbd5e1;font-style:italic">' + esc(x.resumo) + '</span>' : ''}</div>`;
+      };
+      q.innerHTML = cab + BL.map(([k, nome, cor]) => {
+        const g = (grupos[k] || []).sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
+        if (!g.length) return '';
+        const corpo = k === 'E' ? '<div style="margin-top:3px;line-height:1.6">' + g.map(x => linha(x, cor, k)).join(' · ') + '</div>' : g.map(x => linha(x, cor, k)).join('');
+        return `<div style="margin-top:8px;font-weight:700;color:${cor}">${nome} (${g.length})</div>` + corpo;
       }).join('');
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
     }
