@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.13';
+  const VERSAO = '4.14';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -293,7 +293,11 @@
         const parado = semResposta && Date.now() - pend[x.id].t > 90000;
         const esperando = humano ? ((!x.nossa && x.naoLidas > 0) || verificando)
                                  : (!x.nossa && (handoff || parado || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)))));
-        if (!esperando) continue;
+        // 4.14 — o QUADRO (que lê a conversa inteira) manda para a fila quem ele marcou esperando: bot passou para atendente
+        // humano e mandou outra coisa depois (caso Carmen 18:35), ou cliente escreveu e a prévia não mostrava.
+        let peloQuadro = false;
+        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando/.test(q.motivo || ''); } catch (e) {} }
+        if (!esperando && !peloQuadro) continue;
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
       }
@@ -736,6 +740,13 @@
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
       const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem } : {};
+      const OK_SO = /^(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊|ok obrigad[oa])[\s.!,👍🙏😊❤️]*$/i;
+      if (L && L.ult.lado === 'cli' && OK_SO.test(L.ult.txt) && L.ultCli && L.ult === L.ultCli) {
+        const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
+        return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
+      }
+      if (L && L.handoffT && L.ult.lado === 'nos')
+        return Object.assign({ estado: 'alerta', motivo: 'bot passou para atendente humano às ' + hhmm(L.handoffT) + ' e ninguém respondeu' }, ex);
       if (clienteRespondeu()) {
         const u = L && L.ult.lado === 'cli' ? L.ult : null;
         return Object.assign({ estado: 'alerta', motivo: u ? 'cliente escreveu "' + u.txt.slice(0, 50) + '"' + (u.t ? ' às ' + hhmm(u.t) : '') : 'cliente esperando resposta' }, ex);
@@ -786,7 +797,11 @@
       if (window.top.location.hash !== '#/chats/' + id || !document.querySelector('.entries')) return false;
       try { detectarLink(); } catch (e) {}
       const x = RG()[id];
-      if (x) { const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano') window.dinsReguaHumano(id, m[1].trim()); }
+      if (x) {
+        const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano') window.dinsReguaHumano(id, m[1].trim());
+        if (x.semLink) { try { reclassificar(id); } catch (e) {} }
+        const r2 = RG(); if (r2[id] && r2[id].reler) { delete r2[id].reler; gravaRG(r2); }
+      }
       else registrarSemLink(id);
       return true;
     }
@@ -805,7 +820,7 @@
       if (mapeando || rodando || fupRodando) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
-      const novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada'); if (!novo) return;
+      const novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada') || idsDaLista().find(id => RG()[id] && RG()[id].reler); if (!novo) return;   // 4.14: conversa que andou é relida
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 60000);
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
@@ -827,7 +842,7 @@
           const id = (ci.parentElement || {}).id; const x = r[id]; if (!x) return;
           const t = ci.innerText || ''; if (/ARCHIVED|Arquivad/i.test(t)) return;
           const nossa = /\b(done_all|check)\b/.test(t);
-          const sig = t.replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig) { x.ultT = Date.now(); mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
+          const sig = t.replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig) { x.ultT = Date.now(); if (x.semLink && x.estado !== 'humano') x.reler = 1; mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
           const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada'].includes(x.estado));
           if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)';
@@ -1021,9 +1036,15 @@
       const linkDepois = iCont >= 0 && depois.slice(iCont + 1).some(m => m.lado === 'nos' && /https?:\/\/(?!chat\.whatsapp|wa\.me|fb\.me|g\.co)/i.test(m.raw));
       const contorno = iCont >= 0 && !linkDepois ? depois[iCont] : null;
       const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));   // CPF mandado PELO CLIENTE
+      // 4.14 — HANDOFF (Stefany 10/11 18:41, caso Carmen): o bot disse "logo você será atendido(a) por um atendente humano"
+      // e DEPOIS mandou outra mensagem dele (vídeo). A prévia da lista mostrava só o vídeo → ninguém pôs na fila.
+      const HANDOFF_RE = /atendido\(a\) por um atendente humano|atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir irei avisar/i;
+      const iHand = depois.map(m => m.lado === 'nos' && m.bot && HANDOFF_RE.test(m.raw)).lastIndexOf(true);
+      const humanoDepois = iHand >= 0 && depois.slice(iHand + 1).some(m => m.lado === 'nos' && !m.bot);
+      const handoffT = iHand >= 0 && !humanoDepois ? (depois[iHand].t || Date.now()) : 0;
       const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw));
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem };
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
