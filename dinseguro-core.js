@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.18c';
+  const VERSAO = '4.19';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -713,6 +713,7 @@
     //  4) Cada toque sai UMA vez (registro com hora). Quadro "📋 Régua pós-link" no canto direito.
     //  5) Espelho em localStorage.dins_regua para o vigia conferir na rodada.
     const RG = () => GM_getValue('regua', {});
+    const ABA_ID = Math.random().toString(36).slice(2, 10);   // 4.19: identifica esta aba na trava dos toques
     // 4.17b — GRAVAÇÃO SEM PERDA (Stefany 19:24 "pode fazer"): duas partes do robô liam o quadro, esperavam e gravavam por cima,
     // e uma apagava o que a outra tinha feito (André voltou como "01 A sem link" depois de reavaliado às 18:57).
     // Agora: (1) quem grava MESCLA com o que está salvo — cliente que só existe no salvo é mantido;
@@ -1181,6 +1182,17 @@
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
       if (toque.tipo === 'manha' && agora - toque.quando > 3 * H) { reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
+      // 4.19 — TRAVA ENTRE ABAS (Stefany 19:30 "Duplicou": o "Conseguiu acessar?" do José Tobias saiu 2x às 19:27, porque duas
+      // abas/janelas do Botmaker com o robô pegaram o mesmo toque). Quem vai mandar reserva o toque no armazenamento comum,
+      // espera e confere se a reserva é dele; a outra aba desiste.
+      {
+        const chave = alvo.hash + '|' + toque.tipo; const L = GM_getValue('fup_lock', {}) || {};
+        if (L[chave] && Date.now() - L[chave].t < 10 * M && L[chave].aba !== ABA_ID) return;
+        L[chave] = { aba: ABA_ID, t: Date.now() }; GM_setValue('fup_lock', L);
+        await new Promise(s => setTimeout(s, 1500 + Math.random() * 1500));
+        const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
+        const x2 = (RG() || {})[alvo.hash]; const q2 = x2 && x2.toques.find(k => k.tipo === toque.tipo); if (!q2 || q2.feito) return;   // a outra aba já mandou
+      }
       fupRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
