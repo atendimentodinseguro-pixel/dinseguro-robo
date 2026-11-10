@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.91';
+  const VERSAO = '3.92';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -695,6 +695,8 @@
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsReguaRetomar = hash => { const r = RG(); if (r[hash]) { r[hash].estado = 'ativa'; r[hash].motivo = ''; r[hash].tent = 0; gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsRegua = () => Object.values(RG());
+    // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
+    window.dinsReguaPular = (hash, tipo, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q || q.feito) return false; q.feito = Date.now(); q.st = 'pulado (' + (motivo || 'manual') + ')'; x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' pulado: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); return true; };
 
     // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
     // qualquer link NOSSO que não seja de grupo/rede social/material (o /n30 e o /parabens do PDF levam links que não são proposta)
