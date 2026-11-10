@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.08';
+  const VERSAO = '4.09';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -139,10 +139,18 @@
     const z = zapDoCpf(f.cpf); if (z && z !== t) return `⛔ TELEFONE DIFERENTE DO WHATSAPP: a ficha tem ${t} e o chat do Botmaker deste CPF é ${z}. Corrija a ficha.`;
     return '';
   }
+  // 4.09 — PRAZO CURTO NÃO SE DIGITA (Stefany 10/11 17:41: "36 vezes... até simular, ok, no último caso. Digitar em 36 vezes, a gente não te autoriza").
+  // Gravar com prazo abaixo de 96x só com a linha  prazo_ordem_stefany: <N>  na ficha.
+  function prazoProibido(f, prazoTela) {
+    const pz = parseInt(String(prazoTela || f.prazo || '108').replace(/\D/g, ''), 10) || 108;
+    if (pz >= 96) return '';
+    if (parseInt(String(f.prazo_ordem_stefany || '').replace(/\D/g, ''), 10) === pz) return '';
+    return `⛔ PRAZO ${pz}x: prazo curto só se SIMULA (último caso) — NÃO se grava sem ordem da Stefany (linha prazo_ordem_stefany: ${pz}). Use 96x ou 108x.`;
+  }
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'telefone_origem', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
-    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany'];
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany', 'prazo_ordem_stefany'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -2871,7 +2879,17 @@
   }
 
   // ---- 5. Gravar e pegar o link
+  // 4.09 — trava também o clique DIRETO no botão Gravar (inclusive o do vigia): prazo curto sem ordem não grava.
+  try {
+    document.addEventListener('click', ev => {
+      const b = ev.target && ev.target.closest && ev.target.closest('#btn_gravar_proposta'); if (!b) return;
+      let f = {}; try { const ta = [...document.querySelectorAll('textarea')].find(t => /banco_destino/.test(t.value)); if (ta) f = textoParaFicha(ta.value); } catch (e) {}
+      const t = prazoProibido(f, (el('prazo') || {}).value);
+      if (t) { ev.preventDefault(); ev.stopImmediatePropagation(); try { log(t, 'erro'); } catch (e) {} window.__dinsPrazoBloqueado = Date.now(); }
+    }, true);
+  } catch (e) {}
   async function gravarELink(f) {
+    { const t = prazoProibido(f, (el('prazo') || {}).value); if (t) throw new Error(t); }
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
     el('btn_gravar_proposta').click();
