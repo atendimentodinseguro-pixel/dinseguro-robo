@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.06';
+  const VERSAO = '4.07';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -794,6 +794,29 @@
       if (!arq.length) return; const r = RG(); let mudou = false;
       arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
       if (mudou) { gravaRG(r); desenharRegua(); }
+    }, 30000);
+    // 4.07 — CLIENTE ESPERANDO PELA LISTA (Stefany 10/11 17:05, caso Alexsandra: respondeu o remarketing às 15:50, o bot só disse
+    // "Estou analisando" e ninguém respondeu, porque o quadro marcava "pausada" e ela não entrou na fila).
+    // A cada 30 s, olha a prévia de cada conversa na lista: última mensagem SEM o ✓ nosso (done_all/check) e com cara de espera
+    // (texto do cliente numa conversa pausada/acompanhada, ou o bot dizendo que está analisando) → fica VERMELHO no quadro.
+    const ESPERA_BOT = /Estou analisando suas informa|Estamos analisando aguarde|aguarde um (atendente|momento)|atendente humano|Assim que concluir irei avisar/i;
+    setInterval(() => {
+      try {
+        const r = RG(); let mudou = false;
+        document.querySelectorAll('.customer-item').forEach(ci => {
+          const id = (ci.parentElement || {}).id; const x = r[id]; if (!x) return;
+          const t = ci.innerText || ''; if (/ARCHIVED|Arquivad/i.test(t)) return;
+          const nossa = /\b(done_all|check)\b/.test(t);
+          const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'acompanhando', 'esgotada', 'encerrado', 'concluída'].includes(x.estado));
+          if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
+            x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)';
+            x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
+          } else if (nossa && x.estado === 'alerta' && /\(lista/.test(x.motivo || '')) {
+            x.estado = x.estadoAntes || 'acompanhando'; x.motivo = 'respondido'; x.hist.push(hhmm(Date.now()) + ' respondido — saiu do alerta'); mudou = true;
+          }
+        });
+        if (mudou) { gravaRG(r); desenharRegua(); }
+      } catch (e) {}
     }, 30000);
     // conversa aberta (por qualquer um): atualiza a situação dela no quadro
     setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (h && document.querySelector('.entries')) { try { reclassificar(h); } catch (e) {} } }, 20000);
