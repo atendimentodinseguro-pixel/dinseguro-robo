@@ -807,7 +807,7 @@
           const id = (ci.parentElement || {}).id; const x = r[id]; if (!x) return;
           const t = ci.innerText || ''; if (/ARCHIVED|Arquivad/i.test(t)) return;
           const nossa = /\b(done_all|check)\b/.test(t);
-          const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'acompanhando', 'esgotada', 'encerrado', 'concluída'].includes(x.estado));
+          const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada'].includes(x.estado));
           if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)';
             x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
