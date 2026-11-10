@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.85';
+  const VERSAO = '3.86';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1534,14 +1534,21 @@
     async function complementares(f) {
       await sleep(1500);
       const sb = secao(/^Dados Banc[áa]rios$/);
-      const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
-      // 3.48 — no Quero Mais a conta aleatória é a combinada (Caixa 104 / 3880 / 111113-1), inteira,
-      // sem herdar banco nem agência do cliente. No Daycoval segue a sequência de sempre.
-      const c = real
+      // 3.86 — conta DERIVADA da agência (cartão magnético: a ficha diz "sem conta aqui… derivada") não é conta real do cliente.
+      const derivada = /derivada|sem conta aqui/i.test(f.conta_origem || '');
+      const real = f.banco && so(f.conta).length >= 3 && f.banco !== '000' && !derivada;
+      const temConta = f.banco && so(f.conta).length >= 3 && f.banco !== '000';
+      // 3.48 — no Quero Mais a conta aleatória (sem banco nenhum) é a combinada (Caixa 104 / 3880 / 111113-1).
+      // 3.86 — Stefany 10/11 14:16: conta recusada por "outro CPF" (derivada ou aleatória) → NUMERAÇÃO ALEATÓRIA EM SEQUÊNCIA
+      //        (banco e agência do cliente, conta N da sequência, DV 8 — o mesmo contador conta_seq do Daycoval), avançando até passar.
+      const seqConta = () => { const n = Math.max(GM_getValue('conta_seq', 14), 14); return { banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) || '0001', conta: String(n), dv: '8', seq: n, daSeq: true }; };
+      let c = temConta
         ? { banco: f.banco.padStart(3, '0'), agencia: agOk(f.agencia), conta: so(f.conta).slice(0, -1), dv: so(f.conta).slice(-1) }
-        : (PORTAL.aleatoria ? proximaConta() : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia) });
+        : (PORTAL.aleatoria ? proximaConta() : { ...proximaConta(), banco: bancoOk(f.banco) || '001', agencia: agOk(f.agencia), daSeq: true });
+      const chaveRec = 'conta_recusada_' + so(f.cpf);
+      if (!real && GM_getValue(chaveRec, '') === c.banco + '|' + c.conta + '-' + c.dv) { log('Essa conta já foi recusada (outro CPF) para este cliente → sequência.'); c = seqConta(); }
       const jaTem = () => [...document.querySelectorAll('*')].some(e => e.children.length === 0 && new RegExp(c.conta + '/' + c.dv).test(tx(e)));
-      if (!jaTem()) {
+      for (let tent = 0; tent < 8 && !jaTem(); tent++) {
         await escolher(lista(/^Banco$/, sb), new RegExp('^' + c.banco + ' -'), c.banco);
         await digitar(entrada(/^Ag[êe]ncia$/, sb), c.agencia);
         const contas = [...sb.querySelectorAll('mat-form-field')].filter(vis);
@@ -1550,10 +1557,20 @@
         await digitar(dvConta.querySelector('input'), c.dv);
         await clicar(/^INCLUIR$/, sb);
         await sleep(1200);
-        if (/outro CPF/i.test(alertas().join())) { await fecharAlertas(); if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + '.'); if (!PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1); else throw new Error('A conta aleatória combinada já está cadastrada para outro CPF no Quero Mais. Avise a Stefany.'); throw new Error('Conta já usada em outro CPF (' + c.conta + '-' + c.dv + ').'); }
+        if (/outro CPF/i.test(alertas().join())) {
+          await fecharAlertas();
+          if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + '.');
+          if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
+          log(`Conta ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv} já está em outro CPF → próxima da sequência.`);
+          c = seqConta();
+          continue;
+        }
         await semErro('Incluir conta');
-        log(`Conta incluída: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : ' (aleatória da sequência)'}`);
+        if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);   // número da sequência usado = nunca repetir
+        log(`Conta incluída: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : (c.daSeq ? ' (aleatória da sequência)' : (derivada ? ' (derivada da agência)' : ' (aleatória combinada)'))}`);
+        break;
       }
+      if (!jaTem()) throw new Error('Não consegui incluir a conta depois de 8 tentativas da sequência.');
       const re = new RegExp(c.conta + '/' + c.dv);
       const sbn = secao(/^Dados do Benef[íi]cio$/);
       if (f.uf) await escolher(lista(/^UF Do Benef[íi]cio$/, sbn), new RegExp('^' + f.uf + '$'), f.uf);
@@ -1586,12 +1603,11 @@
       if (/j[áa] cadastrado para outro CPF/i.test(al)) {
         await fecharAlertas();
         if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no ' + PORTAL.nome + '.');
-        if (!PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1);
-        throw new Error('Conta já usada em outro CPF. Avancei a sequência.');
+        GM_setValue('conta_recusada_' + so(f.cpf), c.banco + '|' + c.conta + '-' + c.dv);
+        throw new Error('Conta já usada em outro CPF (só apareceu no PRÓXIMO). Anotei e na próxima vai a numeração da sequência: rode "Fazer tudo" de novo.');
       }
       await semErro('Dados complementares');
       await esperar(() => /GERAR PROPOSTAS/.test(document.body.innerText), 20000);
-      if (!real && !PORTAL.aleatoria) GM_setValue('conta_seq', c.seq + 1);
       log('Dados complementares ok. Resumo pronto.', 'ok');
     }
 
