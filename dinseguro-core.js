@@ -1125,7 +1125,7 @@
         .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
       let q = top.getElementById('dins-regua');
       if (!q) {
-        q = top.createElement('div'); q.id = 'dins-regua';
+        q = top.createElement('div'); q.id = 'dins-regua'; q.setAttribute('translate', 'no'); q.classList.add('notranslate');   // 4.13b: o tradutor do Chrome trocava "Aguardando" por "Guardando"
         // 4.00 — no canto ESQUERDO, acima do "Esperando atendimento": não cobre Tags/Notas do painel direito
         q.style.cssText = 'position:fixed;left:16px;bottom:120px;z-index:99998;background:#0f172a;color:#e2e8f0;border-radius:10px;' +
           'padding:8px 10px;font:12px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:400px;max-height:42vh;overflow:auto';
