@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.17';
+  const VERSAO = '4.17b';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -673,7 +673,21 @@
     //  4) Cada toque sai UMA vez (registro com hora). Quadro "📋 Régua pós-link" no canto direito.
     //  5) Espelho em localStorage.dins_regua para o vigia conferir na rodada.
     const RG = () => GM_getValue('regua', {});
-    const gravaRG = r => { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} };
+    // 4.17b — GRAVAÇÃO SEM PERDA (Stefany 19:24 "pode fazer"): duas partes do robô liam o quadro, esperavam e gravavam por cima,
+    // e uma apagava o que a outra tinha feito (André voltou como "01 A sem link" depois de reavaliado às 18:57).
+    // Agora: (1) quem grava MESCLA com o que está salvo — cliente que só existe no salvo é mantido;
+    // (2) cliente apagado de propósito (reavaliar) fica marcado e um retrato velho não o traz de volta.
+    const delRG = hash => { const d = GM_getValue('regua_del', {}) || {}; d[hash] = Date.now(); GM_setValue('regua_del', d); const r = GM_getValue('regua', {}) || {}; delete r[hash]; GM_setValue('regua', r); };
+    const gravaRG = r => {
+      const atual = GM_getValue('regua', {}) || {}; const del = GM_getValue('regua_del', {}) || {};
+      const out = {};
+      for (const k of new Set([...Object.keys(atual), ...Object.keys(r)])) {
+        const x = k in r ? r[k] : atual[k];
+        if (del[k] && (+(x && x.criadoT) || 0) < del[k]) continue;   // apagado depois de criado → não volta
+        out[k] = x;
+      }
+      GM_setValue('regua', out); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(out))); } catch (e) {}
+    };
     // compatibilidade: quem ainda chama FUPS/gravaFups
     const FUPS = () => [];
     const gravaFups = () => {};
@@ -707,7 +721,7 @@
     window.dinsLinkEnviado = function (hash, fone, linkT, link, nome) {
       const r = RG(); const t = linkT || Date.now();
       const ant = r[hash];
-      r[hash] = { hash, fone: fone || (ant && ant.fone) || '', nome: nome || (ant && ant.nome) || '', link: link || '', linkT: t,
+      r[hash] = { hash, criadoT: Date.now(), fone: fone || (ant && ant.fone) || '', nome: nome || (ant && ant.nome) || '', link: link || '', linkT: t,
         estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.tipo === '60' ? t + 70 * M : x.dt(t), feito: 0, st: '' })),
         tent: 0, hist: [hhmm(Date.now()) + ' régua criada (link ' + hhmm(t) + ')'] };
       gravaRG(r); desenharRegua();
@@ -779,7 +793,7 @@
       if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
       const c = classificar();
-      r[hash] = { hash, fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
+      r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
       ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
@@ -863,7 +877,7 @@
     // conversa aberta (por qualquer um): atualiza a situação dela no quadro
     setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (h && document.querySelector('.entries')) { try { reclassificar(h); } catch (e) {} } }, 20000);
     // reavaliar do zero: apaga e mapeia de novo (lendo o que já foi feito na conversa)
-    window.dinsReguaReavaliar = async hash => { const r = RG(); delete r[hash]; gravaRG(r); localStorage.setItem('dins_vigia_ocupado', 0); const ok = await mapearUm(hash); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); return ok && RG()[hash]; };
+    window.dinsReguaReavaliar = async hash => { delRG(hash); localStorage.setItem('dins_vigia_ocupado', 0); const ok = await mapearUm(hash); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); return ok && RG()[hash]; };
     // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
