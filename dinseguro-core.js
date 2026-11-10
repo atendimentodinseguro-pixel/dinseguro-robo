@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.18';
+  const VERSAO = '4.18b';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -219,7 +219,10 @@
       for (const k in E) if (agora - (E[k].t || 0) > 3 * 24 * 3600000) delete E[k];   // limpa o que tem mais de 3 dias
       GM_setValue('esteira', E); GM_setValue('esteira_t', agora); return n;
     };
-    setTimeout(lerEsteira, 5000);
+    // mostra 100 por página (o padrão de 15 deixava a maioria de fora) e lê de novo quando a tabela carregar
+    const cemPorPagina = () => { const sel = [...document.querySelectorAll('select')].find(x => /_length$/.test(x.name || '') || [...x.options].some(o => o.value === '100') && [...x.options].some(o => o.value === '15'));
+      if (sel && sel.value !== '100' && [...sel.options].some(o => o.value === '100')) { sel.value = '100'; sel.dispatchEvent(new Event('change', { bubbles: true })); try { const jq = (typeof unsafeWindow !== 'undefined' && unsafeWindow.jQuery) || window.jQuery; jq && jq(sel).trigger('change'); } catch (e) {} return true; } return false; };
+    [5000, 15000, 30000].forEach(ms => setTimeout(() => { if (/[?&]p=propostas/.test(location.search)) { cemPorPagina(); setTimeout(lerEsteira, 6000); } }, ms));
     setInterval(() => {
       if (!/[?&]p=propostas/.test(location.search)) return;
       if (document.querySelector('.modal.show')) return;                       // ninguém mexendo num modal
