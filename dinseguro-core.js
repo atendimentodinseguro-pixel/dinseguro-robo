@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.99';
+  const VERSAO = '4.00';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -987,12 +987,13 @@
       let q = top.getElementById('dins-regua');
       if (!q) {
         q = top.createElement('div'); q.id = 'dins-regua';
-        q.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;background:#0f172a;color:#e2e8f0;border-radius:10px;' +
-          'padding:8px 10px;font:12px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:420px;max-height:46vh;overflow:auto';
+        // 4.00 — no canto ESQUERDO, acima do "Esperando atendimento": não cobre Tags/Notas do painel direito
+        q.style.cssText = 'position:fixed;left:16px;bottom:120px;z-index:99998;background:#0f172a;color:#e2e8f0;border-radius:10px;' +
+          'padding:8px 10px;font:12px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:400px;max-height:42vh;overflow:auto';
         top.body.appendChild(q);
         q.addEventListener('click', ev => {
           const id = ev.target.dataset.abrir; if (id) window.top.location.hash = '#/chats/' + id;
-          if (ev.target.dataset.min) { q.dataset.min = q.dataset.min === '1' ? '' : '1'; desenharRegua(); }
+          if (ev.target.closest && ev.target.closest('[data-min]')) { q.dataset.min = q.dataset.min === '1' ? '' : '1'; desenharRegua(); }
         });
       }
       const atras = x => x.estado === 'ativa' && x.toques.some(k => !k.feito && k.quando < agora - 5 * M && dentroDoHorario(agora));
