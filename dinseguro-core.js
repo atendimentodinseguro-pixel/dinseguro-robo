@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.04';
+  const VERSAO = '4.05';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -131,9 +131,9 @@
   // O telefone da proposta é SEMPRE o WhatsApp do atendimento (o número do chat do Botmaker), nunca o do cadastro do Multicorban.
   // O robô do Botmaker guarda CPF → WhatsApp de cada chat aberto (GM 'zap_por_cpf'); a ficha puxa dali e marca telefone_origem.
   // Sem essa marca, NADA é digitado. Exceção à mão: escrever na ficha  telefone_origem: WhatsApp (conferido pelo vigia)
-  const zapDoCpf = cpf => { const c = String(cpf || '').replace(/\D/g, ''); const z = (GM_getValue('zap_por_cpf', {}) || {})[c]; return z && z.fone ? String(z.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '') : ''; };
+  const zapDoCpf = cpf => { const c = String(cpf || '').replace(/\D/g, ''); const z = (GM_getValue('zap_por_cpf', {}) || {})[c]; if (!z || !z.fone) return ''; let t = String(z.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2); return t; };   // 4.05: WhatsApp vem sem o 9 → celular com 9
   function telefoneErrado(f) {
-    const t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+    let t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
     if (!/^WhatsApp/i.test(String(f.telefone_origem || ''))) return '⛔ TELEFONE NÃO CONFERIDO: o telefone da proposta tem que ser o WhatsApp do cliente (o do chat do Botmaker), não o do cadastro. Abra o chat dele no Botmaker, gere a ficha de novo, ou escreva o WhatsApp na ficha com a linha  telefone_origem: WhatsApp (conferido pelo vigia).';
     if (t.length < 10) return '⛔ Falta o telefone (WhatsApp do cliente) na ficha.';
     const z = zapDoCpf(f.cpf); if (z && z !== t) return `⛔ TELEFONE DIFERENTE DO WHATSAPP: a ficha tem ${t} e o chat do Botmaker deste CPF é ${z}. Corrija a ficha.`;
