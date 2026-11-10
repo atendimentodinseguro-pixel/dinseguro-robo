@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.96';
+  const VERSAO = '3.97';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -769,6 +769,8 @@
     }, 30000);
     // conversa aberta (por qualquer um): atualiza a situação dela no quadro
     setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (h && document.querySelector('.entries')) { try { reclassificar(h); } catch (e) {} } }, 20000);
+    // reavaliar do zero: apaga e mapeia de novo (lendo o que já foi feito na conversa)
+    window.dinsReguaReavaliar = async hash => { const r = RG(); delete r[hash]; gravaRG(r); const ok = await mapearUm(hash); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); return ok && RG()[hash]; };
     // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
@@ -805,6 +807,11 @@
       window.dinsLinkEnviado(hash, foneDoContato(), t, ultimo.link, nomeDoContato());
       // toques que já passaram do horário quando a régua é criada atrasada: só o mais recente vale
       const r2 = RG(), x = r2[hash];
+      // 3.97 — o que JÁ FOI FEITO à mão (ou por outro atendente) depois do link conta como feito: não repete.
+      const depois = T.slice(ultimo.ix);
+      const jaFeito = { '10': /Conseguiu acessar/i, '60': /automaticamente cancelada|ser[áa] cancelada/i, manha: /Passando s[óo] para lembrar|continua dispon[íi]vel no link/i };
+      x.toques.forEach(q => { if (!q.feito && jaFeito[q.tipo].test(depois)) { q.feito = Date.now(); q.st = 'já feito antes do robô'; } });
+      if (x.toques.every(q => q.feito)) { x.estado = 'esgotada'; x.motivo = 'os três toques já foram feitos'; }
       // 3.96 (Stefany 10/11 15:15): nada de "pulado". Toque que já venceu SAI AGORA, marcado como atrasado.
       // O /132 conta 60 min a partir do "Conseguiu acessar?" (não do link): enquanto o de 10 não sai, o de 60 espera.
       const q10 = x.toques.find(q => q.tipo === '10'), q60 = x.toques.find(q => q.tipo === '60');
