@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.02';
+  const VERSAO = '4.03';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -967,8 +967,12 @@
         const ok = await (async () => { for (let i = 0; i < 40; i++) { if (window.top.location.hash === alvoHash && document.querySelector('.entries')) return true; await new Promise(s => setTimeout(s, 300)); } return false; })();
         if (!ok) throw new Error('não abriu o chat');
         if (alvo.fone) { const p = foneDoContato(); if (p && p !== alvo.fone) throw new Error('chat aberto não é o do cliente (' + p + ')'); }
-        // 4.02 — toque de link só sai se o PRÓPRIO link do cliente está na conversa aberta (prova de que é o chat certo)
-        if (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35))) throw new Error('o link do cliente não está nesta conversa — não mando');
+        // 4.03 — prova de que é o chat certo: tela PARADA neste chat (telaPronta) + telefone do painel igual ao do cliente.
+        // (4.02 exigia o link visível, mas conversa longa recolhe as mensagens antigas e o link some da tela — caso Estefania 16:07.)
+        for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) throw new Error('tela ainda não mostra este chat — tento de novo');
+        const foneTela = foneDoContato();
+        if (alvo.fone ? (!foneTela || foneTela !== alvo.fone) : (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35)))) throw new Error('não consegui confirmar que este é o chat do cliente — não mando');
         if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
           const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
           estado('humano', 'com ' + quem + ' — robô não manda nada'); return;
