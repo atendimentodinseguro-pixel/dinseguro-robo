@@ -1169,6 +1169,7 @@
         return '';
       };
       const bloco = x => {
+        if (x.junto) return 'J';   // 4.14b: marcado à mão (ex.: José Tobias, decisão da Stefany) fica no amarelo
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if (x.estado === 'humano' || x.junto || (x.comQuem && x.ultLado !== 'cli') || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'ativa') return 'F';
