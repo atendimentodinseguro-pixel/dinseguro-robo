@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.11';
+  const VERSAO = '4.12';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2628,7 +2628,8 @@
         {
           const margem = num(f.margem), pedido = num(f.valor);
           if (pedido > 0) {
-            const pNec = pedido * 648.39 / 28400;
+            // 4.12 — valor pedido é o MÍNIMO (Stefany 10/11 18:10: "pediu 5 mil é 5 mil para cima, não manda 4.995 nunca mais"): folga de 0,3% + arredonda para cima.
+            const pNec = Math.ceil(pedido * 648.39 / 28400 * 1.003 * 100) / 100;
             const teto = margem > 0 ? margem - 0.01 : 0;
             if (teto > 0 && pNec > teto) {
               f.parcela = brl(teto);
@@ -2897,6 +2898,8 @@
   } catch (e) {}
   async function gravarELink(f) {
     { const t = prazoProibido(f, (el('prazo') || {}).value); if (t) throw new Error(t); }
+    // 4.12 — liberado abaixo do valor que o cliente pediu NÃO grava
+    { const ped = num(f.valor), lib = num(f._liberado); if (ped > 0 && lib > 0 && lib < ped) throw new Error(`⛔ Liberado R$ ${brl(lib)} abaixo do pedido R$ ${brl(ped)}: aumente a parcela (o cliente pediu ${brl(ped)} → tem que ser ${brl(ped)} ou mais).`); }
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
     el('btn_gravar_proposta').click();
