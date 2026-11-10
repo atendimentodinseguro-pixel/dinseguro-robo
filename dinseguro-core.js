@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.16d';
+  const VERSAO = '4.17';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -296,7 +296,7 @@
         // 4.14 — o QUADRO (que lê a conversa inteira) manda para a fila quem ele marcou esperando: bot passou para atendente
         // humano e mandou outra coisa depois (caso Carmen 18:35), ou cliente escreveu e a prévia não mostrava.
         let peloQuadro = false;
-        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando/.test(q.motivo || ''); } catch (e) {} }
+        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF/.test(q.motivo || ''); } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
@@ -747,6 +747,8 @@
         const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
         return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
       }
+      if (L && L.cpfSemRespT)
+        return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
       if (L && L.handoffT && L.ult.lado === 'nos')
         return Object.assign({ estado: 'alerta', motivo: 'bot passou para atendente humano às ' + hhmm(L.handoffT) + ' e ninguém respondeu' }, ex);
       if (clienteRespondeu()) {
@@ -1048,8 +1050,13 @@
       const handoffT = iHand >= 0 && !humanoDepois ? (depois[iHand].t || Date.now()) : 0;
       const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw));
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
+      // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
+      // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
+      const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/;
+      const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
+      const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT, nossaAntes };
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
