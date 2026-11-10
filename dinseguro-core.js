@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.78';
+  const VERSAO = '3.79';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -237,8 +237,11 @@
       const fila = [];
       for (const x of itens) {
         if (ignorar.includes(x.id)) continue;
-        const sig = x.msg.slice(0, 60);
-        if (feito[x.id] === sig) continue;
+        // v3.79 (Stefany 10/11, caso Ronaldo): mensagem SEM TEXTO na lista (anúncio, arquivo, áudio) dava sig vazia;
+        // marcada como feita uma vez, nunca mais voltava. Agora a sig leva o nº de não lidas.
+        const sig = x.msg ? x.msg.slice(0, 60) : (x.naoLidas > 0 ? '[sem texto] ' + x.naoLidas : '');
+        if (feito[x.id] === sig && sig !== '') continue;
+        if (feito[x.id] === '' && !x.msg && x.naoLidas === 0) continue;
         // Chat com atendente humano: também entra na fila quando o cliente está esperando (mandou mensagem e
         // ninguém respondeu) ou quando o atendente só disse que vai verificar/analisar. O vigia decide pelo
         // conteúdo: CPF/simulação/link ele faz; dúvida ou assunto fora do roteiro fica com o humano.
