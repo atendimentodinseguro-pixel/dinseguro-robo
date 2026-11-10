@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.95';
+  const VERSAO = '3.96';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -684,7 +684,7 @@
       const r = RG(); const t = linkT || Date.now();
       const ant = r[hash];
       r[hash] = { hash, fone: fone || (ant && ant.fone) || '', nome: nome || (ant && ant.nome) || '', link: link || '', linkT: t,
-        estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.dt(t), feito: 0, st: '' })),
+        estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.tipo === '60' ? t + 70 * M : x.dt(t), feito: 0, st: '' })),
         tent: 0, hist: [hhmm(Date.now()) + ' régua criada (link ' + hhmm(t) + ')'] };
       gravaRG(r); desenharRegua();
       log && log('Régua pós-link criada: 10 min, 60 min e 08:00 de amanhã.', 'ok');
@@ -805,13 +805,25 @@
       window.dinsLinkEnviado(hash, foneDoContato(), t, ultimo.link, nomeDoContato());
       // toques que já passaram do horário quando a régua é criada atrasada: só o mais recente vale
       const r2 = RG(), x = r2[hash];
-      // toque que já devia ter saído há mais de 15 min quando a régua nasce atrasada não sai (não manda "Conseguiu acessar?" horas depois)
-      x.toques.filter(q => q.quando < Date.now() - 15 * M).forEach(q => { q.feito = Date.now(); q.st = 'pulado (régua criada depois)'; });
-      if (x.toques.every(q => q.feito)) { x.estado = 'esgotada'; x.motivo = 'link antigo, toques já vencidos'; }
+      // 3.96 (Stefany 10/11 15:15): nada de "pulado". Toque que já venceu SAI AGORA, marcado como atrasado.
+      // O /132 conta 60 min a partir do "Conseguiu acessar?" (não do link): enquanto o de 10 não sai, o de 60 espera.
+      const q10 = x.toques.find(q => q.tipo === '10'), q60 = x.toques.find(q => q.tipo === '60');
+      if (q10 && !q10.feito && q60 && !q60.feito) q60.quando = Math.max(q60.quando, q10.quando + 60 * M);
       gravaRG(r2); desenharRegua();
     }
     setInterval(detectarLink, 15000);
 
+    // 3.96 — desfaz os "pulado (régua criada depois)": se o de 60 já saiu, o de 10 fica como "não enviado (já recebeu o /132)";
+    // se não, volta a valer e sai agora. E o de 60 passa a contar do envio do de 10.
+    try { const r = RG(); let mud = false;
+      Object.values(r).forEach(x => { const q10 = x.toques.find(q => q.tipo === '10'), q60 = x.toques.find(q => q.tipo === '60'), qm = x.toques.find(q => q.tipo === 'manha');
+        [q10, q60, qm].forEach(q => { if (q && /pulado \(régua criada depois\)/.test(q.st || '')) {
+          if (q === q10 && q60 && /enviado/.test(q60.st || '')) { q.st = 'não enviado (já recebeu o /132)'; }
+          else { q.feito = 0; q.st = ''; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } }
+          mud = true; } });
+        if (q10 && q60 && !q60.feito) { const m = /enviado (\d\d):(\d\d)/.exec(q10.st || ''); if (m) { const d = new Date(); d.setHours(+m[1], +m[2], 0, 0); q60.quando = d.getTime() + 60 * M; mud = true; }
+          else if (!q10.feito) { q60.quando = Math.max(q60.quando, q10.quando + 60 * M); mud = true; } } });
+      if (mud) gravaRG(r); } catch (e) {}
     // migra o que estava no follow-up antigo
     try { const velhos = GM_getValue('followups', []); if (velhos.length) { const r = RG(); velhos.forEach(f => { if (!r[f.hash]) { r[f.hash] = { hash: f.hash, fone: f.fone || '', nome: '', link: '', linkT: f.linkT || Date.now(), estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.dt(f.linkT || Date.now()), feito: 0, st: '' })), tent: 0, hist: ['migrada do follow-up antigo'] }; } }); gravaRG(r); GM_setValue('followups', []); } } catch (e) {}
 
@@ -881,7 +893,11 @@
         let enviado;
         if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : ''));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
-        reg('enviado ' + hhmm(Date.now()), true);
+        const atrasado = Date.now() - toque.quando > 5 * M;
+        reg('enviado ' + hhmm(Date.now()) + (atrasado ? ' (atrasado)' : ''), true);
+        { const r3 = RG(), x3 = r3[alvo.hash]; const q = x3 && x3.toques.find(k => k.tipo === toque.tipo); if (q) q.enviadoT = Date.now();
+          if (toque.tipo === '10') { const q6 = x3.toques.find(k => k.tipo === '60'); if (q6 && !q6.feito) q6.quando = Date.now() + 60 * M; }
+          gravaRG(r3); desenharRegua(); }
         if (toque.tipo === 'manha') estado('esgotada', 'três toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP');
         log && log('Régua: ' + toque.tipo + ' enviado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) {
