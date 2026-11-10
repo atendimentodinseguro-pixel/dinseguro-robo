@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.80';
+  const VERSAO = '3.81';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -200,7 +200,7 @@
       // momento por favor." (ou avisa "Você possui mais N minutos para envio do arquivo"). Isso NÃO é resposta nossa:
       // o cliente está esperando atendimento → continua na lista.
       const ultBot = L.slice(Math.max(0, ix - 4), ix).join(' ');
-      if (/Estamos analisando|aguarde um momento|Você possui mais \d+ minutos para envio/i.test(ultBot)) return false;
+      if (/Estamos analisando|Estou analisando suas informa|Assim que concluir irei avisar|aguarde um momento|atendente humano|Você possui mais \d+ minutos para envio/i.test(ultBot)) return false;  // 3.81: caso Marlene
       if (/\[[^\]]{2,40}\][^\n]{0,200}(verific|analis|um momento|j[áa] volto)/i.test(antes)) return false;
       return true;
     }
