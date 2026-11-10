@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.21';
+  const VERSAO = '4.21a';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1192,9 +1192,10 @@
         if (/^\[Nota interna\]|~ Criado por/.test(txt)) continue;
         const lado = el.classList.contains('left') ? 'cli' : 'nos';
         if (lado === 'nos' && el.classList.contains('first-from')) grpBot = /Enviado pelo credsegurobank/.test(txt);
+        if (lado === 'nos' && /Enviado por Dinseguro|^\s*\[Dinseguro\]/m.test(txt)) grpBot = false;   // 4.21a: mensagem nossa no meio do grupo do bot (caso Hilda) não é do bot
         let t = null; const h = /(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(done_all|check|done)?\s*$/i.exec(txt);
         if (h && dia) { let hh = +h[1] % 12; if (/PM/i.test(h[3] || '')) hh += 12; if (!h[3]) hh = +h[1]; t = new Date(dia[0], dia[1], dia[2], hh, +h[2]).getTime(); }
-        ms.push({ lado, bot: lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
+        ms.push({ lado, bot: lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt) && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
       }
       for (let i = ms.length - 2; i >= 0; i--) if (!ms[i].t) ms[i].t = ms[i + 1].t;   // balão sem hora: hora do próximo do grupo
       if (!ms.length) return null;
