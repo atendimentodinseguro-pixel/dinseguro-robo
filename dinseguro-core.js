@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.00';
+  const VERSAO = '4.01';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -906,7 +906,7 @@
         if (/^~ Criado por/.test(l)) { dentroDaNota = true; continue; }
         if (/^\[Nota interna\]/.test(l)) { dentroDaNota = false; continue; }
         if (dentroDaNota) continue;
-        if (/^done_all$/.test(l)) return false;                 // a última foi nossa
+        if (/^(done_all|check|done)$/.test(l)) return false;    // a última foi nossa/do bot (4.01: ✓ simples também)
         if (/^\[Dinseguro\]/.test(l)) return false;
         if (/Enviado pelo credsegurobank/.test(l)) return false; // o robô do bot falou
         if (/^(check|info_outline|security|list_alt|schedule|bolt|open_in_new|play_arrow|person|Home|Lar)$/.test(l)) continue;
