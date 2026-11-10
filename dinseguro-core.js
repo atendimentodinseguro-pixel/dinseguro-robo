@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.67';
+  const VERSAO = '3.68';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -170,6 +170,21 @@
     // "esperando" (última mensagem é dele, ou o bot mandou "aguarde um atendente") e ninguém marcou
     // como feito. Feito = dins_feito[id] guarda a mensagem que estava na tela quando foi resolvido;
     // se o cliente mandar algo novo, a mensagem muda e ele volta para a fila sozinho.
+    let ultimoAberto = '';
+    function abertoAgora() { try { const m = window.top.location.hash.match(/#\/chats\/([A-Z0-9]{16,24})/); return m ? m[1] : ''; } catch (e) { return ''; } }
+    // true = a última mensagem da conversa aberta é nossa/do bot; false = do cliente (ou bot pediu atendente); null = não deu para ler
+    function ultimaEhNossa() {
+      const p = document.body.innerText; const e = p.lastIndexOf('sentiment_satisfied_alt');
+      if (e < 0) return null;
+      const L = p.slice(Math.max(0, e - 2000), e).split('\n').map(s => s.trim()).filter(Boolean);
+      let ix = -1; for (let i = L.length - 1; i >= 0; i--) if (/^\d{1,2}:\d{2}\s*(AM|PM)?$/.test(L[i])) { ix = i; break; }
+      if (ix < 0) return null;
+      if (!/^(done_all|check|done)$/m.test(L.slice(ix + 1).join('\n'))) return false;
+      const antes = L.slice(Math.max(0, ix - 15), ix).join(' ');
+      if (/Para agilizar o seu atendimento|pedimos por gentileza que nos envie|atendente humano/i.test(antes)) return false;
+      if (/\[[^\]]{2,40}\][^\n]{0,200}(verific|analis|um momento|j[áa] volto)/i.test(antes)) return false;
+      return true;
+    }
     function vigiar() {
       const itens = [...document.querySelectorAll('.customer-item')].map(ci => {
         const id = (ci.parentElement || {}).id;
@@ -223,6 +238,17 @@
       // a conversa NÃO é encerrada. O Claude também tira da lista (dins_feito) quem já foi respondido.
       for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)
         && Date.now() - new Date(f.quando).getTime() < 24 * 3600 * 1000) fila.push(f);
+      // v3.68 (Stefany 10/11): conversa ABERTA cuja última mensagem é NOSSA (atendente ou bot, fora o aviso de
+      // "aguarde um atendente") sai da LISTA. ⛔ Não encerra a conversa. Só vale depois de a mesma conversa ficar
+      // aberta por duas voltas seguidas (evita marcar a conversa errada enquanto a tela troca).
+      const aberto = abertoAgora();
+      if (aberto && aberto === ultimoAberto && ultimaEhNossa() === true) {
+        const it = fila.find(f => f.id === aberto) || itens.find(f => f.id === aberto);
+        const sig = it ? (it.sig || (it.msg || '').slice(0, 60)) : '';
+        const ix = fila.findIndex(f => f.id === aberto);
+        if (ix >= 0) { feito[aberto] = sig; gravar('dins_feito', feito); fila.splice(ix, 1); }
+      }
+      ultimoAberto = aberto;
       const novos = fila.filter(f => !antiga.some(g => g.id === f.id));
       gravar('dins_fila', fila);
       try {
