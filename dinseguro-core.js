@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.89';
+  const VERSAO = '3.90';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -449,7 +449,7 @@
       return 'fluxo ' + nome;
     }
 
-    async function respostaRapida(atalho, editar) {
+    async function respostaRapida(atalho, editar, semRegua) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       const porNome = !/^\//.test(atalho);
@@ -485,7 +485,7 @@
       const ehDesfecho = Object.values(DESFECHOS).some(d => d.atalho && d.atalho.toLowerCase() === String(atalho).toLowerCase());
       const linksProposta = ((valorEnviado || '').match(/https?:\/\/[^\s)]+/g) || [])
         .filter(u => !/chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|youtube|youtu\.be|tiktok|linktr\.ee/i.test(u));
-      if (!ehDesfecho && linksProposta.length) agendarSeTiverLink();
+      if (!semRegua && !ehDesfecho && linksProposta.length) agendarSeTiverLink();
       return trecho.trim().slice(0, 40);
     }
 
@@ -627,7 +627,7 @@
         if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
-        try { gravaFups(FUPS().filter(x => x.hash !== o.hash)); } catch (e) {}
+        try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
@@ -638,36 +638,103 @@
     setInterval(olharOrdem, 3000);
 
     // ---------------------------------------------------------------------
-    // FOLLOW-UP AUTOMÁTICO DO LINK (Stefany, 07/11/2026 16:03)
-    // Todo link mandado ao cliente (pelo /bn54n ou pelo /parabens) gera dois
-    // compromissos: 10 minutos depois, "Conseguiu acessar? Ficou com alguma
-    // dúvida?"; 60 minutos depois, /132 — este só se o cliente NÃO tiver
-    // respondido nada nesse tempo. Era o que o robô antigo fazia e tinha se
-    // perdido no caminho.
-    // A fila fica no GM storage, então sobrevive a F5 e a troca de aba.
-    // chamada por quem acabou de mandar uma mensagem com link: descobre o chat aberto
-    // e agenda os dois follow-ups. É o "registrar o link" que a Stefany pediu que fosse meu.
+    // 3.90 — RÉGUA PÓS-LINK (Stefany, 10/11/2026 14:59: "aprovado o novo robô").
+    // Substitui o follow-up antigo (que só agendava quando o PRÓPRIO robô mandava o link e
+    // apagava o compromisso quando dava erro). Agora:
+    //  1) DETECTA SOZINHO todo link de proposta que sai nosso no chat aberto (à mão, pelo vigia ou pelo robô).
+    //  2) Régua fixa: 10 min "/bot2 Conseguiu acessar?" · 60 min "/132" · 08:00 do dia seguinte último toque.
+    //  3) Travas antes de cada toque: cliente respondeu → pausa; chat com atendente → bloqueado (vermelho);
+    //     tag de recusa ou 01 D → cancela; fora de 8h–21h → 10/60 pulam (fica o da manhã); caixa com texto
+    //     ou vigia trabalhando → espera; erro → tenta 3x e fica VERMELHO (nunca some calado).
+    //  4) Cada toque sai UMA vez (registro com hora). Quadro "📋 Régua pós-link" no canto direito.
+    //  5) Espelho em localStorage.dins_regua para o vigia conferir na rodada.
+    const RG = () => GM_getValue('regua', {});
+    const gravaRG = r => { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} };
+    // compatibilidade: quem ainda chama FUPS/gravaFups
+    const FUPS = () => [];
+    const gravaFups = () => {};
+    const H = 3600000, M = 60000;
+    const hhmm = t => t ? new Date(t).toLocaleTimeString('pt-BR').slice(0, 5) : '';
+    const dentroDoHorario = t => { const h = new Date(t).getHours(); return h >= 8 && h < 21; };
+    const manhaSeguinte = t => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); };
+    const TOQUES = [
+      { tipo: '10', rotulo: '10 min — Conseguiu acessar?', dt: t => t + 10 * M },
+      { tipo: '60', rotulo: '60 min — /132', dt: t => t + 60 * M },
+      { tipo: 'manha', rotulo: 'último toque 08:00', dt: t => manhaSeguinte(t) },
+    ];
+    const MSG_MANHA = nome => `Bom dia${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
+      'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
+      'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
+      'Se tiver qualquer dificuldade, me chama aqui que eu te ajudo 🤝';
+
+    function nomeDoContato() {
+      const T = document.body.innerText; const i = T.indexOf('Informações de contato');
+      const m = i >= 0 ? T.slice(i, i + 300).match(/Nome\s*\n\s*([^\n]{2,40})/) : null;
+      return m ? m[1].trim() : '';
+    }
+    function foneDoContato() { return (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ''; }
+
+    // quem acabou de mandar uma mensagem com link (o próprio robô) registra na hora; o detector cobre o resto
     function agendarSeTiverLink() {
       const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
       if (!hash) return;
-      const fone = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
-      window.dinsLinkEnviado(hash, fone);
+      window.dinsLinkEnviado(hash, foneDoContato(), Date.now(), '', nomeDoContato());
     }
-
-    const FUPS = () => GM_getValue('followups', []);
-    const gravaFups = l => GM_setValue('followups', l);
-
-    // Registrar: window.dinsLinkEnviado('HASH', '55619...')  — ou, de fora,
-    // localStorage.setItem('dins_link_enviado', JSON.stringify({hash, fone}))
-    window.dinsLinkEnviado = function (hash, fone) {
-      const agora = Date.now();
-      const l = FUPS().filter(f => f.hash !== hash);
-      l.push({ hash, fone: fone || '', etapa: '10', quando: agora + 10 * 60000, linkT: agora });
-      l.push({ hash, fone: fone || '', etapa: '60', quando: agora + 60 * 60000, linkT: agora });
-      gravaFups(l);
-      log && log('Follow-up do link agendado: 10 min e 60 min.', 'ok');
+    window.dinsLinkEnviado = function (hash, fone, linkT, link, nome) {
+      const r = RG(); const t = linkT || Date.now();
+      const ant = r[hash];
+      r[hash] = { hash, fone: fone || (ant && ant.fone) || '', nome: nome || (ant && ant.nome) || '', link: link || '', linkT: t,
+        estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.dt(t), feito: 0, st: '' })),
+        tent: 0, hist: [hhmm(Date.now()) + ' régua criada (link ' + hhmm(t) + ')'] };
+      gravaRG(r); desenharRegua();
+      log && log('Régua pós-link criada: 10 min, 60 min e 08:00 de amanhã.', 'ok');
       return 'agendado';
     };
+    // ajustes manuais (vigia/Stefany): nome real, pausar, retomar, cancelar
+    window.dinsReguaNome = (hash, nome) => { const r = RG(); if (r[hash]) { r[hash].nome = nome; gravaRG(r); desenharRegua(); } return !!r[hash]; };
+    window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
+    window.dinsReguaRetomar = hash => { const r = RG(); if (r[hash]) { r[hash].estado = 'ativa'; r[hash].motivo = ''; r[hash].tent = 0; gravaRG(r); desenharRegua(); } return !!r[hash]; };
+    window.dinsRegua = () => Object.values(RG());
+
+    // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
+    // qualquer link NOSSO que não seja de grupo/rede social/material (o /n30 e o /parabens do PDF levam links que não são proposta)
+    const LINK_PROPOSTA = /https?:\/\/[^\s)]+/ig;
+    const NAO_PROPOSTA = /chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|youtube|youtu\.be|tiktok|linktr\.ee|botmaker|google\.com|goo\.gl|maps\.|dinseguro\.com/i;
+    function detectarLink() {
+      if (rodando || fupRodando) return;
+      const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
+      const e = document.querySelector('.entries'); if (!hash || !e) return;
+      const T = e.innerText.replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*/g, '');
+      let m, ultimo = null; LINK_PROPOSTA.lastIndex = 0;
+      while ((m = LINK_PROPOSTA.exec(T))) { if (!NAO_PROPOSTA.test(m[0])) ultimo = { link: m[0], ix: m.index }; }
+      if (!ultimo) return;
+      // tem que ser mensagem NOSSA: o bloco começa com [Dinseguro]/[Nome] antes do link
+      const antes = T.slice(Math.max(0, ultimo.ix - 1500), ultimo.ix);
+      const iNosso = antes.lastIndexOf('['), iHora = antes.search(/\d{1,2}:\d{2} (AM|PM)\s*\n[^\n]*$/);
+      if (iNosso < 0 || !/^\[[^\]\n]{2,40}\]/.test(antes.slice(iNosso))) return;
+      // hora e data da mensagem: primeira hora depois do link + última "Sessão dd/mm/aaaa" antes dele
+      const hm = T.slice(ultimo.ix).match(/(\d{1,2}):(\d{2}) (AM|PM)/);
+      const sm = [...T.slice(0, ultimo.ix).matchAll(/Sess[ãa]o (\d\d)\/(\d\d)\/(\d{4})/g)].pop();
+      if (!hm || !sm) return;
+      let h = +hm[1] % 12 + (hm[3] === 'PM' ? 12 : 0);
+      const t = new Date(+sm[3], +sm[2] - 1, +sm[1], h, +hm[2]).getTime();
+      if (t > Date.now() + 5 * M) return;                       // data estranha → não mexe
+      const r = RG(), ant = r[hash];
+      if (ant && (ant.link === ultimo.link || Math.abs(ant.linkT - t) < 3 * M)) return;   // já conhecido
+      if (ant && ant.linkT > t) return;                          // é um link mais antigo
+      if (Date.now() - t > 26 * H) return;                       // link velho (mais de um dia) não abre régua
+      window.dinsLinkEnviado(hash, foneDoContato(), t, ultimo.link, nomeDoContato());
+      // toques que já passaram do horário quando a régua é criada atrasada: só o mais recente vale
+      const r2 = RG(), x = r2[hash];
+      // toque que já devia ter saído há mais de 15 min quando a régua nasce atrasada não sai (não manda "Conseguiu acessar?" horas depois)
+      x.toques.filter(q => q.quando < Date.now() - 15 * M).forEach(q => { q.feito = Date.now(); q.st = 'pulado (régua criada depois)'; });
+      if (x.toques.every(q => q.feito)) { x.estado = 'esgotada'; x.motivo = 'link antigo, toques já vencidos'; }
+      gravaRG(r2); desenharRegua();
+    }
+    setInterval(detectarLink, 15000);
+
+    // migra o que estava no follow-up antigo
+    try { const velhos = GM_getValue('followups', []); if (velhos.length) { const r = RG(); velhos.forEach(f => { if (!r[f.hash]) { r[f.hash] = { hash: f.hash, fone: f.fone || '', nome: '', link: '', linkT: f.linkT || Date.now(), estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.dt(f.linkT || Date.now()), feito: 0, st: '' })), tent: 0, hist: ['migrada do follow-up antigo'] }; } }); gravaRG(r); GM_setValue('followups', []); } } catch (e) {}
 
     // o cliente falou depois do link? Lê o fim da conversa de trás para frente.
     // Marca nossa: toda mensagem que sai leva "done_all" (o visto duplo) logo depois.
@@ -695,47 +762,93 @@
       return false;
     }
 
+    // 2) EXECUTOR: um toque por minuto, no máximo
     let fupRodando = false;
     async function olharFollowups() {
       if (fupRodando || rodando) return;
-      const l = FUPS();
-      const i = l.findIndex(f => Date.now() >= f.quando);
-      if (i < 0) return;
-      const f = l[i];
+      if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
+      const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
+      if (Date.now() - ocup < 2 * M) return;                                           // vigia mexendo agora
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return; // mensagem sendo escrita
+      const r = RG(); const agora = Date.now();
+      let alvo = null, toque = null;
+      for (const x of Object.values(r)) {
+        if (x.estado !== 'ativa') continue;
+        const q = x.toques.find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora));
+        if (q) { alvo = x; toque = q; break; }
+      }
+      if (!alvo) return;
+      const reg = (st, fim) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; const q = x.toques.find(k => k.tipo === toque.tipo);
+        if (fim) { q.feito = Date.now(); } q.st = st; x.hist.push(hhmm(Date.now()) + ' ' + toque.tipo + ': ' + st); gravaRG(r2); desenharRegua(); };
+      const estado = (est, motivo) => { const r2 = RG(), x = r2[alvo.hash]; x.estado = est; x.motivo = motivo; x.hist.push(hhmm(Date.now()) + ' ' + est + ': ' + motivo); gravaRG(r2); desenharRegua(); };
+      // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
+      if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
+      if (toque.tipo === 'manha' && !dentroDoHorario(agora)) return;
       fupRodando = true;
       try {
-        await abrir(f.hash);
-        if (f.fone) {
-          const p = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1];
-          if (p && p !== f.fone) throw new Error('chat aberto não é o do follow-up (' + p + ')');
+        const alvoHash = '#/chats/' + alvo.hash;
+        if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
+        const ok = await (async () => { for (let i = 0; i < 40; i++) { if (window.top.location.hash === alvoHash && document.querySelector('.entries')) return true; await new Promise(s => setTimeout(s, 300)); } return false; })();
+        if (!ok) throw new Error('não abriu o chat');
+        if (alvo.fone) { const p = foneDoContato(); if (p && p !== alvo.fone) throw new Error('chat aberto não é o do cliente (' + p + ')'); }
+        if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
+          const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
+          estado('bloqueada', 'chat com ' + quem); return;
         }
-        // v3.80: cliente com tag de recusa (sem margem, LOAS, representante, não identificado…) não recebe follow-up
         const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
-        if (tagsChat.some(t => /^(01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) {
-          log && log('Follow-up de ' + f.etapa + ' min cancelado: cliente com tag de recusa (' +
-            tagsChat.filter(t => /^0\d /.test(t)).join(', ') + ').', 'ok');
-        } else if (f.etapa === '60' && clienteRespondeu()) {
-          log && log('Follow-up de 60 min cancelado: o cliente respondeu.', 'ok');
-        } else {
-          // Stefany criou o atalho em 07/11 16:43: /bot2 = "Conseguiu acessar? Ficou com
-          // alguma duvida?". Dá para trocar sem mexer no código: GM_setValue('atalho_conseguiu', '/x').
-          const atalho = f.etapa === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132';
-          if (!atalho) {
-            log && log('Follow-up de 10 min parado: falta o atalho da mensagem "Conseguiu acessar?". ' +
-              'Rode GM_setValue("atalho_conseguiu", "/oatalho").', 'erro');
-          } else {
-            await respostaRapida(atalho, false);
-            log && log('Follow-up de ' + f.etapa + ' min enviado (' + atalho + ').', 'ok');
-          }
-        }
+        if (tagsChat.some(t => /^01 D/i.test(t))) { estado('concluída', 'cliente fechou (01 D)'); return; }
+        if (tagsChat.some(t => /^(01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { estado('cancelada', 'tag de recusa'); return; }
+        if (clienteRespondeu()) { estado('pausada', 'cliente respondeu — atendimento humano'); return; }
+        let enviado;
+        if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : ''));
+        else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
+        reg('enviado ' + hhmm(Date.now()), true);
+        if (toque.tipo === 'manha') estado('esgotada', 'três toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP');
+        log && log('Régua: ' + toque.tipo + ' enviado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) {
-        log && log('Follow-up falhou: ' + e.message, 'erro');
-      } finally {
-        gravaFups(FUPS().filter(x => !(x.hash === f.hash && x.etapa === f.etapa)));
-        fupRodando = false;
-      }
+        const r2 = RG(), x = r2[alvo.hash]; const q = x.toques.find(k => k.tipo === toque.tipo);
+        q.tent = (q.tent || 0) + 1; q.prox = Date.now() + 2 * M; q.st = 'erro: ' + e.message;
+        x.hist.push(hhmm(Date.now()) + ' ' + toque.tipo + ' ERRO (' + q.tent + 'ª): ' + e.message);
+        if (q.tent >= 3) { x.estado = 'erro'; x.motivo = toque.tipo + ': ' + e.message; }
+        gravaRG(r2); desenharRegua();
+        log && log('Régua: erro no toque ' + toque.tipo + ': ' + e.message, 'erro');
+      } finally { fupRodando = false; }
     }
     setInterval(olharFollowups, 60000);
+
+    // 4) QUADRO no canto direito da tela de cima
+    function desenharRegua() {
+      let top; try { top = window.top.document; } catch (e) { return; }
+      const r = RG(); const agora = Date.now();
+      const lista = Object.values(r).filter(x => x.estado !== 'cancelada' && x.estado !== 'concluída' && agora - x.linkT < 48 * H)
+        .sort((a, b) => a.linkT - b.linkT);
+      let q = top.getElementById('dins-regua');
+      if (!q) {
+        q = top.createElement('div'); q.id = 'dins-regua';
+        q.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99998;background:#0f172a;color:#e2e8f0;border-radius:10px;' +
+          'padding:8px 10px;font:12px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:420px;max-height:46vh;overflow:auto';
+        top.body.appendChild(q);
+        q.addEventListener('click', ev => {
+          const id = ev.target.dataset.abrir; if (id) window.top.location.hash = '#/chats/' + id;
+          if (ev.target.dataset.min) { q.dataset.min = q.dataset.min === '1' ? '' : '1'; desenharRegua(); }
+        });
+      }
+      const atras = x => x.estado === 'ativa' && x.toques.some(k => !k.feito && k.quando < agora - 5 * M && dentroDoHorario(agora));
+      const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x)).length;
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Régua pós-link (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
+      if (q.dataset.min === '1') { q.innerHTML = cab; return; }
+      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : '#94a3b8';
+      q.innerHTML = cab + lista.map(x => {
+        const prox = x.toques.find(k => !k.feito); const ult = [...x.toques].reverse().find(k => k.feito);
+        const txtEst = x.estado === 'ativa' ? (prox ? 'próximo: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—') : x.estado + (x.motivo ? ' · ' + x.motivo : '');
+        return `<div style="margin-top:5px;border-top:1px solid #334155;padding-top:4px">
+          <span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor(x)}">${(x.nome || x.hash.slice(0, 6))}</span>
+          <span style="color:#94a3b8"> · link ${hhmm(x.linkT)}</span><br>
+          <span style="color:${cor(x)}">${txtEst}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + ult.st + '</span>' : ''}</div>`;
+      }).join('');
+      if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
+    }
+    setInterval(desenharRegua, 30000); setTimeout(desenharRegua, 3000);
 
     // =====================================================================
     // VARREDURA AUTOMÁTICA DAS CONVERSAS COM A JANELA VENCIDA
