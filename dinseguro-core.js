@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.92';
+  const VERSAO = '3.93';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -695,6 +695,8 @@
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsReguaRetomar = hash => { const r = RG(); if (r[hash]) { r[hash].estado = 'ativa'; r[hash].motivo = ''; r[hash].tent = 0; gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsRegua = () => Object.values(RG());
+    // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
+    window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
     window.dinsReguaPular = (hash, tipo, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q || q.feito) return false; q.feito = Date.now(); q.st = 'pulado (' + (motivo || 'manual') + ')'; x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' pulado: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); return true; };
 
