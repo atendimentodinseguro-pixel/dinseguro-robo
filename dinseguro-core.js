@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.20';
+  const VERSAO = '4.20a';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -222,7 +222,8 @@
     // mostra 100 por página (o padrão de 15 deixava a maioria de fora) e lê de novo quando a tabela carregar
     const cemPorPagina = () => { const sel = [...document.querySelectorAll('select')].find(x => /_length$/.test(x.name || '') || [...x.options].some(o => o.value === '100') && [...x.options].some(o => o.value === '15'));
       if (sel && sel.value !== '100' && [...sel.options].some(o => o.value === '100')) { sel.value = '100'; sel.dispatchEvent(new Event('change', { bubbles: true })); try { const jq = (typeof unsafeWindow !== 'undefined' && unsafeWindow.jQuery) || window.jQuery; jq && jq(sel).trigger('change'); } catch (e) {} return true; } return false; };
-    [5000, 15000, 30000].forEach(ms => setTimeout(() => { if (/[?&]p=propostas/.test(location.search)) { cemPorPagina(); setTimeout(lerEsteira, 6000); } }, ms));
+    // 4.20a: mudar o "Mostrar N" por script esvazia a tabela do New Corban (ela é carregada pelo servidor) → não mexe; só lê.
+    [8000, 20000, 40000].forEach(ms => setTimeout(() => { if (/[?&]p=propostas/.test(location.search)) lerEsteira(); }, ms));
     setInterval(() => {
       if (!/[?&]p=propostas/.test(location.search)) return;
       if (document.querySelector('.modal.show')) return;                       // ninguém mexendo num modal
