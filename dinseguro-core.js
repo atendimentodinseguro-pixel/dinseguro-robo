@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.76';
+  const VERSAO = '3.77';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -257,7 +257,18 @@
       // quem saiu da tela (rolou para baixo) continua na fila até ser marcado como feito
       // v3.67: ...mas só por 24h (depois disso a janela do WhatsApp fechou e não dá para responder). Só sai da LISTA;
       // a conversa NÃO é encerrada. O Claude também tira da lista (dins_feito) quem já foi respondido.
-      for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)
+      // v3.77 (Stefany 10/11, caso Seabra): a lista é virtualizada (ReactVirtualized). Quando TODAS as linhas cabem
+      // renderizadas (altura do container = nº de linhas × altura da linha), quem não está na tela NÃO está na lista
+      // → a conversa foi encerrada/transferida: sai da fila (não é carregado de volta).
+      let listaCompleta = false;
+      try {
+        const inner = document.querySelector('.ReactVirtualized__Grid__innerScrollContainer');
+        const n = document.querySelectorAll('.customer-item').length;
+        const h = (document.querySelector('.customer-item') || {}).parentElement;
+        const alt = h ? h.getBoundingClientRect().height : 0;
+        if (inner && n && alt) listaCompleta = inner.scrollHeight <= n * alt + 5;
+      } catch (e) {}
+      if (!listaCompleta) for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)
         && Date.now() - new Date(f.quando).getTime() < 24 * 3600 * 1000) fila.push(f);
       // v3.68 (Stefany 10/11): conversa ABERTA cuja última mensagem é NOSSA (atendente ou bot, fora o aviso de
       // "aguarde um atendente") sai da LISTA. ⛔ Não encerra a conversa. Só vale depois de a mesma conversa ficar
