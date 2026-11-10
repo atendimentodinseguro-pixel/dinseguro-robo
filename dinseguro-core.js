@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.93';
+  const VERSAO = '3.94';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -695,6 +695,27 @@
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsReguaRetomar = hash => { const r = RG(); if (r[hash]) { r[hash].estado = 'ativa'; r[hash].motivo = ''; r[hash].tent = 0; gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsRegua = () => Object.values(RG());
+    // 3.94 — RESUMO por cliente (Stefany 10/11 15:12: "bem resumidinho… para eu saber qual foi a sua interpretação")
+    // dinsReguaResumo('HASH', 'texto curto') — aparece no quadro embaixo do nome.
+    window.dinsReguaResumo = (hash, texto) => { const r = RG(), x = r[hash]; if (!x) return false; x.resumo = String(texto || '').slice(0, 220); x.hist.push(hhmm(Date.now()) + ' resumo: ' + x.resumo); gravaRG(r); desenharRegua(); return true; };
+    // cliente com atendente humano: fica no quadro, o robô não manda nada. dinsReguaHumano('HASH', 'Stefany', 'resumo')
+    window.dinsReguaHumano = (hash, quem, texto) => { const r = RG(); let x = r[hash]; if (!x) { window.dinsLinkEnviado(hash, '', Date.now(), '', ''); return window.dinsReguaHumano(hash, quem, texto); } x.estado = 'humano'; x.motivo = 'com ' + quem + ' — robô não manda nada'; if (texto) x.resumo = String(texto).slice(0, 220); x.hist.push(hhmm(Date.now()) + ' humano: ' + quem); gravaRG(r); desenharRegua(); return true; };
+    // MAPEAR: abre cada conversa da lista da esquerda que ainda não está no quadro e deixa o detector registrar o link
+    window.dinsReguaMapear = async () => {
+      const ids = [...document.querySelectorAll('.customer-item')].map(ci => ({ id: (ci.parentElement || {}).id, chip: [...ci.querySelectorAll('.MuiChip-label')].map(c => c.textContent).join(',') })).filter(x => x.id);
+      const r0 = RG(); let n = 0;
+      for (const it of ids) {
+        if (r0[it.id]) continue;
+        localStorage.setItem('dins_vigia_ocupado', Date.now());
+        window.top.location.hash = '#/chats/' + it.id; await new Promise(s => setTimeout(s, 5000));
+        try { detectarLink(); } catch (e) {}
+        const x = RG()[it.id];
+        if (x) { n++; const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m) window.dinsReguaHumano(it.id, m[1].trim()); }
+      }
+      localStorage.setItem('dins_vigia_ocupado', 0);
+      log && log('Mapeamento: ' + n + ' conversas com link entraram no quadro.', 'ok');
+      return n;
+    };
     // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
@@ -798,7 +819,7 @@
         if (alvo.fone) { const p = foneDoContato(); if (p && p !== alvo.fone) throw new Error('chat aberto não é o do cliente (' + p + ')'); }
         if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
           const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
-          estado('bloqueada', 'chat com ' + quem); return;
+          estado('humano', 'com ' + quem + ' — robô não manda nada'); return;
         }
         const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
         if (tagsChat.some(t => /^01 D/i.test(t))) { estado('concluída', 'cliente fechou (01 D)'); return; }
@@ -825,7 +846,7 @@
     function desenharRegua() {
       let top; try { top = window.top.document; } catch (e) { return; }
       const r = RG(); const agora = Date.now();
-      const lista = Object.values(r).filter(x => x.estado !== 'cancelada' && x.estado !== 'concluída' && agora - x.linkT < 48 * H)
+      const lista = Object.values(r).filter(x => x.estado !== 'cancelada' && x.estado !== 'concluída' && (agora - x.linkT < 48 * H || x.estado === 'humano'))
         .sort((a, b) => a.linkT - b.linkT);
       let q = top.getElementById('dins-regua');
       if (!q) {
@@ -842,14 +863,14 @@
       const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x)).length;
       const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
       if (q.dataset.min === '1') { q.innerHTML = cab; return; }
-      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : '#94a3b8';
+      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : x.estado === 'humano' ? '#fbbf24' : '#94a3b8';
       q.innerHTML = cab + lista.map(x => {
         const prox = x.toques.find(k => !k.feito); const ult = [...x.toques].reverse().find(k => k.feito);
         const txtEst = x.estado === 'ativa' ? (prox ? 'próximo: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—') : x.estado + (x.motivo ? ' · ' + x.motivo : '');
         return `<div style="margin-top:5px;border-top:1px solid #334155;padding-top:4px">
           <span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor(x)}">${(x.nome || x.hash.slice(0, 6))}</span>
           <span style="color:#94a3b8"> · link ${hhmm(x.linkT)}</span><br>
-          <span style="color:${cor(x)}">${txtEst}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + ult.st + '</span>' : ''}</div>`;
+          <span style="color:${cor(x)}">${txtEst}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + ult.st + '</span>' : ''}${x.resumo ? '<br><span style="color:#cbd5e1;font-style:italic">' + x.resumo.replace(/</g, '&lt;') + '</span>' : ''}</div>`;
       }).join('');
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
     }
