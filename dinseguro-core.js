@@ -1216,7 +1216,7 @@
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
       // 4.16 — TABELA (Stefany 10/11 18:51: "mais organizadinho, tabelado, cronômetro… tempo para próximo contato, data do último
       // contato, tentativa de contato… mesmo que fique mais largo… fácil de identificar"). Botão 📊 Tabela abre por cima da tela.
-      try { desenharTabela(top, grupos, BL, agora, { atras, vermelhoCalc, situacao, esc, haMin }); } catch (e) {}
+      try { desenharTabela(top, grupos, BL, agora, { atras, vermelhoCalc, situacao, esc, haMin }); } catch (e) { try { window.top.__tabErr = String(e && e.stack || e); } catch (e2) {} }
     }
     function desenharTabela(top, grupos, BL, agora, F) {
       let tb = top.getElementById('dins-tabela');
