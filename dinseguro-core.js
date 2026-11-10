@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.71';
+  const VERSAO = '3.72';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -176,7 +176,10 @@
     function ultimaEhNossa() {
       const p = document.body.innerText; const e = p.lastIndexOf('sentiment_satisfied_alt');
       if (e < 0) return null;
-      const L = p.slice(Math.max(0, e - 2000), e).split('\n').map(s => s.trim()).filter(Boolean);
+      // v3.72: a NOTA INTERNA aparece no meio da conversa ("[Nota interna] … ~ Criado por …") e não é mensagem de
+      // ninguém → tirar antes de ler, senão ela parece resposta do cliente e a conversa nunca sai da lista.
+      const L = p.slice(Math.max(0, e - 4000), e).replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*/g, '')
+        .split('\n').map(s => s.trim()).filter(Boolean);
       let ix = -1; for (let i = L.length - 1; i >= 0; i--) if (/^\d{1,2}:\d{2}\s*(AM|PM)?$/.test(L[i])) { ix = i; break; }
       if (ix < 0) return null;
       // v3.71 (Stefany 10/11, caso Celimar): cliente que só agradece/confirma ("Ok", "Obrigada", 👍) depois da
