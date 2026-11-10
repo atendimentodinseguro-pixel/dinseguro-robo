@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.16c';
+  const VERSAO = '4.16d';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1235,8 +1235,8 @@
         tb.addEventListener('mouseenter', () => { tb.dataset.mouse = '1'; }); tb.addEventListener('mouseleave', () => { tb.dataset.mouse = ''; });
       }
       // o vigia vai clicar na tela → a tabela fecha sozinha (se ninguém está com o mouse em cima dela)
-      const vigiaAgindo = Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 20000;
-      if (!aberta || (vigiaAgindo && tb.dataset.mouse !== '1')) { tb.style.display = 'none'; return; }
+      const vigiaAgindo = Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;   // 4.16d: 20 s era pouco — a tabela voltou por cima dos cliques de tag (Empresa 19:17)
+      if (!aberta || (vigiaAgindo && tb.dataset.mouse !== '1')) { tb.style.display = 'none'; if (vigiaAgindo) localStorage.setItem('dins_tabela_aberta', '0'); return; }   // fechou para o vigia: só reabre pelo botão
       tb.style.display = 'block';
       const { esc, haMin, situacao, atras } = F;
       const hm = t => t ? new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
