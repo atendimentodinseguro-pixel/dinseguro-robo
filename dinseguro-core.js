@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.07';
+  const VERSAO = '4.08';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -908,6 +908,8 @@
       TW.__ocupado = () => { localStorage.setItem('dins_vigia_ocupado', Date.now()); return 'ok'; };
       async function abreTW(id) { if (TW.location.hash !== '#/chats/' + id) { TW.location.hash = '#/chats/' + id; await dorme(4500); } return TW.location.hash === '#/chats/' + id; }
       async function mandaTW(id, msg, forca) {
+        // 4.08 — o Botmaker já assina "[Dinseguro]" sozinho: tirar a assinatura do começo do texto (Stefany 10/11 17:22, saía duplicado)
+        msg = String(msg).replace(/^\s*(\[Dinseguro\]\s*)+/i, '');
         localStorage.setItem('dins_vigia_ocupado', Date.now());
         if (!await abreTW(id)) return 'HASH NÃO ABRIU';
         const t = TW.__tail(300);
