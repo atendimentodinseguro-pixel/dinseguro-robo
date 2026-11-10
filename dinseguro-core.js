@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.14';
+  const VERSAO = '4.15';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -740,8 +740,10 @@
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
       const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem } : {};
-      const OK_SO = /^(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊|ok obrigad[oa])[\s.!,👍🙏😊❤️]*$/i;
-      if (L && L.ult.lado === 'cli' && OK_SO.test(L.ult.txt) && L.ultCli && L.ult === L.ultCli) {
+      const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
+      // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
+      const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
+      if (L && L.ult.lado === 'cli' && OK_SO.test(L.ult.txt) && !(L.nossaAntes && PROMESSA.test(L.nossaAntes))) {
         const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
         return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
       }
@@ -1044,7 +1046,8 @@
       const handoffT = iHand >= 0 && !humanoDepois ? (depois[iHand].t || Date.now()) : 0;
       const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw));
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT };
+      const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT, nossaAntes };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
@@ -1171,7 +1174,6 @@
         return '';
       };
       const bloco = x => {
-        if (x.junto) return 'J';   // 4.14b: marcado à mão (ex.: José Tobias, decisão da Stefany) fica no amarelo
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if (x.estado === 'humano' || x.junto || (x.comQuem && x.ultLado !== 'cli') || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'ativa') return 'F';
@@ -1188,7 +1190,7 @@
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
-        if (x.junto) return x.junto;
+        if (x.junto) return (['alerta', 'erro'].includes(x.estado) ? (x.motivo || x.estado) + ' · ⚠ ' : '') + x.junto;
         if (x.comQuem && x.ultLado !== 'cli' && x.semLink) return 'com ' + x.comQuem + ' — mensagem dele(a) é a última';
         if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
         if (atras(x)) return 'toque atrasado';
