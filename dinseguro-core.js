@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.84';
+  const VERSAO = '3.85';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1934,6 +1934,16 @@
       const d = flashRecente(f.beneficio);
       if (d) return 'já teve flash em ' + new Date(d).toLocaleDateString('pt-BR') + ' (limite: 1 a cada ' + FLASH_DIAS + ' dias)';
       if (GM_getValue('extrato_hoje', '') === f.beneficio) return 'cliente mandou extrato de hoje';
+      // v3.85 (Stefany 10/11 13:01): flash SÓ para quem CONFIRMOU a simulação (texto "1/sim", opção numerada do bot ou
+      // valor + "Sim desejo contratar"). Quem ainda não confirmou — digitação só para mandar o link no /parabens — não
+      // gasta flash. O vigia marca o aceite na aba do Multicorban: localStorage.dins_aceite = '<CPF ou benefício>|AAAA-MM-DD'.
+      try {
+        const [chA, diaA] = String(localStorage.getItem('dins_aceite') || '').split('|');
+        const hojeA = new Date().toISOString().slice(0, 10);
+        const cpfA = String(f.cpf || '').replace(/\D/g, '');
+        if (!(chA && diaA === hojeA && (chA === String(f.beneficio) || chA === cpfA)))
+          return 'cliente ainda não confirmou a simulação (flash só depois do aceite — marque dins_aceite)';
+      } catch (e) {}
       // v3.83 (Stefany 10/11 13:01): quando o cliente manda o extrato de empréstimo DO DIA, o vigia olha o extrato e
       // não se gasta flash. O vigia marca na aba do Multicorban: localStorage.dins_extrato_hoje = '<CPF ou benefício>|AAAA-MM-DD'.
       try {
