@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.69';
+  const VERSAO = '3.70';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -189,6 +189,13 @@
       if (/\[[^\]]{2,40}\][^\n]{0,200}(verific|analis|um momento|j[áa] volto)/i.test(antes)) return false;
       return true;
     }
+    // v3.70 (Stefany 10/11, caso Santaterezinha): conversa ENCERRADA não tem o selo "Em atendimento com …"
+    // no painel do contato (entre "Última sessão" e "Informações de contato") → sai da lista.
+    function conversaEncerrada() {
+      const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false;
+      const j = p.indexOf('Informações de contato', i); if (j < 0) return false;
+      return !/Em atendimento|support_agent/.test(p.slice(i, j));
+    }
     function vigiar() {
       const itens = [...document.querySelectorAll('.customer-item')].map(ci => {
         const id = (ci.parentElement || {}).id;
@@ -246,7 +253,7 @@
       // "aguarde um atendente") sai da LISTA. ⛔ Não encerra a conversa. Só vale depois de a mesma conversa ficar
       // aberta por duas voltas seguidas (evita marcar a conversa errada enquanto a tela troca).
       const aberto = abertoAgora();
-      if (aberto && aberto === ultimoAberto && ultimaEhNossa() === true) {
+      if (aberto && aberto === ultimoAberto && (ultimaEhNossa() === true || conversaEncerrada())) {
         const it = fila.find(f => f.id === aberto) || itens.find(f => f.id === aberto);
         const sig = it ? (it.sig || (it.msg || '').slice(0, 60)) : '';
         const ix = fila.findIndex(f => f.id === aberto);
