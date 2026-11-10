@@ -827,6 +827,7 @@
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
     window.dinsAutoFeito = (h, nota) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; O[h].estado = 'feito'; O[h].nota = nota || ''; GM_setValue('auto_ordens', O); return true; };
+    window.dinsAutoTeste = (cpf, valor, nome) => { const O = GM_getValue('auto_ordens', {}) || {}; const h = 'TESTE_' + String(cpf).replace(/\D/g, ''); O[h] = { hash: h, nome: (nome || 'TESTE') + ' (teste)', cpf: String(cpf).replace(/\D/g, ''), valor: +valor, aceite: false, estado: 'nova', t: Date.now(), teste: true, hist: [hhmm(Date.now()) + ' ordem de TESTE'] }; GM_setValue('auto_ordens', O); return h; };
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
     window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
