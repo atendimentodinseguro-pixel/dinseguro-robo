@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.20b';
+  const VERSAO = '4.20d';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -263,10 +263,16 @@
         await zz(9000);
         const naoAchou = [...document.querySelectorAll('.swal2-title,h2')].some(e => /Aten[çc][ãa]o/.test(e.innerText)) && /não localizamos/i.test(document.body.innerText);
         if (naoAchou) { const f = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f && f.click(); throw new Error('CPF não localizado no Multicorban'); }
-        const ativos = [...document.querySelectorAll('tr')].filter(tr => /\bATIVO\b/.test(tr.innerText) && [...tr.querySelectorAll('button,a')].some(e => /Consultar/i.test(e.innerText)));
-        if (!ativos.length) throw new Error('nenhum benefício ATIVO');
-        if (ativos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
-        [...ativos[0].querySelectorAll('button,a')].find(e => /Consultar/i.test(e.innerText)).click();
+        // 4.20d: um benefício só → o Multicorban já abre o detalhe; vários → lista com "Consultar" em cada linha
+        const temDetalhe = () => /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText);
+        if (temDetalhe()) {
+          if (!/Situa[çc][ãa]o\s*\n?\s*ATIVO\b/.test(document.body.innerText)) throw new Error('benefício não está ATIVO');
+        } else {
+          const ativos = [...document.querySelectorAll('tr')].filter(tr => /\bATIVO\b/.test(tr.innerText) && [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())));
+          if (!ativos.length) throw new Error('nenhum benefício ATIVO');
+          if (ativos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
+          [...ativos[0].querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
+        }
         for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
         const g = botaoRobo('Gerar ficha'); if (!g) throw new Error('painel do robô (Gerar ficha) não está na tela'); g.click();
