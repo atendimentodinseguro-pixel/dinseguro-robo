@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.86';
+  const VERSAO = '3.87';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -112,10 +112,25 @@
   }
 
   // Ficha em texto (chave: valor) <-> objeto
+  // 3.87 — TRAVA DE BANCO (Stefany 10/11 14:19, caso Marcio: "deixe isso anotado no robô, porque você não pode errar isso").
+  // O banco sai SÓ da ficha (decidirBanco: espécie + idade). INVALIDEZ por idade:
+  //   até 39 → C6 · 40–52 → QUERO MAIS (reserva: DAYCOVAL, NUNCA FACTA) · 53–57 → C6 · 58–59 → QUALIBANK (566) · 60–73 → FACTA.
+  // Não invalidez: C6 → FACTA → Qualibank 631; Não Perturbe → Qualibank.
+  // Banco que falhou NÃO decide o próximo: conta recusada no Quero Mais → numeração em sequência (3.86), não outro banco.
+  // Só passa se a ficha tiver a linha  banco_ordem_stefany: <BANCO>  (ordem dela, escrita à mão na ficha).
+  const RESERVA = { QUEROMAIS: ['DAYCOVAL'] };
+  function bancoErrado(f, tela) {
+    const dest = String(f.banco_destino || '').toUpperCase(), aqui = String(tela || '').toUpperCase();
+    if (!dest || !aqui || dest === aqui) return '';
+    if ((RESERVA[dest] || []).includes(aqui)) return '';
+    if (String(f.banco_ordem_stefany || '').toUpperCase() === aqui) return '';
+    return `⛔ BANCO ERRADO: a ficha é para ${dest} (espécie ${f.especie || '?'}, ${f.idade || '?'} anos) e esta tela é ${aqui}. ` +
+      `Invalidez: ≤39 C6 · 40–52 QUERO MAIS (reserva Daycoval) · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não digitar aqui sem ordem da Stefany.`;
+  }
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
-    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash'];
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany'];
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -1660,6 +1675,7 @@
       status('rodando');
       try {
         if (a === 'Digitar' || a === 'Fazer tudo') {
+          { const t = bancoErrado(f, QM ? 'queromais' : 'daycoval'); if (t) throw new Error(t); }
           const pg = location.pathname;
           if (/dados-cliente/.test(pg)) await cadastrais(f);
           else if (!/dados-complementares|resumo|formalizacao/.test(pg)) { await simular(f); await cadastrais(f); }
@@ -2534,6 +2550,7 @@
         if (!so(f.cpf) || !so(f.beneficio) || !num(f.parcela)) return log('Ficha precisa de cpf, beneficio e parcela.', 'erro');
         if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
+        { const t = bancoErrado(f, pagina); if (t) return log(t, 'erro'); }
         e.target.disabled = true;
         await autoComplete(f);
         await simular(f);
@@ -2545,6 +2562,7 @@
       }
       if (a === 'Gravar') {
         const f = ta.dataset.ficha ? JSON.parse(ta.dataset.ficha) : textoParaFicha(ta.value);
+        { const t = bancoErrado(f, pagina); if (t) return log(t, 'erro'); }
         e.target.disabled = true;
         await gravarELink(f);
         e.target.disabled = false;
