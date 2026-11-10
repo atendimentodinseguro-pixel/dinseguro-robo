@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.77';
+  const VERSAO = '3.78';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -196,6 +196,11 @@
       if (depois.slice(iv + 1).some(s => !/^(\d{1,3}|done_all|check|done|schedule)$/.test(s))) return false;
       const antes = L.slice(Math.max(0, ix - 15), ix).join(' ');
       if (/Para agilizar o seu atendimento|pedimos por gentileza que nos envie|atendente humano/i.test(antes)) return false;
+      // v3.78 (Stefany 10/11, caso Evandro): depois do CPF + extrato o BOT responde "Estamos analisando aguarde um
+      // momento por favor." (ou avisa "Você possui mais N minutos para envio do arquivo"). Isso NÃO é resposta nossa:
+      // o cliente está esperando atendimento → continua na lista.
+      const ultBot = L.slice(Math.max(0, ix - 4), ix).join(' ');
+      if (/Estamos analisando|aguarde um momento|Você possui mais \d+ minutos para envio/i.test(ultBot)) return false;
       if (/\[[^\]]{2,40}\][^\n]{0,200}(verific|analis|um momento|j[áa] volto)/i.test(antes)) return false;
       return true;
     }
@@ -274,7 +279,10 @@
       // "aguarde um atendente") sai da LISTA. ⛔ Não encerra a conversa. Só vale depois de a mesma conversa ficar
       // aberta por duas voltas seguidas (evita marcar a conversa errada enquanto a tela troca).
       const aberto = abertoAgora();
-      if (aberto && aberto === ultimoAberto && (ultimaEhNossa() === true || conversaEncerrada())) {
+      // v3.78 (caso Evandro): conversa ainda com o BOT também não tem o selo "Em atendimento com…" e parecia
+      // encerrada. Só vale "encerrada" se a última mensagem NÃO for do cliente esperando (ultimaEhNossa() !== false).
+      const uNossa = aberto && aberto === ultimoAberto ? ultimaEhNossa() : null;
+      if (aberto && aberto === ultimoAberto && (uNossa === true || (uNossa !== false && conversaEncerrada()))) {
         const it = fila.find(f => f.id === aberto) || itens.find(f => f.id === aberto);
         const sig = it ? (it.sig || (it.msg || '').slice(0, 60)) : '';
         const ix = fila.findIndex(f => f.id === aberto);
