@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.19';
+  const VERSAO = '4.20';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -230,6 +230,84 @@
       setTimeout(lerEsteira, 8000);
     }, 5 * 60 * 1000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
+  }
+
+  // ================================================================== 4.20 CONTORNO AUTOMÁTICO — EXECUTORES
+  // Stefany 10/11 19:41 ("pode começar a construção"). Ordem em GM 'auto_ordens' (criada pelo quadro do Botmaker).
+  // Multicorban: nova → consultando → ficha_ok (consulta o CPF, gera a ficha com o valor escolhido e salva).
+  // New Corban (aba que NÃO está em ?p=propostas): ficha_ok → digitando → pronto (Carregar ficha + Digitar; para antes do Gravar).
+  // Qualquer coisa fora do padrão → estado 'erro' com o motivo, e o vigia faz à mão.
+  if (window.top === window && /multicorban\.com|newcorban\.com\.br/.test(location.host)) {
+    const AO = () => GM_getValue('auto_ordens', {}) || {};
+    const poeAO = (h, mud) => { const O = AO(); if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
+    const zz = ms => new Promise(r => setTimeout(r, ms));
+    const botaoRobo = t => [...document.querySelectorAll('button[data-a]')].find(b => b.dataset.a === t);
+    const logRobo = () => [...document.querySelectorAll('div')].filter(d => /^\d\d:\d\d /.test(d.innerText || '') && d.children.length === 0).map(d => d.innerText);
+    let ocupadoAuto = false;
+    const ninguemMexendo = () => !document.querySelector('.modal.show') && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.value);
+    // ---------- Multicorban
+    if (/multicorban\.com/.test(location.host)) setInterval(async () => {
+      if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
+      const o = Object.values(AO()).find(x => x.estado === 'nova'); if (!o) return;
+      ocupadoAuto = true; poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
+      try {
+        const r = document.getElementById('cpf'); if (r && !r.checked) { r.click(); await zz(800); }
+        const sel = document.getElementById('inputGroupSelect02'); if (sel) { const op = [...sel.options].find(x => /Vers[aã]o 1/i.test(x.text)); if (op) { sel.value = op.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }
+        const inp = document.getElementById('input'); if (!inp) throw new Error('campo de busca não apareceu (sessão caiu?)');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, o.cpf); inp.dispatchEvent(new Event('input', { bubbles: true }));
+        await zz(500); const loc = document.getElementById('localizar'); if (!loc) throw new Error('botão Localizar não apareceu'); loc.click();
+        await zz(9000);
+        const naoAchou = [...document.querySelectorAll('.swal2-title,h2')].some(e => /Aten[çc][ãa]o/.test(e.innerText)) && /não localizamos/i.test(document.body.innerText);
+        if (naoAchou) { const f = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f && f.click(); throw new Error('CPF não localizado no Multicorban'); }
+        const ativos = [...document.querySelectorAll('tr')].filter(tr => /\bATIVO\b/.test(tr.innerText) && [...tr.querySelectorAll('button,a')].some(e => /Consultar/i.test(e.innerText)));
+        if (!ativos.length) throw new Error('nenhum benefício ATIVO');
+        if (ativos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
+        [...ativos[0].querySelectorAll('button,a')].find(e => /Consultar/i.test(e.innerText)).click();
+        for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
+        if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
+        const g = botaoRobo('Gerar ficha'); if (!g) throw new Error('painel do robô (Gerar ficha) não está na tela'); g.click();
+        let ta = null; for (let i = 0; i < 25; i++) { await zz(1000); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
+        if (!ta) throw new Error('a ficha não foi gerada');
+        await zz(1500);
+        const ficha = textoParaFicha(ta.value);
+        if ((ficha.recusa || '').trim()) throw new Error('recusa na ficha: ' + ficha.recusa);
+        const valorTxt = brl(o.valor);
+        ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + valorTxt) : ta.value + '\nvalor: ' + valorTxt;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        const sv = botaoRobo('Salvar ficha'); if (!sv) throw new Error('botão Salvar ficha não está na tela'); sv.click();
+        await zz(2500);
+        const f2 = GM_getValue('ficha_atual', null);
+        if (!f2 || String(f2.cpf).replace(/\D/g, '').replace(/^0+/, '') !== o.cpf.replace(/^0+/, '')) throw new Error('a ficha salva não é a do cliente');
+        if ((f2.recusa || '').trim()) throw new Error('recusa: ' + f2.recusa);
+        if (!/WhatsApp/i.test(f2.telefone_origem || '')) throw new Error('sem o WhatsApp do chat na ficha (abra o chat do cliente no Botmaker)');
+        poeAO(o.hash, { estado: 'ficha_ok', banco: (f2.banco_destino || '').toUpperCase(), nomeReal: f2.nome });
+      } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
+      finally { ocupadoAuto = false; }
+    }, 15000);
+    // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
+    if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
+      if (ocupadoAuto || /[?&]p=propostas/.test(location.search) || !ninguemMexendo()) return;
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok'); if (!o) return;
+      const pag = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco];
+      if (!pag) { poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban (Quero Mais/Daycoval à mão)' }); return; }
+      if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
+      sessionStorage.removeItem('dins_auto_nav');
+      const car = botaoRobo('Carregar ficha'), dig = botaoRobo('Digitar'); if (!car || !dig) return;   // painel ainda carregando
+      const f = GM_getValue('ficha_atual', null);
+      if (!f || String(f.cpf).replace(/\D/g, '').replace(/^0+/, '') !== o.cpf.replace(/^0+/, '')) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
+      ocupadoAuto = true; poeAO(o.hash, { estado: 'digitando' });
+      try {
+        const antes = logRobo().length;
+        car.click(); await zz(2500); dig.click();
+        let fim = null;
+        for (let i = 0; i < 60 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon/i.test(l)); }
+        if (!fim) throw new Error('a digitação não terminou em 90 s');
+        const m = /Pronto \(liberado R\$ ([\d.,]+)\)/.exec(fim);
+        if (!m) throw new Error(fim.replace(/^\d\d:\d\d /, '').slice(0, 160));
+        poeAO(o.hash, { estado: 'pronto', liberado: m[1], aba: location.search });
+      } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
+      finally { ocupadoAuto = false; }
+    }, 15000);
   }
 
   // ================================================================== BOTMAKER: VIGIA
@@ -743,6 +821,9 @@
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
+    window.dinsAutoFeito = (h, nota) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; O[h].estado = 'feito'; O[h].nota = nota || ''; GM_setValue('auto_ordens', O); return true; };
+    window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
     window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
     // compatibilidade: quem ainda chama FUPS/gravaFups
@@ -810,7 +891,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0 } : {};
+      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -852,13 +933,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       if (mud) { gravaRG(r); desenharRegua(); }
     }
@@ -1112,6 +1193,22 @@
       const iCont = depois.map(m => m.lado === 'nos' && !m.bot && CONTORNO_RE.test(m.raw)).lastIndexOf(true);
       const linkDepois = iCont >= 0 && depois.slice(iCont + 1).some(m => m.lado === 'nos' && /https?:\/\/(?!chat\.whatsapp|wa\.me|fb\.me|g\.co)/i.test(m.raw));
       const contorno = iCont >= 0 && !linkDepois ? depois[iCont] : null;
+      // 4.20 — o que o cliente escolheu ANTES do contorno (para o robô digitar sozinho depois de 15 min)
+      let contornoInfo = null;
+      if (contorno) {
+        const iAbs = ms.indexOf(contorno); const antesC = ms.slice(0, iAbs);
+        const VAL = m => { const t = (m.txt || '').replace(/\s+/g, ' ');
+          let r = /R\$\s*([\d.]+,\d{2})/.exec(t) || /^([\d.]+,\d{2})\b/.exec(t) || /^(\d{1,3}(?:\.\d{3})+)\b/.exec(t);
+          if (r) return parseFloat(r[1].replace(/\./g, '').replace(',', '.'));
+          r = /^(\d+(?:[.,]\d+)?)\s*mil\b/i.exec(t); if (r) return parseFloat(r[1].replace(',', '.')) * 1000;
+          return 0; };
+        const iVal = antesC.map(m => m.lado === 'cli' && VAL(m) >= 500).lastIndexOf(true);
+        const valor = iVal >= 0 ? VAL(antesC[iVal]) : 0;
+        const aceite = iVal >= 0 && antesC.slice(iVal).some(m => m.lado === 'cli' && /Sim desejo contratar|quero contratar/i.test(m.txt));
+        const cpfM = [...ms].reverse().find(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));
+        const cpf = cpfM ? (cpfM.raw.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/)[0] || '').replace(/\D/g, '') : '';
+        contornoInfo = { valor, aceite, cpf };
+      }
       const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));   // CPF mandado PELO CLIENTE
       // 4.14 — HANDOFF (Stefany 10/11 18:41, caso Carmen): o bot disse "logo você será atendido(a) por um atendente humano"
       // e DEPOIS mandou outra mensagem dele (vídeo). A prévia da lista mostrava só o vídeo → ninguém pôs na fila.
@@ -1127,7 +1224,7 @@
       const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT };
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
@@ -1280,6 +1377,19 @@
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
         ['A', '🔵 Aguardando o cliente', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+      // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
+      // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
+      try {
+        const O = GM_getValue('auto_ordens', {}) || {}; let mudouO = false;
+        for (const x of lista) {
+          const ci = x.contornoInfo; if (!ci || !x.semLink || !x.contornoT || x.ultLado === 'cli' || O[x.hash]) continue;
+          if (agora - x.contornoT <= 15 * M || agora - x.contornoT > 3 * H || ['humano', 'encerrado'].includes(x.estado)) continue;   // só contorno das últimas 3 h (os antigos o vigia vê no vermelho)
+          if (!ci.cpf || !(ci.valor >= 500)) { O[x.hash] = { hash: x.hash, nome: x.nome, estado: 'erro', erro: !ci.cpf ? 'sem CPF na conversa' : 'não achei o valor que o cliente escolheu', t: agora }; mudouO = true; continue; }
+          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: ci.cpf, valor: ci.valor, aceite: !!ci.aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (contorno ' + hhmm(x.contornoT) + ')'] };
+          mudouO = true;
+        }
+        if (mudouO) GM_setValue('auto_ordens', O);
+      } catch (e) {}
       const grupos = {}; lista.forEach(x => (grupos[bloco(x)] = grupos[bloco(x)] || []).push(x));
       const nAlerta = (grupos.R || []).length;
       const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
@@ -1288,6 +1398,12 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
+        const ao = (GM_getValue('auto_ordens', {}) || {})[x.hash];
+        if (ao && x.semLink) {
+          if (ao.estado === 'pronto') return '🤖 contorno digitado: ' + ao.banco + ' R$ ' + ao.liberado + ' → VIGIA: Gravar + ' + (ao.aceite ? 'linha curta + /bn54n' : 'simulação 1/2 + /parabens');
+          if (ao.estado === 'erro') return '🤖 contorno: ' + ao.erro + ' → fazer à mão';
+          return '🤖 contorno: robô ' + ({ nova: 'vai consultar', consultando: 'consultando no Multicorban', ficha_ok: 'ficha pronta (' + (ao.banco || '') + ')', digitando: 'digitando no ' + (ao.banco || '') }[ao.estado] || ao.estado);
+        }
         const fe = faseEsteira(x);
         if (fe && fe.fase !== 'andamento' && fe.fase !== 'não assinou') return '🏦 ' + fe.fase.toUpperCase() + (fe.acao ? ' → ' + fe.acao : '') + ' (' + fe.real + ')';
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
