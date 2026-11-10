@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.79';
+  const VERSAO = '3.80';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -464,7 +464,13 @@
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
       // Stefany, 07/11 16:18: quem registra o link sou eu. Toda mensagem que sai com
       // link (o /bn54n e o /parabens levam link) agenda sozinha o follow-up de 10 e 60 min.
-      if (/https?:\/\//.test(valorEnviado || '')) agendarSeTiverLink();
+      // v3.80 (Stefany 10/11, caso Evandro): o /n30 leva o link do GRUPO de WhatsApp e das redes sociais — isso
+      // NÃO é link de proposta e não pode gerar "Conseguiu acessar?" nem /132. Só agenda quando há link que não é
+      // de grupo/rede social e a resposta rápida não é de desfecho (recusa).
+      const ehDesfecho = Object.values(DESFECHOS).some(d => d.atalho && d.atalho.toLowerCase() === String(atalho).toLowerCase());
+      const linksProposta = ((valorEnviado || '').match(/https?:\/\/[^\s)]+/g) || [])
+        .filter(u => !/chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|youtube|youtu\.be|tiktok|linktr\.ee/i.test(u));
+      if (!ehDesfecho && linksProposta.length) agendarSeTiverLink();
       return trecho.trim().slice(0, 40);
     }
 
@@ -605,6 +611,8 @@
         if (o.nota) { passos.push(await addNota(o.nota)); }
         if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
+        // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
+        try { gravaFups(FUPS().filter(x => x.hash !== o.hash)); } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
@@ -686,7 +694,12 @@
           const p = (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1];
           if (p && p !== f.fone) throw new Error('chat aberto não é o do follow-up (' + p + ')');
         }
-        if (f.etapa === '60' && clienteRespondeu()) {
+        // v3.80: cliente com tag de recusa (sem margem, LOAS, representante, não identificado…) não recebe follow-up
+        const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
+        if (tagsChat.some(t => /^(01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) {
+          log && log('Follow-up de ' + f.etapa + ' min cancelado: cliente com tag de recusa (' +
+            tagsChat.filter(t => /^0\d /.test(t)).join(', ') + ').', 'ok');
+        } else if (f.etapa === '60' && clienteRespondeu()) {
           log && log('Follow-up de 60 min cancelado: o cliente respondeu.', 'ok');
         } else {
           // Stefany criou o atalho em 07/11 16:43: /bot2 = "Conseguiu acessar? Ficou com
