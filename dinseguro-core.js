@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.20d';
+  const VERSAO = '4.21';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1342,6 +1342,58 @@
       } finally { fupRodando = false; }
     }
     setInterval(olharFollowups, 60000);
+
+    // 4.21 — DESBLOQUEIO / ANUÊNCIA SAEM SOZINHOS (Stefany 19:22 "o follow-up certo sairia sozinho" / 19:49 "finaliza tudo").
+    // Esteira diz "falta desbloquear" (215 ASSINATURA DIGITAL OK / AVERBE JA) → linha pessoal + /dsg25a + /dsg25.
+    // Esteira diz "falta anuência" → linha pessoal + /anuencia + /anuencia2. Uma vez por fase (faseFeita). Mesmas travas dos toques:
+    // horário 8h–21h, vigia livre, chat certo (tela parada + telefone), sem humano, cliente não falou por último, trava entre abas.
+    const LINHA_FASE = {
+      'falta desbloquear': n => `${n ? n + ', b' : 'B'}oa notícia! 🎉 O banco aprovou a sua proposta. Agora falta só um passo: desbloquear o seu benefício para empréstimo no Meu INSS. Te mando o passo a passo aqui embaixo 👇`,
+      'falta anuência': n => `${n ? n + ', o' : 'O'} desbloqueio deu certo! 🙌 Agora falta só confirmar a contratação no Meu INSS (a anuência). Te mando o passo a passo aqui embaixo 👇`
+    };
+    const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'] };
+    let faseRodando = false;
+    async function olharFases() {
+      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
+      const agora = Date.now(); if (!dentroDoHorario(agora)) return;
+      const r = RG(); let alvo = null, fe = null;
+      for (const x of Object.values(r)) {
+        if (!x.link || ['humano', 'cancelada', 'fechada', 'concluída'].includes(x.estado)) continue;
+        const f = faseEsteira(x); if (!f || !ATALHOS_FASE[f.fase] || x.faseFeita === f.fase) continue;
+        if ((x.faseTent || 0) >= 3) continue;
+        alvo = x; fe = f; break;
+      }
+      if (!alvo) return;
+      const chave = alvo.hash + '|fase|' + fe.fase; const L = GM_getValue('fup_lock', {}) || {};
+      if (L[chave] && Date.now() - L[chave].t < 15 * M && L[chave].aba !== ABA_ID) return;
+      L[chave] = { aba: ABA_ID, t: Date.now() }; GM_setValue('fup_lock', L);
+      await new Promise(s => setTimeout(s, 1500 + Math.random() * 1500));
+      const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
+      faseRodando = true;
+      const marca = (mud, hist) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; Object.assign(x, mud); x.hist.push(hhmm(Date.now()) + ' ' + hist); gravaRG(r2); desenharRegua(); };
+      try {
+        const alvoHash = '#/chats/' + alvo.hash;
+        if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
+        for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
+        const foneTela = foneDoContato(); if (alvo.fone && foneTela !== alvo.fone) throw new Error('telefone do chat não confere');
+        if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) { marca({ estado: 'humano' }, 'fase ' + fe.fase + ': chat com humano — não mandei'); return; }
+        if (clienteRespondeu()) { marca({ faseTent: 3 }, 'fase ' + fe.fase + ': cliente falou por último — fica para o vigia'); return; }
+        const ent = (document.querySelector('.entries') || {}).innerText || '';
+        if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
+        if (fe.fase === 'falta anuência' && /anu[eê]ncia/i.test(ent.slice(-3000))) { marca({ faseFeita: fe.fase }, 'anuência já tinha sido mandada'); return; }
+        const nome = alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : '';
+        await mensagemLivre(LINHA_FASE[fe.fase](nome));
+        await new Promise(s => setTimeout(s, 2500));
+        for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
+        marca({ faseFeita: fe.fase }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
+        log && log('Esteira: ' + fe.fase + ' mandado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
+      } catch (e) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ' ERRO: ' + e.message); }
+      finally { faseRodando = false; }
+    }
+    setInterval(olharFases, 90000);
 
     // 4) QUADRO no canto direito da tela de cima
     function desenharRegua() {
