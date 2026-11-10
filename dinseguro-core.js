@@ -226,7 +226,7 @@
       const b = document.getElementById('esteira_refresh'); if (b) b.click();
       setTimeout(lerEsteira, 8000);
     }, 5 * 60 * 1000);
-    window.dinsEsteiraLer = lerEsteira;
+    window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
 
   // ================================================================== BOTMAKER: VIGIA
@@ -738,7 +738,7 @@
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t };
     };
-    window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    window.dinsFaseEsteira = h => faseEsteira(RG()[h]); window.dinsEsteiraVer = () => GM_getValue('esteira', {});
     // compatibilidade: quem ainda chama FUPS/gravaFups
     const FUPS = () => [];
     const gravaFups = () => {};
