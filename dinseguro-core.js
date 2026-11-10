@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.70';
+  const VERSAO = '3.71';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -179,6 +179,13 @@
       const L = p.slice(Math.max(0, e - 2000), e).split('\n').map(s => s.trim()).filter(Boolean);
       let ix = -1; for (let i = L.length - 1; i >= 0; i--) if (/^\d{1,2}:\d{2}\s*(AM|PM)?$/.test(L[i])) { ix = i; break; }
       if (ix < 0) return null;
+      // v3.71 (Stefany 10/11, caso Celimar): cliente que só agradece/confirma ("Ok", "Obrigada", 👍) depois da
+      // nossa última mensagem não está esperando nada → conta como resolvido (sai da lista, conversa continua).
+      const iu = L.map((s, k) => /^(done_all|check|done)$/.test(s) ? k : -1).filter(k => k >= 0).pop();
+      if (iu !== undefined && iu < ix) {
+        const cli = L.slice(iu + 1).filter(s => !/^(\d{1,2}:\d{2}\s*(AM|PM)?|\d{1,3})$/.test(s)).join(' ').trim();
+        if (cli && cli.length <= 40 && /^(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|blz|beleza|t[áa] bom|t[áa]|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊|ok obrigad[oa])[\s.!,👍🙏😊❤️]*$/i.test(cli)) return true;
+      }
       if (!/^(done_all|check|done)$/m.test(L.slice(ix + 1).join('\n'))) return false;
       // v3.69 (caso Luís Sartre): resposta do cliente no mesmo minuto vem SEM horário, logo depois do done_all
       // ("…08:38 AM / done_all / Ok irei enviar agora / 0"). Texto depois do done_all = mensagem do cliente.
