@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.87';
+  const VERSAO = '3.88';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1563,7 +1563,8 @@
       const chaveRec = 'conta_recusada_' + so(f.cpf);
       if (!real && GM_getValue(chaveRec, '') === c.banco + '|' + c.conta + '-' + c.dv) { log('Essa conta já foi recusada (outro CPF) para este cliente → sequência.'); c = seqConta(); }
       const jaTem = () => [...document.querySelectorAll('*')].some(e => e.children.length === 0 && new RegExp(c.conta + '/' + c.dv).test(tx(e)));
-      for (let tent = 0; tent < 8 && !jaTem(); tent++) {
+      let incluiu = jaTem();
+      for (let tent = 0; tent < 8 && !incluiu; tent++) {
         await escolher(lista(/^Banco$/, sb), new RegExp('^' + c.banco + ' -'), c.banco);
         await digitar(entrada(/^Ag[êe]ncia$/, sb), c.agencia);
         const contas = [...sb.querySelectorAll('mat-form-field')].filter(vis);
@@ -1583,9 +1584,10 @@
         await semErro('Incluir conta');
         if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);   // número da sequência usado = nunca repetir
         log(`Conta incluída: ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv}${real ? '' : (c.daSeq ? ' (aleatória da sequência)' : (derivada ? ' (derivada da agência)' : ' (aleatória combinada)'))}`);
+        incluiu = true;
         break;
       }
-      if (!jaTem()) throw new Error('Não consegui incluir a conta depois de 8 tentativas da sequência.');
+      if (!incluiu) throw new Error('Não consegui incluir a conta depois de 8 tentativas da sequência.');
       const re = new RegExp(c.conta + '/' + c.dv);
       const sbn = secao(/^Dados do Benef[íi]cio$/);
       if (f.uf) await escolher(lista(/^UF Do Benef[íi]cio$/, sbn), new RegExp('^' + f.uf + '$'), f.uf);
