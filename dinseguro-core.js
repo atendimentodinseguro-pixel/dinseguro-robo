@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.90';
+  const VERSAO = '3.91';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -712,12 +712,13 @@
       const antes = T.slice(Math.max(0, ultimo.ix - 1500), ultimo.ix);
       const iNosso = antes.lastIndexOf('['), iHora = antes.search(/\d{1,2}:\d{2} (AM|PM)\s*\n[^\n]*$/);
       if (iNosso < 0 || !/^\[[^\]\n]{2,40}\]/.test(antes.slice(iNosso))) return;
-      // hora e data da mensagem: primeira hora depois do link + última "Sessão dd/mm/aaaa" antes dele
+      // hora da mensagem: primeira hora depois do link. Dia: a ocorrência mais recente dessa hora que não está no futuro
+      // (a data da "Sessão" engana: sessão aberta ontem continua hoje — caso Estefania 10/11).
       const hm = T.slice(ultimo.ix).match(/(\d{1,2}):(\d{2}) (AM|PM)/);
-      const sm = [...T.slice(0, ultimo.ix).matchAll(/Sess[ãa]o (\d\d)\/(\d\d)\/(\d{4})/g)].pop();
-      if (!hm || !sm) return;
-      let h = +hm[1] % 12 + (hm[3] === 'PM' ? 12 : 0);
-      const t = new Date(+sm[3], +sm[2] - 1, +sm[1], h, +hm[2]).getTime();
+      if (!hm) return;
+      const h = +hm[1] % 12 + (hm[3] === 'PM' ? 12 : 0);
+      const d0 = new Date(); d0.setHours(h, +hm[2], 0, 0);
+      let t = d0.getTime(); if (t > Date.now() + 2 * M) t -= 24 * H;
       if (t > Date.now() + 5 * M) return;                       // data estranha → não mexe
       const r = RG(), ant = r[hash];
       if (ant && (ant.link === ultimo.link || Math.abs(ant.linkT - t) < 3 * M)) return;   // já conhecido
@@ -835,7 +836,7 @@
       }
       const atras = x => x.estado === 'ativa' && x.toques.some(k => !k.feito && k.quando < agora - 5 * M && dentroDoHorario(agora));
       const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x)).length;
-      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Régua pós-link (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
       if (q.dataset.min === '1') { q.innerHTML = cab; return; }
       const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : '#94a3b8';
       q.innerHTML = cab + lista.map(x => {
