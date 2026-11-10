@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.18b';
+  const VERSAO = '4.18c';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -741,7 +741,9 @@
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t };
     };
-    window.dinsFaseEsteira = h => faseEsteira(RG()[h]); window.dinsEsteiraVer = () => GM_getValue('esteira', {});
+    window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
+    window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
     // compatibilidade: quem ainda chama FUPS/gravaFups
     const FUPS = () => [];
     const gravaFups = () => {};
@@ -1255,7 +1257,7 @@
       };
       const bloco = x => {
         const fe = faseEsteira(x);
-        if (fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase)) return 'R';
+        if (fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase) && x.estado !== 'humano' && !(x.faseFeita && x.faseFeita === fe.fase)) return 'R';   // 4.18c: com humano (Marlene/Rômulo) fica no amarelo
         if (fe && fe.fase === 'pago') return 'E';
         if (fe && fe.fase === 'recusada') return 'J';
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
