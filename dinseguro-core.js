@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.97';
+  const VERSAO = '3.98';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -809,9 +809,14 @@
       const r2 = RG(), x = r2[hash];
       // 3.97 — o que JÁ FOI FEITO à mão (ou por outro atendente) depois do link conta como feito: não repete.
       const depois = T.slice(ultimo.ix);
-      const jaFeito = { '10': /Conseguiu acessar/i, '60': /automaticamente cancelada|ser[áa] cancelada/i, manha: /Passando s[óo] para lembrar|continua dispon[íi]vel no link/i };
+      const jaFeito = { '10': /Conseguiu acessar|conseguiu abrir o link/i, '60': /automaticamente cancelada|ser[áa] cancelada/i, manha: /Passando s[óo] para lembrar|continua dispon[íi]vel no link/i };
       x.toques.forEach(q => { if (!q.feito && jaFeito[q.tipo].test(depois)) { q.feito = Date.now(); q.st = 'já feito antes do robô'; } });
       if (x.toques.every(q => q.feito)) { x.estado = 'esgotada'; x.motivo = 'os três toques já foram feitos'; }
+      // 3.97 — link mandado por OUTRO atendente (Rômulo, Stefany…) → é dele: fica no quadro, robô não manda nada
+      const autor = (antes.slice(iNosso).match(/^\[([^\]\n]{2,40})\]/) || [])[1] || '';
+      if (autor && !/^Dinseguro$/i.test(autor.trim())) { x.estado = 'humano'; x.motivo = 'link enviado por ' + autor.replace(/👤/g, '').trim() + ' — robô não manda nada'; }
+      // 3.97 — cliente já falou DEPOIS do link → a conversa virou atendimento: régua pausada (vigia/atendente cuidam)
+      else if (falouDepois(depois)) { x.estado = 'pausada'; x.motivo = 'cliente respondeu depois do link — atendimento humano'; }
       // 3.96 (Stefany 10/11 15:15): nada de "pulado". Toque que já venceu SAI AGORA, marcado como atrasado.
       // O /132 conta 60 min a partir do "Conseguiu acessar?" (não do link): enquanto o de 10 não sai, o de 60 espera.
       const q10 = x.toques.find(q => q.tipo === '10'), q60 = x.toques.find(q => q.tipo === '60');
@@ -819,6 +824,20 @@
       gravaRG(r2); desenharRegua();
     }
     setInterval(detectarLink, 15000);
+    // houve mensagem do CLIENTE no trecho? (blocos nossos começam com [Nome]/"Enviado pelo…" e terminam no done_all/check)
+    function falouDepois(trecho) {
+      const L = trecho.replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*/g, '').split('\n').map(z => z.trim()).filter(Boolean);
+      let nosso = true;   // o trecho começa dentro da mensagem do link
+      for (const l of L) {
+        if (/^(done_all|check|done)$/.test(l)) { nosso = false; continue; }
+        if (/^\[[^\]]{2,40}\]/.test(l) || /^Enviado (pelo|por) /.test(l)) { nosso = true; continue; }
+        if (nosso) continue;
+        if (/^(\d{1,2}:\d{2}( (AM|PM))?|info_outline|security|list_alt|schedule|bolt|open_in_new|play_arrow|person|sentiment_satisfied.*|keyboard_arrow_down|download|folder_zip|x1|info|\d{1,3})$/.test(l)) continue;
+        if (/^Sess[ãa]o \d|^(SEG|TER|QUA|QUI|SEX|S[ÁA]B|DOM) \d/.test(l)) continue;
+        return true;
+      }
+      return false;
+    }
 
     // 3.96 — desfaz os "pulado (régua criada depois)": se o de 60 já saiu, o de 10 fica como "não enviado (já recebeu o /132)";
     // se não, volta a valer e sai agora. E o de 60 passa a contar do envio do de 10.
