@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.88';
+  const VERSAO = '3.89';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2370,6 +2370,19 @@
     const semCar = cand.filter(x => !/\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia/i.test(x.innerText));
     if (semCar.length) cand = semCar;
     if (!cand.length) throw new Error(invalidez ? 'Sem tabela INVAL 1,85%.' : 'Sem tabela DWeb-ML (sem INVAL) 1,85%.');
+    // 3.89 — C6: a faixa de TICKET do nome tem que bater com o liberado da linha ("Tkt ate 6k" · "Tkt 6k a 20k" · "Tkt > 20k").
+    // Caso Estefania 10/11: R$ 12.684,50 gravado na "Tkt ate 6k" → esteira PEN / AJUSTAR TABELA, link nunca saiu.
+    const libDe = x => num(((x.innerText.match(/R\$\s*[\d.,]+/g) || []).pop() || '').replace('R$', ''));
+    const faixaOk = x => { const t = x.innerText, v = libDe(x);
+      if (/Tkt\s*at[ée]\s*6k/i.test(t)) return v <= 6000;
+      if (/Tkt\s*6k\s*a\s*20k/i.test(t)) return v > 6000 && v <= 20000;
+      if (/Tkt\s*>\s*20k/i.test(t)) return v > 20000;
+      return true; };
+    const naFaixa = cand.filter(faixaOk);
+    if (pagina === 'c6' && cand.some(x => /Tkt/i.test(x.innerText))) {
+      if (!naFaixa.length) throw new Error('Nenhuma tabela C6 com a faixa de ticket certa para o valor. Confira a simulação na tela.');
+      cand = naFaixa;
+    }
     const escolhida = cand[0];
     escolhida.click();
     await sleep(1200);
