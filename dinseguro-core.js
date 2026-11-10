@@ -1095,6 +1095,8 @@
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
       if (toque.tipo === 'manha' && !dentroDoHorario(agora)) return;
+      // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
+      if (toque.tipo === 'manha' && agora - toque.quando > 3 * H) { reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
       fupRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
