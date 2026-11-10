@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.68';
+  const VERSAO = '3.69';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -180,6 +180,10 @@
       let ix = -1; for (let i = L.length - 1; i >= 0; i--) if (/^\d{1,2}:\d{2}\s*(AM|PM)?$/.test(L[i])) { ix = i; break; }
       if (ix < 0) return null;
       if (!/^(done_all|check|done)$/m.test(L.slice(ix + 1).join('\n'))) return false;
+      // v3.69 (caso Luís Sartre): resposta do cliente no mesmo minuto vem SEM horário, logo depois do done_all
+      // ("…08:38 AM / done_all / Ok irei enviar agora / 0"). Texto depois do done_all = mensagem do cliente.
+      const depois = L.slice(ix + 1); const iv = depois.findIndex(s => /^(done_all|check|done)$/.test(s));
+      if (depois.slice(iv + 1).some(s => !/^(\d{1,3}|done_all|check|done|schedule)$/.test(s))) return false;
       const antes = L.slice(Math.max(0, ix - 15), ix).join(' ');
       if (/Para agilizar o seu atendimento|pedimos por gentileza que nos envie|atendente humano/i.test(antes)) return false;
       if (/\[[^\]]{2,40}\][^\n]{0,200}(verific|analis|um momento|j[áa] volto)/i.test(antes)) return false;
