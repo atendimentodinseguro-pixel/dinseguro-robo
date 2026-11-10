@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.82';
+  const VERSAO = '3.83';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1932,6 +1932,14 @@
       const d = flashRecente(f.beneficio);
       if (d) return 'já teve flash em ' + new Date(d).toLocaleDateString('pt-BR') + ' (limite: 1 a cada ' + FLASH_DIAS + ' dias)';
       if (GM_getValue('extrato_hoje', '') === f.beneficio) return 'cliente mandou extrato de hoje';
+      // v3.83 (Stefany 10/11 13:01): quando o cliente manda o extrato de empréstimo DO DIA, o vigia olha o extrato e
+      // não se gasta flash. O vigia marca na aba do Multicorban: localStorage.dins_extrato_hoje = '<CPF ou benefício>|AAAA-MM-DD'.
+      try {
+        const [chave, dia] = String(localStorage.getItem('dins_extrato_hoje') || '').split('|');
+        const hoje = new Date().toISOString().slice(0, 10);
+        const cpfF = String(f.cpf || '').replace(/\D/g, '');
+        if (chave && dia === hoje && (chave === String(f.beneficio) || chave === cpfF)) return 'cliente mandou o extrato de hoje (o vigia confere pelo extrato)';
+      } catch (e) {}
       return '';
     }
 
