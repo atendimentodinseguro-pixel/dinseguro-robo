@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.75';
+  const VERSAO = '3.76';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -583,9 +583,10 @@
         if (o.nota) { passos.push(await addNota(o.nota)); }
         if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
+        localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
-        grava('erro', { erro: e.message });
+        grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem');
         log && log('Desfecho PAROU: ' + e.message, 'erro');
       } finally { rodando = false; }
     }
