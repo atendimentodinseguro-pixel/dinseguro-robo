@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.16b';
+  const VERSAO = '4.16c';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -753,6 +753,8 @@
         const u = L && L.ult.lado === 'cli' ? L.ult : null;
         return Object.assign({ estado: 'alerta', motivo: u ? 'cliente escreveu "' + u.txt.slice(0, 50) + '"' + (u.t ? ' às ' + hhmm(u.t) : '') : 'cliente esperando resposta' }, ex);
       }
+      // 4.16c (casos Milton/André): 01 A antigo, cliente recusou ou não respondeu e a nossa mensagem é a última (sem promessa) → azul, não vermelho
+      if (tem(/^01 A/i) && L && L.ult.lado === 'nos' && !PROMESSA.test(L.ult.raw)) return Object.assign({ estado: 'acompanhando', motivo: '01 A sem link — nossa mensagem é a última, aguardando o cliente' }, ex);
       if (tem(/^01 A/i)) return Object.assign({ estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' }, ex);
       if (tem(/^01 C/i)) return Object.assign({ estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' }, ex);
       const fim = (document.querySelector('.entries') || {}).innerText || '';
