@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.81';
+  const VERSAO = '3.82';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1914,8 +1914,9 @@
       if (dd.banco === 'NAO' || dd.banco === 'HUMANO') return 'fora dos critérios (' + dd.motivo + ')';
       if (margem < 200 && temEmprestimo) return 'margem abaixo de R$ 200 e já tem empréstimo';
       if (h < 8 || h >= 18) return 'fora do horário (8h–18h)';
-      const fora = GM_getValue('flash_fora_ate', 0);
-      if (fora && Date.now() < fora) return 'flash fora do ar (tentada há pouco; volta a tentar às ' + new Date(fora).toLocaleTimeString('pt-BR').slice(0, 5) + ')';
+      // v3.82 (Stefany 10/11 12:55, caso Idervã): NÃO existe "flash fora do ar". A falha de um cliente (ex.: "não foram
+      // encontrados", crédito) não pode bloquear a flash dos próximos. Todo cliente elegível faz a flash, sempre.
+      GM_setValue('flash_fora_ate', 0);
       // ⚠️ 07/11 17:05 (Stefany): a memória do robô só conhece as flashes que ELE disparou.
       // Consulta feita por ela, pelo Rômulo ou por outro chat era invisível, e o robô ia
       // gastar consulta de novo. A tela do Multicorban diz a verdade: quando o benefício
@@ -2120,8 +2121,7 @@
                 const msg = (aviso() || 'sem resposta').replace(/^[×x!]*\s*Aten[çc][ãa]o!?\s*/i, '').replace(/(No|Cancel|Fechar|OK)+$/i, '').trim();
                 log('Flash não trouxe dados (' + msg + '). Seguindo com a consulta normal.', 'erro');
                 GM_setValue('flash_falhou', f.beneficio);
-                // flash fora do ar: não insistir a cada clique nos próximos 30 min
-                if (/n[ãa]o foram encontrado|cr[ée]dito|indispon/i.test(msg)) GM_setValue('flash_fora_ate', Date.now() + 30 * 60 * 1000);
+                // v3.82: sem trava de 30 min — a próxima ficha tenta a flash de novo normalmente.
                 await fecharAviso();
                 const antes2 = aviso();
                 await consultar('normal', f.beneficio);
