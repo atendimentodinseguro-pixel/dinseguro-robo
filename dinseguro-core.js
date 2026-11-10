@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.10';
+  const VERSAO = '4.11';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -999,7 +999,10 @@
         if (/^S(e|É)X|^SÁB|^DOM|^SEG|^TER|^QUA|^QUI/i.test(l) && /\d{1,2}:\d{2}/.test(l)) continue;
         if (/^Sess[ãa]o /.test(l)) continue;
         if (/^\d{1,2}:\d{2}(:\d{2})?( (AM|PM))?$/.test(l)) continue;
-        if (l.length > 1) return true;                          // texto que não é nosso
+        // 4.11 — resposta de 1 caractere ("1", "2", "3") é resposta do cliente (caso Tejo 10/11 17:44). Só a ÚLTIMA linha
+        // só-número é o contador de não lidas do Botmaker.
+        if (i === linhas.length - 1 && /^\d+$/.test(l)) continue;
+        if (l.length >= 1) return true;                         // texto que não é nosso
       }
       return false;
     }
