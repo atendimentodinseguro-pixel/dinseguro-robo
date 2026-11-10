@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.01';
+  const VERSAO = '4.02';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -721,7 +721,20 @@
       if (/Enviado pelo credsegurobank[\s\S]{0,1500}$/.test(fim.slice(-1600))) return { estado: 'acompanhando', motivo: 'no bot (autoatendimento)' };
       return { estado: 'acompanhando', motivo: 'última mensagem é nossa — aguardando o cliente' };
     }
+    // 4.02 — TELA PRONTA (erro 10/11 15:42: o link do Gerson foi gravado no chat seguinte, que o robô abriu logo depois,
+    // porque a tela ainda mostrava a conversa anterior). Só lê a conversa quando o endereço está parado há 6 s
+    // e o texto da tela NÃO é o mesmo que foi lido em outro chat.
+    let telaH = '', telaDesde = 0; const sigPorHash = {};
+    const sigDaTela = () => { const e = document.querySelector('.entries'); return e ? e.innerText.slice(-400) : ''; };
+    setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== telaH) { telaH = h; telaDesde = Date.now(); } }, 500);
+    function telaPronta(hash) {
+      if (!hash || hash !== telaH || Date.now() - telaDesde < 6000) return false;
+      const sg = sigDaTela(); if (!sg) return false;
+      for (const k in sigPorHash) if (k !== hash && sigPorHash[k] === sg) return false;
+      sigPorHash[hash] = sg; return true;
+    }
     function registrarSemLink(hash) {
+      if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
       const c = classificar();
       r[hash] = { hash, fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
@@ -729,12 +742,15 @@
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
+      if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
       const c = classificar(); if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); gravaRG(r); desenharRegua(); }
     }
     async function mapearUm(id) {
       localStorage.setItem('dins_vigia_ocupado', Date.now());
-      window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 5000));
+      window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
+      for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
+      if (!telaPronta(id)) return false;
       if (window.top.location.hash !== '#/chats/' + id || !document.querySelector('.entries')) return false;
       try { detectarLink(); } catch (e) {}
       const x = RG()[id];
@@ -784,6 +800,7 @@
       if (rodando || fupRodando) return;
       const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
       const e = document.querySelector('.entries'); if (!hash || !e) return;
+      if (!telaPronta(hash)) return;
       const T = e.innerText.replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*/g, '');
       let m, ultimo = null; LINK_PROPOSTA.lastIndex = 0;
       while ((m = LINK_PROPOSTA.exec(T))) { if (!NAO_PROPOSTA.test(m[0])) ultimo = { link: m[0], ix: m.index }; }
@@ -801,6 +818,8 @@
       let t = d0.getTime(); if (t > Date.now() + 2 * M) t -= 24 * H;
       if (t > Date.now() + 5 * M) return;                       // data estranha → não mexe
       const r = RG(), ant = r[hash];
+      // 4.02 — um link é de UM cliente só: se já está no quadro em outro chat, não grava de novo aqui
+      if (Object.keys(r).some(k => k !== hash && r[k] && r[k].link === ultimo.link)) return;
       if (ant && (ant.link === ultimo.link || Math.abs(ant.linkT - t) < 3 * M)) return;   // já conhecido
       if (ant && ant.linkT > t) return;                          // é um link mais antigo
       if (Date.now() - t > 26 * H) return;                       // link velho (mais de um dia) não abre régua
@@ -948,6 +967,8 @@
         const ok = await (async () => { for (let i = 0; i < 40; i++) { if (window.top.location.hash === alvoHash && document.querySelector('.entries')) return true; await new Promise(s => setTimeout(s, 300)); } return false; })();
         if (!ok) throw new Error('não abriu o chat');
         if (alvo.fone) { const p = foneDoContato(); if (p && p !== alvo.fone) throw new Error('chat aberto não é o do cliente (' + p + ')'); }
+        // 4.02 — toque de link só sai se o PRÓPRIO link do cliente está na conversa aberta (prova de que é o chat certo)
+        if (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35))) throw new Error('o link do cliente não está nesta conversa — não mando');
         if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
           const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
           estado('humano', 'com ' + quem + ' — robô não manda nada'); return;
