@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.98';
+  const VERSAO = '3.99';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -824,6 +824,46 @@
       gravaRG(r2); desenharRegua();
     }
     setInterval(detectarLink, 15000);
+    // 3.99 — HELPERS DO VIGIA moram no robô (não precisa mais colar o arquivo a cada recarga — economia de tokens).
+    // Ficam na janela de cima: __tail, __chat, __cpfs, __ok, __envia, __enviaForca, __tags, __notaPos, __tagPos, __notaFill,
+    // __fila, __regua, __escolhaValor, __ocupado. A trava dos 90 dias continua dentro do envio.
+    try { (() => {
+      const TW = window.top, DOCF = () => document, semNota = t => t.replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*\n?/g, '');
+      const dorme = ms => new Promise(z => setTimeout(z, ms));
+      TW.__tail = (n = 600) => { const p = semNota(DOCF().body.innerText); const e = p.lastIndexOf('sentiment_satisfied_alt'); return [TW.location.hash, (DOCF().querySelector('textarea') || {}).placeholder?.slice(0, 40), p.slice(Math.max(0, e - n), e).replace(/https?:\/\/\S+/g, '[url]')]; };
+      TW.__chat = () => { const p = DOCF().body.innerText; const ci = p.indexOf('Chat\nRespostas rápidas'); const e = p.lastIndexOf('sentiment_satisfied_alt'); return p.slice(ci, e); };
+      TW.__poe = msg => { const ta = DOCF().querySelector('textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, msg); ta.dispatchEvent(new Event('input', { bubbles: true })); return [TW.location.hash, ta.value.length]; };
+      TW.__ok = c => { c = String(c).replace(/\D/g, ''); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false; let q = 0; for (let i = 0; i < 9; i++) q += +c[i] * (10 - i); let d = (q * 10) % 11 % 10; if (d !== +c[9]) return false; q = 0; for (let i = 0; i < 10; i++) q += +c[i] * (11 - i); d = (q * 10) % 11 % 10; return d === +c[10]; };
+      TW.__cpfs = t => [...new Set([...(String(t).match(/\d[\d.\-\s]{8,16}\d/g) || []), ...(String(t).match(/\b\d{11}\b/g) || [])].map(z => z.replace(/\D/g, '')).map(z => z.length === 10 ? '0' + z : z).filter(z => TW.__ok(z) && z !== '10123456789'))];
+      TW.__tags = () => [...DOCF().querySelectorAll('.MuiChip-label')].map(c => c.textContent).filter(t => /^0\d|^Q15/.test(t));
+      TW.__ocupado = () => { localStorage.setItem('dins_vigia_ocupado', Date.now()); return 'ok'; };
+      async function abreTW(id) { if (TW.location.hash !== '#/chats/' + id) { TW.location.hash = '#/chats/' + id; await dorme(4500); } return TW.location.hash === '#/chats/' + id; }
+      async function mandaTW(id, msg, forca) {
+        localStorage.setItem('dins_vigia_ocupado', Date.now());
+        if (!await abreTW(id)) return 'HASH NÃO ABRIU';
+        const t = TW.__tail(300);
+        if (/janela|em atendimento com/i.test(t[1] || '') || /Chat em atendimento com/.test(DOCF().body.innerText)) return 'NÃO ENVIADO: chat com atendente / janela';
+        if (!forca && !/(done_all|check)\s*\n0\s*\n?$/.test(t[2])) return 'ULTIMA MSG DO CLIENTE: ' + t[2].slice(-160).replace(/\n/g, ' ');
+        if (/90 dias|bloquead[oa] para empr[eé]stimo|benef[ií]cio foi concedido|concedido em|prazo (dos 90 dias )?vence|desbloque/i.test(msg)) {
+          const hoje = new Date().toISOString().slice(0, 10);
+          const aprovado = TW.__tags().some(x => /^01 D/.test(x)) || localStorage.getItem('dins_aprovado') === id + '|' + hoje;
+          if (!aprovado) return 'BLOQUEADO: data de pagamento / 90 dias só para cliente APROVADO (tag 01 D ou dins_aprovado).';
+        }
+        TW.__poe(msg); await dorme(500);
+        if (TW.location.hash !== '#/chats/' + id) { TW.__poe(''); return 'HASH MUDOU — não enviado'; }
+        DOCF().querySelector('button.send-button-component').click(); await dorme(2000);
+        return 'ok ' + (DOCF().querySelector('textarea').value === '');
+      }
+      TW.__envia = (id, msg) => mandaTW(id, msg, false);
+      TW.__enviaForca = (id, msg) => mandaTW(id, msg, true);
+      TW.__escolhaValor = () => [...semNota(TW.__chat()).matchAll(/[^\n]*(R\$ ?\d[\d.,]*(?: 2)?|Outro valor|Simular outro valor|Sim desejo contratar|\d+ x R\$ ?[\d.,]+)[^\n]*/gi)].map(m => m[0].slice(0, 80));
+      const posTW = rotulo => { const F = TW.document.querySelector('iframe'), fr = F.getBoundingClientRect(); const leaf = [...DOCF().querySelectorAll('*')].find(e => e.children.length == 0 && e.textContent.trim() === rotulo); let a = leaf, p = null; for (let i = 0; i < 5 && a && !p; i++) { a = a.parentElement; p = [...a.querySelectorAll('*')].find(e => e.textContent.trim() === 'add_circle'); } const r = p.getBoundingClientRect(); return [Math.round(r.x + fr.x + r.width / 2), Math.round(r.y + fr.y + r.height / 2)]; };
+      TW.__notaPos = () => posTW('Notas'); TW.__tagPos = () => posTW('Tags');
+      TW.__notaFill = async txt => { const ta = [...DOCF().querySelectorAll('textarea')].find(t => /Escreva aqui/.test(t.placeholder)); if (!ta) return 'sem caixa'; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, txt); ta.dispatchEvent(new Event('input', { bubbles: true })); await dorme(400); const b = [...DOCF().querySelectorAll('button')].find(b => b.textContent.trim() === 'Criar'); if (!b || b.disabled) return 'Criar desabilitado'; b.click(); await dorme(1500); return 'ok'; };
+      TW.__fila = () => JSON.parse(localStorage.getItem('dins_fila') || '[]').map(x => [x.nome, x.id, (x.msg || '').slice(0, 60), (x.quando || '').slice(11, 16), x.humano || '']);
+      TW.__regua = () => Object.values(RG()).filter(x => !['cancelada', 'fechada'].includes(x.estado)).map(x => [x.nome || x.hash.slice(0, 6), x.hash, x.estado, (x.motivo || '').slice(0, 60), (x.toques || []).map(t => t.tipo + ':' + (t.feito ? (t.st || 'feito') : hhmm(t.quando))).join(' | ')]);
+      TW.__R = window;   // acesso às funções do robô: __R.dinsReguaResumo(...), __R.dinsReguaHumano(...)
+    })(); } catch (e) {}
     // houve mensagem do CLIENTE no trecho? (blocos nossos começam com [Nome]/"Enviado pelo…" e terminam no done_all/check)
     function falouDepois(trecho) {
       const L = trecho.replace(/\[Nota interna\][\s\S]*?~ Criado por[^\n]*/g, '').split('\n').map(z => z.trim()).filter(Boolean);
