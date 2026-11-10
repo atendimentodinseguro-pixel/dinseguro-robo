@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.72';
+  const VERSAO = '3.73';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1415,7 +1415,7 @@
         const certa = PORTAL.tabela(esp, num(res[1]));
         if (!new RegExp('\\b' + certa + '\\b').test(f._tabela_daycoval)) {
           log('Tabela veio ' + f._tabela_daycoval + ' — o certo para este caso é a ' + certa + '. Trocando…');
-          await clicar(/^Editar Tabela$/i, p);
+          await clicar(/^(border_color\s*)?Editar Tabela$/i, p);  // 3.73: o botão traz o nome do ícone (border_color) no texto
           const modal = await esperar(() => [...document.querySelectorAll('div.modal-dialog, .cdk-overlay-pane')].filter(vis).find(m => /Taxa/i.test(tx(m))), 15000);
           if (!modal) throw new Error('A janela "Editar Tabela" não abriu para trocar para a ' + certa);
           const td = await esperar(() => [...modal.querySelectorAll('td')].filter(vis).find(x => tx(x) === certa), 10000);
