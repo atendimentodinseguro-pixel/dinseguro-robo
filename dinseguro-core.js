@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.09';
+  const VERSAO = '4.10';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -766,8 +766,12 @@
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
       const c = classificar(); if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); gravaRG(r); desenharRegua(); }
     }
+    // 4.10 — o mapeamento NÃO pode brigar com o vigia (10/11 17:52: trocava de chat enquanto o vigia atendia).
+    // O vigia marca  dins_vigia_ocupado  e o mapeamento usa a própria marca  dins_mapeando  (não apaga a do vigia).
+    const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
     async function mapearUm(id) {
-      localStorage.setItem('dins_vigia_ocupado', Date.now());
+      if (vigiaTrabalhando()) return false;
+      localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
       if (!telaPronta(id)) return false;
@@ -782,8 +786,8 @@
       arq: /ARCHIVED|Arquivad/i.test(ci.innerText) })).filter(x => x.id && !x.arq).map(x => x.id);
     window.dinsReguaMapear = async () => {
       let n = 0;
-      for (const id of idsDaLista()) { if (RG()[id] && RG()[id].estado !== 'fechada') continue; if (await mapearUm(id)) n++; }
-      localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua();
+      for (const id of idsDaLista()) { if (RG()[id] && RG()[id].estado !== 'fechada') continue; if (vigiaTrabalhando()) break; if (await mapearUm(id)) n++; }   // 4.10: para se o vigia começar a trabalhar
+      localStorage.setItem('dins_mapeando', 0); desenharRegua();
       log && log('Mapeamento: ' + n + ' conversas entraram no quadro.', 'ok');
       return n;
     };
@@ -794,7 +798,7 @@
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada'); if (!novo) return;
-      mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); } finally { mapeando = false; }
+      mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 60000);
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
     setInterval(() => {
@@ -829,7 +833,7 @@
     // conversa aberta (por qualquer um): atualiza a situação dela no quadro
     setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (h && document.querySelector('.entries')) { try { reclassificar(h); } catch (e) {} } }, 20000);
     // reavaliar do zero: apaga e mapeia de novo (lendo o que já foi feito na conversa)
-    window.dinsReguaReavaliar = async hash => { const r = RG(); delete r[hash]; gravaRG(r); const ok = await mapearUm(hash); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); return ok && RG()[hash]; };
+    window.dinsReguaReavaliar = async hash => { const r = RG(); delete r[hash]; gravaRG(r); localStorage.setItem('dins_vigia_ocupado', 0); const ok = await mapearUm(hash); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); return ok && RG()[hash]; };
     // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
