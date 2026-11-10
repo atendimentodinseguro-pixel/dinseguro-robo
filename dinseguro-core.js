@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '3.94';
+  const VERSAO = '3.95';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -627,7 +627,7 @@
         if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
-        try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); } catch (e) {}
+        try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
@@ -700,22 +700,75 @@
     window.dinsReguaResumo = (hash, texto) => { const r = RG(), x = r[hash]; if (!x) return false; x.resumo = String(texto || '').slice(0, 220); x.hist.push(hhmm(Date.now()) + ' resumo: ' + x.resumo); gravaRG(r); desenharRegua(); return true; };
     // cliente com atendente humano: fica no quadro, o robô não manda nada. dinsReguaHumano('HASH', 'Stefany', 'resumo')
     window.dinsReguaHumano = (hash, quem, texto) => { const r = RG(); let x = r[hash]; if (!x) { window.dinsLinkEnviado(hash, '', Date.now(), '', ''); return window.dinsReguaHumano(hash, quem, texto); } x.estado = 'humano'; x.motivo = 'com ' + quem + ' — robô não manda nada'; if (texto) x.resumo = String(texto).slice(0, 220); x.hist.push(hhmm(Date.now()) + ' humano: ' + quem); gravaRG(r); desenharRegua(); return true; };
-    // MAPEAR: abre cada conversa da lista da esquerda que ainda não está no quadro e deixa o detector registrar o link
+    // 3.95 — TODA conversa da janela de 24h entra no quadro (Stefany 10/11 15:14: "não vai entrar só em quem tem link…
+    // ele tem que estar lá e tem que estar mensurado… a gente fez as tentativas que cabia para ele").
+    // Sem link: entra como 'acompanhando' com a situação lida da conversa (tags, quem falou por último, atendente).
+    function classificar() {
+      const T = document.body.innerText;
+      const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
+      const tem = re => tags.some(t => re.test(t));
+      const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
+      if (hum) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — robô não manda nada' };
+      if (tem(/^01 D/i)) return { estado: 'acompanhando', motivo: 'fechou negócio (01 D) — acompanhar o banco' };
+      if (tem(/^01 (I|k)/i)) return { estado: 'encerrado', motivo: 'sem margem — retorno dado' };
+      if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
+      if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
+      if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
+      if (clienteRespondeu()) return { estado: 'alerta', motivo: 'cliente esperando resposta' };
+      if (tem(/^01 A/i)) return { estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' };
+      if (tem(/^01 C/i)) return { estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' };
+      const fim = (document.querySelector('.entries') || {}).innerText || '';
+      if (/Enviado pelo credsegurobank[\s\S]{0,1500}$/.test(fim.slice(-1600))) return { estado: 'acompanhando', motivo: 'no bot (autoatendimento)' };
+      return { estado: 'acompanhando', motivo: 'última mensagem é nossa — aguardando o cliente' };
+    }
+    function registrarSemLink(hash) {
+      const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
+      const c = classificar();
+      r[hash] = { hash, fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
+        estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
+      gravaRG(r); return true;
+    }
+    function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
+      const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
+      const c = classificar(); if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); gravaRG(r); desenharRegua(); }
+    }
+    async function mapearUm(id) {
+      localStorage.setItem('dins_vigia_ocupado', Date.now());
+      window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 5000));
+      if (window.top.location.hash !== '#/chats/' + id || !document.querySelector('.entries')) return false;
+      try { detectarLink(); } catch (e) {}
+      const x = RG()[id];
+      if (x) { const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano') window.dinsReguaHumano(id, m[1].trim()); }
+      else registrarSemLink(id);
+      return true;
+    }
+    const idsDaLista = () => [...document.querySelectorAll('.customer-item')].map(ci => ({ id: (ci.parentElement || {}).id,
+      arq: /ARCHIVED|Arquivad/i.test(ci.innerText) })).filter(x => x.id && !x.arq).map(x => x.id);
     window.dinsReguaMapear = async () => {
-      const ids = [...document.querySelectorAll('.customer-item')].map(ci => ({ id: (ci.parentElement || {}).id, chip: [...ci.querySelectorAll('.MuiChip-label')].map(c => c.textContent).join(',') })).filter(x => x.id);
-      const r0 = RG(); let n = 0;
-      for (const it of ids) {
-        if (r0[it.id]) continue;
-        localStorage.setItem('dins_vigia_ocupado', Date.now());
-        window.top.location.hash = '#/chats/' + it.id; await new Promise(s => setTimeout(s, 5000));
-        try { detectarLink(); } catch (e) {}
-        const x = RG()[it.id];
-        if (x) { n++; const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m) window.dinsReguaHumano(it.id, m[1].trim()); }
-      }
-      localStorage.setItem('dins_vigia_ocupado', 0);
-      log && log('Mapeamento: ' + n + ' conversas com link entraram no quadro.', 'ok');
+      let n = 0;
+      for (const id of idsDaLista()) { if (RG()[id] && RG()[id].estado !== 'fechada') continue; if (await mapearUm(id)) n++; }
+      localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua();
+      log && log('Mapeamento: ' + n + ' conversas entraram no quadro.', 'ok');
       return n;
     };
+    // daqui em diante sozinho: conversa nova na lista entra no quadro (uma por minuto, só com a tela livre)
+    let mapeando = false;
+    setInterval(async () => {
+      if (mapeando || rodando || fupRodando) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
+      const novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada'); if (!novo) return;
+      mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_vigia_ocupado', 0); desenharRegua(); } finally { mapeando = false; }
+    }, 60000);
+    // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
+    setInterval(() => {
+      const arq = [...document.querySelectorAll('.customer-item')].filter(ci => /ARCHIVED|Arquivad/i.test(ci.innerText)).map(ci => (ci.parentElement || {}).id).filter(Boolean);
+      if (!arq.length) return; const r = RG(); let mudou = false;
+      arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
+      if (mudou) { gravaRG(r); desenharRegua(); }
+    }, 30000);
+    // conversa aberta (por qualquer um): atualiza a situação dela no quadro
+    setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (h && document.querySelector('.entries')) { try { reclassificar(h); } catch (e) {} } }, 20000);
     // colocar em dia: um toque pulado/atrasado sai agora (Stefany 10/11 15:06) — dinsReguaAgora('HASH', '10'|'60'|'manha')
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
@@ -846,8 +899,9 @@
     function desenharRegua() {
       let top; try { top = window.top.document; } catch (e) { return; }
       const r = RG(); const agora = Date.now();
-      const lista = Object.values(r).filter(x => x.estado !== 'cancelada' && x.estado !== 'concluída' && (agora - x.linkT < 48 * H || x.estado === 'humano'))
-        .sort((a, b) => a.linkT - b.linkT);
+      const ordem = { erro: 0, bloqueada: 0, alerta: 1, humano: 2, ativa: 3, acompanhando: 4, pausada: 5, esgotada: 6, 'concluída': 7, encerrado: 8, cancelada: 9 };
+      const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
+        .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
       let q = top.getElementById('dins-regua');
       if (!q) {
         q = top.createElement('div'); q.id = 'dins-regua';
@@ -860,16 +914,16 @@
         });
       }
       const atras = x => x.estado === 'ativa' && x.toques.some(k => !k.feito && k.quando < agora - 5 * M && dentroDoHorario(agora));
-      const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x)).length;
-      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
+      const nAlerta = lista.filter(x => x.estado === 'erro' || x.estado === 'bloqueada' || x.estado === 'alerta' || atras(x)).length;
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>`;
       if (q.dataset.min === '1') { q.innerHTML = cab; return; }
-      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : x.estado === 'humano' ? '#fbbf24' : '#94a3b8';
+      const cor = x => x.estado === 'erro' || x.estado === 'bloqueada' || x.estado === 'alerta' || atras(x) ? '#f87171' : x.estado === 'ativa' ? '#86efac' : x.estado === 'humano' ? '#fbbf24' : x.estado === 'acompanhando' ? '#93c5fd' : '#94a3b8';
       q.innerHTML = cab + lista.map(x => {
         const prox = x.toques.find(k => !k.feito); const ult = [...x.toques].reverse().find(k => k.feito);
-        const txtEst = x.estado === 'ativa' ? (prox ? 'próximo: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—') : x.estado + (x.motivo ? ' · ' + x.motivo : '');
+        const txtEst = x.semLink ? (x.motivo || x.estado) : x.estado === 'ativa' ? (prox ? 'próximo: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—') : x.estado + (x.motivo ? ' · ' + x.motivo : '');
         return `<div style="margin-top:5px;border-top:1px solid #334155;padding-top:4px">
           <span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline;color:${cor(x)}">${(x.nome || x.hash.slice(0, 6))}</span>
-          <span style="color:#94a3b8"> · link ${hhmm(x.linkT)}</span><br>
+          <span style="color:#94a3b8"> · ${x.semLink ? 'sem link' : 'link ' + hhmm(x.linkT)}</span><br>
           <span style="color:${cor(x)}">${txtEst}</span>${ult ? '<span style="color:#94a3b8"> · último: ' + ult.tipo + ' ' + ult.st + '</span>' : ''}${x.resumo ? '<br><span style="color:#cbd5e1;font-style:italic">' + x.resumo.replace(/</g, '&lt;') + '</span>' : ''}</div>`;
       }).join('');
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
