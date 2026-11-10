@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.03';
+  const VERSAO = '4.04';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -127,7 +127,19 @@
     return `⛔ BANCO ERRADO: a ficha é para ${dest} (espécie ${f.especie || '?'}, ${f.idade || '?'} anos) e esta tela é ${aqui}. ` +
       `Invalidez: ≤39 C6 · 40–52 QUERO MAIS (reserva Daycoval) · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não digitar aqui sem ordem da Stefany.`;
   }
-  const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'email',
+  // 4.04 — TRAVA DO TELEFONE (Stefany 10/11 16:28, caso Vilson: "Você digitou Wilson no quali com o telefone errado. E isso não pode acontecer").
+  // O telefone da proposta é SEMPRE o WhatsApp do atendimento (o número do chat do Botmaker), nunca o do cadastro do Multicorban.
+  // O robô do Botmaker guarda CPF → WhatsApp de cada chat aberto (GM 'zap_por_cpf'); a ficha puxa dali e marca telefone_origem.
+  // Sem essa marca, NADA é digitado. Exceção à mão: escrever na ficha  telefone_origem: WhatsApp (conferido pelo vigia)
+  const zapDoCpf = cpf => { const c = String(cpf || '').replace(/\D/g, ''); const z = (GM_getValue('zap_por_cpf', {}) || {})[c]; return z && z.fone ? String(z.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '') : ''; };
+  function telefoneErrado(f) {
+    const t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+    if (!/^WhatsApp/i.test(String(f.telefone_origem || ''))) return '⛔ TELEFONE NÃO CONFERIDO: o telefone da proposta tem que ser o WhatsApp do cliente (o do chat do Botmaker), não o do cadastro. Abra o chat dele no Botmaker, gere a ficha de novo, ou escreva o WhatsApp na ficha com a linha  telefone_origem: WhatsApp (conferido pelo vigia).';
+    if (t.length < 10) return '⛔ Falta o telefone (WhatsApp do cliente) na ficha.';
+    const z = zapDoCpf(f.cpf); if (z && z !== t) return `⛔ TELEFONE DIFERENTE DO WHATSAPP: a ficha tem ${t} e o chat do Botmaker deste CPF é ${z}. Corrija a ficha.`;
+    return '';
+  }
+  const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'telefone_origem', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
     'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany'];
@@ -843,6 +855,21 @@
       gravaRG(r2); desenharRegua();
     }
     setInterval(detectarLink, 15000);
+    // 4.04 — CPF → WhatsApp: em cada chat aberto (tela parada), guarda os CPFs válidos da conversa com o telefone do chat.
+    // A ficha do Multicorban usa isso para o telefone da proposta (caso Vilson 10/11 16:28).
+    const cpfOk = c => { if (c.length !== 11 || /^(\d)\1+$/.test(c) || c === '10123456789') return false; let q = 0; for (let i = 0; i < 9; i++) q += +c[i] * (10 - i); let d = (q * 10) % 11 % 10; if (d !== +c[9]) return false; q = 0; for (let i = 0; i < 10; i++) q += +c[i] * (11 - i); d = (q * 10) % 11 % 10; return d === +c[10]; };
+    setInterval(() => {
+      try {
+        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || !telaPronta(h)) return;
+        const fone = foneDoContato(); if (!fone) return;
+        const txt = document.body.innerText;
+        const achados = [...new Set([...(txt.match(/(?<![\d.])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![\d-])/g) || [])].map(z => z.replace(/\D/g, '')).filter(cpfOk))];
+        if (!achados.length) return;
+        const m = GM_getValue('zap_por_cpf', {}) || {}; let mudou = false;
+        achados.forEach(c => { if (!m[c] || m[c].fone !== fone || Date.now() - m[c].t > 3600e3) { m[c] = { fone, hash: h, t: Date.now() }; mudou = true; } });
+        if (mudou) { const ks = Object.keys(m).sort((a, b) => m[b].t - m[a].t); ks.slice(400).forEach(k => delete m[k]); GM_setValue('zap_por_cpf', m); }
+      } catch (e) {}
+    }, 15000);
     // 3.99 — HELPERS DO VIGIA moram no robô (não precisa mais colar o arquivo a cada recarga — economia de tokens).
     // Ficam na janela de cima: __tail, __chat, __cpfs, __ok, __envia, __enviaForca, __tags, __notaPos, __tagPos, __notaFill,
     // __fila, __regua, __escolhaValor, __ocupado. A trava dos 90 dias continua dentro do envio.
@@ -1721,7 +1748,7 @@
       const nasc = document.querySelector('input[formcontrolname=dataNascimento]');
       if (nasc && !so(nasc.value)) { if (!f.nascimento) throw new Error('Falta data de nascimento na ficha'); await digitar(nasc, so(f.nascimento)); }
       const cel = document.querySelector('input[formcontrolname=nroTelefoneCelular]');
-      if (cel && so(cel.value).length < 10) { const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length < 10) throw new Error('Falta telefone (celular) na ficha'); await digitar(cel, t); }
+      if (cel) { const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length < 10) throw new Error('Falta telefone (celular) na ficha'); if (so(cel.value) !== t) await digitar(cel, t); }   // 4.04: troca o celular que o portal trouxe do cadastro
       log('Dados do cliente ok.');
       const achaCard = () => [...document.querySelectorAll('a')].find(a => vis(a) && new RegExp('Matr[íi]cula ' + f.beneficio).test(tx(a)));
       if (!achaCard()) {
@@ -1979,6 +2006,7 @@
       try {
         if (a === 'Digitar' || a === 'Fazer tudo') {
           { const t = bancoErrado(f, QM ? 'queromais' : 'daycoval'); if (t) throw new Error(t); }
+          { const t = telefoneErrado(f); if (t) throw new Error(t); }
           const pg = location.pathname;
           if (/dados-cliente/.test(pg)) await cadastrais(f);
           else if (!/dados-complementares|resumo|formalizacao/.test(pg)) { await simular(f); await cadastrais(f); }
@@ -2124,7 +2152,7 @@
       if (cn && !cn.value) { if (cn.getAttribute('role') === 'combobox') await combo(/^Cidade de nascimento$/, f.cidade || '', new RegExp('^' + (f.cidade || 'x') + '$', 'i')); else await digitar(cn, f.cidade || ''); }
       await combo(/^Estado civil$/, 'SOLT', /^SOLTEIRO$/);
       const cel = campo(/^Celular$/); const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
-      if (cel && so(cel.value).length < 10) { if (t.length < 10) throw new Error('Falta celular na ficha'); await digitar(cel, t); await sleep(1500); }
+      if (cel && so(cel.value) !== t) { if (t.length < 10) throw new Error('Falta celular na ficha'); await digitar(cel, t); await sleep(1500); }   // 4.04
       // v3.16: BMG não aceita o mesmo e-mail em CPFs diferentes → naoinformado1@, 2@, 3@… (sequência)
       const em = campo(/^Email$/); if (em && !em.value) { let mail = f.email; if (!mail || /^naoinformado@/i.test(mail)) { const n = GM_getValue('email_seq', 1); mail = 'naoinformado' + n + '@gmail.com'; GM_setValue('email_seq', n + 1); log('E-mail usado: ' + mail); } await digitar(em, mail); }
       await combo(/^Grau de instrução$/, 'NAO', /N[ÃA]O DECLARADO/);
@@ -2406,7 +2434,10 @@
         f.pensao        = depois('Pens[ãa]o Aliment[íi]cia');
         f.representante = depois('Possui Representante');
         f.rep_dados     = depois('Dados do Representante Legal', 4).join(' | ');
-        if (!f.telefone) f.telefone = so(depois('Telefone\\(s\\) do Benefici[áa]rio'));
+        // 4.04 — telefone = WhatsApp do chat (Botmaker). O do cadastro do Multicorban NÃO vale (caso Vilson).
+        { const zap = zapDoCpf(f.cpf);
+          if (zap) { f.telefone = zap; f.telefone_origem = 'WhatsApp do chat (Botmaker)'; }
+          else { f.telefone = ''; f.telefone_origem = 'FALTA — abra o chat do cliente no Botmaker e gere a ficha de novo (o telefone do cadastro não vale)'; } }
         // ---- conta: HIERARQUIA da Stefany (07/11/2026) ----
         // Onde procurar a conta, nesta ordem. A primeira que tiver, manda.
         //   1. CONSULTA FLASH — é a principal.
@@ -2518,7 +2549,9 @@
           if (h >= 8 && h < 18) log(`DDB há ${Math.floor(dias)} dias: confirme a margem no OnlineFlash (8h–18h).`);
           else log(`DDB há ${Math.floor(dias)} dias, mas OnlineFlash só 8h–18h: seguir com a consulta normal.`);
         }
-        log('Complete telefone, e-mail e endereço (se o cliente mandou) e clique Salvar ficha.');
+        if (/^WhatsApp/i.test(f.telefone_origem || '')) log('Telefone: WhatsApp do chat do Botmaker (' + f.telefone + ').', 'ok');
+        else log('⛔ Telefone: não achei o WhatsApp deste CPF no Botmaker. Abra o chat do cliente (com o CPF na conversa) e gere a ficha de novo. Sem isso a digitação não anda.', 'erro');
+        log('Complete e-mail e endereço (se o cliente mandou) e clique Salvar ficha.');
       }
     }
 
@@ -2867,6 +2900,7 @@
         if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
         { const t = bancoErrado(f, pagina); if (t) return log(t, 'erro'); }
+        { const t = telefoneErrado(f); if (t) return log(t, 'erro'); }
         e.target.disabled = true;
         await autoComplete(f);
         await simular(f);
@@ -2879,6 +2913,7 @@
       if (a === 'Gravar') {
         const f = ta.dataset.ficha ? JSON.parse(ta.dataset.ficha) : textoParaFicha(ta.value);
         { const t = bancoErrado(f, pagina); if (t) return log(t, 'erro'); }
+        { const t = telefoneErrado(f); if (t) return log(t, 'erro'); }
         e.target.disabled = true;
         await gravarELink(f);
         e.target.disabled = false;
