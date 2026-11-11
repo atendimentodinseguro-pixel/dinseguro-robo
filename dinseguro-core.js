@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.23';
+  const VERSAO = '4.24';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -280,6 +280,18 @@
         if (!ta) throw new Error('a ficha não foi gerada');
         await zz(1500);
         const ficha = textoParaFicha(ta.value);
+        if (o.tipo === 'cpf') {   // 4.24: só a consulta do CPF (não digita)
+          const num = t => { const n = parseFloat(String(t || '').replace(/[^\d,\-]/g, '').replace(',', '.')); return isNaN(n) ? null : n; };
+          const mg = num(ficha.margem), mot = (ficha.recusa || '').split('|')[0];
+          const resumo = 'esp ' + (ficha.especie || '?') + ', ' + (ficha.idade || '?') + 'a, margem R$ ' + (ficha.margem || '?');
+          let acao = '';
+          if (mot === 'SEM_MARGEM' && mg != null && mg < 20) acao = 'sem_margem';
+          else if (mot === 'LOAS' && mg != null && mg < 20) acao = 'loas_sem';
+          if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
+          else if (!mot) { const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo }); }
+          else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
+          return;
+        }
         if ((ficha.recusa || '').trim()) throw new Error('recusa na ficha: ' + ficha.recusa);
         const valorTxt = brl(o.valor);
         ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + valorTxt) : ta.value + '\nvalor: ' + valorTxt;
@@ -426,6 +438,10 @@
         let peloQuadro = false;
         if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF/.test(q.motivo || ''); } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
+        // 4.24 (Stefany 11/11 08:17, caso Nila "Obgd"): só agradeceu/confirmou ("ok", "obrigado", "blz", 👍) → não entra na fila,
+        // a não ser que o quadro (que leu a conversa inteira) tenha marcado vermelho (ex.: "ok" depois de "já te passo o valor").
+        try { const q2 = (GM_getValue('regua', {}) || {})[x.id];
+          if (/^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]|muito))*[\s.!,👍🙏😊❤️]*$/i.test(String(x.msg || '').trim()) && !(q2 && q2.estado === 'alerta')) continue; } catch (e) {}
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
       }
@@ -773,6 +789,7 @@
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } };
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         await abrir(o.hash);                               passos.push('abriu');
+        if (o.linha && !o.linhaFeita) { passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (!o.msgFeita) {
           if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
           else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
@@ -797,6 +814,28 @@
       } finally { rodando = false; }
     }
     setInterval(olharOrdem, 3000);
+    // 4.24 — desfecho automático do CPF sem margem (ordem do Multicorban em GM auto_ordens, estado 'desfecho').
+    // Só com a tela livre: sem dins_ordem na fila, vigia parado há 2 min, nenhum desfecho rodando.
+    const LINHA_SEM_MARGEM = n => 'Obrigado por mandar' + (n ? ', ' + n : '') + ' 🙏 Já consultei aqui com calma. No momento o seu benefício está sem margem disponível para um novo empréstimo, então infelizmente não conseguimos fazer uma proposta agora. Fique tranquilo(a): não foi feito nada no seu nome. Te explico abaixo 👇';
+    const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
+    setInterval(() => {
+      try {
+        if (rodando || localStorage.getItem('dins_ordem')) return;
+        if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
+        const O = GM_getValue('auto_ordens', {}) || {};
+        const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
+        let mud = false;
+        for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
+        const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
+        if (o) {
+          const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)) }));
+          o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
+        }
+        if (mud) GM_setValue('auto_ordens', O);
+      } catch (e) {}
+    }, 10000);
 
     // ---------------------------------------------------------------------
     // 3.90 — RÉGUA PÓS-LINK (Stefany, 10/11/2026 14:59: "aprovado o novo robô").
@@ -841,6 +880,14 @@
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
+    // 4.24 — AVERBE JA automático no Autorizador do C6, SÓ para quem a Stefany/vigia colocar na lista (Stefany 11/11 08:17:
+    // "pode ser que o cliente está no AVERBE JA mas ainda não desbloqueou… não é todos").
+    // dinsAverbar('NOME COMPLETO COMO NO C6', true|false)  ·  dinsAverbarVer()
+    window.dinsAverbar = (nome, on = true) => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (!k) return false;
+      if (on) A[k] = Object.assign(A[k] || {}, { ativo: true, desde: (A[k] && A[k].desde) || Date.now(), ultT: 0, avisado: false }); else if (A[k]) A[k].ativo = false;
+      GM_setValue('averbar', A); return A[k]; };
+    window.dinsAverbarVer = () => GM_getValue('averbar', {});
+    window.dinsAverbarAvisado = nome => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (A[k]) { A[k].avisado = true; GM_setValue('averbar', A); } return !!A[k]; };
     window.dinsAutoFeito = (h, nota) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; O[h].estado = 'feito'; O[h].nota = nota || ''; GM_setValue('auto_ordens', O); return true; };
     window.dinsAutoTeste = (cpf, valor, nome) => { const O = GM_getValue('auto_ordens', {}) || {}; const h = 'TESTE_' + String(cpf).replace(/\D/g, ''); O[h] = { hash: h, nome: (nome || 'TESTE') + ' (teste)', cpf: String(cpf).replace(/\D/g, ''), valor: +valor, aceite: false, estado: 'nova', t: Date.now(), teste: true, hist: [hhmm(Date.now()) + ' ordem de TESTE'] }; GM_setValue('auto_ordens', O); return h; };
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
@@ -911,7 +958,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null } : {};
+      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '' } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -953,13 +1000,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
@@ -1258,8 +1305,9 @@
       const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/;
       const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
+      const cpfSem = cpfSemRespT ? (ms[iCpf].raw.match(CPF_RE)[0] || '').replace(/\D/g, '') : '';   // 4.24: o robô consulta sozinho
       const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT };
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
@@ -1475,6 +1523,14 @@
           O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: ci.cpf, valor: ci.valor, aceite: !!ci.aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (contorno ' + hhmm(x.contornoT) + ')'] };
           mudouO = true;
         }
+        // 4.24 (Stefany 11/11 08:17 "a 1 é fantástico, vamos aplicar"): CPF mandado sem resposta → o robô consulta sozinho no Multicorban.
+        // Sem margem (margem < R$ 20, INSS ou LOAS) → linha cordial + /n30 + tag + nota + fechar, sem o vigia. O resto fica para o vigia.
+        for (const x of lista) {
+          if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 3 * H) continue;
+          const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
+          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
+          mudouO = true;
+        }
         if (mudouO) GM_setValue('auto_ordens', O);
       } catch (e) {}
       const grupos = {}; lista.forEach(x => (grupos[bloco(x)] = grupos[bloco(x)] || []).push(x));
@@ -1486,6 +1542,12 @@
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
         const ao = (GM_getValue('auto_ordens', {}) || {})[x.hash];
+        if (ao && x.semLink && ao.tipo === 'cpf') {
+          if (ao.estado === 'com_margem') return '🤖 CPF consultado: COM margem (' + (ao.resumo || '') + ') → VIGIA: simular e mandar o link';
+          if (ao.estado === 'erro') return '🤖 CPF: ' + ao.erro + ' → fazer à mão';
+          if (/desfecho/.test(ao.estado)) return '🤖 sem margem → robô mandando linha cordial + /n30 e fechando';
+          return '🤖 CPF: robô ' + ({ nova: 'vai consultar', consultando: 'consultando no Multicorban' }[ao.estado] || ao.estado);
+        }
         if (ao && x.semLink) {
           if (ao.estado === 'pronto') return '🤖 contorno digitado: ' + ao.banco + ' R$ ' + ao.liberado + ' → VIGIA: Gravar + ' + (ao.aceite ? 'linha curta + /bn54n' : 'simulação 1/2 + /parabens');
           if (ao.estado === 'erro') return '🤖 contorno: ' + ao.erro + ' → fazer à mão';
@@ -1496,7 +1558,7 @@
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
         if (x.junto) return (['alerta', 'erro'].includes(x.estado) ? (x.motivo || x.estado) + ' · ⚠ ' : '') + x.junto;
         if (x.comQuem && x.ultLado !== 'cli' && x.semLink) return 'com ' + x.comQuem + ' — mensagem dele(a) é a última';
-        if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? 'amanhã 08:00' : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
+        if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? (new Date(prox.quando).toDateString() === new Date().toDateString() ? 'hoje 08:00' : 'amanhã 08:00') : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
         if (atras(x)) return 'toque atrasado';
         return (x.semLink ? '' : x.estado + ' · ') + (x.motivo || x.estado);
       };
@@ -3474,6 +3536,57 @@
   //   5. Respeita o mesmo horário da varredura (dia útil, 8h às 16h).
   //   6. `wa_bloqueados` nunca recebem nada (hash do Botmaker).
   // ===========================================================================
+  // ================================================================== 4.24 C6 AUTORIZADOR — AVERBE JA AUTOMÁTICO (lista manual)
+  // Só clica para os nomes em GM 'averbar' (ativo). De 10 em 10 min por nome: Pesquisar por Nome Cliente → se a ATIVIDADE é
+  // "AVERBE JA", clica nela → pesquisa de novo e grava o resultado. Saiu de AVERBE JA (anuência, averbada, outra) → para e marca
+  // para o vigia avisar/mandar a anuência. ⛔ Nunca clica em Cancelar/Reprova nem em nada além do link "AVERBE JA" da linha do cliente.
+  if (location.host === 'c6.c6consig.com.br' && window.top === window) {
+    const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+    try { W.confirm = () => true; W.alert = () => {}; } catch (e) {}
+    const A = () => GM_getValue('averbar', {}) || {};
+    const poe = (k, mud) => { const a = A(); if (!a[k]) return; Object.assign(a[k], mud); GM_setValue('averbar', a); };
+    const ST = () => { try { return JSON.parse(sessionStorage.getItem('dins_av') || 'null'); } catch (e) { return null; } };
+    const setST = v => v ? sessionStorage.setItem('dins_av', JSON.stringify(v)) : sessionStorage.removeItem('dins_av');
+    const linhaDe = nome => { const g = document.querySelector('#ctl00_Cph_AprCons_grdConsulta'); if (!g) return null;
+      const rows = [...g.querySelectorAll('tr')]; const head = rows[0] ? [...rows[0].children].map(c => c.innerText.trim().toUpperCase()) : [];
+      const iA = head.findIndex(h => h === 'ATIVIDADE'); const iS = head.findIndex(h => /^SITUA/.test(h));
+      const r = rows.slice(1).find(tr => tr.innerText.toUpperCase().includes(nome)); if (!r) return { achou: false };
+      const c = [...r.children]; return { achou: true, r, ativ: iA >= 0 && c[iA] ? c[iA].innerText.trim() : '', sit: iS >= 0 && c[iS] ? c[iS].innerText.trim() : '',
+        link: [...r.querySelectorAll('a')].find(a => /^AVERBE JA$/i.test(a.innerText.trim())) }; };
+    const tick = () => {
+      try {
+        try { W.confirm = () => true; W.alert = () => {}; } catch (e) {}
+        const a = A(); const ativos = Object.keys(a).filter(k => a[k].ativo); let st = ST();
+        if (st && Date.now() - st.t > 3 * 60000) { setST(null); st = null; }
+        if (!ativos.length && !st) return;
+        const naTela = /AprovacaoConsulta/i.test(location.pathname);
+        const devido = ativos.find(k => Date.now() - (a[k].ultT || 0) >= 10 * 60000);
+        if (!naTela) { if (!st && !devido) return; const l = [...document.querySelectorAll('a')].find(x => /Aprova[çc][ãa]o \/ Consulta/i.test(x.innerText));
+          if (l) location.href = l.href; else if (/login|Login/i.test(document.body.innerText.slice(0, 500)) || document.querySelector('input[type=password]')) { ativos.forEach(k => poe(k, { erro: 'Autorizador pedindo login' })); }
+          return; }
+        const sel = document.querySelector('#ctl00_Cph_AprCons_cbxPesquisaPor_CAMPO'), txt = document.querySelector('#ctl00_Cph_AprCons_txtPesquisa_CAMPO'), bt = document.querySelector('#btnPesquisar_txt');
+        if (!sel || !txt || !bt) return;
+        const pesquisar = nome => { if (sel.value !== 'Nome Cliente') { sel.value = 'Nome Cliente'; sel.dispatchEvent(new Event('change', { bubbles: true })); return; } txt.value = nome; setTimeout(() => bt.click(), 300); };
+        if (!st) { if (!devido) return; setST({ nome: devido, fase: 'busca', t: Date.now() }); pesquisar(devido); return; }
+        const L = linhaDe(st.nome);
+        if (st.fase === 'busca') {
+          if (!L || txt.value.trim().toUpperCase() !== st.nome) { pesquisar(st.nome); return; }
+          if (!L.achou) { poe(st.nome, { ultT: Date.now(), res: 'não achei a proposta pelo nome', resT: Date.now() }); setST(null); return; }
+          if (L.link) { setST({ nome: st.nome, fase: 'clicou', t: Date.now(), antes: L.ativ }); const lk = L.link; setTimeout(() => lk.click(), 300); return; }
+          poe(st.nome, { ultT: Date.now(), res: L.ativ || L.sit, resT: Date.now(), ativo: false, avisado: false }); setST(null); return;
+        }
+        if (st.fase === 'clicou') { setST({ nome: st.nome, fase: 'conf', t: Date.now() }); pesquisar(st.nome); return; }
+        if (st.fase === 'conf') {
+          if (!L || !L.achou) { pesquisar(st.nome); return; }
+          const aindaAverbe = /^AVERBE JA$/i.test((L.ativ || '').trim());
+          const x = A()[st.nome] || {}; poe(st.nome, { ultT: Date.now(), tent: (x.tent || 0) + 1, res: L.ativ || L.sit, resT: Date.now(), ativo: aindaAverbe ? true : false, avisado: aindaAverbe ? x.avisado : false });
+          setST(null); return;
+        }
+      } catch (e) {}
+    };
+    setInterval(tick, 20000); setTimeout(tick, 6000);
+  }
+
   if (location.host === 'web.whatsapp.com') {
     const WA_MAX_RODADA = 10;
     const esp = ms => new Promise(r => setTimeout(r, ms));
