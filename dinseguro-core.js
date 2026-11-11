@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.59';
+  const VERSAO = '4.60';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -633,6 +633,7 @@
     const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
     async function respostaRapida(atalho, editar, semRegua, prefixo) {
+      const hashRR0 = window.top.location.hash;   // 4.60
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
@@ -655,6 +656,7 @@
         let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
         ta2.focus(); setNativo(ta2, v); await esp(600);
       }
+      if (window.top.location.hash !== hashRR0 || vigiaTrava()) { setNativo(document.querySelector('textarea'), ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }   // 4.60
       const valorEnviado = document.querySelector('textarea').value;
       const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
@@ -680,7 +682,11 @@
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
+      // 4.60 (13:22: "Josias, tudo bem?" saiu no chat da Lu): confere que a tela NÃO mudou de chat entre digitar e enviar,
+      // e que o vigia não pegou a tela nesse meio-tempo.
+      const hash0 = window.top.location.hash, nome0 = nomeDoContato();
       ta.focus(); setNativo(ta, texto); await esp(800);
+      if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || vigiaTrava()) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
@@ -1858,6 +1864,9 @@
         if (alvo.tipo === 'lembrete' && L && L.ult && L.ult.lado === 'cli' && !DEPOIS.test(L.ult.txt || '')) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // falou outra coisa depois: é atendimento
         const r = RG(); const temLink = r[alvo.hash] && r[alvo.hash].link && !r[alvo.hash].semLink;
         const n = nomeSeguro(alvo.nome);
+        // 4.60: o nome do chat aberto tem que ser o do registro (Josias ≠ Lu Andrade)
+        { const nt = (nomeDoContato() || '').trim().toLowerCase(), na = (alvo.nome || '').trim().toLowerCase();
+          if (na && nt && nt.split(' ')[0] !== na.split(' ')[0]) throw new Error('nome do chat (' + nt + ') não é o do registro (' + na + ')'); }
         const f = (TXT_ESP[alvo.tipo] || {})[toque.q]; if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
         await mensagemLivre(f(n, temLink));
         marcaQ({ feito: Date.now() }, 'enviado ' + hhmm(Date.now()));
