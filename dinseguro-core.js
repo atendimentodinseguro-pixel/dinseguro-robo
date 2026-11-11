@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.24';
+  const VERSAO = '4.25';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -883,8 +883,9 @@
     // 4.24 — AVERBE JA automático no Autorizador do C6, SÓ para quem a Stefany/vigia colocar na lista (Stefany 11/11 08:17:
     // "pode ser que o cliente está no AVERBE JA mas ainda não desbloqueou… não é todos").
     // dinsAverbar('NOME COMPLETO COMO NO C6', true|false)  ·  dinsAverbarVer()
-    window.dinsAverbar = (nome, on = true) => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (!k) return false;
-      if (on) A[k] = Object.assign(A[k] || {}, { ativo: true, desde: (A[k] && A[k].desde) || Date.now(), ultT: 0, avisado: false }); else if (A[k]) A[k].ativo = false;
+    // 4.25 (Stefany 11/11 08:23): o padrão é entrar na lista SÓ quando o cliente disser que fez o desbloqueio, e aí de 60 em 60 s até averbar.
+    window.dinsAverbar = (nome, on = true, cadaMs = 60000) => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (!k) return false;
+      if (on) A[k] = Object.assign(A[k] || {}, { ativo: true, cada: cadaMs, desde: Date.now(), ultT: 0, tent: 0, avisado: false }); else if (A[k]) A[k].ativo = false;
       GM_setValue('averbar', A); return A[k]; };
     window.dinsAverbarVer = () => GM_getValue('averbar', {});
     window.dinsAverbarAvisado = nome => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (A[k]) { A[k].avisado = true; GM_setValue('averbar', A); } return !!A[k]; };
@@ -3537,7 +3538,7 @@
   //   6. `wa_bloqueados` nunca recebem nada (hash do Botmaker).
   // ===========================================================================
   // ================================================================== 4.24 C6 AUTORIZADOR — AVERBE JA AUTOMÁTICO (lista manual)
-  // Só clica para os nomes em GM 'averbar' (ativo). De 10 em 10 min por nome: Pesquisar por Nome Cliente → se a ATIVIDADE é
+  // Só clica para os nomes em GM 'averbar' (ativo). A cada `cada` ms por nome (padrão 60 s): Pesquisar por Nome Cliente → se a ATIVIDADE é
   // "AVERBE JA", clica nela → pesquisa de novo e grava o resultado. Saiu de AVERBE JA (anuência, averbada, outra) → para e marca
   // para o vigia avisar/mandar a anuência. ⛔ Nunca clica em Cancelar/Reprova nem em nada além do link "AVERBE JA" da linha do cliente.
   if (location.host === 'c6.c6consig.com.br' && window.top === window) {
@@ -3560,7 +3561,7 @@
         if (st && Date.now() - st.t > 3 * 60000) { setST(null); st = null; }
         if (!ativos.length && !st) return;
         const naTela = /AprovacaoConsulta/i.test(location.pathname);
-        const devido = ativos.find(k => Date.now() - (a[k].ultT || 0) >= 10 * 60000);
+        const devido = ativos.find(k => Date.now() - (a[k].ultT || 0) >= (a[k].cada || 60000));
         if (!naTela) { if (!st && !devido) return; const l = [...document.querySelectorAll('a')].find(x => /Aprova[çc][ãa]o \/ Consulta/i.test(x.innerText));
           if (l) location.href = l.href; else if (/login|Login/i.test(document.body.innerText.slice(0, 500)) || document.querySelector('input[type=password]')) { ativos.forEach(k => poe(k, { erro: 'Autorizador pedindo login' })); }
           return; }
@@ -3584,7 +3585,7 @@
         }
       } catch (e) {}
     };
-    setInterval(tick, 20000); setTimeout(tick, 6000);
+    setInterval(tick, 8000); setTimeout(tick, 5000);
   }
 
   if (location.host === 'web.whatsapp.com') {
