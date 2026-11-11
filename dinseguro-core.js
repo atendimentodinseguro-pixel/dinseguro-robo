@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.54';
+  const VERSAO = '4.55';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1583,7 +1583,8 @@
       if (vigiaTrava()) return;   // 4.54
       if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
-      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
+      // 4.55 (Waldirene 12:54: /W40 não saiu em 5 min): a varredura de janela vencida marcava "varrendo" o tempo todo e o pós-pagamento
+      // nunca tinha vez. Cliente pago vem antes da varredura — a trava de navegação (navPega) já evita as duas ao mesmo tempo.
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       if (!dentroDoHorario(Date.now())) return;
       const agora = Date.now(); let fila = [], filaT = {}; try { JSON.parse(localStorage.getItem('dins_fila') || '[]').forEach(f => { fila.push(f.id); filaT[f.id] = Date.parse(f.quando || '') || agora; }); } catch (e) {}
@@ -1692,7 +1693,7 @@
     let faseRodando = false;
     async function olharFases() {
       if (vigiaTrava()) return;   // 4.54
-      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
+      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;   // 4.55: fase da esteira também vem antes da varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
@@ -2223,7 +2224,7 @@
     }
     async function abrirHash(id) {
       for (let t = 0; t < 3; t++) {
-        while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
+        while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         window.top.location.hash = '#/chats/' + id; await esp(6000);
         for (let i = 0; i < 8 && !telaPronta(id); i++) await esp(1500);
         if (window.top.location.hash === '#/chats/' + id && document.querySelector('.entries') && telaPronta(id)) return true;
