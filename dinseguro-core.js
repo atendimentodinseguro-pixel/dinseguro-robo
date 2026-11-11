@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.61';
+  const VERSAO = '4.62';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3992,7 +3992,10 @@
       else if (vale(tela.banco)) { banco = tela.banco; agRaw = tela.agencia; contaCheia = ''; origemConta = 'New Corban, sem conta'; }
       else throw new Error('Cliente SEM BANCO: NÃO gravar. Confira o FullConsig (banco "V8" não vale). Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
       banco = banco.padStart(3, '0');
-      const agencia = agOk(agRaw);
+      let agencia = agOk(agRaw);
+      // 4.62 (Stefany 13:54, caso Mauro): no QUALIBANK a conta aleatória da Caixa vai com agência 0001 — a 3880 é recusada
+      // ("Banco da conta bancária não permitido").
+      if (pagina === 'qualibank' && banco === '104' && agencia === '3880') { agencia = '0001'; log && log('Qualibank + Caixa aleatória: agência 0001 (a 3880 o Qualibank não aceita).'); }
       let conta, dv;
       if (contaCheia) { dv = contaCheia.slice(-1); conta = contaCheia.slice(0, -1); }
       else if (so(agRaw).length >= 3 && !/^0+$/.test(so(agRaw))) {
