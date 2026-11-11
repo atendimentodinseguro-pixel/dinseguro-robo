@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.25';
+  const VERSAO = '4.26';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -617,9 +617,17 @@
       return 'fluxo ' + nome;
     }
 
+    // 4.26 (Stefany 11/11 08:30, foto do "Enviar Template do WhatsApp" abrindo sozinho no 🙂): com a janela de 24 h vencida
+    // o campo de mensagem vira o botão "Clique aqui para reabri-la usando um Template" — clicar/focar nele abre a janela de
+    // template. O robô NUNCA tenta escrever em conversa vencida: para antes, fecha a janela de template se ela abriu, e a
+    // conversa fica para a VARREDURA (follow-up pelo outro número + fechar).
+    const fecharTemplate = () => { const b = [...document.querySelectorAll('button')].filter(vis).find(x => /^Descartar$/i.test(txt(x)) && /Enviar Template do WhatsApp/i.test(((x.closest('[role=dialog]') || {}).innerText) || '')); if (b) { clicar(b); return true; } return false; };
+    const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
+    // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
     async function respostaRapida(atalho, editar, semRegua) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
+      if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
       const porNome = !/^\//.test(atalho);
       ta.focus(); setNativo(ta, porNome ? '/' + atalho : atalho);
       await esp(2500);
@@ -661,6 +669,7 @@
     async function mensagemLivre(texto) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
+      if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
       ta.focus(); setNativo(ta, texto); await esp(800);
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
@@ -1407,6 +1416,13 @@
         log && log('Régua: ' + toque.tipo + ' enviado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) {
         const r2 = RG(), x = r2[alvo.hash]; const q = x.toques.find(k => k.tipo === toque.tipo);
+        if (/JANELA_VENCIDA/.test(e.message)) {   // 4.26: não insiste — vai para a varredura
+          x.toques.forEach(k => { if (!k.feito) { k.feito = Date.now(); k.st = 'pulado (janela de 24 h vencida → varredura)'; } });
+          x.estado = 'esgotada'; x.motivo = 'janela de 24 h vencida — follow-up pelo outro número na varredura';
+          x.hist.push(hhmm(Date.now()) + ' janela de 24 h vencida: toques parados, fica para a varredura');
+          gravaRG(r2); desenharRegua(); log && log('Régua: ' + (alvo.nome || alvo.hash) + ' com a janela de 24 h vencida — não mandei, fica para a varredura.', 'erro');
+          return;
+        }
         q.tent = (q.tent || 0) + 1; q.prox = Date.now() + 2 * M; q.st = 'erro: ' + e.message;
         x.hist.push(hhmm(Date.now()) + ' ' + toque.tipo + ' ERRO (' + q.tent + 'ª): ' + e.message);
         if (q.tent >= 3) { x.estado = 'erro'; x.motivo = toque.tipo + ': ' + e.message; }
