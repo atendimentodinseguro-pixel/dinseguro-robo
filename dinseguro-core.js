@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.69';
+  const VERSAO = '4.70';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -601,7 +601,8 @@
     // A área das tags vai do rótulo "Tags" até "Variáveis".
     function areaTags() {
       const T = document.body.innerText;
-      const i = T.indexOf('Tags'); if (i < 0) return '';
+      // 4.70 (caso Nilva: "01 I (já tinha)" sem ter): achar o cabeçalho "Tags N" do painel, não a 1ª palavra "Tags" da tela
+      let i = T.search(/\nTags\s*\n\s*\d+\s*\n/); if (i < 0) i = T.indexOf('Tags'); if (i < 0) return '';
       const j = T.indexOf('Variáveis');
       return T.slice(i, j > i ? j : i + 400);
     }
@@ -707,7 +708,12 @@
       // 4.60 (13:22: "Josias, tudo bem?" saiu no chat da Lu): confere que a tela NÃO mudou de chat entre digitar e enviar,
       // e que o vigia não pegou a tela nesse meio-tempo.
       const hash0 = window.top.location.hash, nome0 = nomeDoContato();
-      ta.focus(); setNativo(ta, texto); await esp(800);
+      // 4.70 (caso Nilva 15:43: o mesmo follow-up saiu 2x — dois Chromes com o robô): se o mesmo texto já está entre as
+      // últimas mensagens NOSSAS da conversa, não manda de novo.
+      const jaTem = () => { const k = texto.replace(/[*_\s]/g, '').slice(0, 45); return [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k)); };
+      if (jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
+      ta.focus(); setNativo(ta, texto); await esp(800 + Math.floor(Math.random() * 4000));
+      if (jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }
       if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || (vigiaTrava() && !rodando)) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
@@ -860,6 +866,7 @@
         if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
+        try { if (window.dinsEsperaTirar) window.dinsEsperaTirar(o.hash); } catch (e) {}   // 4.70 (caso Nilva 15:43): desfecho cancela também o follow-up de CPF/simulação
         try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
@@ -1893,6 +1900,8 @@
         if (tagsChat.some(t => /^(01 D|01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }
         let L = null; try { L = lados(); } catch (e) {}
         if (L && L.ult && L.ult.lado === 'cli' && alvo.tipo !== 'lembrete') { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // respondeu: não insiste
+        // 4.70 (caso Nilva): conversa já encerrada (desfecho) ou cliente que já mandou CPF não recebe cobrança de CPF
+        if ((() => { const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false; const j = p.indexOf('Informações de contato', i); return j > 0 && !/Em atendimento|support_agent/.test(p.slice(i, j)); })() || (alvo.tipo === 'cpf' && L && (L.temCpf || L.cpfSemRespT))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); marcaHistESP(alvo.hash, alvo.tipo); return; }
         if (alvo.tipo === 'lembrete' && L && L.ult && L.ult.lado === 'cli' && !DEPOIS.test(L.ult.txt || '')) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // falou outra coisa depois: é atendimento
         const r = RG(); const temLink = r[alvo.hash] && r[alvo.hash].link && !r[alvo.hash].semLink;
         const n = nomeSeguro(alvo.nome);
@@ -1907,6 +1916,7 @@
         log && log('Follow-up ' + alvo.tipo + ' ' + toque.q + ' → ' + (alvo.nome || alvo.hash), 'ok');
       } catch (e) {
         if (/JANELA_VENCIDA/.test(e.message)) marcaQ({ feito: Date.now() }, 'janela de 24 h vencida');
+        else if (/DUPLICADO/.test(e.message)) { marcaQ({ feito: Date.now() }, 'já estava no chat (outra aba) — não repeti'); marcaHistESP(alvo.hash, alvo.tipo); }
         else { const o = ESP(), y = o[alvo.hash]; if (y) { const q = y.toques.find(k => k.q === toque.q); q.tent = (q.tent || 0) + 1; q.prox = Date.now() + 3 * M; q.st = 'erro: ' + e.message; if (q.tent >= 3) { q.feito = Date.now(); y.erro = e.message; } gravaESP(o); } }
       } finally { espRodando = false; navSolta('espera'); }
     }
