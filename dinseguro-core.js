@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.52';
+  const VERSAO = '4.53';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1653,6 +1653,32 @@
       return !travado();
     }
     window.dinsLiberarChat = liberarChat;
+    // 4.53 (Stefany 12:40, caso Waldirene): depois da anuência mandada, o cliente manda print (contrato "ativo" no Meu INSS) ou diz
+    // que fez → a anuência está FEITA → mandar /pos_anuencia (prazo do INSS atualizar o banco). Uma vez só. Só no chat aberto, vigia livre.
+    const FIZ_ANU = /\b(fiz|feito|feita|confirmei|confirmado|consegui|pronto|conclu[ií]|autorizei|ativo|deu certo)\b|✅|👍/i;
+    let posAnuRodando = false;
+    setInterval(async () => {
+      if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem')) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
+      try {
+        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === 'F20QOEL8YYLQN2S6SR47' || !telaPronta(h)) return;
+        const r = RG(), x = r[h]; if (!x || x.faseFeita !== 'falta anuência' || x.posAnu) return;
+        if (!dentroDoHorario(Date.now()) || janelaVencidaAgora()) return;
+        const ta = document.querySelector('textarea'); if (!ta || ta.value.trim() || /atendimento com (?!Dinseguro)/i.test(ta.placeholder || '')) return;
+        const ents = [...document.querySelectorAll('.entries [class*="entries-li"]')];
+        const iAnu = ents.map(e => e.innerText).findLastIndex(t => /MEU INSS e fa[çc]a a confirma[çc][ãa]o|anu[eê]ncia/i.test(t));
+        if (iAnu < 0) return;
+        const depois = ents.slice(iAnu + 1);
+        if (depois.some(e => e.classList.contains('right') && /prazo para o INSS atualizar/i.test(e.innerText))) { x.posAnu = Date.now(); x.hist.push(hhmm(Date.now()) + ' pós-anuência já estava no chat'); gravaRG(r); return; }
+        const cli = depois.filter(e => e.classList.contains('left'));
+        const fez = cli.some(e => e.querySelector('img') || /\.(jpe?g|png)\b|__image__/i.test(e.innerText) || FIZ_ANU.test(e.innerText));
+        if (!fez) return;
+        posAnuRodando = true;
+        await respostaRapida('/pos_anuencia', false, true);
+        const r2 = RG(); if (r2[h]) { r2[h].posAnu = Date.now(); r2[h].hist.push(hhmm(Date.now()) + ' /pos_anuencia (cliente mandou print/disse que fez a anuência)'); gravaRG(r2); desenharRegua(); }
+      } catch (e) {} finally { posAnuRodando = false; }
+    }, 30000);
+    window.dinsPosAnuFeita = h => { const r = RG(); if (!r[h]) return false; r[h].posAnu = Date.now(); gravaRG(r); return true; };
     let faseRodando = false;
     async function olharFases() {
       if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
