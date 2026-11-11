@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.65';
+  const VERSAO = '4.66';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -392,6 +392,14 @@
       return !/Em atendimento|support_agent/.test(p.slice(i, j));
     }
     function vigiar() {
+      // 4.66 (Stefany 11/11 14:40, caso Carmen: mandou CPF 14:32 e não entrou na fila): abrir um chat pelo endereço
+      // (#/chats/ID) deixa o filtro "Usuário 'ID'" na lista, que passa a mostrar só aquele chat — a fila só lê a lista.
+      // Tira o filtro (se o vigia não está mexendo agora) e lê na próxima volta.
+      try {
+        const ocup = Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 120000 || (+localStorage.getItem('dins_vigia_trava') || 0) > Date.now();
+        const chipF = [...document.querySelectorAll('.MuiChip-root')].find(c => /^Usu[áa]rio(s com o texto)?\s*['"‘’:]/i.test((c.innerText || '').trim()));
+        if (chipF && !ocup) { const xx = chipF.querySelector('.MuiChip-deleteIcon, svg'); if (xx) { xx.dispatchEvent(new MouseEvent('click', { bubbles: true })); return; } }
+      } catch (e) {}
       const itens = [...document.querySelectorAll('.customer-item')].map(ci => {
         const id = (ci.parentElement || {}).id;
         const chip = [...ci.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim()).join(',');
@@ -453,6 +461,20 @@
         const velho = antiga.find(f => f.id === x.id);
         fila.push({ id: x.id, nome: x.nome, msg: x.msg.slice(0, 80), sig, humano: humano ? x.chip : '', quando: velho ? velho.quando : new Date().toISOString() });
       }
+      // 4.66: quem o QUADRO marcou vermelho (mandou CPF / escreveu e ficou sem resposta / handoff) entra na fila mesmo
+      // que não esteja na lista da tela (filtro, lista rolada, badge de não lida sumiu porque o robô abriu a conversa).
+      try {
+        const R = GM_getValue('regua', {}) || {};
+        for (const [id, q] of Object.entries(R)) {
+          if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF/.test(q.motivo || '')) continue;
+          if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id) || naTela.has(id)) continue;
+          if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
+          const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
+          if (feito[id] === sigQ) continue;
+          const velhoQ = antiga.find(f => f.id === id);
+          fila.push({ id, nome: q.nome || '', msg: '[quadro] ' + String(q.motivo || '').slice(0, 70), sig: sigQ, humano: '', quando: velhoQ ? velhoQ.quando : new Date().toISOString() });
+        }
+      } catch (e) {}
       // quem saiu da tela (rolou para baixo) continua na fila até ser marcado como feito
       // v3.67: ...mas só por 24h (depois disso a janela do WhatsApp fechou e não dá para responder). Só sai da LISTA;
       // a conversa NÃO é encerrada. O Claude também tira da lista (dins_feito) quem já foi respondido.
