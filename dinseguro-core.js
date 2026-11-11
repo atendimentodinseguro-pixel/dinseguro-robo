@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.71';
+  const VERSAO = '4.72';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -260,6 +260,7 @@
       const o = Object.values(AO()).find(x => x.estado === 'nova'); if (!o) return;
       ocupadoAuto = true; poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
       try {
+        const off0 = document.getElementById('offline'); if (off0 && !off0.checked) { off0.click(); await zz(800); }   // 4.72: sempre consulta normal (nunca flash sem querer)
         const r = document.getElementById('cpf'); if (r && !r.checked) { r.click(); await zz(800); }
         const sel = document.getElementById('inputGroupSelect02'); if (sel) { const op = [...sel.options].find(x => /Vers[aã]o 1/i.test(x.text)); if (op) { sel.value = op.value; sel.dispatchEvent(new Event('change', { bubbles: true })); } }
         const inp = document.getElementById('input'); if (!inp) throw new Error('campo de busca não apareceu (sessão caiu?)');
@@ -267,7 +268,25 @@
         await zz(500); const loc = document.getElementById('localizar'); if (!loc) throw new Error('botão Localizar não apareceu'); loc.click();
         await zz(9000);
         const naoAchou = [...document.querySelectorAll('.swal2-title,h2')].some(e => /Aten[çc][ãa]o/.test(e.innerText)) && /não localizamos/i.test(document.body.innerText);
-        if (naoAchou) { const f = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f && f.click(); throw new Error('CPF não localizado no Multicorban'); }
+        if (naoAchou) {
+          const f = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f && f.click(); await zz(1000);
+          // 4.72: tenta também como MATRÍCULA (procedimento do "não localizado"); não achou de novo → desfecho automático
+          let achouMat = false;
+          if (o.tipo === 'cpf') {
+            const m = document.getElementById('matricula'); const off = document.getElementById('offline');
+            if (off && !off.checked) { off.click(); await zz(800); }
+            if (m && !m.checked) { m.click(); await zz(900); }
+            const inp2 = document.getElementById('input');
+            if (inp2) { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp2, o.cpf); inp2.dispatchEvent(new Event('input', { bubbles: true })); await zz(500); document.getElementById('localizar').click(); await zz(9000); }
+            const nao2 = [...document.querySelectorAll('.swal2-title,h2')].some(e => /Aten[çc][ãa]o/.test(e.innerText)) && /não localizamos/i.test(document.body.innerText);
+            if (nao2) { const f2 = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f2 && f2.click(); }
+            else achouMat = /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText) || [...document.querySelectorAll('tr')].some(tr => /\bATIVO\b/.test(tr.innerText));
+            await zz(600); const off2 = document.getElementById('offline'); if (off2 && !off2.checked) off2.click(); await zz(500); const c2 = document.getElementById('cpf'); if (c2 && !c2.checked) c2.click();
+            if (!achouMat) { poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
+            throw new Error('achou como MATRÍCULA (o número mandado é benefício) — vigia confere');
+          }
+          throw new Error('CPF não localizado no Multicorban');
+        }
         // 4.20d: um benefício só → o Multicorban já abre o detalhe; vários → lista com "Consultar" em cada linha
         const temDetalhe = () => /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText);
         if (temDetalhe()) {
@@ -566,6 +585,9 @@
     // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
     // Não fecha a conversa: quem encerra é o próprio fluxo.
     idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
+    // 4.72 (Stefany 11/11 17:02, caso Jamerson): CPF não localizado no Multicorban (como CPF e como matrícula) →
+    // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
+    nao_localizado:   { fluxo: 'Inicio do atendimento', tags: ['07 - Nao Identificado'], fechar: false, tagsAntes: true },
     so_tag:           { atalho: null,   tags: [], fechar: false },
     // Varredura das conversas vencidas (Stefany, 07/11 16:44): quem não teve interação
     // nenhuma leva só a tag e a conversa é encerrada, sem mandar mensagem.
@@ -852,6 +874,7 @@
         const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         if (o.linha && !o.linhaFeita) { passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
+        if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
         if (!o.msgFeita) {
           if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
           else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
@@ -893,8 +916,12 @@
         const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          if (o.acao === 'nao_localizado') {   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nao_localizado', t: Date.now() }));
+          } else {
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)) }));
+          }
           o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
         }
         if (mud) GM_setValue('auto_ordens', O);
