@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.60';
+  const VERSAO = '4.61';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1786,7 +1786,13 @@
       return proxHora(9, 0, true);
     }
     window.dinsEsperaVer = () => Object.values(ESP()).map(x => ({ nome: x.nome, hash: x.hash, tipo: x.tipo, toques: (x.toques || []).map(q => q.q + ' ' + hhmm(q.quando) + (q.feito ? ' ✓ ' + (q.st || '') : '')).join(' · '), erro: x.erro || '' }));
-    window.dinsEsperaTirar = h => { const o = ESP(); delete o[h]; gravaESP(o); return true; };
+    // 4.61 (Stefany 13:42, caso Valdecir: pedido de CPF 11:14, 12:16 e 13:39 — a própria cobrança registrava uma espera nova).
+    // Regra: pedido → 1 toque em 1 h → 1 toque no outro dia às 08:00 → acabou. Cada chat tem UMA sequência por tipo a cada 36 h,
+    // e mensagem nossa de cobrança/follow-up nunca abre espera nova.
+    const ESP_H = () => GM_getValue('espera_hist', {}) || {};
+    const marcaHistESP = (h, tipo) => { const o = ESP_H(); o[h] = Object.assign(o[h] || {}, { [tipo || 'cpf']: Date.now() }); GM_setValue('espera_hist', o); };
+    const SIG_NOSSO_FUP = /Ficou faltando s[óo] o n[úu]mero do seu CPF|a sua consulta ficou pendente s[óo] do CPF|Passando para (lembrar|falar d)|Conseguiu ver a simula[çc][ãa]o|A sua simula[çc][ãa]o continua dispon[íi]vel|Conforme combinamos, estou passando|Conseguiu tirar a foto do documento|Estou retomando o seu atendimento/i;
+    window.dinsEsperaTirar = h => { const o = ESP(); if (o[h]) marcaHistESP(h, o[h].tipo); delete o[h]; gravaESP(o); return true; };
     // registra a espera lendo a conversa ABERTA (tela parada): quem falou por último e o quê
     function registrarEspera(hash) {
       if (!hash || protegido(hash) || !telaPronta(hash)) return;
@@ -1804,12 +1810,14 @@
       if (ant) return;                                   // já tem espera registrada
       if (L.ult.bot) return;                             // bot no fluxo: ele cuida
       const raw = L.ult.raw || L.ult.txt || '';
+      if (SIG_NOSSO_FUP.test(raw)) return;               // 4.61: cobrança/follow-up nosso não abre espera nova
       const r = RG(); const temLink = r[hash] && r[hash].link && !r[hash].semLink;
       let tipo = '';
       if (SIG_DOC.test(raw)) tipo = 'doc';
       else if (!temLink && SIG_SIM.test(raw)) tipo = 'simulacao';
       else if (!temLink && SIG_CPF.test(raw)) tipo = 'cpf';
       if (!tipo) return;
+      { const hh = (ESP_H()[hash] || {})[tipo]; if (hh && agora - hh < 36 * H) return; }   // 4.61: já teve a sequência deste tipo
       const t0 = L.ult.t && L.ult.t <= agora ? L.ult.t : agora;
       const toques = tipo === 'doc' ? [{ q: '1h', quando: t0 + 60 * M, feito: 0 }] : [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: (() => { const d = new Date(t0); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); })(), feito: 0 }];
       o[hash] = { hash, nome, tipo, t0, toques }; gravaESP(o);
@@ -1870,6 +1878,7 @@
         const f = (TXT_ESP[alvo.tipo] || {})[toque.q]; if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
         await mensagemLivre(f(n, temLink));
         marcaQ({ feito: Date.now() }, 'enviado ' + hhmm(Date.now()));
+        marcaHistESP(alvo.hash, alvo.tipo);   // 4.61
         try { const r2 = RG(); if (r2[alvo.hash]) { r2[alvo.hash].hist.push(hhmm(Date.now()) + ' follow-up ' + alvo.tipo + ' ' + toque.q + ' enviado'); gravaRG(r2); } } catch (e) {}
         log && log('Follow-up ' + alvo.tipo + ' ' + toque.q + ' → ' + (alvo.nome || alvo.hash), 'ok');
       } catch (e) {
