@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.77';
+  const VERSAO = '4.78';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -644,6 +644,8 @@
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     nao_localizado:   { fluxo: 'Inicio do atendimento', tags: ['07 - Nao Identificado'], fechar: false, tagsAntes: true },
     so_tag:           { atalho: null,   tags: [], fechar: false },
+    // 4.78: cliente parado no bot sem CPF → mensagem pedindo o CPF (o.texto) + 01 C (a espera de CPF 1h/08h nasce sozinha)
+    pedir_cpf:        { atalho: null,   tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
     // 4.75: simulação (linha) + /parabens ou /bn54n com o link (o.atalho + o.trocas) + tag 01 A, sem fechar
     sim_link:         { atalho: null,   tags: ['01 A - Inss Com Margem - SEM 87 E 88'], fechar: false },
     // Varredura das conversas vencidas (Stefany, 07/11 16:44): quem não teve interação
@@ -977,6 +979,22 @@
         let mud = false;
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
         for (const k in O) { const x = O[k]; if (x.estado === 'link_enviado' && st && st.hash === x.hash && st.acao === 'sim_link' && ['ok', 'erro'].includes(st.st) && st.t > (x.tEnv || 0)) { x.estado = st.st === 'ok' ? 'feito' : 'erro'; if (st.st !== 'ok') x.erro = 'envio do link parou: ' + (st.erro || '') + ' (proposta ' + (x.proposta || '') + ' gravada)'; mud = true; } }
+        // 4.78 (Stefany 11/11 18:54 "o cliente parado aí no bot sem CPF, pode colocar ele para fazer"): parou no bot sem CPF →
+        // até 45 min depois de parar pede o CPF a qualquer hora (ele estava interagindo); mais que isso, só das 8h às 21h. Uma vez por conversa.
+        try {
+          const RGv = GM_getValue('regua', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const hh = new Date().getHours();
+          for (const k in RGv) { const x = RGv[k];
+            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT) continue;
+            const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
+            if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
+            const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
+            const saud = hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite';
+            const texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro.\n\n' + (val ? 'Vi que você fez uma simulação de *R$ ' + val + '* com a gente. ' : 'Vi que você fez uma simulação com a gente. ') + 'Para eu já preparar a sua proposta, pode me informar o número do seu CPF ou do seu benefício?';
+            const dd = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'pedir_cpf', quem: 'robo', t: Date.now(), texto, nota: dd + ' ' + hhmm(Date.now()) + ' [robô 4.78] parou no bot sem CPF às ' + hhmm(x.semCpfT) + (val ? ' (simulou R$ ' + val + ')' : '') + ' → pedi o CPF + 01 C.' }));
+            PC[k] = Date.now(); for (const q in PC) if (Date.now() - PC[q] > 7 * 864e5) delete PC[q]; GM_setValue('pedir_cpf_feito', PC); return;
+          }
+        } catch (e) {}
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
           const nm = primeiroNome(oL.nomeReal || oL.nome); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
@@ -1063,6 +1081,7 @@
     // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
     window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
       O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
+    window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
     window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
@@ -1155,7 +1174,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null } : {};
+      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null, semCpfT: L.semCpfT || 0 } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -1165,7 +1184,7 @@
       }
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
-      if (L && L.semCpfT && Date.now() - L.semCpfT >= 45 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
+      if (L && L.semCpfT && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
         return Object.assign({ estado: 'alerta', motivo: 'simulou R$ ' + brl((L.escolha && L.escolha.valor) || 0) + ' no bot e parou sem CPF às ' + hhmm(L.semCpfT) + ' (ninguém atendeu) → pedir o CPF (7.2) + 01 C' }, ex);
       if (L && L.handoffT && L.ult.lado === 'nos')
         return Object.assign({ estado: 'alerta', motivo: 'bot passou para atendente humano às ' + hhmm(L.handoffT) + ' e ninguém respondeu' }, ex);
@@ -1199,13 +1218,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
