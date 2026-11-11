@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.70';
+  const VERSAO = '4.71';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2779,10 +2779,13 @@
       if (d.getDay() === 0 || d.getDay() === 6) return;          // sábado e domingo, não
       const marca = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + '-' + d.getHours();
       if (GM_getValue('varredura_ultima_hora', '') === marca) return;
+      // 4.71: se o robô está ocupado (fechando conversa, toque, desfecho), espera a próxima volta — antes a hora era marcada
+      // como feita e a rodada daquela hora se perdia.
+      if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem')) return;
       GM_setValue('varredura_ultima_hora', marca);
       log && log('Varredura: rodada das ' + d.getHours() + 'h.', 'ok');
       varrerJanelaVencida();
-    }, 5 * 60000);
+    }, 60000);   // 4.71: confere de minuto em minuto (antes 5 min)
 
     // "rodar agora", sem esperar os 30 minutos (Stefany, 07/11 18:08):
     //   localStorage.setItem('dins_varrer_agora', '1')
