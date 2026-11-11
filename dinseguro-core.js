@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.26';
+  const VERSAO = '4.27';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -829,7 +829,7 @@
     const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
     setInterval(() => {
       try {
-        if (rodando || localStorage.getItem('dins_ordem')) return;
+        if (rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
         if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
         const O = GM_getValue('auto_ordens', {}) || {};
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
@@ -1060,7 +1060,7 @@
     // daqui em diante sozinho: conversa nova na lista entra no quadro (uma por minuto, só com a tela livre)
     let mapeando = false;
     setInterval(async () => {
-      if (mapeando || rodando || fupRodando) return;
+      if (mapeando || rodando || fupRodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;   // 4.27: não briga com a varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       let novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada') || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
@@ -1349,7 +1349,7 @@
     // 2) EXECUTOR: um toque por minuto, no máximo
     let fupRodando = false;
     async function olharFollowups() {
-      if (fupRodando || rodando) return;
+      if (fupRodando || rodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
       if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
       const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
       if (Date.now() - ocup < 2 * M) return;                                           // vigia mexendo agora
@@ -1443,7 +1443,7 @@
     const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'] };
     let faseRodando = false;
     async function olharFases() {
-      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
@@ -1803,7 +1803,175 @@
     }
 
     let varrendo = false;
-    async function varrerJanelaVencida() {
+    // =====================================================================
+    // 4.27 — VARREDURA NOVA (Stefany 11/11 08:29: "pode colocar o robô para fazer o trabalho completo da varredura").
+    // Substitui a antiga, que procurava cada cliente pelo NOME na lista (emoji / fonte matemática não casava,
+    // e "travava sem abrir as conversas"). Agora:
+    //  1) colhe os HASHES da lista (rolagem lenta, 3 voltas) e abre cada conversa pelo endereço (#/chats/HASH);
+    //  2) só mexe em conversa com o aviso de janela vencida no campo de mensagem (as duas redações);
+    //  3) classifica pela regra do guias/07 + FILA-FOLLOWUP (09/11 e 10/11):
+    //     - já tem tag de desfecho (01 I, 01 k, 02, 03, 07, Acima De 80) → só fecha (sem mensagem, sem mexer em tag);
+    //     - sem interação nenhuma (sem CPF, sem link, sem mensagem/nota nossa) → 01 C + fecha (sem mensagem);
+    //     - link/proposta, CPF com 01 A, ou atendimento nosso → follow-up pelo OUTRO número (WhatsApp Web, 3 textos)
+    //       e, depois que a mensagem SAIU, fecha a conversa (ação `fecha`, sem mexer nas tags);
+    //  4) NA DÚVIDA NÃO FECHA → lista "revisar" para o vigia/Stefany: chat com atendente ("Chat em atendimento com"),
+    //     01 D não liberada, cliente que escreveu algo (pergunta/reclamação) sem resposta, CPF sem tag, bloqueados
+    //     (Santaterezinha), sem telefone, proposta recusada/assinada na esteira.
+    //  5) PRIMEIRA RODADA DO DIA: monta a lista e espera o botão "✅ Pode executar" no painel (regra dela); as outras rodam direto.
+    // Liberar 01 D: dinsVarreLiberar('HASH', 'chamar'|'so_fechar').  Rodar agora: localStorage.dins_varrer_agora='1'.
+    const DESF_TAG = /^(01 I|01 k|02 |03 |07 |Acima De 80)/i;
+    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47'];   // chat de teste "Romulo"
+    window.dinsVarreLiberar = (hash, modo) => { const L = GM_getValue('varre_liberados', {}) || {}; if (modo) L[hash] = modo; else delete L[hash]; GM_setValue('varre_liberados', L); return L[hash] || null; };
+    window.dinsVarreVer = () => GM_getValue('varre_plano', null);
+    window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
+    const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
+    async function colherHashes() {
+      let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
+      for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
+      const vistos = new Map();
+      const pega = () => document.querySelectorAll('.customer-item').forEach(ci => { const id = (ci.parentElement || {}).id; if (!id || vistos.has(id)) return;
+        vistos.set(id, { id, nome: (ci.innerText.split('\n').filter(Boolean)[1] || '').trim(), arq: /ARCHIVED|Arquivad/i.test(ci.innerText) }); });
+      pega();
+      for (let volta = 0; volta < 3 && sc; volta++) {
+        for (let y = 0; y <= sc.scrollHeight; y += 100) { sc.scrollTop = y; await esp(260); pega(); marcaVarrendo(); }
+      }
+      if (sc) { sc.scrollTop = 0; await esp(300); }
+      return [...vistos.values()].filter(x => !x.arq);
+    }
+    async function abrirHash(id) {
+      for (let t = 0; t < 3; t++) {
+        while (vigiaTrabalhando() || localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
+        window.top.location.hash = '#/chats/' + id; await esp(6000);
+        for (let i = 0; i < 8 && !telaPronta(id); i++) await esp(1500);
+        if (window.top.location.hash === '#/chats/' + id && document.querySelector('.entries') && telaPronta(id)) return true;
+      }
+      return false;
+    }
+    function lerConversaVarredura(id) {
+      const T = document.body.innerText || '';
+      const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => (c.textContent || '').trim()).filter(t => /^0\d|^Acima|^Q15/i.test(t));
+      const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
+      const fone = (T.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ((RG()[id] || {}).fone) || '';
+      let L = null; try { L = lados(); } catch (e) {}
+      const ent = (document.querySelector('.entries') || {}).innerText || '';
+      const ms = L ? null : null;
+      const nossaHumana = /\[[^\]\n]{2,40}\]/.test(ent.replace(/Enviado pelo credsegurobank/g, ''));   // mensagem nossa com [Nome] ou nota interna
+      const link = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)/i.test(ent);
+      const prop = /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(ent);
+      const pediuCpf = /CPF/i.test(ent) && /(me (envie|mande|passa)|informe|número do seu CPF|seu CPF)/i.test(ent);
+      return { tags, humano: hum ? hum[1].trim() : '', fone, L, nossaHumana, link, prop, pediuCpf, temCpf: !!(L && L.temCpf) };
+    }
+    // decide UMA conversa (já aberta) → { acao: 'fecha'|'c01'|'wa'|'revisar'|'pular', caso, motivo }
+    function decidirVarredura(id, nomeLista) {
+      if (NAO_MEXER_HASH.includes(id) || /CONGELADO/i.test(nomeLista)) return { acao: 'pular', motivo: 'chat que não se mexe' };
+      if (!janelaVencidaAgora()) return { acao: 'pular', motivo: 'janela aberta' };
+      const c = lerConversaVarredura(id);
+      if (c.humano) return { acao: 'revisar', motivo: 'chat em atendimento com ' + c.humano };
+      const tem = re => c.tags.some(t => re.test(t));
+      const d01 = tem(/^01 D/i);
+      const lib = (GM_getValue('varre_liberados', {}) || {})[id];
+      if (d01 && !lib) return { acao: 'revisar', motivo: 'tem 01 D (já contratou) — só com liberação nominal' };
+      if (d01 && lib === 'so_fechar') return { acao: 'fecha', motivo: '01 D liberada para fechar sem contato' };
+      if (c.tags.some(t => DESF_TAG.test(t))) return { acao: 'fecha', motivo: 'já tinha desfecho (' + c.tags.filter(t => DESF_TAG.test(t)).join(', ') + ')' };
+      if ((GM_getValue('wa_bloqueados', []) || []).includes(id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
+      const L = c.L, u = L && L.ult;
+      const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
+      if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(u.raw || ''))
+        return { acao: 'revisar', motivo: 'cliente escreveu "' + (u.txt || '').slice(0, 60) + '" e ficou sem resposta' };
+      if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
+      const fe = faseEsteira(RG()[id] || {});
+      if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
+      if (c.link || c.prop) return c.fone ? { acao: 'wa', caso: 'link', motivo: 'link enviado sem resposta' } : { acao: 'revisar', motivo: 'link enviado, mas sem telefone no painel' };
+      if (c.temCpf && !tem(/^01 A/i)) return { acao: 'revisar', motivo: 'tem CPF sem tag (conferir margem)' };
+      if (c.temCpf || c.nossaHumana) { const caso = c.temCpf ? 'atendimento' : (c.pediuCpf ? 'cpf' : 'atendimento');
+        return c.fone ? { acao: 'wa', caso, motivo: c.temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno' } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
+      return { acao: 'c01', motivo: 'sem interação (só o fluxo do bot)' };
+    }
+    async function executarOrdemVarredura(hash, acao, nota) {
+      while (localStorage.getItem('dins_ordem')) await esp(3000);
+      const t0 = Date.now();
+      localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao, quem: 'varredura', nota, t: t0 }));
+      for (let i = 0; i < 60; i++) { await esp(3000); marcaVarrendo();
+        let st = null; try { st = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) {}
+        if (st && st.hash === hash && st.t >= t0 && ['ok', 'erro'].includes(st.st)) return st.st === 'ok' ? 'ok' : ('erro: ' + (st.erro || ''));   // lição de 09/11: status FINAL e do hash certo
+      }
+      return 'erro: o desfecho não terminou em 3 min';
+    }
+    window.dinsVarreTestar = async id => { localStorage.setItem('dins_vigia_ocupado', 0); if (!await abrirHash(id)) return { erro: 'não abriu' }; const d = decidirVarredura(id, ''); const c = lerConversaVarredura(id); return Object.assign({ nome: nomeDoContato(), tags: c.tags, fone: c.fone ? '…' + c.fone.slice(-4) : '' }, d); };   // só lê e decide, não executa
+    const varreNota = (txt) => 'Varredura ' + new Date().toLocaleString('pt-BR').slice(0, 16) + ' [robô] — ' + txt;
+    async function varrerJanelaVencida(forcarExecucao) {
+      if (varrendo || rodando || fupRodando) return;
+      if (!GM_getValue('varredura_ligada', true)) return;
+      varrendo = true; marcaVarrendo();
+      const placar = { versao: '4.27', inicio: hhmm(Date.now()), lista: 0, abertos: 0, janela_aberta: 0, nao_abriu: 0, fechadas: 0, c01: 0, wa: 0, revisar: 0, erros: 0, fim: '' };
+      const salva = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
+      try {
+        const hoje = new Date().toDateString();
+        const primeira = GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao;
+        const itens = await colherHashes(); placar.lista = itens.length; salva();
+        const plano = { dia: hoje, t: Date.now(), primeira, itens: [] };
+        for (const it of itens) {
+          marcaVarrendo();
+          if (NAO_MEXER_HASH.includes(it.id)) continue;
+          if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
+          placar.abertos++;
+          const d = decidirVarredura(it.id, it.nome);
+          if (d.acao === 'pular') { if (d.motivo === 'janela aberta') placar.janela_aberta++; salva(); continue; }
+          const c = lerConversaVarredura(it.id);
+          plano.itens.push(Object.assign({ id: it.id, nome: nomeDoContato() || it.nome, fone: c.fone }, d));
+          GM_setValue('varre_plano', plano);
+          if (primeira) continue;   // 1ª rodada do dia: só monta a lista
+          if (d.acao === 'revisar') { placar.revisar++; salva(); continue; }
+          if (d.acao === 'fecha') { const r = await executarOrdemVarredura(it.id, 'fecha', varreNota('janela vencida; ' + d.motivo + '. Conversa encerrada.')); r === 'ok' ? placar.fechadas++ : placar.erros++; salva(); continue; }
+          if (d.acao === 'c01') { const r = await executarOrdemVarredura(it.id, 'classifica_fecha', varreNota('janela vencida, sem CPF e sem interação → 01 C. Conversa encerrada.')); r === 'ok' ? placar.c01++ : placar.erros++; salva(); continue; }
+          if (d.acao === 'wa') {
+            const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
+            if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeDoContato() || it.nome, caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
+            placar.wa++; salva();
+          }
+        }
+        if (primeira) { plano.aguardando = true; GM_setValue('varre_plano', plano); log && log('Varredura: 1ª rodada do dia montada (' + plano.itens.length + ' conversas vencidas) — esperando o OK da Stefany no painel.', 'ok'); }
+      } catch (e) { placar.erro = String(e.message || e); log && log('Varredura parou: ' + placar.erro, 'erro'); }
+      finally { placar.fim = hhmm(Date.now()); salva(); varrendo = false; localStorage.removeItem('dins_varrendo'); try { limparFiltro(); } catch (e) {} desenharVarredura(); }
+    }
+    // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
+    setInterval(async () => {
+      if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
+      const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && !y.fechado && y.quem === 'varredura 4.27');
+      if (!x) return;
+      varrendo = true; marcaVarrendo();
+      try {
+        if (!await abrirHash(x.hash)) return;
+        if (!janelaVencidaAgora()) { x.fechado = 'não (cliente voltou e a janela reabriu — é do vigia)'; }
+        else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota('janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
+        const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; GM_setValue('wa_fila', f2); }
+      } finally { varrendo = false; localStorage.removeItem('dins_varrendo'); desenharVarredura(); }
+    }, 60000);
+    // painel da varredura (lista da 1ª rodada com o botão de OK + resumo)
+    function desenharVarredura() {
+      try {
+        const top = window.top.document; let q = top.getElementById('dins-varre');
+        const p = GM_getValue('varre_plano', null); const pl = (() => { try { return JSON.parse(localStorage.getItem('dins_varredura_placar') || 'null'); } catch (e) { return null; } })();
+        if (!p || p.dia !== new Date().toDateString()) { if (q) q.remove(); return; }
+        if (!q) { q = top.createElement('div'); q.id = 'dins-varre'; q.setAttribute('translate', 'no');
+          q.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483000;background:#0f172a;color:#e2e8f0;border:2px solid #a78bfa;border-radius:10px;padding:8px 10px;font:12px system-ui,sans-serif;max-width:420px;max-height:45vh;overflow:auto;box-shadow:0 6px 20px rgba(0,0,0,.4)';
+          top.body.appendChild(q);
+          q.addEventListener('click', ev => { if (ev.target.dataset.varreok) { window.dinsVarreOK(); localStorage.setItem('dins_varrer_executar', '1'); desenharVarredura(); }
+            if (ev.target.dataset.varremin) { q.dataset.min = q.dataset.min === '1' ? '' : '1'; desenharVarredura(); }
+            const id = ev.target.dataset.abrir; if (id) window.top.location.hash = '#/chats/' + id; }); }
+        const esc = t => String(t || '').replace(/</g, '&lt;');
+        const ROT = { fecha: '🔒 fechar', c01: '🏷 01 C + fechar', wa: '📲 WhatsApp + fechar', revisar: '👀 revisar (não mexe)' };
+        const cab = `<div data-varremin="1" style="cursor:pointer;font-weight:700">🧹 Varredura ${pl ? pl.inicio + '–' + (pl.fim || '…') : ''} · ${p.itens.length} vencidas` +
+          (pl ? ` · fechadas ${pl.fechadas + pl.c01} · WhatsApp ${pl.wa} · revisar ${pl.revisar}` : '') + `</div>`;
+        const botao = p.aguardando && !p.aprovado ? `<div style="margin:6px 0"><b>1ª rodada do dia:</b> confira e aprove. <button data-varreok="1" style="padding:3px 10px;border:0;border-radius:6px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">✅ Pode executar</button></div>` : '';
+        const linhas = q.dataset.min === '1' ? '' : p.itens.map(i => `<div style="border-top:1px solid #334155;padding:2px 0"><span data-abrir="${i.id}" style="cursor:pointer;text-decoration:underline">${esc(i.nome)}</span> · ${ROT[i.acao] || i.acao}${i.caso ? ' (' + i.caso + ')' : ''}<br><span style="color:#94a3b8">${esc(i.motivo)}</span></div>`).join('');
+        q.innerHTML = cab + botao + linhas;
+      } catch (e) {}
+    }
+    setInterval(desenharVarredura, 20000); setTimeout(desenharVarredura, 5000);
+    setInterval(() => { if (localStorage.getItem('dins_varrer_executar')) { localStorage.removeItem('dins_varrer_executar'); const p = GM_getValue('varre_plano', null); if (p) { p.aguardando = false; GM_setValue('varre_plano', p); } varrerJanelaVencida(true); } }, 3000);
+
+    async function varrerJanelaVencidaAntiga() {   // ⛔ substituída pela 4.27 (fica só de referência)
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
       // Stefany, 07/11 19:27: "esse robô roda de 8 da manhã às 8 da noite. Depois
@@ -3625,9 +3793,10 @@
       return n.slice(-8);
     }
 
+    const primeiroNome = n => { const p = String(n || '').replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/)[0] || ''; return p.length >= 3 ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };   // 4.27: faltava neste bloco
     function textoDoCaso(caso, nome) {
       const pn = primeiroNome(nome);
-      const ola = pn ? ('Oi, ' + pn + '! Aqui é da Dinseguro.') : 'Oi! Aqui é da Dinseguro.';
+      const ola = pn ? ('Oi, ' + pn + '! Tudo bem?') : 'Oi! Tudo bem?';   // 4.27: sem "Aqui é da Dinseguro" (a plataforma já põe [Dinseguro])
       const seguranca = 'Pode ficar tranquilo(a): não cobramos nada antecipado e nada é feito sem a sua confirmação.';
       const fecho = 'Qualquer dúvida, me chama que eu te ajudo.';
       if (caso === 'link') {
