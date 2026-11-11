@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.76';
+  const VERSAO = '4.77';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -526,7 +526,7 @@
         // 4.14 — o QUADRO (que lê a conversa inteira) manda para a fila quem ele marcou esperando: bot passou para atendente
         // humano e mandou outra coisa depois (caso Carmen 18:35), ou cliente escreveu e a prévia não mostrava.
         let peloQuadro = false;
-        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || ''); } catch (e) {} }
+        if (!esperando && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && ((!x.nossa && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) || /parou sem CPF/.test(q.motivo || ''));   /* 4.77: parado no bot entra mesmo com a última mensagem sendo do bot */ } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
         // 4.24 (Stefany 11/11 08:17, caso Nila "Obgd"): só agradeceu/confirmou ("ok", "obrigado", "blz", 👍) → não entra na fila,
         // a não ser que o quadro (que leu a conversa inteira) tenha marcado vermelho (ex.: "ok" depois de "já te passo o valor").
@@ -1490,7 +1490,10 @@
         if (lado === 'nos' && /Enviado por Dinseguro|^\s*\[Dinseguro\]/m.test(txt)) grpBot = false;   // 4.21a: mensagem nossa no meio do grupo do bot (caso Hilda) não é do bot
         let t = null; const h = /(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(done_all|check|done)?\s*$/i.exec(txt);
         if (h && dia) { let hh = +h[1] % 12; if (/PM/i.test(h[3] || '')) hh += 12; if (!h[3]) hh = +h[1]; t = new Date(dia[0], dia[1], dia[2], hh, +h[2]).getTime(); }
-        ms.push({ lado, bot: (lado === 'nos' && TEMPLATE_PESSOA.test(txt)) || lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt) && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
+        // 4.77 (Stefany 18:44, foto da lista: "quando tá no robô ainda, mesmo que tá no meu nome, fica com um robozinho escrito credsegurobank"):
+        // o que vale é o GRUPO "Enviado pelo credsegurobank", não o nome [Fulano👤] no texto — o bot assina modelos com nome de pessoa.
+        // Mensagem humana de verdade abre grupo novo "Enviado por <Nome>" (grpBot = false).
+        ms.push({ lado, bot: lado === 'nos' && (TEMPLATE_PESSOA.test(txt) || (grpBot && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt))), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
       }
       for (let i = ms.length - 2; i >= 0; i--) if (!ms[i].t) ms[i].t = ms[i + 1].t;   // balão sem hora: hora do próximo do grupo
       if (!ms.length) return null;
@@ -1523,7 +1526,7 @@
       const iHand = depois.map(m => m.lado === 'nos' && m.bot && HANDOFF_RE.test(m.raw)).lastIndexOf(true);
       const humanoDepois = iHand >= 0 && depois.slice(iHand + 1).some(m => m.lado === 'nos' && !m.bot);
       const handoffT = iHand >= 0 && !humanoDepois ? (depois[iHand].t || Date.now()) : 0;
-      const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw) && !TEMPLATE_PESSOA.test(m.raw));   // 4.76: modelo de campanha não é atendimento
+      const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && !m.bot && /\[([^\]\n]{2,40})👤\]/.test(m.raw) && !TEMPLATE_PESSOA.test(m.raw));   // 4.77: só humano de verdade   // 4.76: modelo de campanha não é atendimento
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
       // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
       // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
