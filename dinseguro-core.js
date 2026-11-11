@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.81';
+  const VERSAO = '4.82';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1013,7 +1013,16 @@
             if (x.faseFeita === fe.fase || (x.faseMsgT && x.faseMsg === fe.fase)) continue;
             let linha = '', atalhos = [], pularSe = '';
             if (fe.fase === 'falta documento') { linha = (nm ? nm + ', p' : 'P') + 'ara o banco finalizar a análise da sua proposta, falta só uma foto do seu documento 😊 Te explico logo abaixo como mandar:'; atalhos = ['/CLT1']; pularSe = 'falta só uma foto do seu documento|frente e verso'; }
-            else if (fe.fase === 'falta desbloquear') { linha = (nm ? nm + ', e' : 'E') + 'stá tudo certinho com a sua proposta 😊\n\nAgora falta só um passo rápido do seu lado, que é liberar o benefício para o banco. Vou te mandar logo abaixo como fazer, é bem simples.'; atalhos = ['/dsg25a', '/dsg25|midia']; pularSe = 'passo a passo para realizar o desbloqueio'; }
+            else if (fe.fase === 'falta desbloquear') {
+              // 4.82 (Stefany 11/11 17:20): desbloqueio SÓ com DDB ≥ 91 dias. DDB < 91 → não fala nada. Sem DDB → fila para o vigia conferir.
+              const Dd = GM_getValue('ddb_cli', {}) || {}; const nnE = s2 => String(s2 || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+              const ddbS = Dd['N:' + nnE(fe.nome)] || Dd['N:' + nnE(x.nomeReal)] || (x.cpf ? Dd['C:' + String(x.cpf).replace(/\D/g, '')] : '');
+              const diasD = ddbS ? (Date.now() - new Date(ddbS.split('/').reverse().join('-'))) / 864e5 : NaN;
+              if (!ddbS || isNaN(diasD) || diasD < 91) {
+                const r4 = GM_getValue('regua', {}) || {}; if (r4[k]) { r4[k].faseFeita = fe.fase; (r4[k].hist = r4[k].hist || []).push(hhmm(Date.now()) + (ddbS && !isNaN(diasD) ? ' desbloqueio NÃO pedido: DDB ' + ddbS + ' (' + Math.floor(diasD) + ' dias < 91)' : ' desbloqueio: DDB desconhecido → vigia confere')); if (!ddbS || isNaN(diasD)) { r4[k].estado = 'alerta'; r4[k].motivo = 'esteira falta desbloquear — conferir DDB (≥ 91 dias pede /dsg25a + /dsg25; < 91 não fala nada)'; } GM_setValue('regua', r4); }
+                continue;
+              }
+              linha = (nm ? nm + ', e' : 'E') + 'stá tudo certinho com a sua proposta 😊\n\nAgora falta só um passo rápido do seu lado, que é liberar o benefício para o banco. Vou te mandar logo abaixo como fazer, é bem simples.'; atalhos = ['/dsg25a', '/dsg25|midia']; pularSe = 'passo a passo para realizar o desbloqueio'; }
             else if (fe.fase === 'falta anuência') { linha = (nm ? nm + ', o' : 'O') + ' desbloqueio deu certo 👏 Agora falta só confirmar a autorização no Meu INSS. Te mando abaixo como fazer:'; atalhos = ['/anuencia', '/anuencia2|midia']; pularSe = 'confirmar a autoriza[çc][ãa]o no Meu INSS'; }
             else continue;
             const r3 = GM_getValue('regua', {}) || {}; if (r3[k]) { r3[k].faseMsg = fe.fase; r3[k].faseMsgT = Date.now(); (r3[k].hist = r3[k].hist || []).push(hhmm(Date.now()) + ' esteira "' + fe.fase + '" → mensagem automática'); GM_setValue('regua', r3); }
@@ -4042,6 +4051,8 @@
           ta.value = fichaParaTexto(f);
         }
         GM_setValue('ficha_atual', f);
+        // 4.82: guarda o DDB por nome e CPF (regra do desbloqueio: só pede com DDB ≥ 91 dias)
+        try { if (f.ddb && /\d{2}\/\d{2}\/\d{4}/.test(f.ddb)) { const D = GM_getValue('ddb_cli', {}) || {}; const nn = String(f.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); if (nn) D['N:' + nn] = f.ddb; if (f.cpf) D['C:' + String(f.cpf).replace(/\D/g, '')] = f.ddb; GM_setValue('ddb_cli', D); } } catch (er) {}
         if (f.recusa) {
           const r = f.recusa.split('|');
           // deixa a ordem pronta para o robô de desfecho do Botmaker
