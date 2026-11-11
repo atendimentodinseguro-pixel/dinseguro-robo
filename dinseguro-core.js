@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.45';
+  const VERSAO = '4.46';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1503,7 +1503,9 @@
         const agora = Date.now();
         const alvos = Object.values(RG()).filter(x => !['fechada', 'cancelada', 'esgotada', 'encerrado', 'concluída'].includes(x.estado) && !x.vencida && (agora - x.linkT < 48 * H || ['humano', 'alerta', 'erro'].includes(x.estado)) && !protegido(x.hash)).map(x => x.hash);
         for (const h of alvos) {
-          for (let k = 0; k < 40 && (fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando() || !navPega('vence')); k++) await new Promise(r => setTimeout(r, 3000));
+          let livre = false;
+          for (let k = 0; k < 60; k++) { if (!(fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) && navPega('vence')) { livre = true; break; } await new Promise(r => setTimeout(r, 3000)); }
+          if (!livre) continue;   // 4.46: nunca passa por cima do vigia
           try {
             window.top.location.hash = '#/chats/' + h; await new Promise(r => setTimeout(r, 6000));
             for (let i = 0; i < 8 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500));
