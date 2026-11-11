@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.22';
+  const VERSAO = '4.23';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -952,19 +952,27 @@
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
-        estado: c.estado, motivo: c.motivo, toques: [], tent: 0, hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
+        estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
       ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
-      if (mud) { gravaRG(r); desenharRegua(); }
+      gravaRG(r); if (mud) desenharRegua();
     }
     // 4.10 — o mapeamento NÃO pode brigar com o vigia (10/11 17:52: trocava de chat enquanto o vigia atendia).
     // O vigia marca  dins_vigia_ocupado  e o mapeamento usa a própria marca  dins_mapeando  (não apaga a do vigia).
+    // 4.23 — mesmo critério do bloco vermelho do quadro (sem a esteira), para a conferência dos vermelhos
+    const pareceVermelho = (x, ag) => {
+      if (['fechada', 'cancelada', 'encerrado', 'humano', 'concluída'].includes(x.estado)) return false;
+      if (['erro', 'bloqueada', 'alerta'].includes(x.estado)) return true;
+      if (x.semLink && x.contornoT && x.ultLado !== 'cli' && ag - x.contornoT > 15 * M) return true;
+      if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && x.ultT && ag - x.ultT > 30 * M) return true;
+      return false;
+    };
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
     async function mapearUm(id) {
       if (vigiaTrabalhando()) return false;
@@ -978,7 +986,7 @@
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano') window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink) { try { reclassificar(id); } catch (e) {} }
-        const r2 = RG(); if (r2[id] && r2[id].reler) { delete r2[id].reler; gravaRG(r2); }
+        const r2 = RG(); if (r2[id]) { delete r2[id].reler; r2[id].lidoT = Date.now(); gravaRG(r2); }
       }
       else registrarSemLink(id);
       return true;
@@ -998,7 +1006,13 @@
       if (mapeando || rodando || fupRodando) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
-      const novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada') || idsDaLista().find(id => RG()[id] && RG()[id].reler); if (!novo) return;   // 4.14: conversa que andou é relida
+      let novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada') || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
+      // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
+      // e o quadro nunca mais a releu — ficou pedindo "responder agora" 12 h depois. Agora, sem nada novo, o robô RELÊ (abre a conversa)
+      // o vermelho cuja última leitura passou de 20 min, um por minuto, o mais velho primeiro. Lida de novo: tag de desfecho (01 I, 02, 03, 07)
+      // vira "encerrado" e sai do vermelho; cliente que falou continua vermelho.
+      if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 60000);
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
