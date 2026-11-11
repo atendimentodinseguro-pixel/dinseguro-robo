@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.51';
+  const VERSAO = '4.52';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1164,7 +1164,7 @@
     // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
     // qualquer link NOSSO que não seja de grupo/rede social/material (o /n30 e o /parabens do PDF levam links que não são proposta)
     const LINK_PROPOSTA = /https?:\/\/[^\s)]+/ig;
-    const NAO_PROPOSTA = /chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|fb\.watch|g\.page|maps\.app|youtube|youtu\.be|tiktok|linktr\.ee|botmaker|google\.com|goo\.gl|maps\.|dinseguro\.com/i;
+    const NAO_PROPOSTA = /chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|fb\.watch|g\.page|maps\.app|gov\.br|nuvidio|youtube|youtu\.be|tiktok|linktr\.ee|botmaker|google\.com|goo\.gl|maps\.|dinseguro\.com/i;
     function detectarLink() {
       if (rodando || fupRodando) return;
       const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
