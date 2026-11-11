@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.37';
+  const VERSAO = '4.38';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1489,7 +1489,7 @@
     window.dinsVideo = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.tVideo) return 'já registrado';
       Object.assign(x, { nome: nome || x.nome || '', tVideo: t || Date.now(), videoPerg: 0 }); x.hist.push(hhmm(Date.now()) + ' link de vídeo registrado'); o[hash] = x; gravaPOS(o); return 'ok'; };
     window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
-    window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 em 15 min' : ' sem valor extra — /W40 agora')); gravaPOS(o);
+    window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 quando responder (ou 30 min)' : ' sem valor extra — /W40 agora')); gravaPOS(o);
       // 4.37 (Stefany 10:19): "todo cliente que fez proposta com a gente, recebeu e ainda sobrou margem → tag 01 J"
       if (ofereceu && !localStorage.getItem('dins_ordem')) try { localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao: 'so_tag', tags: ['01 J Tem Margem Rodar Disparo'], t: Date.now() })); } catch (e) {}
       return true; };
@@ -1522,18 +1522,22 @@
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       if (!dentroDoHorario(Date.now())) return;
-      const agora = Date.now(); let fila = []; try { fila = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
+      const agora = Date.now(); let fila = [], filaT = {}; try { JSON.parse(localStorage.getItem('dins_fila') || '[]').forEach(f => { fila.push(f.id); filaT[f.id] = Date.parse(f.quando || '') || agora; }); } catch (e) {}
+      // 4.38 (Stefany 10:24): "meia hora é só a condição para quando ele NÃO responde". Respondeu depois do passo → próximo passo já.
+      const respDepois = (h, t) => fila.includes(h) && filaT[h] > t + 30000;
       let alvo = null, passo = '';
       for (const x of Object.values(POS())) {
         if (x.parado) continue;
         // 4.35b (Stefany 10:01): cliente CONFIRMOU que recebeu → ANTES da /W40 o vigia vê se ele tem mais valor para liberar
         // (Multicorban) e oferece ("esse valor te ajuda? podemos liberar na mesma conta?"). O robô espera a marca do vigia:
-        // dinsPosExtra('HASH', true) = ofereceu → /W40 15 min depois · dinsPosExtra('HASH', false) = não tem valor → /W40 já.
-        // Sem a marca em 20 min, a /W40 sai assim mesmo (o cliente não fica sem ela).
+        // dinsPosExtra('HASH', true) = ofereceu → /W40 quando ele responder à oferta (ou 30 min) · dinsPosExtra('HASH', false) = não tem valor → /W40 já.
+        // Sem a marca em 10 min, a /W40 sai assim mesmo (o cliente não fica sem ela).
         if (x.t22 && !x.w40 && fila.includes(x.hash) && agora - x.t22 > 60000 && !x.verExtra) { const o = POS(); o[x.hash].verExtra = agora; o[x.hash].hist.push(hhmm(agora) + ' cliente respondeu — vigia: ver valor extra antes da /W40'); gravaPOS(o); continue; }
-        const w40Quando = x.extra ? x.extra + (x.extraOfereceu ? 15 * M : 0) : (x.verExtra ? x.verExtra + 20 * M : x.t22 + 30 * M);
+        // sem valor extra → /W40 já; ofereceu valor extra → /W40 assim que ele responder à oferta (quer ou não quer), ou 30 min sem resposta
+        const w40Quando = x.extra ? (x.extraOfereceu ? (respDepois(x.hash, x.extra) ? agora : x.extra + 30 * M) : 0) : (x.verExtra ? x.verExtra + 10 * M : x.t22 + 30 * M);
         if (x.t22 && !x.w40 && agora >= w40Quando) { alvo = x; passo = 'w40'; break; }
-        if (x.w40 && !x.p102 && agora - x.w40 >= 30 * M) { alvo = x; passo = 'p102'; break; }
+        // /102 e /103: assim que ele responder à /W40, ou 30 min sem resposta
+        if (x.w40 && !x.p102 && (agora - x.w40 >= 30 * M || respDepois(x.hash, x.w40))) { alvo = x; passo = 'p102'; break; }
         if (x.tVideo && !x.videoPerg && !x.t22 && agora - x.tVideo >= 10 * M) { alvo = x; passo = 'video'; break; }
       }
       if (!alvo) return;
