@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.58';
+  const VERSAO = '4.59';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -984,7 +984,12 @@
     // ajustes manuais (vigia/Stefany): nome real, pausar, retomar, cancelar
     window.dinsReguaNome = (hash, nome) => { const r = RG(); if (r[hash]) { r[hash].nome = nome; gravaRG(r); desenharRegua(); } return !!r[hash]; };
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
-    window.dinsReguaRetomar = hash => { const r = RG(); if (r[hash]) { r[hash].estado = 'ativa'; r[hash].motivo = ''; r[hash].tent = 0; gravaRG(r); desenharRegua(); } return !!r[hash]; };
+    // 4.59 (Stefany 13:22, caso Jairo): retomar a régua depois de reenviar o link disparava na hora o toque de 10 min que estava
+    // vencido desde a manhã ("Conseguiu acessar?" 1 min depois do link). Agora retomar RECOMEÇA a contagem a partir de agora.
+    window.dinsReguaRetomar = hash => { const r = RG(), x = r[hash]; if (!x) return false; const t = Date.now();
+      x.estado = 'ativa'; x.motivo = ''; x.tent = 0; x.linkT = t;
+      x.toques = TOQUES.map(q => ({ tipo: q.tipo, quando: q.tipo === '60' ? t + 70 * M : q.dt(t), feito: 0, st: '' }));
+      x.hist.push(hhmm(t) + ' retomada: contagem recomeça agora'); gravaRG(r); desenharRegua(); return true; };
     window.dinsRegua = () => Object.values(RG());
     // 3.94 — RESUMO por cliente (Stefany 10/11 15:12: "bem resumidinho… para eu saber qual foi a sua interpretação")
     // dinsReguaResumo('HASH', 'texto curto') — aparece no quadro embaixo do nome.
