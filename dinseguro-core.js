@@ -920,8 +920,8 @@
     // que vem da consulta) e, sem nota, o nome do contato apenas se parecer nome de pessoa (sem número, @, emoji, "Até R$"…,
     // palavra com inicial maiúscula de 3 a 12 letras). Na dúvida, cumprimenta SEM nome.
     const NAO_NOME = /^(dinseguro|seu|sua|oi|ola|olá|bom|boa|ate|até|consulte|novo|cliente|empresa|cred|credito|crédito|whats|usuario|usuário|sr|sra|dona|seguro)$/i;
-    function nomeSeguro(nomeContato) {
-      try {
+    function nomeSeguro(nomeContato, semNotas) {
+      if (!semNotas) try {
         const ent = (document.querySelector('.entries') || {}).innerText || '';
         const notas = [...ent.matchAll(/\[(?:IA|robô)\]\s+([A-ZÁ-Ú][a-zá-úç]{2,14})(?:\s+[A-ZÁ-Úa-zá-ú])/g)].map(m => m[1]).filter(n => !NAO_NOME.test(n));
         if (notas.length) return notas[notas.length - 1];
@@ -1852,7 +1852,7 @@
     // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
     window.dinsWaVer = () => (GM_getValue('wa_fila', []) || []).map(x => ({ nome: x.nome, caso: x.caso, estado: x.estado, quem: x.quem || 'antiga', fone: x.fone ? '…' + String(x.fone).slice(-4) : '', hash: x.hash, criado: x.criado ? new Date(x.criado).toLocaleString('pt-BR').slice(0, 16) : '', quando: x.quando ? new Date(x.quando).toLocaleString('pt-BR').slice(0, 16) : '', motivo: x.motivo || '', fechado: x.fechado || '' }));
     window.dinsWaArquivarAntigas = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente' && x.quem !== 'varredura 4.27') { x.estado = 'arquivado'; x.motivo = 'fila antiga (antes da 4.27) — não enviar'; n++; } }); GM_setValue('wa_fila', f); return n; };
-    window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
+    window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome, true); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
