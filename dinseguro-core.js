@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.38';
+  const VERSAO = '4.39';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3666,7 +3666,9 @@
     // Cidade: se o auto-complete não preencheu, recarrega a lista pelo estado e escolhe pelo nome
     const cidId = el('facta-cidade') ? 'facta-cidade' : 'cidade';
     const cid = el(cidId);
-    if (cid && !cid.value) {
+    // 4.39 (caso Jairo 11/11 10:25): no C6 a cidade pode ser um campo de texto (sem .options) → "Cannot read properties of undefined (reading 'length')"
+    if (cid && !cid.value && !cid.options) { if (f.cidade) { setv(cidId, f.cidade.toUpperCase()); log('Cidade: ' + f.cidade, 'ok'); } }
+    else if (cid && !cid.value) {
       const est = el('estado');
       if ($ && est) { $(est).selectpicker && $(est).selectpicker('val', est.value); $(est).trigger('change'); }
       await esperar(() => cid.options.length > 5, 15000, 500);
