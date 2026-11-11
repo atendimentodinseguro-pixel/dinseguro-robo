@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.8
+// @version      3.9
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -51,7 +51,7 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.8', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.9', t: Date.now() })); } catch (e) {}
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const dig = s => String(s || '').replace(/\D/g, '');
     const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
@@ -89,16 +89,28 @@
       ocupado = true;
       try {
         let cx = null; for (let i = 0; i < 40 && !cx; i++) { cx = document.querySelector('#main footer [contenteditable="true"]'); if (!cx) { if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) break; await esp(1000); } }
-        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); marca(alvo, { estado: 'erro', motivo: 'número sem WhatsApp ou conversa não abriu' }); return; }
+        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); marca(alvo, { estado: 'erro', motivo: 'número sem WhatsApp ou conversa não abriu' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
         sessionStorage.removeItem('dins_wa_abrindo');
         const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); const cab = tel ? chave(tel[0]) : '', al = chave(alvo.fone);   // só um número de telefone do cabeçalho (não a data do "visto por último")
         // o cabeçalho às vezes mostra o NOME salvo e não o número: aí vale o número da URL, que é o do cliente
         if (cab && cab !== al) { marca(alvo, { estado: 'erro', motivo: 'número do cabeçalho não confere' }); return; }
+        // 3.9 — quem já tem mensagem nossa sem resposta (outra campanha, envio de antes) NÃO recebe outra (caso Silvia 11/11).
+        await esp(2500);
+        const linhas = [...document.querySelectorAll('#main [role="row"]')].filter(r => r.innerText.trim() && !/protegidas com a criptografia/i.test(r.innerText));
+        const ehNossa = r => !!r.querySelector('[data-icon*="tail-out"],[data-icon*="msg-dblcheck"],[data-icon*="msg-check"],[data-icon*="msg-time"]');
+        if (linhas.length && ehNossa(linhas[linhas.length - 1])) { marca(alvo, { estado: 'pulado', motivo: 'já tem mensagem nossa sem resposta no WhatsApp' }); GM_setValue('wa_prox', Date.now() + 30000); return; }
+        if ((cx.innerText || '').trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa já tinha texto (rascunho)' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+        // 3.9 — o texto entra COLADO (evento de colar), que é o que mantém as quebras de linha; o insertText juntava tudo
+        // ("Oi! Tudo bem?Passando…"). Se as quebras não vierem, não envia.
+        const msg = texto(alvo.caso, alvo.nome);
         cx.focus(); await esp(400);
-        document.execCommand('insertText', false, texto(alvo.caso, alvo.nome)); await esp(1500);
-        if (!cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'o texto não entrou na caixa' }); return; }
-        const ic = document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]'); const bt = ic && ic.closest('button');
-        if (!bt) { marca(alvo, { estado: 'erro', motivo: 'botão de enviar não encontrado' }); return; }
+        try { const dt = new DataTransfer(); dt.setData('text/plain', msg); cx.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } catch (e) {}
+        await esp(1500);
+        if (!cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'o texto não entrou na caixa' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+        const quebras = cx.querySelectorAll('p, br').length > 2 || (cx.innerText.match(/\n/g) || []).length >= 4;
+        if (!quebras) { marca(alvo, { estado: 'erro', motivo: 'o texto entrou sem as quebras de linha — NÃO enviado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
+        const bt = document.querySelector('#main footer button[aria-label="Enviar"]') || ((document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]') || {}).closest || (() => null)).call(document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]'), 'button');
+        if (!bt) { marca(alvo, { estado: 'erro', motivo: 'botão de enviar não encontrado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
         bt.click(); await esp(3000);
         if (cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa continuou cheia depois de enviar' }); return; }
         marca(alvo, { estado: 'enviado', quando: Date.now() });

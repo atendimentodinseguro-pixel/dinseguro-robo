@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.32';
+  const VERSAO = '4.33';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -745,11 +745,14 @@
         .find(e => e.children.length === 0 && txt(e) === 'stop' && e.getBoundingClientRect().top < 140);
       if (!ic) throw new Error('ícone de fechar conversa (stop) não encontrado');
       clicar(ic.closest('button') || ic);
+      // 4.33 (Silvania 11/11): a caixa "Selecionar tipo de conversa" nem sempre é combobox/input — procura pelo texto em
+      // qualquer elemento e clica nele; depois escolhe a opção "Fechar Conversa" da lista que abre.
       const lista = await ate(() => [...document.querySelectorAll('[role=combobox],.MuiSelect-select,input')]
-        .filter(vis).find(x => /Selecionar tipo de conversa/i.test(txt(x) || x.placeholder || '')), 10000);
+        .filter(vis).find(x => /Selecionar tipo de conversa/i.test(txt(x) || x.placeholder || ''))
+        || [...document.querySelectorAll('div,span,p,label')].filter(vis).find(x => x.children.length === 0 && /^Selecionar tipo de conversa$/i.test(txt(x))), 10000);
       if (lista) {
-        clicar(lista); await esp(1500);
-        const op = await ate(() => [...document.querySelectorAll('li,[role=option]')]
+        clicar(lista.closest('[role=combobox],[role=button],.MuiSelect-select,.MuiInputBase-root') || lista); await esp(1500);
+        const op = await ate(() => [...document.querySelectorAll('li,[role=option],[role=menuitem]')]
           .filter(vis).find(o => /^Fechar Conversa$/i.test(txt(o))), 8000);
         if (!op) throw new Error('tipo de conversa "Fechar Conversa" não apareceu');
         clicar(op); await esp(1200);
@@ -798,12 +801,17 @@
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } };
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         await abrir(o.hash);                               passos.push('abriu');
+        // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
+        // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
+        const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
+        if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         if (o.linha && !o.linhaFeita) { passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (!o.msgFeita) {
           if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
           else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
           else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
           salvaProgresso({ msgFeita: 1 });
+          try { const f2 = GM_getValue('desf_msg_feita', {}) || {}; f2[chaveDesf] = Date.now(); for (const k in f2) if (Date.now() - f2[k] > 48 * 3600000) delete f2[k]; GM_setValue('desf_msg_feita', f2); } catch (e) {}
         }
         const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
