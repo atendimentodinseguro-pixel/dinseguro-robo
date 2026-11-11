@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.49';
+  const VERSAO = '4.50';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1733,17 +1733,15 @@
       const t0 = L.ult.t && L.ult.t <= agora ? L.ult.t : agora;
       const toques = tipo === 'doc' ? [{ q: '1h', quando: t0 + 60 * M, feito: 0 }] : [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: (() => { const d = new Date(t0); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); })(), feito: 0 }];
       o[hash] = { hash, nome, tipo, t0, toques }; gravaESP(o);
-      // 4.49 (Stefany 11:52, cliente 62 8153-5140): pedimos o CPF à mão e o chat ficou SEM tag. Padrão: mensagem pessoal + /n23 + 01 C.
-      // Pedido de CPF registrado e nenhuma tag de situação (01/02/03/07) → robô completa: /n23 (se ainda não saiu) + 01 C.
+      // 4.49 (Stefany 11:52, cliente 62 8153-5140): pedimos o CPF à mão e o chat ficou SEM tag. Padrão: mensagem pessoal + 01 C (sem /n23 — Stefany 12:01).
+      // Pedido de CPF registrado e nenhuma tag de situação (01/02/03/07) → robô só põe a 01 C.
       if (tipo === 'cpf') try {
         const TD = window.top.document.body.innerText; const ia = TD.search(/\nTags\s*\n?\s*\d/); const ib = ia >= 0 ? TD.indexOf('Variáveis', ia) : -1;
         const bloco = ia >= 0 ? TD.slice(ia, ib > ia ? ib : ia + 1500) : null;
         const temSit = bloco !== null && /\n\s*0[1-7]\s?[A-Za-z]?(\s|-)/.test(bloco);
         if (bloco !== null && !temSit && !localStorage.getItem('dins_ordem')) {
-          const n23 = [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => /nos informe o n[úu]mero do seu Benef[ií]cio ou CPF/i.test(e.innerText));
-          localStorage.setItem('dins_ordem', JSON.stringify(n23
-            ? { hash, acao: 'so_tag', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], msgFeita: 1, linhaFeita: 1, t: Date.now(), quem: 'espera' }
-            : { hash, acao: 'sem_cpf', linhaFeita: 1, t: Date.now(), quem: 'espera' }));
+          // 4.50 (Stefany 12:01): a mensagem pessoal pedindo o CPF já basta — NÃO manda /n23 por cima. Só põe a 01 C.
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao: 'so_tag', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], msgFeita: 1, linhaFeita: 1, t: Date.now(), quem: 'espera' }));
           o[hash].tag01C = Date.now(); gravaESP(o);
         }
       } catch (e) {}
