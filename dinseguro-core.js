@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.40';
+  const VERSAO = '4.41';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1060,7 +1060,7 @@
     // 4.40 (Stefany 10:37: "Dalva e demais clientes seguem aguardando o robô"): os laços que trocam de conversa (toques,
     // pós-pagamento, fechador da varredura, mapeamento) brigavam pela mesma tela — um abria o chat e o outro trocava no meio,
     // e o toque dava "não abriu o chat" de novo e de novo. Agora só um troca de conversa por vez (trava comum, 3 min no máximo).
-    const navPega = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem !== quem && Date.now() - n.t < 3 * M) return false; localStorage.setItem('dins_nav', JSON.stringify({ quem, t: Date.now() })); return true; } catch (e) { return true; } };
+    const navPega = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem !== quem && Date.now() - n.t < 3 * M && !(n.quem === 'mapa' && quem !== 'mapa')) return false;   /* 4.41: mapear é o menos importante — toque, pós e fechador passam na frente */ localStorage.setItem('dins_nav', JSON.stringify({ quem, t: Date.now() })); return true; } catch (e) { return true; } };
     const navSolta = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem === quem) localStorage.removeItem('dins_nav'); } catch (e) {} };
     async function mapearUm(id) { if (!navPega('mapa')) return false; try { return await mapearUm0(id); } finally { navSolta('mapa'); } }
     async function mapearUm0(id) {
