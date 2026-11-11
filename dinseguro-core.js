@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.64';
+  const VERSAO = '4.65';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3964,10 +3964,12 @@
       else log('Cidade não preenchida' + (alvo ? ' (' + alvo + ' não achada)' : '') + '. Escolha na tela.', 'erro');
     }
     const origem = el('proposta-origem_venda'); if (origem && $) { $(origem).selectpicker && $(origem).selectpicker('val', ''); }
-    // Qualibank: marcar "Documentos enviados pelo próprio cliente durante a formalização"
+    // 4.65 (Stefany 11/11 14:39): na Qualibank NUNCA deixar marcado "Documentos enviados pelo próprio cliente durante a
+    // formalização" — quem anexa o documento somos nós. (Antes o robô marcava.) Desmarca se vier marcado.
     if (pagina === 'qualibank') {
       const ck = el('check-documentos_formalizacao');
-      if (ck && !ck.checked) { ck.click(); log('Marcado: documentos enviados pelo cliente na formalização.', 'ok'); }
+      if (ck && ck.checked) { ck.click(); await sleep(300); if (ck.checked) { ck.checked = false; ck.dispatchEvent(new Event('change', { bubbles: true })); } }
+      if (ck) log(ck.checked ? '⚠️ "Documentos enviados pelo cliente" continua MARCADO — desmarque na tela antes de gravar.' : 'Desmarcado: documentos enviados pelo cliente (nós anexamos).', ck.checked ? 'erro' : 'ok');
     }
     log('Dados pessoais preenchidos.', 'ok');
   }
