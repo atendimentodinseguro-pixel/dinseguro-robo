@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.57';
+  const VERSAO = '4.58';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -406,6 +406,9 @@
         // regra da Stefany: mensagem de ATENDENTE vem com o nome em cima ([Dinseguro], [Rômulo Lima], Stefany…);
         // mensagem SEM nome é do bot → o cliente ainda não foi atendido por ninguém.
         if (/^\[[^\]]{2,40}\]/.test(msg)) nossa = true;
+        // 4.58 (Stefany 13:19, caso Jairo): o BOT manda as mensagens de passagem com o rótulo do atendente
+        // ("[Rômulo Lima👤] Estou analisando suas informações…"). Isso NÃO é resposta de gente: o cliente está esperando.
+        if (nossa && /Estou analisando suas informa|Assim que concluir irei avisar|Estamos analisando|atendido\(a\) por um atendente humano|Aguarde um momento, logo/i.test(msg)) nossa = false;
         return { id, nome: linhas[0] || '', chip, naoLidas, msg, nossa };
       }).filter(x => x.id);
       if (!itens.length) return;
@@ -436,7 +439,7 @@
         if (semResposta) { if (!pend[x.id] || pend[x.id].sig !== x.msg.slice(0, 60)) pend[x.id] = { t: Date.now(), sig: x.msg.slice(0, 60) }; } else delete pend[x.id];
         gravar('dins_pend', pend);
         const parado = semResposta && Date.now() - pend[x.id].t > 90000;
-        const esperando = humano ? ((!x.nossa && x.naoLidas > 0) || verificando)
+        const esperando = humano ? ((!x.nossa && x.naoLidas > 0) || verificando || handoff)   /* 4.58: passagem do bot também com humano */
                                  : (!x.nossa && (handoff || parado || (nosso && (x.naoLidas > 0 || /Bot desligado/i.test(x.chip)))));
         // 4.14 — o QUADRO (que lê a conversa inteira) manda para a fila quem ele marcou esperando: bot passou para atendente
         // humano e mandou outra coisa depois (caso Carmen 18:35), ou cliente escreveu e a prévia não mostrava.
