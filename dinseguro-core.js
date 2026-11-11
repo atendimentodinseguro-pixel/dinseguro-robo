@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.42';
+  const VERSAO = '4.43';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1420,7 +1420,9 @@
       // espera e confere se a reserva é dele; a outra aba desiste.
       {
         const chave = alvo.hash + '|' + toque.tipo; const L = GM_getValue('fup_lock', {}) || {};
-        if (L[chave] && Date.now() - L[chave].t < 10 * M && L[chave].aba !== ABA_ID) return;
+        // 4.43: a reserva de uma aba que RECARREGOU (outro ABA_ID) segurava o toque por 10 min — e, como o laço pega sempre o
+        // primeiro toque vencido, parava a fila inteira (Lu Andrade 11/11 10:42–10:55). Agora a reserva vale 90 s.
+        if (L[chave] && Date.now() - L[chave].t < 90000 && L[chave].aba !== ABA_ID) return;
         L[chave] = { aba: ABA_ID, t: Date.now() }; GM_setValue('fup_lock', L);
         await new Promise(s => setTimeout(s, 1500 + Math.random() * 1500));
         const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
