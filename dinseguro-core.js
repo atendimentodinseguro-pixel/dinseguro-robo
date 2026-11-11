@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.30';
+  const VERSAO = '4.31';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -915,6 +915,24 @@
       { tipo: '60', rotulo: '60 min — /132', dt: t => t + 60 * M },
       { tipo: 'manha', rotulo: 'último toque 08:00', dt: t => manhaSeguinte(t) },
     ];
+    // 4.31 (Stefany 11/11 09:02, foto: "Bom dia, Alexsandrapereira292!" — "Ele chamou o cliente pelo nome de usuário. Isso aí
+    // tá muito errado, não pode repetir."). Nome SÓ se for nome de verdade: primeiro o nome real das notas ([IA]/[robô] Nome…,
+    // que vem da consulta) e, sem nota, o nome do contato apenas se parecer nome de pessoa (sem número, @, emoji, "Até R$"…,
+    // palavra com inicial maiúscula de 3 a 12 letras). Na dúvida, cumprimenta SEM nome.
+    const NAO_NOME = /^(dinseguro|seu|sua|oi|ola|olá|bom|boa|ate|até|consulte|novo|cliente|empresa|cred|credito|crédito|whats|usuario|usuário|sr|sra|dona|seguro)$/i;
+    function nomeSeguro(nomeContato) {
+      try {
+        const ent = (document.querySelector('.entries') || {}).innerText || '';
+        const notas = [...ent.matchAll(/\[(?:IA|robô)\]\s+([A-ZÁ-Ú][a-zá-úç]{2,14})(?:\s+[A-ZÁ-Úa-zá-ú])/g)].map(m => m[1]).filter(n => !NAO_NOME.test(n));
+        if (notas.length) return notas[notas.length - 1];
+      } catch (e) {}
+      const n = String(nomeContato || '').trim();
+      if (!n || /[\d@_#$%&*+=|<>\/\\]|R\$|https?:/i.test(n) || /[^\p{L}\s'.-]/u.test(n)) return '';
+      const p = n.split(/\s+/)[0];
+      if (!/^[A-ZÁ-Ú][a-zá-úç]{2,11}$/.test(p) || NAO_NOME.test(p)) return '';
+      if (/^(.{2})\1$/i.test(p) || /(.)\1\1/i.test(p)) return '';   // apelido tipo Zaza, Lulu
+      return p;
+    }
     const MSG_MANHA = nome => `Bom dia${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
       'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
       'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
@@ -1413,7 +1431,7 @@
           estado('pausada', 'cliente respondeu — atendimento humano'); return;
         }
         let enviado;
-        if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : ''));
+        if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeSeguro(alvo.nome)));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
         const atrasado = Date.now() - toque.quando > 5 * M;
         reg('enviado ' + hhmm(Date.now()) + (atrasado ? ' (atrasado)' : ''), true);
@@ -1481,7 +1499,7 @@
         const ent = (document.querySelector('.entries') || {}).innerText || '';
         if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
         if (fe.fase === 'falta anuência' && /anu[eê]ncia/i.test(ent.slice(-3000))) { marca({ faseFeita: fe.fase }, 'anuência já tinha sido mandada'); return; }
-        const nome = alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : '';
+        const nome = nomeSeguro(alvo.nome);
         await mensagemLivre(LINHA_FASE[fe.fase](nome));
         await new Promise(s => setTimeout(s, 2500));
         for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
@@ -1940,7 +1958,7 @@
           if (d.acao === 'c01') { const r = await executarOrdemVarredura(it.id, 'classifica_fecha', varreNota('janela vencida, sem CPF e sem interação → 01 C. Conversa encerrada.')); r === 'ok' ? placar.c01++ : placar.erros++; salva(); continue; }
           if (d.acao === 'wa') {
             const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
-            if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeDoContato() || it.nome, caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
+            if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeSeguro(nomeDoContato() || it.nome), caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); /* 4.31: só nome de verdade (vazio = sem nome) */ GM_setValue('wa_fila', f); }
             placar.wa++; salva();
           }
         }
