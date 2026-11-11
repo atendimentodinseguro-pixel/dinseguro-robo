@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.55';
+  const VERSAO = '4.56';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1067,8 +1067,8 @@
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
     // 4.54 (Stefany 12:55 "1 sim"): trava do vigia. Enquanto o vigia está atendendo um chat, NENHUM loop automático troca de conversa
     // (toques, pós, fases, espera, vencidas, mapa, varredura, desfecho vindo da varredura/robô). O vigia liga com dinsVigiaTrava(min)
-    // e solta com dinsVigiaTrava(0). Máximo 10 min (se esquecer, solta sozinha).
-    window.dinsVigiaTrava = (min = 5) => { const m = Math.max(0, Math.min(10, +min || 0)); localStorage.setItem('dins_vigia_trava', m ? Date.now() + m * M : 0); return m ? 'travado até ' + hhmm(Date.now() + m * M) : 'solto'; };
+    // e solta com dinsVigiaTrava(0) logo depois de mandar. Padrão 3 min, máximo 5 min (Stefany 13:01: "não quero atrasar os demais serviços" — se esquecer, solta sozinha).
+    window.dinsVigiaTrava = (min = 3) => { const m = Math.max(0, Math.min(5, +min || 0)); localStorage.setItem('dins_vigia_trava', m ? Date.now() + m * M : 0); return m ? 'travado até ' + hhmm(Date.now() + m * M) : 'solto'; };
     // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
