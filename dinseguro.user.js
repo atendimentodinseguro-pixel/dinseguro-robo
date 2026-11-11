@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.9
+// @version      3.10
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -51,7 +51,7 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.9', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.10', t: Date.now() })); } catch (e) {}
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const dig = s => String(s || '').replace(/\D/g, '');
     const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
@@ -98,7 +98,11 @@
         await esp(2500);
         const linhas = [...document.querySelectorAll('#main [role="row"]')].filter(r => r.innerText.trim() && !/protegidas com a criptografia/i.test(r.innerText));
         const ehNossa = r => !!r.querySelector('[data-icon*="tail-out"],[data-icon*="msg-dblcheck"],[data-icon*="msg-check"],[data-icon*="msg-time"]');
-        if (linhas.length && ehNossa(linhas[linhas.length - 1])) { marca(alvo, { estado: 'pulado', motivo: 'já tem mensagem nossa sem resposta no WhatsApp' }); GM_setValue('wa_prox', Date.now() + 30000); return; }
+        // 3.10: só conta mensagem nossa RECENTE (últimos 7 dias). Mensagem de um mês atrás não impede o reenvio (caso Antônio, link de 08/10).
+        const dataDe = r => { const e = r && r.querySelector('[data-pre-plain-text]'); const m = e && /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(e.getAttribute('data-pre-plain-text') || ''); return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0; };
+        const ult = linhas[linhas.length - 1];
+        if (ult && ehNossa(ult)) { const dt = dataDe(ult); const dias = dt ? (Date.now() - dt) / 86400000 : 0;
+          if (!dt || dias < 7) { marca(alvo, { estado: 'pulado', motivo: 'já tem mensagem nossa sem resposta no WhatsApp' + (dt ? ' (há ' + Math.floor(dias) + ' dia(s))' : '') }); GM_setValue('wa_prox', Date.now() + 30000); return; } }
         if ((cx.innerText || '').trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa já tinha texto (rascunho)' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
         // 3.9 — o texto entra COLADO (evento de colar), que é o que mantém as quebras de linha; o insertText juntava tudo
         // ("Oi! Tudo bem?Passando…"). Se as quebras não vierem, não envia.

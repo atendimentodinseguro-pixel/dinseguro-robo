@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.33';
+  const VERSAO = '4.34';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1862,6 +1862,7 @@
     window.dinsWaArquivarAntigas = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente' && x.quem !== 'varredura 4.27') { x.estado = 'arquivado'; x.motivo = 'fila antiga (antes da 4.27) — não enviar'; n++; } }); GM_setValue('wa_fila', f); return n; };
     window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome, true); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
+    window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
