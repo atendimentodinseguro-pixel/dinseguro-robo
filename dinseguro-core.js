@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.56';
+  const VERSAO = '4.57';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -629,7 +629,7 @@
     const fecharTemplate = () => { const b = [...document.querySelectorAll('button')].filter(vis).find(x => /^Descartar$/i.test(txt(x)) && /Enviar Template do WhatsApp/i.test(((x.closest('[role=dialog]') || {}).innerText) || '')); if (b) { clicar(b); return true; } return false; };
     const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
-    async function respostaRapida(atalho, editar, semRegua) {
+    async function respostaRapida(atalho, editar, semRegua, prefixo) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
@@ -645,6 +645,8 @@
       clicar(linha);
       const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
       if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
+      // 4.57: atalho que começa com vírgula (/102 ", sua opinião…") recebe o primeiro nome na frente
+      if (prefixo && /^\s*,/.test(document.querySelector('textarea').value)) { const t3 = document.querySelector('textarea'); t3.focus(); setNativo(t3, prefixo + t3.value.trimStart()); await esp(600); }
       if (editar) {
         const ta2 = document.querySelector('textarea');
         let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
@@ -1622,7 +1624,10 @@
           if (nossas.some(t => SIG_W40.test(t))) { marca({ w40: horaW40(nossas), st: 'já estava no chat' }); return; }
           await respostaRapida('/W40', false, true); marca({ w40: Date.now(), st: 'enviada' });
         } else if (passo === 'p102') {
-          await respostaRapida('/102', false, true); await new Promise(s => setTimeout(s, 2500));
+          // 4.57 (Gerson 11/11): /102 e /103 já mandadas à mão → não repetir
+          if (nossas.some(t => /estrela guia/i.test(t)) && nossas.some(t => /inspirado a contribuir/i.test(t))) { marca({ p102: Date.now(), estado: 'concluída', st: '/102 e /103 já estavam no chat' }); return; }
+          const pn = (nomeSeguro(alvo.nome) || '').split(' ')[0];
+          await respostaRapida('/102', false, true, pn || ''); await new Promise(s => setTimeout(s, 2500));
           if (window.top.location.hash !== alvoHash) throw new Error('trocou de chat entre a /102 e a /103');
           await respostaRapida('/103', false, true); marca({ p102: Date.now(), estado: 'concluída', st: '/102 e /103 enviadas' });
         } else if (passo === 'video') {
