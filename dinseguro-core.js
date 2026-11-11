@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.36';
+  const VERSAO = '4.37';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1489,7 +1489,10 @@
     window.dinsVideo = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.tVideo) return 'já registrado';
       Object.assign(x, { nome: nome || x.nome || '', tVideo: t || Date.now(), videoPerg: 0 }); x.hist.push(hhmm(Date.now()) + ' link de vídeo registrado'); o[hash] = x; gravaPOS(o); return 'ok'; };
     window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
-    window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 em 15 min' : ' sem valor extra — /W40 agora')); gravaPOS(o); return true; };
+    window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 em 15 min' : ' sem valor extra — /W40 agora')); gravaPOS(o);
+      // 4.37 (Stefany 10:19): "todo cliente que fez proposta com a gente, recebeu e ainda sobrou margem → tag 01 J"
+      if (ofereceu && !localStorage.getItem('dins_ordem')) try { localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao: 'so_tag', tags: ['01 J Tem Margem Rodar Disparo'], t: Date.now() })); } catch (e) {}
+      return true; };
     window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
     window.dinsReguaSemLinkComLink = () => Object.values(RG()).filter(x => x.semLink && /^01 A sem link/.test(x.motivo || '')).map(x => ({ hash: x.hash, nome: x.nome }));
     window.dinsReguaDetectar = () => { try { detectarLink(); return (RG()[(window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]] || {}).semLink ? 'ainda sem link' : 'ok'; } catch (e) { return 'erro ' + e.message; } };
@@ -1499,6 +1502,10 @@
       try {
         const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!hash || NAO_MEXER_POS.includes(hash)) return;
         const D = document.querySelector('.entries'); if (!D) return;
+        // 4.37 (10:21): logo depois de trocar de chat a tela ainda mostra a conversa ANTERIOR — o Jairo foi registrado como
+        // "pago" com a /22N do Gerson. Só registra com a tela PARADA neste chat e na 2ª leitura seguida do mesmo chat.
+        if (!telaPronta(hash)) { detPos.h = ''; return; }
+        if (detPos.h !== hash) { detPos.h = hash; return; }
         const nossas = [...D.querySelectorAll('[class*="entries-li"].right')].map(e => e.innerText);
         const o = POS(), x = o[hash];
         const i22 = nossas.findIndex(t => SIG_22N.test(t));
@@ -1507,6 +1514,7 @@
       } catch (e) {}
     }, 20000);
     const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47'];
+    const detPos = { h: '' };
     let posRodando = false;
     async function olharPos() {
       if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
@@ -1538,6 +1546,8 @@
         if (!telaPronta(alvo.hash)) throw new Error('não abriu o chat');
         if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) { marca({ parado: 1, st: 'chat com outro atendente — parei' }); return; }
         const nossas = [...document.querySelectorAll('.entries [class*="entries-li"].right')].map(e => e.innerText);
+        // 4.37: só manda pós-pagamento se a /22N estiver MESMO neste chat (trava contra registro errado)
+        if ((passo === 'w40' || passo === 'p102') && !nossas.some(t => SIG_22N.test(t))) { marca({ parado: 1, st: 'a /22N não está neste chat — registro errado, parei' }); return; }
         if (passo === 'w40') {
           if (nossas.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat' }); return; }
           await respostaRapida('/W40', false, true); marca({ w40: Date.now(), st: 'enviada' });
