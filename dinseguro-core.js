@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.66';
+  const VERSAO = '4.67';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3734,7 +3734,10 @@
                 await consultar('normal', f.beneficio);
                 if (!await esperarConsulta(25000, antes2)) { log('A consulta normal também não voltou. Refaça na mão.', 'erro'); return; }
               }
-              return await gerarFicha();   // refaz a ficha com o que está na tela agora
+              const rF = await gerarFicha();   // refaz a ficha com o que está na tela agora
+              // 4.67 (11/11 14:40, erro 90): depois da flash a tela ficava em "OnlineFlash" e a próxima consulta à mão saía PAGA.
+              try { await sleep(800); const o = document.getElementById('offline'); if (o && !o.checked) o.click(); await sleep(600); const c = document.getElementById('cpf'); if (c && !c.checked) c.click(); log('Tela voltou para Inss + CPF (a próxima consulta não sai como flash).', 'ok'); } catch (e) {}
+              return rF;
             } catch (er) {
               GM_setValue('flash_pedido', null);
               log('Não consegui disparar a flash: ' + er.message + '. Seguindo com a ficha atual.', 'erro');
