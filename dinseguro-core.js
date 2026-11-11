@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.47';
+  const VERSAO = '4.48';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1164,7 +1164,7 @@
     // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
     // qualquer link NOSSO que não seja de grupo/rede social/material (o /n30 e o /parabens do PDF levam links que não são proposta)
     const LINK_PROPOSTA = /https?:\/\/[^\s)]+/ig;
-    const NAO_PROPOSTA = /chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|youtube|youtu\.be|tiktok|linktr\.ee|botmaker|google\.com|goo\.gl|maps\.|dinseguro\.com/i;
+    const NAO_PROPOSTA = /chat\.whatsapp\.com|wa\.me|whatsapp\.com|instagram\.com|facebook\.com|fb\.me|fb\.watch|g\.page|maps\.app|youtube|youtu\.be|tiktok|linktr\.ee|botmaker|google\.com|goo\.gl|maps\.|dinseguro\.com/i;
     function detectarLink() {
       if (rodando || fupRodando) return;
       const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1];
@@ -1538,6 +1538,10 @@
       Object.assign(x, { nome: nome || x.nome || '', t22: t || Date.now(), w40: 0, p102: 0, estado: 'pago' }); x.hist.push(hhmm(Date.now()) + ' /22N registrada'); o[hash] = x; gravaPOS(o); return 'ok'; };
     window.dinsVideo = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.tVideo) return 'já registrado';
       Object.assign(x, { nome: nome || x.nome || '', tVideo: t || Date.now(), videoPerg: 0 }); x.hist.push(hhmm(Date.now()) + ' link de vídeo registrado'); o[hash] = x; gravaPOS(o); return 'ok'; };
+    // 4.48 (Gerson 11/11): a /W40 que já estava no chat era marcada com a hora em que o robô VIU (11:07), não com a hora
+    // em que saiu (10:43) → /102 /103 atrasaram. Lê a hora do próprio balão (hoje; se ficar no futuro, ontem).
+    const horaDoBalao = txt => { const m = String(txt).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/gi); if (!m) return 0; const u = m[m.length - 1].match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i); let h = +u[1]; const mi = +u[2]; if (u[3]) { if (/PM/i.test(u[3]) && h < 12) h += 12; if (/AM/i.test(u[3]) && h === 12) h = 0; } const d = new Date(); d.setHours(h, mi, 0, 0); let t = d.getTime(); if (t > Date.now() + 60000) t -= 86400000; return t; };
+    const horaW40 = nossas => { const t = [...nossas].reverse().find(x => SIG_W40.test(x)); return (t && horaDoBalao(t)) || Date.now(); };
     window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
     window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 quando responder (ou 30 min)' : ' sem valor extra — /W40 agora')); gravaPOS(o);
       // 4.37 (Stefany 10:19): "todo cliente que fez proposta com a gente, recebeu e ainda sobrou margem → tag 01 J"
@@ -1559,7 +1563,7 @@
         const nossas = [...D.querySelectorAll('[class*="entries-li"].right')].map(e => e.innerText);
         const o = POS(), x = o[hash];
         const i22 = nossas.findIndex(t => SIG_22N.test(t));
-        if (i22 >= 0 && !(x && x.t22)) { const w = nossas.slice(i22).some(t => SIG_W40.test(t)); window.dinsPago(hash, nomeSeguro(nomeDoContato())); if (w) { const o2 = POS(); o2[hash].w40 = Date.now(); o2[hash].hist.push(hhmm(Date.now()) + ' /W40 já estava no chat'); gravaPOS(o2); } }
+        if (i22 >= 0 && !(x && x.t22)) { const w = nossas.slice(i22).some(t => SIG_W40.test(t)); window.dinsPago(hash, nomeSeguro(nomeDoContato())); if (w) { const o2 = POS(); o2[hash].w40 = horaW40(nossas.slice(i22)); o2[hash].hist.push(hhmm(Date.now()) + ' /W40 já estava no chat (saiu ' + hhmm(o2[hash].w40) + ')'); gravaPOS(o2); } }
         if (nossas.some(t => SIG_VIDEO.test(t)) && !(x && x.tVideo)) window.dinsVideo(hash, nomeSeguro(nomeDoContato()));
       } catch (e) {}
     }, 20000);
@@ -1604,7 +1608,7 @@
         // 4.37: só manda pós-pagamento se a /22N estiver MESMO neste chat (trava contra registro errado)
         if ((passo === 'w40' || passo === 'p102') && !nossas.some(t => SIG_22N.test(t))) { marca({ parado: 1, st: 'a /22N não está neste chat — registro errado, parei' }); return; }
         if (passo === 'w40') {
-          if (nossas.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat' }); return; }
+          if (nossas.some(t => SIG_W40.test(t))) { marca({ w40: horaW40(nossas), st: 'já estava no chat' }); return; }
           await respostaRapida('/W40', false, true); marca({ w40: Date.now(), st: 'enviada' });
         } else if (passo === 'p102') {
           await respostaRapida('/102', false, true); await new Promise(s => setTimeout(s, 2500));
@@ -2186,6 +2190,11 @@
       if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(u.raw || ''))
         return { acao: 'revisar', motivo: 'cliente escreveu "' + (u.txt || '').slice(0, 60) + '" e ficou sem resposta' };
       if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
+      // 4.48 (André 11/11): cliente tinha dito "Não / Vou deixar / Muito pouco valor" e mesmo assim saiu follow-up pelo WhatsApp.
+      // Recusa nas últimas mensagens do cliente → não manda follow-up; vai para revisar.
+      const RECUSOU = /\b(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))\b|^\s*2\s*$/i;
+      const cliTxts = [...document.querySelectorAll('.entries [class*="entries-li"].left')].slice(-6).map(e => (e.innerText || '').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '').trim());
+      if (cliTxts.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cliTxts.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
       const fe = faseEsteira(RG()[id] || {});
       if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
       if (c.link || c.prop) return c.fone ? { acao: 'wa', caso: 'link', motivo: 'link enviado sem resposta' } : { acao: 'revisar', motivo: 'link enviado, mas sem telefone no painel' };
