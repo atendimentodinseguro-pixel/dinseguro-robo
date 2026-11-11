@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.21a';
+  const VERSAO = '4.22';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -768,23 +768,32 @@
         JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
       grava('rodando');
       try {
+        // 4.22 (Stefany 11/11 07:34, caso Vilmar): se a tela trocar de chat no meio, o desfecho VOLTA para o chat e continua
+        // de onde parou (não para mais deixando a conversa aberta). A mensagem nunca sai duas vezes (o.msgFeita).
+        const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } };
+        const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         await abrir(o.hash);                               passos.push('abriu');
-        if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
-        else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
-        else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
+        if (!o.msgFeita) {
+          if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
+          else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
+          else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
+          salvaProgresso({ msgFeita: 1 });
+        }
         const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
-        for (const t of tags) { passos.push('tag:' + await addTag(t)); }
-        if (o.nota) { passos.push(await addNota(o.nota)); }
-        if (d.fechar) { passos.push(await fecharConversa()); limparFiltro(); }
+        if (!o.tagsFeitas) { for (const t of tags) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); }
+        if (o.nota && !o.notaFeita) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
+        if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
         try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
-        grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem');
-        log && log('Desfecho PAROU: ' + e.message, 'erro');
+        // 4.22: até 3 tentativas, continuando do passo que faltou (a mensagem não repete)
+        o.tent = (o.tent || 0) + 1;
+        if (o.tent < 3) { o.t = Date.now(); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e2) {} grava('repetindo', { erro: e.message, tent: o.tent }); ultima = ''; log && log('Desfecho parou (' + e.message + ') — tento de novo do ponto que faltou.', 'erro'); }
+        else { grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem'); log && log('Desfecho PAROU: ' + e.message, 'erro'); }
       } finally { rodando = false; }
     }
     setInterval(olharOrdem, 3000);
