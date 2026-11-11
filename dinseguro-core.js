@@ -1738,7 +1738,7 @@
       if (tipo === 'cpf') try {
         const TD = window.top.document.body.innerText; const ia = TD.search(/\nTags\s*\n?\s*\d/); const ib = ia >= 0 ? TD.indexOf('Variáveis', ia) : -1;
         const bloco = ia >= 0 ? TD.slice(ia, ib > ia ? ib : ia + 1500) : null;
-        const temSit = bloco !== null && /\n\s*0[1-7]\s?[A-Za-z]?\s*-/.test(bloco);
+        const temSit = bloco !== null && /\n\s*0[1-7]\s?[A-Za-z]?(\s|-)/.test(bloco);
         if (bloco !== null && !temSit && !localStorage.getItem('dins_ordem')) {
           const n23 = [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => /nos informe o n[úu]mero do seu Benef[ií]cio ou CPF/i.test(e.innerText));
           localStorage.setItem('dins_ordem', JSON.stringify(n23
