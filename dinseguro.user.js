@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.7
+// @version      3.8
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -51,7 +51,7 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.7', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.8', t: Date.now() })); } catch (e) {}
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const dig = s => String(s || '').replace(/\D/g, '');
     const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
@@ -79,17 +79,19 @@
       const hora = new Date(); const mh = 'wa_hora_' + hora.toDateString() + '_' + hora.getHours();
       if ((+GM_getValue(mh, 0) || 0) >= 10) return;                       // no máximo 10 por hora
       const alvo = pend[0];
-      const naUrl = dig(new URL(location.href).searchParams.get('phone'));
-      if (naUrl !== dig(alvo.fone)) {
-        if (sessionStorage.getItem('dins_wa_abrindo') === alvo.hash) { marca(alvo, { estado: 'erro', motivo: 'não abriu a conversa pelo número (número sem WhatsApp?)' }); sessionStorage.removeItem('dins_wa_abrindo'); return; }
-        sessionStorage.setItem('dins_wa_abrindo', alvo.hash); location.href = 'https://web.whatsapp.com/send?phone=' + dig(alvo.fone); return;
+      // 3.8: o WhatsApp Web troca o endereço "send?phone=…" por "/" assim que abre a conversa — então a prova de que a
+      // conversa aberta é a do cliente é a marca "abrindo este cliente" (desta aba) + a conversa aberta na tela.
+      const abrindo = (() => { try { return JSON.parse(sessionStorage.getItem('dins_wa_abrindo') || 'null'); } catch (e) { return null; } })();
+      if (!abrindo || abrindo.hash !== alvo.hash || Date.now() - abrindo.t > 3 * 60000) {
+        sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() }));
+        location.href = 'https://web.whatsapp.com/send?phone=' + dig(alvo.fone); return;
       }
       ocupado = true;
       try {
         let cx = null; for (let i = 0; i < 40 && !cx; i++) { cx = document.querySelector('#main footer [contenteditable="true"]'); if (!cx) { if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) break; await esp(1000); } }
+        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); marca(alvo, { estado: 'erro', motivo: 'número sem WhatsApp ou conversa não abriu' }); return; }
         sessionStorage.removeItem('dins_wa_abrindo');
-        if (!cx) { marca(alvo, { estado: 'erro', motivo: 'número sem WhatsApp ou conversa não abriu' }); return; }
-        const h = document.querySelector('#main header'); const cab = chave(h && h.innerText), al = chave(alvo.fone);
+        const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); const cab = tel ? chave(tel[0]) : '', al = chave(alvo.fone);   // só um número de telefone do cabeçalho (não a data do "visto por último")
         // o cabeçalho às vezes mostra o NOME salvo e não o número: aí vale o número da URL, que é o do cliente
         if (cab && cab !== al) { marca(alvo, { estado: 'erro', motivo: 'número do cabeçalho não confere' }); return; }
         cx.focus(); await esp(400);

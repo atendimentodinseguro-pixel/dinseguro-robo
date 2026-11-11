@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.29';
+  const VERSAO = '4.30';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1357,8 +1357,12 @@
       const r = RG(); const agora = Date.now();
       let alvo = null, toque = null;
       for (const x of Object.values(r)) {
-        if (x.estado !== 'ativa') continue;
-        const q = x.toques.find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora));
+        // 4.30 (Stefany 11/11 08:53: "teve uma galera que recebeu link ontem que não teve o follow-up da manhã"): o toque das 08:00
+        // também vale para quem ficou 'pausada' (cliente respondeu ontem e nós respondemos depois) e 'humano' (Rômulo/Stefany falou
+        // por último) — o robô abre a conversa e só manda se a ÚLTIMA mensagem for nossa (cliente sem resposta desde então).
+        const manhaTambem = ['pausada', 'humano'].includes(x.estado) && x.link;
+        if (x.estado !== 'ativa' && !manhaTambem) continue;
+        const q = x.toques.find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || q.tipo === 'manha'));
         if (q) { alvo = x; toque = q; break; }
       }
       if (!alvo) return;
@@ -1398,12 +1402,16 @@
         if (alvo.fone ? (!foneTela || foneTela !== alvo.fone) : (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35)))) throw new Error('não consegui confirmar que este é o chat do cliente — não mando');
         if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
           const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
+          if (toque.tipo === 'manha') { reg('não saiu: chat atribuído a ' + quem + ' — follow-up da manhã fica com ' + quem, true); }   // 4.30: aparece no quadro
           estado('humano', 'com ' + quem + ' — robô não manda nada'); return;
         }
         const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
         if (tagsChat.some(t => /^01 D/i.test(t))) { estado('concluída', 'cliente fechou (01 D)'); return; }
         if (tagsChat.some(t => /^(01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { estado('cancelada', 'tag de recusa'); return; }
-        if (clienteRespondeu()) { estado('pausada', 'cliente respondeu — atendimento humano'); return; }
+        if (clienteRespondeu()) {
+          if (toque.tipo === 'manha' && alvo.estado !== 'ativa') { reg('não saiu: o cliente falou por último — é atendimento (vigia)', true); const r5 = RG(); if (r5[alvo.hash]) { r5[alvo.hash].estado = 'alerta'; r5[alvo.hash].motivo = 'cliente escreveu e ficou sem resposta (visto no toque da manhã)'; gravaRG(r5); desenharRegua(); } return; }
+          estado('pausada', 'cliente respondeu — atendimento humano'); return;
+        }
         let enviado;
         if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(alvo.nome && /^[A-ZÁ-Ú][a-zá-ú]+/.test(alvo.nome) ? alvo.nome.split(' ')[0] : ''));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
