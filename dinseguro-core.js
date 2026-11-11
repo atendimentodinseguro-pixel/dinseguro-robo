@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.67';
+  const VERSAO = '4.68';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2392,7 +2392,7 @@
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
     setInterval(async () => {
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
-      const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && !y.fechado && y.quem === 'varredura 4.27');
+      const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && y.quem === 'varredura 4.27' && (!y.fechado || (typeof y.fechado === 'string' && /^erro/.test(y.fechado) && (y.fechTent || 0) < 3 && Date.now() - (y.fechT || 0) > 20 * 60000)));   // 4.68: erro ao fechar tenta de novo (até 3x, de 20 em 20 min)
       if (!x) return;
       if (!navPega('fecha')) return;
       varrendo = true; marcaVarrendo();
@@ -2400,7 +2400,7 @@
         if (!await abrirHash(x.hash)) return;
         if (!janelaVencidaAgora()) { x.fechado = 'não (cliente voltou e a janela reabriu — é do vigia)'; }
         else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota('janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
-        const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; GM_setValue('wa_fila', f2); }
+        const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; if (typeof x.fechado === 'string' && /^erro/.test(x.fechado)) { f2[i].fechTent = (f2[i].fechTent || 0) + 1; f2[i].fechT = Date.now(); } GM_setValue('wa_fila', f2); }
       } finally { varrendo = false; navSolta('fecha'); localStorage.removeItem('dins_varrendo'); desenharVarredura(); }
     }, 60000);
     // painel da varredura (lista da 1ª rodada com o botão de OK + resumo)
