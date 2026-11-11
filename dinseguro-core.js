@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.62';
+  const VERSAO = '4.63';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2241,6 +2241,15 @@
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
     async function colherHashes() {
+      // 4.63 (Stefany 13:57: "43 vencidas" e a varredura das 12:03 leu lista 0): abrir um chat pelo endereço (#/chats/ID) ou a busca
+      // do vigia deixam um FILTRO na lista ("Usuário 'ID'", "Usuários com o texto …") e a varredura só via aquele chat.
+      // Tira o filtro antes de ler a lista.
+      for (let k = 0; k < 4; k++) {
+        const chip = [...document.querySelectorAll('.MuiChip-root')].find(c => /^Usu[áa]rio(s com o texto)?\s*['"‘’:]/i.test((c.innerText || '').trim()));
+        if (!chip) break;
+        const x = chip.querySelector('.MuiChip-deleteIcon, svg'); if (!x) break;
+        x.dispatchEvent(new MouseEvent('click', { bubbles: true })); await esp(1500);
+      }
       let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
       for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
       const vistos = new Map();
