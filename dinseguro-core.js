@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.27';
+  const VERSAO = '4.28';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1864,6 +1864,7 @@
     // decide UMA conversa (já aberta) → { acao: 'fecha'|'c01'|'wa'|'revisar'|'pular', caso, motivo }
     function decidirVarredura(id, nomeLista) {
       if (NAO_MEXER_HASH.includes(id) || /CONGELADO/i.test(nomeLista)) return { acao: 'pular', motivo: 'chat que não se mexe' };
+      if (/^(Jair|⚫️|Romulo)/.test(String(nomeLista || nomeDoContato() || '').trim())) return { acao: 'revisar', motivo: 'nome da lista de exceções antigas (Jair, ⚫️, Romulo) — decidir à mão' };
       if (!janelaVencidaAgora()) return { acao: 'pular', motivo: 'janela aberta' };
       const c = lerConversaVarredura(id);
       if (c.humano) return { acao: 'revisar', motivo: 'chat em atendimento com ' + c.humano };
