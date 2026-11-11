@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.35';
+  const VERSAO = '4.36';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1167,7 +1167,10 @@
       const d0 = new Date(); d0.setHours(h, +hm[2], 0, 0);
       let t = d0.getTime(); if (t > Date.now() + 2 * M) t -= 24 * H;
       if (t > Date.now() + 5 * M) return;                       // data estranha → não mexe
-      const r = RG(), ant = r[hash];
+      // 4.36 (Stefany 10:09, caso Dalva): o registro "01 A sem link" (feito ao mapear) tem linkT = hora do mapeamento e
+      // bloqueava o link de verdade mandado 2 min depois ("já conhecido") → a cliente ficou sem nenhum follow-up.
+      // Registro SEM link não conta como link conhecido.
+      const r = RG(), ant = (r[hash] && !r[hash].semLink && r[hash].link) ? r[hash] : null;
       // 4.02 — um link é de UM cliente só: se já está no quadro em outro chat, não grava de novo aqui
       if (Object.keys(r).some(k => k !== hash && r[k] && r[k].link === ultimo.link)) return;
       if (ant && (ant.link === ultimo.link || Math.abs(ant.linkT - t) < 3 * M)) return;   // já conhecido
@@ -1189,6 +1192,9 @@
       // 3.96 (Stefany 10/11 15:15): nada de "pulado". Toque que já venceu SAI AGORA, marcado como atrasado.
       // O /132 conta 60 min a partir do "Conseguiu acessar?" (não do link): enquanto o de 10 não sai, o de 60 espera.
       const q10 = x.toques.find(q => q.tipo === '10'), q60 = x.toques.find(q => q.tipo === '60');
+      // 4.36: link achado TARDE (mais de 3 h depois, caso Dalva) → "Conseguiu acessar?" e /132 não fazem mais sentido;
+      // fica só o toque da manhã ("continua disponível no link").
+      if (Date.now() - t > 3 * H) [q10, q60].forEach(q => { if (q && !q.feito) { q.feito = Date.now(); q.st = 'pulado (link achado tarde — vale o da manhã)'; } });
       if (q10 && !q10.feito && q60 && !q60.feito) q60.quando = Math.max(q60.quando, q10.quando + 60 * M);
       gravaRG(r2); desenharRegua();
     }
@@ -1485,6 +1491,8 @@
     window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
     window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 em 15 min' : ' sem valor extra — /W40 agora')); gravaPOS(o); return true; };
     window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
+    window.dinsReguaSemLinkComLink = () => Object.values(RG()).filter(x => x.semLink && /^01 A sem link/.test(x.motivo || '')).map(x => ({ hash: x.hash, nome: x.nome }));
+    window.dinsReguaDetectar = () => { try { detectarLink(); return (RG()[(window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]] || {}).semLink ? 'ainda sem link' : 'ok'; } catch (e) { return 'erro ' + e.message; } };
     window.dinsPosTirar = hash => { const o = POS(); delete o[hash]; gravaPOS(o); return true; };
     // detector: a conversa aberta tem a /22N ou o link de vídeo da nossa parte → registra (sem abrir nada)
     setInterval(() => {
