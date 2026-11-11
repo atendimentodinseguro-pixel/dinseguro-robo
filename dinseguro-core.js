@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.34';
+  const VERSAO = '4.35';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1465,6 +1465,91 @@
       } finally { fupRodando = false; }
     }
     setInterval(olharFollowups, 60000);
+
+    // ================================================================ 4.35 — PÓS-PAGAMENTO e CHAMADA DE VÍDEO (Stefany 11/11 09:53–10:00)
+    // "Isso aí é padrão para todo mundo… programar para a gente fazer em escala, no robô, em procedimento."
+    //  PAGO: depois da /22N ("foi aprovado e o valor será enviado…") → cliente respondeu que recebeu → /W40 na hora;
+    //        não respondeu → /W40 30 min depois da /22N. 30 min depois da /W40 (respondendo ou não) → /102 e /103.
+    //  VÍDEO: link de chamada de vídeo (nuvidio etc.) mandado → 10 min depois, se o cliente não falou nada,
+    //        pergunta se conseguiu finalizar ou se precisa de ajuda.
+    // Registro automático: quando a conversa aberta mostra a /22N ou o link de vídeo (mandado por qualquer um).
+    // À mão: dinsPago('HASH', 'Nome') · dinsVideo('HASH', 'Nome') · ver: dinsPosVer() · tirar: dinsPosTirar('HASH').
+    const POS = () => GM_getValue('pos_pago', {}) || {};
+    const gravaPOS = o => GM_setValue('pos_pago', o);
+    const SIG_22N = /valor ser[áa] enviado para a sua conta em at[ée] 48/i, SIG_W40 = /profundamente gratos/i;
+    const SIG_VIDEO = /nuvidio\.me\/|chamada de v[íi]deo pelo link|https?:\/\/\S*(videochamada|video-?call)\S*/i;
+    window.dinsPago = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.t22) return 'já registrado';
+      Object.assign(x, { nome: nome || x.nome || '', t22: t || Date.now(), w40: 0, p102: 0, estado: 'pago' }); x.hist.push(hhmm(Date.now()) + ' /22N registrada'); o[hash] = x; gravaPOS(o); return 'ok'; };
+    window.dinsVideo = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.tVideo) return 'já registrado';
+      Object.assign(x, { nome: nome || x.nome || '', tVideo: t || Date.now(), videoPerg: 0 }); x.hist.push(hhmm(Date.now()) + ' link de vídeo registrado'); o[hash] = x; gravaPOS(o); return 'ok'; };
+    window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
+    window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 em 15 min' : ' sem valor extra — /W40 agora')); gravaPOS(o); return true; };
+    window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
+    window.dinsPosTirar = hash => { const o = POS(); delete o[hash]; gravaPOS(o); return true; };
+    // detector: a conversa aberta tem a /22N ou o link de vídeo da nossa parte → registra (sem abrir nada)
+    setInterval(() => {
+      try {
+        const hash = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!hash || NAO_MEXER_POS.includes(hash)) return;
+        const D = document.querySelector('.entries'); if (!D) return;
+        const nossas = [...D.querySelectorAll('[class*="entries-li"].right')].map(e => e.innerText);
+        const o = POS(), x = o[hash];
+        const i22 = nossas.findIndex(t => SIG_22N.test(t));
+        if (i22 >= 0 && !(x && x.t22)) { const w = nossas.slice(i22).some(t => SIG_W40.test(t)); window.dinsPago(hash, nomeSeguro(nomeDoContato())); if (w) { const o2 = POS(); o2[hash].w40 = Date.now(); o2[hash].hist.push(hhmm(Date.now()) + ' /W40 já estava no chat'); gravaPOS(o2); } }
+        if (nossas.some(t => SIG_VIDEO.test(t)) && !(x && x.tVideo)) window.dinsVideo(hash, nomeSeguro(nomeDoContato()));
+      } catch (e) {}
+    }, 20000);
+    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47'];
+    let posRodando = false;
+    async function olharPos() {
+      if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
+      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
+      if (!dentroDoHorario(Date.now())) return;
+      const agora = Date.now(); let fila = []; try { fila = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
+      let alvo = null, passo = '';
+      for (const x of Object.values(POS())) {
+        if (x.parado) continue;
+        // 4.35b (Stefany 10:01): cliente CONFIRMOU que recebeu → ANTES da /W40 o vigia vê se ele tem mais valor para liberar
+        // (Multicorban) e oferece ("esse valor te ajuda? podemos liberar na mesma conta?"). O robô espera a marca do vigia:
+        // dinsPosExtra('HASH', true) = ofereceu → /W40 15 min depois · dinsPosExtra('HASH', false) = não tem valor → /W40 já.
+        // Sem a marca em 20 min, a /W40 sai assim mesmo (o cliente não fica sem ela).
+        if (x.t22 && !x.w40 && fila.includes(x.hash) && agora - x.t22 > 60000 && !x.verExtra) { const o = POS(); o[x.hash].verExtra = agora; o[x.hash].hist.push(hhmm(agora) + ' cliente respondeu — vigia: ver valor extra antes da /W40'); gravaPOS(o); continue; }
+        const w40Quando = x.extra ? x.extra + (x.extraOfereceu ? 15 * M : 0) : (x.verExtra ? x.verExtra + 20 * M : x.t22 + 30 * M);
+        if (x.t22 && !x.w40 && agora >= w40Quando) { alvo = x; passo = 'w40'; break; }
+        if (x.w40 && !x.p102 && agora - x.w40 >= 30 * M) { alvo = x; passo = 'p102'; break; }
+        if (x.tVideo && !x.videoPerg && !x.t22 && agora - x.tVideo >= 10 * M) { alvo = x; passo = 'video'; break; }
+      }
+      if (!alvo) return;
+      const marca = mud => { const o = POS(), y = o[alvo.hash]; if (!y) return; Object.assign(y, mud); y.hist.push(hhmm(Date.now()) + ' ' + passo + ': ' + (mud.st || 'ok')); gravaPOS(o); };
+      posRodando = true;
+      try {
+        const alvoHash = '#/chats/' + alvo.hash;
+        if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
+        for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) throw new Error('não abriu o chat');
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) { marca({ parado: 1, st: 'chat com outro atendente — parei' }); return; }
+        const nossas = [...document.querySelectorAll('.entries [class*="entries-li"].right')].map(e => e.innerText);
+        if (passo === 'w40') {
+          if (nossas.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat' }); return; }
+          await respostaRapida('/W40', false, true); marca({ w40: Date.now(), st: 'enviada' });
+        } else if (passo === 'p102') {
+          await respostaRapida('/102', false, true); await new Promise(s => setTimeout(s, 2500));
+          if (window.top.location.hash !== alvoHash) throw new Error('trocou de chat entre a /102 e a /103');
+          await respostaRapida('/103', false, true); marca({ p102: Date.now(), estado: 'concluída', st: '/102 e /103 enviadas' });
+        } else if (passo === 'video') {
+          if (clienteRespondeu()) { marca({ videoPerg: Date.now(), st: 'cliente já falou — fica com o vigia' }); return; }
+          const n = nomeSeguro(alvo.nome);
+          await mensagemLivre((n ? n + ', c' : 'C') + 'onseguiu finalizar a chamada de vídeo pelo link? 😊 Se aparecer qualquer dificuldade (câmera, microfone ou para entrar), me fala aqui que eu te ajudo na hora.');
+          marca({ videoPerg: Date.now(), st: 'perguntado' });
+        }
+        log && log('Pós-pagamento/vídeo: ' + passo + ' — ' + (alvo.nome || alvo.hash), 'ok');
+      } catch (e) {
+        if (/JANELA_VENCIDA/.test(e.message)) marca({ parado: 1, st: 'janela de 24 h vencida — parei' });
+        else { const o = POS(), y = o[alvo.hash]; if (y) { y.tent = (y.tent || 0) + 1; y.erro = e.message; if (y.tent >= 3) y.parado = 1; y.hist.push(hhmm(Date.now()) + ' ' + passo + ' erro: ' + e.message); gravaPOS(o); } }
+      } finally { posRodando = false; }
+    }
+    setInterval(olharPos, 45000);
 
     // 4.21 — DESBLOQUEIO / ANUÊNCIA SAEM SOZINHOS (Stefany 19:22 "o follow-up certo sairia sozinho" / 19:49 "finaliza tudo").
     // Esteira diz "falta desbloquear" (215 ASSINATURA DIGITAL OK / AVERBE JA) → linha pessoal + /dsg25a + /dsg25.
