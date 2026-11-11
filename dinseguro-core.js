@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.50';
+  const VERSAO = '4.51';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1637,6 +1637,22 @@
       'falta anuência': n => `${n ? n + ', o' : 'O'} desbloqueio deu certo! 🙌 Agora falta só confirmar a contratação no Meu INSS (a anuência). Te mando o passo a passo aqui embaixo 👇`
     };
     const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'] };
+    // 4.51 — libera "Chat em atendimento com Fulano": ⋮ → "Liberar chat bloqueado por …". Procura em todos os documentos (o menu abre em overlay).
+    async function liberarChat() {
+      const docs = () => [window.top.document, document, ...[...window.top.document.querySelectorAll('iframe')].map(f => { try { return f.contentDocument; } catch (e) { return null; } }).filter(Boolean)];
+      const travado = () => docs().some(d => { const t = d.querySelector('textarea'); return t && /atendimento com (?!Dinseguro)/i.test(t.placeholder || ''); });
+      for (let tent = 0; tent < 3 && travado(); tent++) {
+        let dots = null; for (const d of docs()) { dots = [...d.querySelectorAll('mat-icon, i, span, button')].find(e => (e.innerText || '').trim() === 'more_vert' && e.getBoundingClientRect().top < 200 && e.getBoundingClientRect().left > 600); if (dots) break; }
+        if (!dots) return false;
+        (dots.closest('button') || dots).click();
+        let it = null; for (let i = 0; i < 10 && !it; i++) { await new Promise(s => setTimeout(s, 300)); for (const d of docs()) { it = [...d.querySelectorAll('button, [role=menuitem], .mat-menu-item, li, div, span')].find(e => /^\s*\S*\s*Liberar chat bloqueado/.test(e.innerText || '') && (e.innerText || '').length < 80); if (it) break; } }
+        if (!it) { try { window.top.document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (e) {} return false; }
+        (it.closest('button, [role=menuitem], .mat-menu-item') || it).click();
+        for (let i = 0; i < 10 && travado(); i++) await new Promise(s => setTimeout(s, 500));
+      }
+      return !travado();
+    }
+    window.dinsLiberarChat = liberarChat;
     let faseRodando = false;
     async function olharFases() {
       if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
@@ -1645,7 +1661,9 @@
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
-        if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || (x.estado === 'humano' && protegido(x.hash))) continue;   // 4.47: humano só para quem está na lista
+        // 4.51 (Stefany 12:32, caso Waldirene): a fase da esteira (desbloqueio/anuência) é mensagem padrão — sai mesmo em chat
+        // protegido ou "com humano". Só o chat de teste fica de fora.
+        if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || x.hash === 'F20QOEL8YYLQN2S6SR47') continue;
         const f = faseEsteira(x); if (!f || !ATALHOS_FASE[f.fase] || x.faseFeita === f.fase) continue;
         if ((x.faseTent || 0) >= 3) continue;
         alvo = x; fe = f; break;
@@ -1665,7 +1683,12 @@
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
         const foneTela = foneDoContato(); if (alvo.fone && foneTela !== alvo.fone) throw new Error('telefone do chat não confere');
-        if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) { marca({ estado: 'humano' }, 'fase ' + fe.fase + ': chat com humano — não mandei'); return; }
+        // 4.51: chat travado com Rômulo/Stefany → libera (Stefany 12:30: "você já tem a liberdade de liberar o chat") e segue.
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(window.top.document.body.innerText + '\n' + document.body.innerText)) {
+          const ok = await liberarChat();
+          if (!ok) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ': chat travado com humano e não consegui liberar — vigia'); return; }
+          marca({}, 'fase ' + fe.fase + ': chat liberado para mandar');
+        }
         if (clienteRespondeu()) { marca({ faseTent: 3 }, 'fase ' + fe.fase + ': cliente falou por último — fica para o vigia'); return; }
         const ent = (document.querySelector('.entries') || {}).innerText || '';
         if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
