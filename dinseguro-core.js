@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.41';
+  const VERSAO = '4.42';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1390,7 +1390,8 @@
       if (fupRodando || rodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
       if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
       const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
-      if (Date.now() - ocup < 2 * M) return;                                           // vigia mexendo agora
+      // 4.42: o vigia marcava 'ocupado' a cada ação e segurava os toques por 2 min seguidos (caso Dalva/Lu 11/11) — agora 45 s
+      if (Date.now() - ocup < 45000) return;                                           // vigia mexendo agora
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return; // mensagem sendo escrita
       const r = RG(); const agora = Date.now();
       let alvo = null, toque = null;
@@ -1525,7 +1526,7 @@
     let posRodando = false;
     async function olharPos() {
       if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
-      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       if (!dentroDoHorario(Date.now())) return;
