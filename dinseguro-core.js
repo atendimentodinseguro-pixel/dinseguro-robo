@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.44';
+  const VERSAO = '4.45';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1000,7 +1000,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '' } : {};
+      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '' } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -1042,13 +1042,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
@@ -1494,6 +1494,31 @@
       } finally { fupRodando = false; navSolta('fup'); }
     }
     setInterval(olharFollowups, 60000);
+    // 4.45 — confere a janela de 24 h de quem está no quadro (abre a conversa e lê a caixa de mensagem). Vencida → sai do
+    // quadro (fica com a varredura). Roda sozinho 3 min depois de abrir e a cada 60 min, só com a tela livre. À mão: dinsReguaVencidas()
+    let vencRodando = false;
+    window.dinsReguaVencidas = async () => {
+      if (vencRodando) return 'já rodando'; vencRodando = true; let n = 0, v = 0;
+      try {
+        const agora = Date.now();
+        const alvos = Object.values(RG()).filter(x => !['fechada', 'cancelada', 'esgotada', 'encerrado', 'concluída'].includes(x.estado) && !x.vencida && (agora - x.linkT < 48 * H || ['humano', 'alerta', 'erro'].includes(x.estado)) && !protegido(x.hash)).map(x => x.hash);
+        for (const h of alvos) {
+          for (let k = 0; k < 40 && (fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando() || !navPega('vence')); k++) await new Promise(r => setTimeout(r, 3000));
+          try {
+            window.top.location.hash = '#/chats/' + h; await new Promise(r => setTimeout(r, 6000));
+            for (let i = 0; i < 8 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500));
+            if (!telaPronta(h)) continue;
+            n++;
+            if (janelaVencidaAgora()) { v++; const r = RG(), x = r[h]; if (x) { x.vencida = Date.now(); x.toques && x.toques.forEach(q => { if (!q.feito) { q.feito = Date.now(); q.st = 'pulado (janela de 24 h vencida → varredura)'; } }); if (!['humano'].includes(x.estado)) { x.estado = 'esgotada'; x.motivo = 'janela de 24 h vencida — fica para a varredura'; } x.hist.push(hhmm(Date.now()) + ' janela de 24 h vencida (conferido) — saiu do quadro'); gravaRG(r); } }
+          } finally { navSolta('vence'); }
+        }
+        try { desenharRegua(); } catch (e) {}
+        log && log('Quadro: conferi ' + n + ' conversas — ' + v + ' com a janela de 24 h vencida saíram do quadro.', 'ok');
+        return { conferidas: n, vencidas: v };
+      } finally { vencRodando = false; }
+    };
+    setTimeout(() => window.dinsReguaVencidas(), 3 * 60000);
+    setInterval(() => { if (!vencRodando) window.dinsReguaVencidas(); }, 60 * 60000);
 
     // ================================================================ 4.35 — PÓS-PAGAMENTO e CHAMADA DE VÍDEO (Stefany 11/11 09:53–10:00)
     // "Isso aí é padrão para todo mundo… programar para a gente fazer em escala, no robô, em procedimento."
@@ -1654,7 +1679,10 @@
       let top; try { top = window.top.document; } catch (e) { return; }
       const r = RG(); const agora = Date.now();
       const ordem = { erro: 0, bloqueada: 0, alerta: 1, humano: 2, ativa: 3, acompanhando: 4, pausada: 5, esgotada: 6, 'concluída': 7, encerrado: 8, cancelada: 9 };
-      const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
+      // 4.45 (Stefany 11:12, caso Genivaldo): o quadro é da JANELA DE 24 h ABERTA — quem já venceu (lido na tela, ou a última
+      // mensagem do cliente tem mais de 24 h) sai daqui e fica com a varredura. Antes inflava o número do quadro.
+      const venceu = x => x.vencida || (x.ultCliT && agora - x.ultCliT > 24 * H) || /janela de 24 h vencida/i.test(x.motivo || '');
+      const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && !venceu(x) && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
         .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
       let q = top.getElementById('dins-regua');
       if (!q) {
