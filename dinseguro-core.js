@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.80';
+  const VERSAO = '4.81';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -384,9 +384,9 @@
           const antesG = logRobo().length;
           const gv = botaoRobo('Gravar'); if (!gv) throw new Error('botão Gravar não está na tela');
           gv.click();
-          let fimG = null; for (let i = 0; i < 40 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6); }
+          let fimG = null; for (let i = 0; i < 70 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6); }
           if (!fimG) throw new Error('o Gravar não respondeu em 60 s');
-          const nro = (/Proposta gravada N[º°o]?\s*(\d+)/.exec(fimG) || [])[1];
+          const nro = (/Proposta gravada N[º°o]?\s*([A-Z]{0,4}\d+)/.exec(fimG) || [])[1];
           if (!nro) throw new Error('não gravou: ' + fimG.replace(/^\d\d:\d\d /, '').slice(0, 160));
           poeAO(o.hash, { estado: 'gravada', proposta: nro });
           const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText));
@@ -964,7 +964,7 @@
         const tags = (o.tags && o.tags.length ? o.tags : d.tags).slice();
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
         if (!o.tagsFeitas) { for (const t of tags) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); }
-        if (o.nota && !o.notaFeita) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
+        if (o.nota && !o.notaFeita && !(o.pularSe && passos.some(x => /já tinha saído/.test(x)))) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
         if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
@@ -4313,10 +4313,10 @@
     const modal = await esperar(() => {
       const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText));
       return m || null;
-    }, 30000, 500);
+    }, 75000, 500);   // 4.81: o Qualibank demora mais de 30 s para mostrar "Proposta gerada!" (caso Mauro 19:12)
     if (!modal) throw new Error('Não apareceu confirmação. Veja se faltou algum campo (a tela rola até ele).');
     if (!/Proposta gerada|criada com sucesso/i.test(modal.innerText)) throw new Error('Banco recusou: ' + modal.innerText.slice(0, 200));
-    const nro = (modal.innerText.match(/N[º°o]\s*(\d+)/) || [])[1] || '';
+    const nro = (modal.innerText.match(/N[º°o]\s*([A-Z]{0,4}\d+)/) || [])[1] || '';   // 4.81: Qualibank "QUA0003227745"
     log('Proposta gravada Nº ' + nro, 'ok');
     GM_setValue('ultimo_resultado', { cpf: f.cpf, proposta: nro, quando: new Date().toISOString() });
     if (!PEGAR_LINK) return;                     // por enquanto para aqui: link é pego à mão
