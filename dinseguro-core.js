@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.31';
+  const VERSAO = '4.32';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1998,7 +1998,16 @@
           (pl ? ` · fechadas ${pl.fechadas + pl.c01} · WhatsApp ${pl.wa} · revisar ${pl.revisar}` : '') + `</div>`;
         const botao = p.aguardando && !p.aprovado ? `<div style="margin:6px 0"><b>1ª rodada do dia:</b> confira e aprove. <button data-varreok="1" style="padding:3px 10px;border:0;border-radius:6px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">✅ Pode executar</button></div>` : '';
         const linhas = q.dataset.min === '1' ? '' : p.itens.map(i => `<div style="border-top:1px solid #334155;padding:2px 0"><span data-abrir="${i.id}" style="cursor:pointer;text-decoration:underline">${esc(i.nome)}</span> · ${ROT[i.acao] || i.acao}${i.caso ? ' (' + i.caso + ')' : ''}<br><span style="color:#94a3b8">${esc(i.motivo)}</span></div>`).join('');
-        q.innerHTML = cab + botao + linhas;
+        // 4.32 (Stefany 09:12: "a gente vai controlar isso onde, quando vai receber um relatório de quem foi enviado e quem não foi"):
+        // fila do WhatsApp à vista no painel — cada cliente com a situação: esperando · enviado HH:MM · conversa fechada · erro (motivo).
+        const hoje = new Date().toDateString(); const hm = t => t ? new Date(t).toLocaleTimeString('pt-BR').slice(0, 5) : '';
+        const wf = (GM_getValue('wa_fila', []) || []).filter(x => x.quem === 'varredura 4.27' && new Date(x.criado || 0).toDateString() === hoje);
+        const pausado = (+GM_getValue('wa_prox', 0) || 0) - Date.now() > 86400000; const prox = +GM_getValue('wa_prox', 0) || 0;
+        const st = x => x.estado === 'enviado' ? ('✅ enviado ' + hm(x.quando) + (x.fechado ? (typeof x.fechado === 'number' ? ' · 🔒 fechada' : ' · ' + esc(String(x.fechado)).slice(0, 40)) : ' · fechando…')) : x.estado === 'erro' ? ('❌ ' + esc(x.motivo || 'erro')) : x.estado === 'arquivado' ? ('⏸ tirado: ' + esc(x.motivo || '')) : '⏳ esperando';
+        const nEnv = wf.filter(x => x.estado === 'enviado').length, nPend = wf.filter(x => x.estado === 'pendente').length, nErr = wf.filter(x => x.estado === 'erro').length;
+        const waCab = `<div style="margin-top:6px;border-top:2px solid #a78bfa;padding-top:4px;font-weight:700">📲 WhatsApp (outro número): ${nEnv} enviados · ${nPend} esperando · ${nErr} erro${pausado ? ' · <span style="color:#fbbf24">⏸ PAUSADO</span>' : (nPend && prox > Date.now() ? ' · próximo às ' + hm(prox) : '')}</div>`;
+        const waLin = q.dataset.min === '1' ? '' : wf.map(x => `<div style="border-top:1px solid #334155;padding:2px 0"><span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline">${esc(x.nomeOriginal || x.nome || '(sem nome)')}</span> · ${x.caso} · ${st(x)}</div>`).join('');
+        q.innerHTML = cab + botao + linhas + (wf.length ? waCab + waLin : '');
       } catch (e) {}
     }
     setInterval(desenharVarredura, 20000); setTimeout(desenharVarredura, 5000);
