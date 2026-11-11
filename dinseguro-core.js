@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.43';
+  const VERSAO = '4.44';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -124,8 +124,13 @@
     if (!dest || !aqui || dest === aqui) return '';
     if ((RESERVA[dest] || []).includes(aqui)) return '';
     if (String(f.banco_ordem_stefany || '').toUpperCase() === aqui) return '';
+    // 4.44 (Stefany 11:11: "Ordem Stefany saiu, não existe mais"): quem NÃO é invalidez segue a hierarquia sozinho —
+    // C6 → FACTA → QUALIBANK — quando o banco anterior reprova/não serve (caso Jairo: C6 "Reprovado Política Interna 66").
+    const CADEIA = ['C6', 'FACTA', 'QUALIBANK'];
+    const inval = (typeof INVALIDEZ !== 'undefined') && INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'));
+    if (!inval && CADEIA.includes(dest) && CADEIA.indexOf(aqui) > CADEIA.indexOf(dest)) return '';
     return `⛔ BANCO ERRADO: a ficha é para ${dest} (espécie ${f.especie || '?'}, ${f.idade || '?'} anos) e esta tela é ${aqui}. ` +
-      `Invalidez: ≤39 C6 · 40–52 QUERO MAIS (reserva Daycoval) · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não digitar aqui sem ordem da Stefany.`;
+      `Invalidez: ≤39 C6 · 40–52 QUERO MAIS (reserva Daycoval) · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não invalidez: C6 → FACTA → Qualibank.`;
   }
   // 4.04 — TRAVA DO TELEFONE (Stefany 10/11 16:28, caso Vilson: "Você digitou Wilson no quali com o telefone errado. E isso não pode acontecer").
   // O telefone da proposta é SEMPRE o WhatsApp do atendimento (o número do chat do Botmaker), nunca o do cadastro do Multicorban.
@@ -987,7 +992,8 @@
       const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
       const tem = re => tags.some(t => re.test(t));
       const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
-      if (hum) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — robô não manda nada' };
+      const hAtual = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || '';
+      if (hum && protegido(hAtual)) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — caso que a Stefany pediu para não interferir' };
       if (tem(/^01 D/i)) return { estado: 'acompanhando', motivo: 'fechou negócio (01 D) — acompanhar o banco' };
       if (tem(/^01 (I|k)/i)) return { estado: 'encerrado', motivo: 'sem margem — retorno dado' };
       if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
@@ -1057,6 +1063,13 @@
       return false;
     };
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
+    // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
+    // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
+    // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
+    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0'];   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
+    const protegido = h => { try { return NAO_INTERFERIR_PADRAO.includes(h) || (GM_getValue('nao_interferir', []) || []).includes(h); } catch (e) { return false; } };
+    window.dinsNaoInterferir = (h, on = true) => { const L = GM_getValue('nao_interferir', []) || []; const i = L.indexOf(h); if (on && i < 0) L.push(h); if (!on && i >= 0) L.splice(i, 1); GM_setValue('nao_interferir', L); return L; };
+    setTimeout(() => { try { const r = RG(); let n = 0; Object.values(r).forEach(x => { if (x.estado === 'humano' && !protegido(x.hash)) { x.estado = x.link ? 'ativa' : 'acompanhando'; x.reler = 1; x.hist.push(hhmm(Date.now()) + ' 4.44: saiu de "robô não manda nada" — análise normal'); n++; } }); if (n) { gravaRG(r); try { desenharRegua(); } catch (e) {} } } catch (e) {} }, 8000);
     // 4.40 (Stefany 10:37: "Dalva e demais clientes seguem aguardando o robô"): os laços que trocam de conversa (toques,
     // pós-pagamento, fechador da varredura, mapeamento) brigavam pela mesma tela — um abria o chat e o outro trocava no meio,
     // e o toque dava "não abriu o chat" de novo e de novo. Agora só um troca de conversa por vez (trava comum, 3 min no máximo).
@@ -1073,7 +1086,7 @@
       try { detectarLink(); } catch (e) {}
       const x = RG()[id];
       if (x) {
-        const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano') window.dinsReguaHumano(id, m[1].trim());
+        const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink) { try { reclassificar(id); } catch (e) {} }
         const r2 = RG(); if (r2[id]) { delete r2[id].reler; r2[id].lidoT = Date.now(); gravaRG(r2); }
       }
@@ -1192,7 +1205,7 @@
       if (x.toques.every(q => q.feito)) { x.estado = 'esgotada'; x.motivo = 'os três toques já foram feitos'; }
       // 3.97 — link mandado por OUTRO atendente (Rômulo, Stefany…) → é dele: fica no quadro, robô não manda nada
       const autor = (antes.slice(iNosso).match(/^\[([^\]\n]{2,40})\]/) || [])[1] || '';
-      if (autor && !/^Dinseguro$/i.test(autor.trim())) { x.estado = 'humano'; x.motivo = 'link enviado por ' + autor.replace(/👤/g, '').trim() + ' — robô não manda nada'; }
+      if (autor && !/^Dinseguro$/i.test(autor.trim()) && protegido(hash)) { x.estado = 'humano'; x.motivo = 'link enviado por ' + autor.replace(/👤/g, '').trim() + ' — robô não manda nada'; }
       // 3.97 — cliente já falou DEPOIS do link → a conversa virou atendimento: régua pausada (vigia/atendente cuidam)
       else if (falouDepois(depois)) { x.estado = 'pausada'; x.motivo = 'cliente respondeu depois do link — atendimento humano'; }
       // 3.96 (Stefany 10/11 15:15): nada de "pulado". Toque que já venceu SAI AGORA, marcado como atrasado.
@@ -1442,7 +1455,7 @@
         if (!telaPronta(alvo.hash)) throw new Error('tela ainda não mostra este chat — tento de novo');
         const foneTela = foneDoContato();
         if (alvo.fone ? (!foneTela || foneTela !== alvo.fone) : (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35)))) throw new Error('não consegui confirmar que este é o chat do cliente — não mando');
-        if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText)) {
+        if (/Chat em atendimento com ([^\n]+)/.test(document.body.innerText) && protegido(alvo.hash)) {
           const quem = document.body.innerText.match(/Chat em atendimento com ([^\n]+)/)[1].trim();
           if (toque.tipo === 'manha') { reg('não saiu: chat atribuído a ' + quem + ' — follow-up da manhã fica com ' + quem, true); }   // 4.30: aparece no quadro
           estado('humano', 'com ' + quem + ' — robô não manda nada'); return;
@@ -1674,7 +1687,8 @@
         if (fe && fe.fase === 'pago') return 'E';
         if (fe && fe.fase === 'recusada') return 'J';
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
-        if (x.estado === 'humano' || x.junto || (x.comQuem && x.ultLado !== 'cli') || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
+        if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
+        if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
         if (x.estado === 'ativa') return 'F';
         if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
         return 'A';
