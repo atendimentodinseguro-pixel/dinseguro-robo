@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.73';
+  const VERSAO = '4.74';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -999,6 +999,11 @@
     window.dinsAverbarAvisado = nome => { const A = GM_getValue('averbar', {}) || {}; const k = String(nome || '').trim().toUpperCase(); if (A[k]) { A[k].avisado = true; GM_setValue('averbar', A); } return !!A[k]; };
     window.dinsAutoFeito = (h, nota) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; O[h].estado = 'feito'; O[h].nota = nota || ''; GM_setValue('auto_ordens', O); return true; };
     window.dinsAutoTeste = (cpf, valor, nome) => { const O = GM_getValue('auto_ordens', {}) || {}; const h = 'TESTE_' + String(cpf).replace(/\D/g, ''); O[h] = { hash: h, nome: (nome || 'TESTE') + ' (teste)', cpf: String(cpf).replace(/\D/g, ''), valor: +valor, aceite: false, estado: 'nova', t: Date.now(), teste: true, hist: [hhmm(Date.now()) + ' ordem de TESTE'] }; GM_setValue('auto_ordens', O); return h; };
+    // 4.74 (Stefany 11/11 17:39, caso Maristelcio: "quero que o robô faça ele"): o vigia entrega ao robô um cliente que mandou CPF
+    // (ex.: já respondemos "estou analisando" e a ordem automática não nasceu). Mesma ordem tipo 'cpf' do 4.24/4.73: consulta normal
+    // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
+    window.dinsAutoCpf = (h, cpf, nome) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
+      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
     window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
