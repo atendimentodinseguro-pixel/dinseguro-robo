@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.53';
+  const VERSAO = '4.54';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -787,8 +787,10 @@
 
     // laço: a cada 3s procura uma ordem nova
     let rodando = false, ultima = '';
+    const vigiaTrava = () => Date.now() < (+localStorage.getItem('dins_vigia_trava') || 0);
     async function olharOrdem() {
       if (rodando) return;
+      { let o0 = null; try { o0 = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {} if (o0 && o0.quem && o0.quem !== 'vigia' && vigiaTrava()) return; }   // 4.54
       let o; try { o = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) { return; }
       if (!o || !o.hash || !o.acao) return;
       const id = o.hash + '|' + o.acao + '|' + (o.t || '');
@@ -1063,6 +1065,10 @@
       return false;
     };
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
+    // 4.54 (Stefany 12:55 "1 sim"): trava do vigia. Enquanto o vigia está atendendo um chat, NENHUM loop automático troca de conversa
+    // (toques, pós, fases, espera, vencidas, mapa, varredura, desfecho vindo da varredura/robô). O vigia liga com dinsVigiaTrava(min)
+    // e solta com dinsVigiaTrava(0). Máximo 10 min (se esquecer, solta sozinha).
+    window.dinsVigiaTrava = (min = 5) => { const m = Math.max(0, Math.min(10, +min || 0)); localStorage.setItem('dins_vigia_trava', m ? Date.now() + m * M : 0); return m ? 'travado até ' + hhmm(Date.now() + m * M) : 'solto'; };
     // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
@@ -1077,6 +1083,7 @@
     const navSolta = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem === quem) localStorage.removeItem('dins_nav'); } catch (e) {} };
     async function mapearUm(id) { if (!navPega('mapa')) return false; try { return await mapearUm0(id); } finally { navSolta('mapa'); } }
     async function mapearUm0(id) {
+      if (vigiaTrava()) return false;   // 4.54
       if (vigiaTrabalhando()) return false;
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
@@ -1400,6 +1407,7 @@
     // 2) EXECUTOR: um toque por minuto, no máximo
     let fupRodando = false;
     async function olharFollowups() {
+      if (vigiaTrava()) return;   // 4.54
       if (fupRodando || rodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
       if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
       const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
@@ -1498,13 +1506,14 @@
     // quadro (fica com a varredura). Roda sozinho 3 min depois de abrir e a cada 60 min, só com a tela livre. À mão: dinsReguaVencidas()
     let vencRodando = false;
     window.dinsReguaVencidas = async () => {
+      if (vigiaTrava()) return 'trava do vigia';   // 4.54
       if (vencRodando) return 'já rodando'; vencRodando = true; let n = 0, v = 0;
       try {
         const agora = Date.now();
         const alvos = Object.values(RG()).filter(x => !['fechada', 'cancelada', 'esgotada', 'encerrado', 'concluída'].includes(x.estado) && !x.vencida && (agora - x.linkT < 48 * H || ['humano', 'alerta', 'erro'].includes(x.estado)) && !protegido(x.hash)).map(x => x.hash);
         for (const h of alvos) {
           let livre = false;
-          for (let k = 0; k < 60; k++) { if (!(fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) && navPega('vence')) { livre = true; break; } await new Promise(r => setTimeout(r, 3000)); }
+          for (let k = 0; k < 60; k++) { if (!(fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || vigiaTrava() || Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) && navPega('vence')) { livre = true; break; } await new Promise(r => setTimeout(r, 3000)); }
           if (!livre) continue;   // 4.46: nunca passa por cima do vigia
           try {
             window.top.location.hash = '#/chats/' + h; await new Promise(r => setTimeout(r, 6000));
@@ -1571,6 +1580,7 @@
     const detPos = { h: '' };
     let posRodando = false;
     async function olharPos() {
+      if (vigiaTrava()) return;   // 4.54
       if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
@@ -1658,7 +1668,7 @@
     const FIZ_ANU = /\b(fiz|feito|feita|confirmei|confirmado|consegui|pronto|conclu[ií]|autorizei|ativo|deu certo)\b|✅|👍/i;
     let posAnuRodando = false;
     setInterval(async () => {
-      if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem')) return;
+      if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       try {
         const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === 'F20QOEL8YYLQN2S6SR47' || !telaPronta(h)) return;
@@ -1681,6 +1691,7 @@
     window.dinsPosAnuFeita = h => { const r = RG(); if (!r[h]) return false; r[h].posAnu = Date.now(); gravaRG(r); return true; };
     let faseRodando = false;
     async function olharFases() {
+      if (vigiaTrava()) return;   // 4.54
       if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
@@ -1806,6 +1817,7 @@
     };
     let espRodando = false;
     async function olharEspera() {
+      if (vigiaTrava()) return;   // 4.54
       if (espRodando || fupRodando || posRodando || faseRodando || rodando || localStorage.getItem('dins_ordem')) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
@@ -2211,7 +2223,7 @@
     }
     async function abrirHash(id) {
       for (let t = 0; t < 3; t++) {
-        while (vigiaTrabalhando() || localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
+        while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         window.top.location.hash = '#/chats/' + id; await esp(6000);
         for (let i = 0; i < 8 && !telaPronta(id); i++) await esp(1500);
         if (window.top.location.hash === '#/chats/' + id && document.querySelector('.entries') && telaPronta(id)) return true;
