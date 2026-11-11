@@ -2192,7 +2192,7 @@
       if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
       // 4.48 (André 11/11): cliente tinha dito "Não / Vou deixar / Muito pouco valor" e mesmo assim saiu follow-up pelo WhatsApp.
       // Recusa nas últimas mensagens do cliente → não manda follow-up; vai para revisar.
-      const RECUSOU = /\b(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))\b|^\s*2\s*$/i;
+      const RECUSOU = /\b(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))\b/i;
       const cliTxts = [...document.querySelectorAll('.entries [class*="entries-li"].left')].slice(-6).map(e => (e.innerText || '').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '').trim());
       if (cliTxts.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cliTxts.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
       const fe = faseEsteira(RG()[id] || {});
