@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.72';
+  const VERSAO = '4.73';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -312,7 +312,24 @@
           if (mot === 'SEM_MARGEM' && mg != null && mg < 20) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 20) acao = 'loas_sem';
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
-          else if (!mot) { const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo }); }
+          else if (!mot) {
+            // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
+            // com margem → digita no VALOR MÁXIMO (valor em branco = parcela da margem, 108x) e para em "Pronto" (o vigia grava e manda
+            // simulação 1/2 + link). ⛔ SEM FLASH: o cliente ainda não confirmou (PADRAO-REGRAS-10-11 2b nº 8) — a ficha é da consulta normal.
+            const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
+            const f3 = GM_getValue('ficha_atual', null);
+            const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
+            const bd = ((f3 && f3.banco_destino) || '').toUpperCase();
+            let porque = '';
+            if (!okF) porque = 'a ficha salva não é a do cliente';
+            else if ((f3.recusa || '').trim()) porque = 'recusa: ' + f3.recusa;
+            else if (!(mg >= 100)) porque = 'margem abaixo de R$ 100';
+            else if (!/WhatsApp/i.test(f3.telefone_origem || '')) porque = 'sem o WhatsApp do chat na ficha';
+            else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';
+            else if (num(f3.valor) > 0) porque = 'ficha já tem valor escolhido — vigia confere';
+            if (porque) poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · não digitei: ' + porque });
+            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, resumo, maximo: 1, aceite: false });
+          }
           else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
           return;
         }
@@ -2032,7 +2049,8 @@
           if (ao.estado === 'com_margem') return '🤖 CPF consultado: COM margem (' + (ao.resumo || '') + ') → VIGIA: simular e mandar o link';
           if (ao.estado === 'erro') return '🤖 CPF: ' + ao.erro + ' → fazer à mão';
           if (/desfecho/.test(ao.estado)) return '🤖 sem margem → robô mandando linha cordial + /n30 e fechando';
-          return '🤖 CPF: robô ' + ({ nova: 'vai consultar', consultando: 'consultando no Multicorban' }[ao.estado] || ao.estado);
+          if (ao.estado === 'pronto') return '🤖 CPF com margem, digitado no MÁXIMO: ' + ao.banco + ' R$ ' + ao.liberado + ' → VIGIA: Gravar + simulação 1/2 + link (sem flash até o aceite)';
+          return '🤖 CPF: robô ' + ({ nova: 'vai consultar', consultando: 'consultando no Multicorban', ficha_ok: 'ficha pronta, vai digitar no máximo (' + (ao.banco || '') + ')', digitando: 'digitando no ' + (ao.banco || '') }[ao.estado] || ao.estado);
         }
         if (ao && x.semLink) {
           if (ao.estado === 'pronto') return '🤖 contorno digitado: ' + ao.banco + ' R$ ' + ao.liberado + ' → VIGIA: Gravar + ' + (ao.aceite ? 'linha curta + /bn54n' : 'simulação 1/2 + /parabens');
