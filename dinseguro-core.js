@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.78';
+  const VERSAO = '4.79';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -644,6 +644,8 @@
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     nao_localizado:   { fluxo: 'Inicio do atendimento', tags: ['07 - Nao Identificado'], fechar: false, tagsAntes: true },
     so_tag:           { atalho: null,   tags: [], fechar: false },
+    // 4.79: mensagem da fase da esteira (documento / desbloqueio / anuência) — o.linha + o.atalhos, sem tag, sem fechar
+    fase_msg:         { atalho: null,   tags: [], fechar: false },
     // 4.78: cliente parado no bot sem CPF → mensagem pedindo o CPF (o.texto) + 01 C (a espera de CPF 1h/08h nasce sozinha)
     pedir_cpf:        { atalho: null,   tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
     // 4.75: simulação (linha) + /parabens ou /bn54n com o link (o.atalho + o.trocas) + tag 01 A, sem fechar
@@ -736,7 +738,7 @@
     const fecharTemplate = () => { const b = [...document.querySelectorAll('button')].filter(vis).find(x => /^Descartar$/i.test(txt(x)) && /Enviar Template do WhatsApp/i.test(((x.closest('[role=dialog]') || {}).innerText) || '')); if (b) { clicar(b); return true; } return false; };
     const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
-    async function respostaRapida(atalho, editar, semRegua, prefixo, trocas) {
+    async function respostaRapida(atalho, editar, semRegua, prefixo, trocas, midia) {
       const hashRR0 = window.top.location.hash;   // 4.60
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
@@ -751,6 +753,16 @@
             .filter(vis).find(x => x.children.length < 8 && new RegExp('^\\' + atalho + '\\b').test(txt(x))), 10000);
       if (!linha) throw new Error('resposta rápida ' + atalho + ' não apareceu');
       clicar(linha);
+      // 4.79: resposta rápida de VÍDEO/arquivo (/dsg25, /anuencia2…) não enche a caixa de texto → espera a prévia e confere pelo nº de mensagens
+      if (midia) {
+        await esp(3500);
+        if (window.top.location.hash !== hashRR0) throw new Error('a tela trocou de chat antes de enviar — não mandei');
+        const n0 = document.querySelectorAll('.entries [class*="entries-li"].right').length;
+        clicar(await ate(() => document.querySelector('button.send-button-component')));
+        const foi = await ate(() => document.querySelectorAll('.entries [class*="entries-li"].right').length > n0, 15000);
+        if (!foi) throw new Error('a mídia ' + atalho + ' não apareceu no chat');
+        return atalho + ' (mídia)';
+      }
       const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
       if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
       // 4.57: atalho que começa com vírgula (/102 ", sua opinião…") recebe o primeiro nome na frente
@@ -938,10 +950,12 @@
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
         const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
+        if (o.pularSe && !o.msgFeita) { try { if (new RegExp(o.pularSe, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-20000))) { passos.push('já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); } } catch (e) {} }   // 4.79
         if (o.linha && !o.linhaFeita) { passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
         if (!o.msgFeita) {
-          if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
+          if (o.atalhos && o.atalhos.length) { for (let i = (o.atIdx || 0); i < o.atalhos.length; i++) { await garante(); const [at, md] = String(o.atalhos[i]).split('|'); passos.push('msg:' + await respostaRapida(at, false, false, null, o.trocas, md === 'midia')); salvaProgresso({ atIdx: i + 1 }); await esp(1500); } }   // 4.79: várias respostas rápidas em ordem
+          else if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
           else if (o.atalho || d.atalho) { passos.push('msg:' + await respostaRapida(o.atalho || d.atalho, d.editar, false, null, o.trocas)); }
           else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
           salvaProgresso({ msgFeita: 1 });
@@ -979,12 +993,41 @@
         let mud = false;
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
         for (const k in O) { const x = O[k]; if (x.estado === 'link_enviado' && st && st.hash === x.hash && st.acao === 'sim_link' && ['ok', 'erro'].includes(st.st) && st.t > (x.tEnv || 0)) { x.estado = st.st === 'ok' ? 'feito' : 'erro'; if (st.st !== 'ok') x.erro = 'envio do link parou: ' + (st.erro || '') + ' (proposta ' + (x.proposta || '') + ' gravada)'; mud = true; } }
+        // 4.79 (Stefany 11/11 18:56 "pode fazer"): ESTEIRA → MENSAGEM sozinha, e "desbloqueei" → lista do AVERBE JA.
+        try {
+          const RGe = GM_getValue('regua', {}) || {}; const hh2 = new Date().getHours(); const FE = window.dinsFaseEsteira;
+          const NM = GM_getValue('nao_mexer', {}) || {};
+          for (const k in RGe) { const x = RGe[k]; if (!x || !x.link || typeof FE !== 'function' || NM[k] || x.comQuem) continue;   // conversa que a Stefany/Rômulo está tocando: não mexe
+            const fe = FE(k); if (!fe) continue; const nm = primeiroNome(x.nomeReal || x.nome);
+            // (3) cliente disse que desbloqueou → AVERBE JA de 60 em 60 s no Autorizador (só C6), e uma linha de retorno (responde a qualquer hora)
+            if (fe.fase === 'falta desbloquear' && /C6/i.test(fe.banco || '') && fe.nome && x.ultLado === 'cli' && (x.ultCliT || 0) > (x.averbarT || 0)
+                && /desbloque|liberei|j[áa] (fiz|liberei|desbloq)|consegui|t[áa] feito|fiz o desbloqueio/i.test(x.ultCliTxt || '')) {
+              const A = GM_getValue('averbar', {}) || {}; const kk = fe.nome.trim().toUpperCase();
+              A[kk] = Object.assign(A[kk] || {}, { ativo: true, cada: 60000, desde: Date.now(), ultT: 0, tent: 0, avisado: false, hash: k }); GM_setValue('averbar', A);
+              const r2 = GM_getValue('regua', {}) || {}; if (r2[k]) { r2[k].averbarT = Date.now(); (r2[k].hist = r2[k].hist || []).push(hhmm(Date.now()) + ' disse que desbloqueou → AVERBE JA automático'); GM_setValue('regua', r2); }
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'so_tag', quem: 'robo', t: Date.now(), texto: 'Perfeito' + (nm ? ', ' + nm : '') + '! 😊 Já estou acompanhando aqui com o banco e te aviso assim que avançar 🤝' }));
+              return;
+            }
+            // (2) fase nova da esteira → mensagem certa, uma vez por fase, das 8h às 21h
+            if (hh2 < 8 || hh2 >= 21) continue;
+            if (x.faseFeita === fe.fase || (x.faseMsgT && x.faseMsg === fe.fase)) continue;
+            let linha = '', atalhos = [], pularSe = '';
+            if (fe.fase === 'falta documento') { linha = (nm ? nm + ', p' : 'P') + 'ara o banco finalizar a análise da sua proposta, falta só uma foto do seu documento 😊 Te explico logo abaixo como mandar:'; atalhos = ['/CLT1']; pularSe = 'falta só uma foto do seu documento|frente e verso'; }
+            else if (fe.fase === 'falta desbloquear') { linha = (nm ? nm + ', e' : 'E') + 'stá tudo certinho com a sua proposta 😊\n\nAgora falta só um passo rápido do seu lado, que é liberar o benefício para o banco. Vou te mandar logo abaixo como fazer, é bem simples.'; atalhos = ['/dsg25a', '/dsg25|midia']; pularSe = 'passo a passo para realizar o desbloqueio'; }
+            else if (fe.fase === 'falta anuência') { linha = (nm ? nm + ', o' : 'O') + ' desbloqueio deu certo 👏 Agora falta só confirmar a autorização no Meu INSS. Te mando abaixo como fazer:'; atalhos = ['/anuencia', '/anuencia2|midia']; pularSe = 'confirmar a autoriza[çc][ãa]o no Meu INSS'; }
+            else continue;
+            const r3 = GM_getValue('regua', {}) || {}; if (r3[k]) { r3[k].faseMsg = fe.fase; r3[k].faseMsgT = Date.now(); (r3[k].hist = r3[k].hist || []).push(hhmm(Date.now()) + ' esteira "' + fe.fase + '" → mensagem automática'); GM_setValue('regua', r3); }
+            const dd3 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha, atalhos, pularSe, nota: dd3 + ' ' + hhmm(Date.now()) + ' [robô 4.79] esteira ' + (fe.banco || '') + ': ' + (fe.real || fe.fase) + ' → ' + atalhos.map(a => a.split('|')[0]).join(' + ') + ' (automático).' }));
+            return;
+          }
+        } catch (e) {}
         // 4.78 (Stefany 11/11 18:54 "o cliente parado aí no bot sem CPF, pode colocar ele para fazer"): parou no bot sem CPF →
         // até 45 min depois de parar pede o CPF a qualquer hora (ele estava interagindo); mais que isso, só das 8h às 21h. Uma vez por conversa.
         try {
           const RGv = GM_getValue('regua', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const hh = new Date().getHours();
           for (const k in RGv) { const x = RGv[k];
-            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT) continue;
+            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k]) continue;
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
             const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
@@ -1058,10 +1101,11 @@
       let fase = 'andamento', acao = '';
       if (/PAG[OA]\b|INTEGRAD|FINALIZAD|CONCRETIZ/.test(t)) { fase = 'pago'; }
       else if (/CANCEL|REPROV|RECUS|NEGAD/.test(t)) { fase = 'recusada'; acao = 'banco recusou/cancelou → ver com a Stefany'; }
+      else if (/ENVIO DOC|AGUARD\w* DOC|PEND\w* (DE )?DOC/.test(t)) { fase = 'falta documento'; acao = 'pedir o documento (linha pessoal + /CLT1)'; }   // 4.79
       else if (/ANUENCIA|ANUÊNCIA/.test(t)) { fase = 'falta anuência'; acao = 'mandar linha pessoal + /anuencia + /anuencia2'; }
       else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA/.test(t)) { fase = 'falta desbloquear'; acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
-      return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t };
+      return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
@@ -1081,6 +1125,7 @@
     // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
     window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
       O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
+    window.dinsNaoMexer = (h, on = true) => { const N = GM_getValue('nao_mexer', {}) || {}; if (on) N[h] = Date.now(); else delete N[h]; GM_setValue('nao_mexer', N); return Object.keys(N); };   // 4.79: o robô não manda nada automático nesse chat
     window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
@@ -1174,7 +1219,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null, semCpfT: L.semCpfT || 0 } : {};
+      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultCliTxt: ((L.ultCli && L.ultCli.txt) || '').slice(0, 120), ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null, semCpfT: L.semCpfT || 0 } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -1218,13 +1263,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
