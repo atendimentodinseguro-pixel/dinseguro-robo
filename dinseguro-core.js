@@ -656,7 +656,7 @@
         let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
         ta2.focus(); setNativo(ta2, v); await esp(600);
       }
-      if (window.top.location.hash !== hashRR0 || vigiaTrava()) { setNativo(document.querySelector('textarea'), ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }   // 4.60
+      if (window.top.location.hash !== hashRR0 || (vigiaTrava() && !rodando)) { setNativo(document.querySelector('textarea'), ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }   // 4.60
       const valorEnviado = document.querySelector('textarea').value;
       const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
@@ -686,7 +686,7 @@
       // e que o vigia não pegou a tela nesse meio-tempo.
       const hash0 = window.top.location.hash, nome0 = nomeDoContato();
       ta.focus(); setNativo(ta, texto); await esp(800);
-      if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || vigiaTrava()) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
+      if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || (vigiaTrava() && !rodando)) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
