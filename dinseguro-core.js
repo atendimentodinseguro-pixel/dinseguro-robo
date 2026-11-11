@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.79';
+  const VERSAO = '4.80';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4139,8 +4139,12 @@
     let cand = linhas.filter(x => /inval/i.test(x.innerText) === invalidez);
     if (!cand.length && pagina !== 'c6') cand = linhas;            // FACTA não separa invalidez
     // v3.9 (regra da Stefany): sempre tabela SEM carência — "(+90d Car)"/"Carência" só quando ela pedir
-    const semCar = cand.filter(x => !/\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia/i.test(x.innerText));
-    if (semCar.length) cand = semCar;
+    // 4.80 (Stefany 11/11 19:09, caso Mauro: "eu tenho tabela sem carência, liberando até mais… o robô tá clicando automático sem analisar"):
+    // a FACTA escreve a carência como "90 DIAS" — não era pego e o robô escolheu a #1 (71722 … 90 DIAS SB, R$ 54.797,87) em vez da
+    // 71684 sem carência (R$ 57.985,14). Carência só com pedido (f.carencia / prazo_ordem_stefany). ILETRADO só para cliente iletrado.
+    const querCar = /car[êe]ncia|90\s*dias/i.test(String(f.carencia || '') + ' ' + String(f.prazo_ordem_stefany || '') + ' ' + String(f.banco_ordem_stefany || ''));
+    if (!querCar) { const semCar = cand.filter(x => !/\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia|\b\d{2,3}\s*DIAS\b/i.test(x.innerText)); if (semCar.length) cand = semCar; }
+    if (!/iletrad/i.test(String(f.obs || '') + String(f.iletrado || ''))) { const semIlet = cand.filter(x => !/ILETRAD/i.test(x.innerText)); if (semIlet.length) cand = semIlet; }
     if (!cand.length) throw new Error(invalidez ? 'Sem tabela INVAL 1,85%.' : 'Sem tabela DWeb-ML (sem INVAL) 1,85%.');
     // 3.89 — C6: a faixa de TICKET do nome tem que bater com o liberado da linha ("Tkt ate 6k" · "Tkt 6k a 20k" · "Tkt > 20k").
     // Caso Estefania 10/11: R$ 12.684,50 gravado na "Tkt ate 6k" → esteira PEN / AJUSTAR TABELA, link nunca saiu.
@@ -4155,7 +4159,8 @@
       if (!naFaixa.length) throw new Error('Nenhuma tabela C6 com a faixa de ticket certa para o valor. Confira a simulação na tela.');
       cand = naFaixa;
     }
-    const escolhida = cand[0];
+    // 4.80: entre as que sobraram, a que LIBERA MAIS para a mesma parcela (antes era sempre a primeira da lista)
+    const escolhida = cand.slice().sort((a, b) => libDe(b) - libDe(a))[0];
     escolhida.click();
     await sleep(1200);
     const txt = escolhida.innerText.replace(/\s+/g, ' ');
