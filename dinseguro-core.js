@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.39';
+  const VERSAO = '4.40';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1057,7 +1057,13 @@
       return false;
     };
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
-    async function mapearUm(id) {
+    // 4.40 (Stefany 10:37: "Dalva e demais clientes seguem aguardando o robô"): os laços que trocam de conversa (toques,
+    // pós-pagamento, fechador da varredura, mapeamento) brigavam pela mesma tela — um abria o chat e o outro trocava no meio,
+    // e o toque dava "não abriu o chat" de novo e de novo. Agora só um troca de conversa por vez (trava comum, 3 min no máximo).
+    const navPega = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem !== quem && Date.now() - n.t < 3 * M) return false; localStorage.setItem('dins_nav', JSON.stringify({ quem, t: Date.now() })); return true; } catch (e) { return true; } };
+    const navSolta = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem === quem) localStorage.removeItem('dins_nav'); } catch (e) {} };
+    async function mapearUm(id) { if (!navPega('mapa')) return false; try { return await mapearUm0(id); } finally { navSolta('mapa'); } }
+    async function mapearUm0(id) {
       if (vigiaTrabalhando()) return false;
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
@@ -1419,6 +1425,7 @@
         const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
         const x2 = (RG() || {})[alvo.hash]; const q2 = x2 && x2.toques.find(k => k.tipo === toque.tipo); if (!q2 || q2.feito) return;   // a outra aba já mandou
       }
+      if (!navPega('fup')) return;
       fupRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
@@ -1468,7 +1475,7 @@
         if (q.tent >= 3) { x.estado = 'erro'; x.motivo = toque.tipo + ': ' + e.message; }
         gravaRG(r2); desenharRegua();
         log && log('Régua: erro no toque ' + toque.tipo + ': ' + e.message, 'erro');
-      } finally { fupRodando = false; }
+      } finally { fupRodando = false; navSolta('fup'); }
     }
     setInterval(olharFollowups, 60000);
 
@@ -1542,6 +1549,7 @@
       }
       if (!alvo) return;
       const marca = mud => { const o = POS(), y = o[alvo.hash]; if (!y) return; Object.assign(y, mud); y.hist.push(hhmm(Date.now()) + ' ' + passo + ': ' + (mud.st || 'ok')); gravaPOS(o); };
+      if (!navPega('pos')) return;
       posRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
@@ -1569,7 +1577,7 @@
       } catch (e) {
         if (/JANELA_VENCIDA/.test(e.message)) marca({ parado: 1, st: 'janela de 24 h vencida — parei' });
         else { const o = POS(), y = o[alvo.hash]; if (y) { y.tent = (y.tent || 0) + 1; y.erro = e.message; if (y.tent >= 3) y.parado = 1; y.hist.push(hhmm(Date.now()) + ' ' + passo + ' erro: ' + e.message); gravaPOS(o); } }
-      } finally { posRodando = false; }
+      } finally { posRodando = false; navSolta('pos'); }
     }
     setInterval(olharPos, 45000);
 
@@ -2088,13 +2096,14 @@
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
       const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && !y.fechado && y.quem === 'varredura 4.27');
       if (!x) return;
+      if (!navPega('fecha')) return;
       varrendo = true; marcaVarrendo();
       try {
         if (!await abrirHash(x.hash)) return;
         if (!janelaVencidaAgora()) { x.fechado = 'não (cliente voltou e a janela reabriu — é do vigia)'; }
         else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota('janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
         const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; GM_setValue('wa_fila', f2); }
-      } finally { varrendo = false; localStorage.removeItem('dins_varrendo'); desenharVarredura(); }
+      } finally { varrendo = false; navSolta('fecha'); localStorage.removeItem('dins_varrendo'); desenharVarredura(); }
     }, 60000);
     // painel da varredura (lista da 1ª rodada com o botão de OK + resumo)
     function desenharVarredura() {
