@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.74';
+  const VERSAO = '4.75';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -299,8 +299,9 @@
         }
         for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
+        if (o.tipo === 'cpf' && o.aceite && (+o.valorBot || 0) >= 10000) { try { localStorage.setItem('dins_aceite', o.cpf + '|' + new Date().toISOString().slice(0, 10)); } catch (e) {} }   // 4.75: aceite no bot → flash pelos critérios
         const g = botaoRobo('Gerar ficha'); if (!g) throw new Error('painel do robô (Gerar ficha) não está na tela'); g.click();
-        let ta = null; for (let i = 0; i < 25; i++) { await zz(1000); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
+        let ta = null; for (let i = 0; i < 75; i++) { await zz(1000); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
         if (!ta) throw new Error('a ficha não foi gerada');
         await zz(1500);
         const ficha = textoParaFicha(ta.value);
@@ -316,6 +317,10 @@
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
             // com margem → digita no VALOR MÁXIMO (valor em branco = parcela da margem, 108x) e para em "Pronto" (o vigia grava e manda
             // simulação 1/2 + link). ⛔ SEM FLASH: o cliente ainda não confirmou (PADRAO-REGRAS-10-11 2b nº 8) — a ficha é da consulta normal.
+            // 4.75: regra de valor. Escolheu abaixo de 10 mil no bot → contorno (vigia). 10 mil ou mais → digita ESSE valor.
+            const vb = +o.valorBot || 0;
+            if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
+            if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             const f3 = GM_getValue('ficha_atual', null);
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
@@ -326,9 +331,9 @@
             else if (!(mg >= 100)) porque = 'margem abaixo de R$ 100';
             else if (!/WhatsApp/i.test(f3.telefone_origem || '')) porque = 'sem o WhatsApp do chat na ficha';
             else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';
-            else if (num(f3.valor) > 0) porque = 'ficha já tem valor escolhido — vigia confere';
+            else if (num(f3.valor) > 0 && !(vb >= 10000)) porque = 'ficha já tem valor escolhido — vigia confere';
             if (porque) poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · não digitei: ' + porque });
-            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, resumo, maximo: 1, aceite: false });
+            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
           }
           else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
           return;
@@ -368,6 +373,37 @@
         const m = /Pronto \(liberado R\$ ([\d.,]+)\)/.exec(fim);
         if (!m) throw new Error(fim.replace(/^\d\d:\d\d /, '').slice(0, 160));
         poeAO(o.hash, { estado: 'pronto', liberado: m[1], aba: location.search });
+        // 4.75 (Stefany 11/11 17:58 "pode fazer 4.75"): CPF → grava sozinho, espera o link e devolve ao Botmaker (simulação + /parabens
+        // ou linha + /bn54n). As travas do Gravar continuam (liberado ≥ pedido, telefone do chat, prazo, banco 000). Sem conferência de duplicidade
+        // (Stefany: a proposta parada cancela sozinha). Qualquer erro → 'erro' com o motivo, e o vigia segue à mão.
+        if (o.tipo === 'cpf') {
+          const tab = logRobo().slice(antes).map(l => /Tabela: .*?(\d{2,3})x\s+[\d,]+%\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/.exec(l)).filter(Boolean).pop();
+          poeAO(o.hash, { estado: 'gravando' });
+          const antesG = logRobo().length;
+          const gv = botaoRobo('Gravar'); if (!gv) throw new Error('botão Gravar não está na tela');
+          gv.click();
+          let fimG = null; for (let i = 0; i < 40 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6); }
+          if (!fimG) throw new Error('o Gravar não respondeu em 60 s');
+          const nro = (/Proposta gravada N[º°o]?\s*(\d+)/.exec(fimG) || [])[1];
+          if (!nro) throw new Error('não gravou: ' + fimG.replace(/^\d\d:\d\d /, '').slice(0, 160));
+          poeAO(o.hash, { estado: 'gravada', proposta: nro });
+          const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText));
+          const LK = () => { const mm = MD(); if (!mm) return ''; return [...mm.querySelectorAll('input')].map(x => x.value).find(v => /^https?:\/\//.test(v)) || (mm.innerText.match(/https?:\/\/\S+/) || [])[0] || ''; };
+          let link = LK();
+          for (let i = 0; !link && i < 24; i++) {   // C6 demora de 1 a 8 min: tenta de 30 em 30 s, até ~12 min
+            const mm = MD(); if (!mm) throw new Error('o quadro "Proposta gerada" fechou antes do link (Nº ' + nro + ')');
+            const b = [...mm.querySelectorAll('button,a')].find(x => /consultar link|tentar de novo/i.test(x.innerText)); if (b) b.click();
+            for (let k = 0; k < 10 && !(link = LK()); k++) await zz(2000);
+            if (!link) await zz(10000);
+          }
+          if (!link) throw new Error('gravada Nº ' + nro + ', mas o link não saiu em 12 min → vigia: nuvem verde em ?p=propostas');
+          const f4 = GM_getValue('ficha_atual', null) || {};
+          const bc = String(f4.banco || '').replace(/\D/g, '').padStart(3, '0');
+          const aleat = bc === '104' && /3880/.test(String(f4.agencia || ''));
+          poeAO(o.hash, { estado: 'link', link, proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal });
+          try { const fc = [...(MD() || document).querySelectorAll('button')].find(x => /^Fechar$/i.test(x.innerText.trim())); if (fc) fc.click(); } catch (e) {}
+          setTimeout(() => { location.href = location.origin + '/?p=' + pag; }, 3000);   // tela limpa para o próximo cliente
+        }
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
       finally { ocupadoAuto = false; }
     }, 15000);
@@ -606,6 +642,8 @@
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     nao_localizado:   { fluxo: 'Inicio do atendimento', tags: ['07 - Nao Identificado'], fechar: false, tagsAntes: true },
     so_tag:           { atalho: null,   tags: [], fechar: false },
+    // 4.75: simulação (linha) + /parabens ou /bn54n com o link (o.atalho + o.trocas) + tag 01 A, sem fechar
+    sim_link:         { atalho: null,   tags: ['01 A - Inss Com Margem - SEM 87 E 88'], fechar: false },
     // Varredura das conversas vencidas (Stefany, 07/11 16:44): quem não teve interação
     // nenhuma leva só a tag e a conversa é encerrada, sem mandar mensagem.
     classifica_fecha: { atalho: null,   tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: true },
@@ -694,7 +732,7 @@
     const fecharTemplate = () => { const b = [...document.querySelectorAll('button')].filter(vis).find(x => /^Descartar$/i.test(txt(x)) && /Enviar Template do WhatsApp/i.test(((x.closest('[role=dialog]') || {}).innerText) || '')); if (b) { clicar(b); return true; } return false; };
     const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
-    async function respostaRapida(atalho, editar, semRegua, prefixo) {
+    async function respostaRapida(atalho, editar, semRegua, prefixo, trocas) {
       const hashRR0 = window.top.location.hash;   // 4.60
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
@@ -717,6 +755,12 @@
         const ta2 = document.querySelector('textarea');
         let v = ta2.value; EDICAO_LOAS.forEach(([de, para]) => { v = v.replace(de, para); });
         ta2.focus(); setNativo(ta2, v); await esp(600);
+      }
+      if (trocas && trocas.length) {   // 4.75: {NOME}, {VALOR}, {BANCO}, "Cola link"/"colar link" (sem nenhum marcador sobrando)
+        const ta3 = document.querySelector('textarea'); let v = ta3.value;
+        for (const [de, para] of trocas) v = v.replace(new RegExp(String(de).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), para);
+        if (/\{NOME\}|\{VALOR\}|\{BANCO\}|col(a|ar) (o )?link/i.test(v)) { setNativo(ta3, ''); throw new Error('sobrou marcador na resposta rápida ' + atalho + ' — não mandei'); }
+        ta3.focus(); setNativo(ta3, v); await esp(700);
       }
       if (window.top.location.hash !== hashRR0 || (vigiaTrava() && !rodando)) { setNativo(document.querySelector('textarea'), ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }   // 4.60
       const valorEnviado = document.querySelector('textarea').value;
@@ -894,7 +938,7 @@
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
         if (!o.msgFeita) {
           if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
-          else if (d.atalho) { passos.push('msg:' + await respostaRapida(d.atalho, d.editar)); }
+          else if (o.atalho || d.atalho) { passos.push('msg:' + await respostaRapida(o.atalho || d.atalho, d.editar, false, null, o.trocas)); }
           else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
           salvaProgresso({ msgFeita: 1 });
           try { const f2 = GM_getValue('desf_msg_feita', {}) || {}; f2[chaveDesf] = Date.now(); for (const k in f2) if (Date.now() - f2[k] > 48 * 3600000) delete f2[k]; GM_setValue('desf_msg_feita', f2); } catch (e) {}
@@ -930,6 +974,19 @@
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
         let mud = false;
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
+        for (const k in O) { const x = O[k]; if (x.estado === 'link_enviado' && st && st.hash === x.hash && st.acao === 'sim_link' && ['ok', 'erro'].includes(st.st) && st.t > (x.tEnv || 0)) { x.estado = st.st === 'ok' ? 'feito' : 'erro'; if (st.st !== 'ok') x.erro = 'envio do link parou: ' + (st.erro || '') + ' (proposta ' + (x.proposta || '') + ' gravada)'; mud = true; } }
+        const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
+        if (oL) {   // 4.75: simulação + link pelo robô
+          const nm = primeiroNome(oL.nomeReal || oL.nome); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          const aceiteBn = oL.aceite && oL.bancoConta;
+          const linha = aceiteBn
+            ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
+            : '*' + nm + ', Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
+          const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm + ','], ['Cola link', oL.link]];
+          const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : 'simulação 1/2 + /parabens') + ' (automático).';
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota }));
+          oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
+        }
         const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
@@ -1002,8 +1059,8 @@
     // 4.74 (Stefany 11/11 17:39, caso Maristelcio: "quero que o robô faça ele"): o vigia entrega ao robô um cliente que mandou CPF
     // (ex.: já respondemos "estou analisando" e a ordem automática não nasceu). Mesma ordem tipo 'cpf' do 4.24/4.73: consulta normal
     // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
-    window.dinsAutoCpf = (h, cpf, nome) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
-      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
+    window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
+      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
     window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
@@ -1096,7 +1153,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       let L = null; try { L = lados(); } catch (e) {}
-      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '' } : {};
+      const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
       // 4.15 (Stefany 18:49, caso Freitas): "Ok obg" depois de "já estou consultando… em instantes te passo" = ele ESPERA o valor → vermelho
       const PROMESSA = /consultando|em instantes|j[áa] te (passo|retorno|mando)|aguarde|verificando|vou verificar|analisando|um momento|j[áa] volto/i;
@@ -1138,13 +1195,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem'].forEach(k => { if (k in c && x[k] !== c[k]) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
       if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
@@ -1471,7 +1528,16 @@
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const cpfSem = cpfSemRespT ? (ms[iCpf].raw.match(CPF_RE)[0] || '').replace(/\D/g, '') : '';   // 4.24: o robô consulta sozinho
       const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem };
+      // 4.75 (Stefany 11/11 17:53): a ÚLTIMA simulação do bot ("simulação personalizada … Receba: R$ X / Pague em: N x R$ Y") é a escolha
+      // de valor do cliente; "Sim desejo contratar" depois dela = aceite. Sem isso = não mexeu em valor (vai o máximo).
+      let escolha = null;
+      { const iSim = ms.map(m => m.lado === 'nos' && /Receba:?\s*R\$\s*[\d.]+,\d{2}/i.test(m.raw || m.txt || '')).lastIndexOf(true);
+        if (iSim >= 0) { const t = (ms[iSim].raw || ms[iSim].txt || '').replace(/\s+/g, ' ');
+          const v = /Receba:?\s*R\$\s*([\d.]+,\d{2})/i.exec(t); const pz = /Pague em:?\s*(\d{2,3})\s*x/i.exec(t);
+          const valor = v ? parseFloat(v[1].replace(/\./g, '').replace(',', '.')) : 0;
+          const aceite = ms.slice(iSim + 1).some(m => m.lado === 'cli' && /sim,?\s*desejo contratar|quero contratar/i.test(m.txt || m.raw || ''));
+          if (valor > 0) escolha = { valor, prazo: pz ? +pz[1] : 0, aceite }; } }
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
@@ -2036,7 +2102,7 @@
         for (const x of lista) {
           if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 3 * H) continue;
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
-          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
+          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
           mudouO = true;
         }
         if (mudouO) GM_setValue('auto_ordens', O);
@@ -2054,7 +2120,10 @@
           if (ao.estado === 'com_margem') return '🤖 CPF consultado: COM margem (' + (ao.resumo || '') + ') → VIGIA: simular e mandar o link';
           if (ao.estado === 'erro') return '🤖 CPF: ' + ao.erro + ' → fazer à mão';
           if (/desfecho/.test(ao.estado)) return '🤖 sem margem → robô mandando linha cordial + /n30 e fechando';
-          if (ao.estado === 'pronto') return '🤖 CPF com margem, digitado no MÁXIMO: ' + ao.banco + ' R$ ' + ao.liberado + ' → VIGIA: Gravar + simulação 1/2 + link (sem flash até o aceite)';
+          if (ao.estado === 'pronto' || ao.estado === 'gravando') return '🤖 CPF com margem: ' + ao.banco + ' R$ ' + ao.liberado + ' → robô gravando';
+          if (ao.estado === 'gravada') return '🤖 ' + ao.banco + ' Nº ' + ao.proposta + ' gravada → robô esperando o link';
+          if (ao.estado === 'link' || ao.estado === 'link_enviado') return '🤖 link pronto (' + ao.banco + ' Nº ' + ao.proposta + ') → robô mandando simulação + link';
+          if (ao.estado === 'feito') return '🤖 simulação + link enviados pelo robô (' + ao.banco + ' Nº ' + (ao.proposta || '') + ') — aguardar o cliente';
           return '🤖 CPF: robô ' + ({ nova: 'vai consultar', consultando: 'consultando no Multicorban', ficha_ok: 'ficha pronta, vai digitar no máximo (' + (ao.banco || '') + ')', digitando: 'digitando no ' + (ao.banco || '') }[ao.estado] || ao.estado);
         }
         if (ao && x.semLink) {
