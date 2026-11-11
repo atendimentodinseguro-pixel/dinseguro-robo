@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.46';
+  const VERSAO = '4.47';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1636,22 +1636,23 @@
     let faseRodando = false;
     async function olharFases() {
       if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
-      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
-        if (!x.link || ['humano', 'cancelada', 'fechada', 'concluída'].includes(x.estado)) continue;
+        if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || (x.estado === 'humano' && protegido(x.hash))) continue;   // 4.47: humano só para quem está na lista
         const f = faseEsteira(x); if (!f || !ATALHOS_FASE[f.fase] || x.faseFeita === f.fase) continue;
         if ((x.faseTent || 0) >= 3) continue;
         alvo = x; fe = f; break;
       }
       if (!alvo) return;
       const chave = alvo.hash + '|fase|' + fe.fase; const L = GM_getValue('fup_lock', {}) || {};
-      if (L[chave] && Date.now() - L[chave].t < 15 * M && L[chave].aba !== ABA_ID) return;
+      if (L[chave] && Date.now() - L[chave].t < 90000 && L[chave].aba !== ABA_ID) return;
       L[chave] = { aba: ABA_ID, t: Date.now() }; GM_setValue('fup_lock', L);
       await new Promise(s => setTimeout(s, 1500 + Math.random() * 1500));
       const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
+      if (!navPega('fase')) return;
       faseRodando = true;
       const marca = (mud, hist) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; Object.assign(x, mud); x.hist.push(hhmm(Date.now()) + ' ' + hist); gravaRG(r2); desenharRegua(); };
       try {
@@ -1672,9 +1673,111 @@
         marca({ faseFeita: fe.fase }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
         log && log('Esteira: ' + fe.fase + ' mandado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ' ERRO: ' + e.message); }
-      finally { faseRodando = false; }
+      finally { faseRodando = false; navSolta('fase'); }
     }
     setInterval(olharFases, 90000);
+
+    // ================================================================ 4.47 — FOLLOW-UPS SEM LINK E LEMBRETES (Stefany 11/11 11:36, autorizado)
+    //  1) Pedimos o CPF e o cliente sumiu → toque 1 h depois e outro às 08:00.
+    //  2) Mandamos simulação e o cliente não respondeu 1/2 → 1 h depois e 08:00.
+    //  3) Cliente disse "só amanhã / mais tarde / depois eu vejo" → lembrete na hora que ele falou, ou 09:00 do dia seguinte,
+    //     NO LUGAR da sequência normal (vale também para quem tem link).
+    //  5) Pedimos documento/selfie e o cliente não mandou → lembrete 1 h depois.
+    //  Só com a janela de 24 h aberta, 8h–21h, a última mensagem tem que continuar sendo NOSSA (cliente não respondeu), e
+    //  nunca em chat da lista de não interferir. Ver: dinsEsperaVer() · tirar: dinsEsperaTirar('HASH').
+    const ESP = () => GM_getValue('espera', {}) || {};
+    const gravaESP = o => GM_setValue('espera', o);
+    const proxHora = (h, m = 0, diaSeg = false) => { const d = new Date(); if (diaSeg) d.setDate(d.getDate() + 1); d.setHours(h, m, 0, 0); if (!diaSeg && d.getTime() < Date.now()) d.setDate(d.getDate() + 1); return d.getTime(); };
+    const SIG_CPF = /(informe|mande|envie|me manda|digite)[^\n]{0,60}\bCPF\b|n[úu]mero do seu CPF/i;
+    const SIG_SIM = /1️⃣\s*Sim|Escolha uma op[çc][ãa]o/i;
+    const SIG_DOC = /(foto|imagem)[^\n]{0,40}(documento|RG|CNH)|documento de identifica|envie (o|seu) (RG|documento)|\/CLT1/i;
+    const DEPOIS = /\b(s[óo] amanh[ãa]|amanh[ãa]|mais tarde|depois eu (vejo|fa[çc]o|mando|olho)|vou ver depois|agora n[ãa]o (posso|d[áa])|t[ôo] no trabalho|estou trabalhando|[àa] noite|de noite|mais tardinha)\b/i;
+    function horaDita(txt) {
+      const t = String(txt || '').toLowerCase();
+      const m = t.match(/(?:[àa]s?|depois das?|l[áa] pelas?)\s*(\d{1,2})(?:[:h](\d{2}))?\s*(?:h|hs|horas)?/) || t.match(/\b(\d{1,2})\s*(?:h|hs|horas)\b/);
+      const amanha = /amanh[ãa]/.test(t);
+      if (m) { const h = +m[1], mi = +(m[2] || 0); if (h >= 7 && h <= 20) return proxHora(h, mi, amanha); }
+      if (/[àa] noite|de noite/.test(t) && !amanha) return proxHora(19, 0);
+      if (/mais tarde|mais tardinha|depois/.test(t) && !amanha) { const t2 = Date.now() + 3 * H; return dentroDoHorario(t2) ? t2 : proxHora(9, 0, true); }
+      return proxHora(9, 0, true);
+    }
+    window.dinsEsperaVer = () => Object.values(ESP()).map(x => ({ nome: x.nome, hash: x.hash, tipo: x.tipo, toques: (x.toques || []).map(q => q.q + ' ' + hhmm(q.quando) + (q.feito ? ' ✓ ' + (q.st || '') : '')).join(' · '), erro: x.erro || '' }));
+    window.dinsEsperaTirar = h => { const o = ESP(); delete o[h]; gravaESP(o); return true; };
+    // registra a espera lendo a conversa ABERTA (tela parada): quem falou por último e o quê
+    function registrarEspera(hash) {
+      if (!hash || protegido(hash) || !telaPronta(hash)) return;
+      if (janelaVencidaAgora()) { const o = ESP(); if (o[hash]) { delete o[hash]; gravaESP(o); } return; }
+      let L = null; try { L = lados(); } catch (e) {} if (!L || !L.ult) return;
+      const o = ESP(); const ant = o[hash]; const agora = Date.now(); const nome = nomeSeguro(nomeDoContato());
+      if (L.ult.lado === 'cli') {
+        // 3) cliente adiou → lembrete (substitui a sequência normal)
+        if (DEPOIS.test(L.ult.txt || '') && !(ant && ant.tipo === 'lembrete' && ant.base === (L.ult.txt || '').slice(0, 60))) {
+          o[hash] = { hash, nome, tipo: 'lembrete', base: (L.ult.txt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: horaDita(L.ult.txt), feito: 0 }] }; gravaESP(o);
+          try { const r = RG(); if (r[hash] && r[hash].toques) { r[hash].toques.forEach(q => { if (!q.feito) { q.feito = agora; q.st = 'trocado pelo lembrete que o cliente pediu'; } }); r[hash].hist.push(hhmm(agora) + ' cliente pediu para depois → lembrete ' + hhmm(o[hash].toques[0].quando)); gravaRG(r); } } catch (e) {}
+        } else if (ant && ant.tipo !== 'lembrete') { delete o[hash]; gravaESP(o); }   // respondeu → acabou a espera
+        return;
+      }
+      if (ant) return;                                   // já tem espera registrada
+      if (L.ult.bot) return;                             // bot no fluxo: ele cuida
+      const raw = L.ult.raw || L.ult.txt || '';
+      const r = RG(); const temLink = r[hash] && r[hash].link && !r[hash].semLink;
+      let tipo = '';
+      if (SIG_DOC.test(raw)) tipo = 'doc';
+      else if (!temLink && SIG_SIM.test(raw)) tipo = 'simulacao';
+      else if (!temLink && SIG_CPF.test(raw)) tipo = 'cpf';
+      if (!tipo) return;
+      const t0 = L.ult.t && L.ult.t <= agora ? L.ult.t : agora;
+      const toques = tipo === 'doc' ? [{ q: '1h', quando: t0 + 60 * M, feito: 0 }] : [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: (() => { const d = new Date(t0); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); })(), feito: 0 }];
+      o[hash] = { hash, nome, tipo, t0, toques }; gravaESP(o);
+    }
+    setInterval(() => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; registrarEspera(h); } catch (e) {} }, 20000);
+    const TXT_ESP = {
+      cpf: { '1h': n => `${n ? n + ', t' : 'T'}udo bem? 😊 Ficou faltando só o número do seu CPF para eu consultar o valor que você consegue liberar. Pode me mandar aqui mesmo, só os números.`,
+             '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
+      simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
+                   '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
+      doc: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu tirar a foto do documento? 😊 Assim que você mandar aqui, eu já sigo com a sua proposta. Se tiver qualquer dificuldade, me fala que eu te ajudo.` },
+      lembrete: { 'lembrete': (n, link) => `${n ? 'Oi, ' + n + '! ' : 'Oi! '}Conforme combinamos, estou passando aqui 😊 ` + (link ? 'A sua proposta continua disponível no link que te mandei. Quando puder, é só abrir e fazer a selfie de segurança.' : 'Podemos continuar de onde paramos?') + ' Se precisar de ajuda em qualquer etapa, me chama aqui 🤝' },
+    };
+    let espRodando = false;
+    async function olharEspera() {
+      if (espRodando || fupRodando || posRodando || faseRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
+      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
+      const agora = Date.now(); if (!dentroDoHorario(agora)) return;
+      let alvo = null, toque = null;
+      for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q) { alvo = x; toque = q; break; } }
+      if (!alvo) return;
+      // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
+      const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); };
+      if (toque.q === '08h' && agora - toque.quando > 3 * H) { marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
+      if (!navPega('espera')) return;
+      espRodando = true;
+      try {
+        const alvoHash = '#/chats/' + alvo.hash;
+        if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
+        for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
+        if (janelaVencidaAgora()) { marcaQ({ feito: Date.now() }, 'janela de 24 h vencida — fica para a varredura'); const o = ESP(); if (o[alvo.hash]) { o[alvo.hash].parado = 1; gravaESP(o); } return; }
+        const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
+        if (tagsChat.some(t => /^(01 D|01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }
+        let L = null; try { L = lados(); } catch (e) {}
+        if (L && L.ult && L.ult.lado === 'cli' && alvo.tipo !== 'lembrete') { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // respondeu: não insiste
+        if (alvo.tipo === 'lembrete' && L && L.ult && L.ult.lado === 'cli' && !DEPOIS.test(L.ult.txt || '')) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // falou outra coisa depois: é atendimento
+        const r = RG(); const temLink = r[alvo.hash] && r[alvo.hash].link && !r[alvo.hash].semLink;
+        const n = nomeSeguro(alvo.nome);
+        const f = (TXT_ESP[alvo.tipo] || {})[toque.q]; if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
+        await mensagemLivre(f(n, temLink));
+        marcaQ({ feito: Date.now() }, 'enviado ' + hhmm(Date.now()));
+        try { const r2 = RG(); if (r2[alvo.hash]) { r2[alvo.hash].hist.push(hhmm(Date.now()) + ' follow-up ' + alvo.tipo + ' ' + toque.q + ' enviado'); gravaRG(r2); } } catch (e) {}
+        log && log('Follow-up ' + alvo.tipo + ' ' + toque.q + ' → ' + (alvo.nome || alvo.hash), 'ok');
+      } catch (e) {
+        if (/JANELA_VENCIDA/.test(e.message)) marcaQ({ feito: Date.now() }, 'janela de 24 h vencida');
+        else { const o = ESP(), y = o[alvo.hash]; if (y) { const q = y.toques.find(k => k.q === toque.q); q.tent = (q.tent || 0) + 1; q.prox = Date.now() + 3 * M; q.st = 'erro: ' + e.message; if (q.tent >= 3) { q.feito = Date.now(); y.erro = e.message; } gravaESP(o); } }
+      } finally { espRodando = false; navSolta('espera'); }
+    }
+    setInterval(olharEspera, 50000);
 
     // 4) QUADRO no canto direito da tela de cima
     function desenharRegua() {
