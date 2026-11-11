@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.75';
+  const VERSAO = '4.76';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -52,6 +52,8 @@
     const n = parseFloat(t);
     return isNaN(n) ? 0 : n;
   };
+  // 4.76: mensagem-modelo de campanha mandada com nome de pessoa (não é atendimento humano)
+  const TEMPLATE_PESSOA = /Dei uma olhada no seu caso|n[ãa]o deixe dinheiro na mesa|Posso te enviar agora o resumo/i;
   const brl = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Decide banco destino pelas regras combinadas
@@ -524,7 +526,7 @@
         // 4.14 — o QUADRO (que lê a conversa inteira) manda para a fila quem ele marcou esperando: bot passou para atendente
         // humano e mandou outra coisa depois (caso Carmen 18:35), ou cliente escreveu e a prévia não mostrava.
         let peloQuadro = false;
-        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF/.test(q.motivo || ''); } catch (e) {} }
+        if (!esperando && !x.nossa && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || ''); } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
         // 4.24 (Stefany 11/11 08:17, caso Nila "Obgd"): só agradeceu/confirmou ("ok", "obrigado", "blz", 👍) → não entra na fila,
         // a não ser que o quadro (que leu a conversa inteira) tenha marcado vermelho (ex.: "ok" depois de "já te passo o valor").
@@ -538,7 +540,7 @@
       try {
         const R = GM_getValue('regua', {}) || {};
         for (const [id, q] of Object.entries(R)) {
-          if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF/.test(q.motivo || '')) continue;
+          if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) continue;
           if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id) || naTela.has(id)) continue;
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
@@ -1163,6 +1165,8 @@
       }
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
+      if (L && L.semCpfT && Date.now() - L.semCpfT >= 45 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
+        return Object.assign({ estado: 'alerta', motivo: 'simulou R$ ' + brl((L.escolha && L.escolha.valor) || 0) + ' no bot e parou sem CPF às ' + hhmm(L.semCpfT) + ' (ninguém atendeu) → pedir o CPF (7.2) + 01 C' }, ex);
       if (L && L.handoffT && L.ult.lado === 'nos')
         return Object.assign({ estado: 'alerta', motivo: 'bot passou para atendente humano às ' + hhmm(L.handoffT) + ' e ninguém respondeu' }, ex);
       if (clienteRespondeu()) {
@@ -1486,7 +1490,7 @@
         if (lado === 'nos' && /Enviado por Dinseguro|^\s*\[Dinseguro\]/m.test(txt)) grpBot = false;   // 4.21a: mensagem nossa no meio do grupo do bot (caso Hilda) não é do bot
         let t = null; const h = /(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(done_all|check|done)?\s*$/i.exec(txt);
         if (h && dia) { let hh = +h[1] % 12; if (/PM/i.test(h[3] || '')) hh += 12; if (!h[3]) hh = +h[1]; t = new Date(dia[0], dia[1], dia[2], hh, +h[2]).getTime(); }
-        ms.push({ lado, bot: lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt) && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
+        ms.push({ lado, bot: (lado === 'nos' && TEMPLATE_PESSOA.test(txt)) || lado === 'nos' && grpBot && !/\[[^\]\n]{2,40}👤\]/.test(txt) && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
       }
       for (let i = ms.length - 2; i >= 0; i--) if (!ms[i].t) ms[i].t = ms[i + 1].t;   // balão sem hora: hora do próximo do grupo
       if (!ms.length) return null;
@@ -1519,7 +1523,7 @@
       const iHand = depois.map(m => m.lado === 'nos' && m.bot && HANDOFF_RE.test(m.raw)).lastIndexOf(true);
       const humanoDepois = iHand >= 0 && depois.slice(iHand + 1).some(m => m.lado === 'nos' && !m.bot);
       const handoffT = iHand >= 0 && !humanoDepois ? (depois[iHand].t || Date.now()) : 0;
-      const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw));
+      const pessoa = [...ms].reverse().find(m => m.lado === 'nos' && /\[([^\]\n]{2,40})👤\]/.test(m.raw) && !TEMPLATE_PESSOA.test(m.raw));   // 4.76: modelo de campanha não é atendimento
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
       // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
       // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
@@ -1537,7 +1541,15 @@
           const valor = v ? parseFloat(v[1].replace(/\./g, '').replace(',', '.')) : 0;
           const aceite = ms.slice(iSim + 1).some(m => m.lado === 'cli' && /sim,?\s*desejo contratar|quero contratar/i.test(m.txt || m.raw || ''));
           if (valor > 0) escolha = { valor, prazo: pz ? +pz[1] : 0, aceite }; } }
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha };
+      // 4.76 (Stefany 11/11 18:37, caso Nathalie: simulou R$ 3.000 no bot às 12:31, parou sem CPF, 6 h sem ninguém): lê o CONTEXTO, não só a
+      // última mensagem. Cliente passou pelo bot (tem simulação/escolha), nunca mandou CPF, e depois da última mensagem dele só houve bot,
+      // modelo de campanha ou mídia (nenhum humano escreveu) → semCpfT = hora da última mensagem do cliente.
+      let semCpfT = 0;
+      if (!temCpf && escolha && ultCli) {
+        const humano = ms.slice(iCli + 1).some(m => m.lado === 'nos' && !m.bot && !/^\s*(play_arrow|Enviado por [^\n]*$)/.test(m.raw || '') && (m.txt || '').length > 3);
+        if (!humano) semCpfT = ultCli.t || 0;
+      }
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha, semCpfT };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
