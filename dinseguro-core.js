@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.28';
+  const VERSAO = '4.29';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1823,6 +1823,11 @@
     const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47'];   // chat de teste "Romulo"
     window.dinsVarreLiberar = (hash, modo) => { const L = GM_getValue('varre_liberados', {}) || {}; if (modo) L[hash] = modo; else delete L[hash]; GM_setValue('varre_liberados', L); return L[hash] || null; };
     window.dinsVarreVer = () => GM_getValue('varre_plano', null);
+    // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
+    window.dinsWaVer = () => (GM_getValue('wa_fila', []) || []).map(x => ({ nome: x.nome, caso: x.caso, estado: x.estado, quem: x.quem || 'antiga', fone: x.fone ? '…' + String(x.fone).slice(-4) : '', hash: x.hash, criado: x.criado ? new Date(x.criado).toLocaleString('pt-BR').slice(0, 16) : '', quando: x.quando ? new Date(x.quando).toLocaleString('pt-BR').slice(0, 16) : '', motivo: x.motivo || '', fechado: x.fechado || '' }));
+    window.dinsWaArquivarAntigas = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente' && x.quem !== 'varredura 4.27') { x.estado = 'arquivado'; x.motivo = 'fila antiga (antes da 4.27) — não enviar'; n++; } }); GM_setValue('wa_fila', f); return n; };
+    window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
+    window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
     async function colherHashes() {
