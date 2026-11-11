@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.68';
+  const VERSAO = '4.69';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1289,7 +1289,9 @@
       TW.__poe = msg => { const ta = DOCF().querySelector('textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, msg); ta.dispatchEvent(new Event('input', { bubbles: true })); return [TW.location.hash, ta.value.length]; };
       TW.__ok = c => { c = String(c).replace(/\D/g, ''); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false; let q = 0; for (let i = 0; i < 9; i++) q += +c[i] * (10 - i); let d = (q * 10) % 11 % 10; if (d !== +c[9]) return false; q = 0; for (let i = 0; i < 10; i++) q += +c[i] * (11 - i); d = (q * 10) % 11 % 10; return d === +c[10]; };
       TW.__cpfs = t => [...new Set([...(String(t).match(/\d[\d.\-\s]{8,16}\d/g) || []), ...(String(t).match(/\b\d{11}\b/g) || [])].map(z => z.replace(/\D/g, '')).map(z => z.length === 10 ? '0' + z : z).filter(z => TW.__ok(z) && z !== '10123456789'))];
-      TW.__tags = () => [...DOCF().querySelectorAll('.MuiChip-label')].map(c => c.textContent).filter(t => /^0\d|^Q15/.test(t));
+      // 4.69 (Stefany 11/11 15:39, Fabiano/Carmen): __tags lia também o chip da janela "Adicionar tag" ainda aberta e dava "entrou"
+      // sem a tag ter entrado. Agora ignora qualquer chip dentro de diálogo/modal e o chip das conversas da lista.
+      TW.__tags = () => [...DOCF().querySelectorAll('.MuiChip-label')].filter(c => !c.closest('[role=dialog], .MuiDialog-root, .MuiModal-root, .customer-item')).map(c => c.textContent).filter(t => /^0\d|^Q15/.test(t));
       TW.__ocupado = () => { localStorage.setItem('dins_vigia_ocupado', Date.now()); return 'ok'; };
       async function abreTW(id) { if (TW.location.hash !== '#/chats/' + id) { TW.location.hash = '#/chats/' + id; await dorme(4500); } return TW.location.hash === '#/chats/' + id; }
       async function mandaTW(id, msg, forca) {
