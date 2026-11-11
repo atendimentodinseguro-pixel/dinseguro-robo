@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.63';
+  const VERSAO = '4.64';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2333,13 +2333,16 @@
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
       varrendo = true; marcaVarrendo();
-      const placar = { versao: '4.27', inicio: hhmm(Date.now()), lista: 0, abertos: 0, janela_aberta: 0, nao_abriu: 0, fechadas: 0, c01: 0, wa: 0, revisar: 0, erros: 0, fim: '' };
+      const placar = { versao: VERSAO, inicio: hhmm(Date.now()), lista: 0, abertos: 0, janela_aberta: 0, nao_abriu: 0, fechadas: 0, c01: 0, wa: 0, revisar: 0, erros: 0, fim: '' };
       const salva = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
       try {
         const hoje = new Date().toDateString();
         const primeira = GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao;
         const itens = await colherHashes(); placar.lista = itens.length; salva();
-        const plano = { dia: hoje, t: Date.now(), primeira, itens: [] };
+        const plano = { dia: hoje, t: Date.now(), primeira, itens: [], lista: itens.length };
+        // 4.64 (Stefany 14:13: "Varredura ainda usa a numeração antiga"): o painel lia o plano da rodada anterior
+        // (43 vencidas das 09:02) até achar a 1ª conversa vencida desta rodada. Grava o plano novo já no começo.
+        if (!primeira) { const ant = GM_getValue('varre_plano', null); if (ant && ant.dia === hoje && ant.aprovado) plano.aprovado = ant.aprovado; GM_setValue('varre_plano', plano); desenharVarredura(); }
         for (const it of itens) {
           marcaVarrendo();
           if (NAO_MEXER_HASH.includes(it.id)) continue;
@@ -2392,8 +2395,9 @@
             const id = ev.target.dataset.abrir; if (id) window.top.location.hash = '#/chats/' + id; }); }
         const esc = t => String(t || '').replace(/</g, '&lt;');
         const ROT = { fecha: '🔒 fechar', c01: '🏷 01 C + fechar', wa: '📲 WhatsApp + fechar', revisar: '👀 revisar (não mexe)' };
-        const cab = `<div data-varremin="1" style="cursor:pointer;font-weight:700">🧹 Varredura ${pl ? pl.inicio + '–' + (pl.fim || '…') : ''} · ${p.itens.length} vencidas` +
-          (pl ? ` · fechadas ${pl.fechadas + pl.c01} · WhatsApp ${pl.wa} · revisar ${pl.revisar}` : '') + `</div>`;
+        const cab = `<div data-varremin="1" style="cursor:pointer;font-weight:700">🧹 Varredura ${pl ? pl.inicio + '–' + (pl.fim || '…') : ''}` +
+          (pl ? ` · lista ${pl.lista} · abertas ${pl.abertos + pl.nao_abriu}/${pl.lista}` : '') + ` · ${p.itens.length} vencidas` +
+          (pl ? ` · fechadas ${pl.fechadas + pl.c01} · WhatsApp ${pl.wa} · revisar ${pl.revisar}${pl.erros ? ' · erros ' + pl.erros : ''}` : '') + `</div>`;
         const botao = p.aguardando && !p.aprovado ? `<div style="margin:6px 0"><b>1ª rodada do dia:</b> confira e aprove. <button data-varreok="1" style="padding:3px 10px;border:0;border-radius:6px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer">✅ Pode executar</button></div>` : '';
         const linhas = q.dataset.min === '1' ? '' : p.itens.map(i => `<div style="border-top:1px solid #334155;padding:2px 0"><span data-abrir="${i.id}" style="cursor:pointer;text-decoration:underline">${esc(i.nome)}</span> · ${ROT[i.acao] || i.acao}${i.caso ? ' (' + i.caso + ')' : ''}<br><span style="color:#94a3b8">${esc(i.motivo)}</span></div>`).join('');
         // 4.32 (Stefany 09:12: "a gente vai controlar isso onde, quando vai receber um relatório de quem foi enviado e quem não foi"):
@@ -2403,7 +2407,7 @@
         const pausado = (+GM_getValue('wa_prox', 0) || 0) - Date.now() > 86400000; const prox = +GM_getValue('wa_prox', 0) || 0;
         const st = x => x.estado === 'enviado' ? ('✅ enviado ' + hm(x.quando) + (x.fechado ? (typeof x.fechado === 'number' ? ' · 🔒 fechada' : ' · ' + esc(String(x.fechado)).slice(0, 40)) : ' · fechando…')) : x.estado === 'erro' ? ('❌ ' + esc(x.motivo || 'erro')) : x.estado === 'arquivado' ? ('⏸ tirado: ' + esc(x.motivo || '')) : '⏳ esperando';
         const nEnv = wf.filter(x => x.estado === 'enviado').length, nPend = wf.filter(x => x.estado === 'pendente').length, nErr = wf.filter(x => x.estado === 'erro').length;
-        const waCab = `<div style="margin-top:6px;border-top:2px solid #a78bfa;padding-top:4px;font-weight:700">📲 WhatsApp (outro número): ${nEnv} enviados · ${nPend} esperando · ${nErr} erro${pausado ? ' · <span style="color:#fbbf24">⏸ PAUSADO</span>' : (nPend && prox > Date.now() ? ' · próximo às ' + hm(prox) : '')}</div>`;
+        const waCab = `<div style="margin-top:6px;border-top:2px solid #a78bfa;padding-top:4px;font-weight:700">📲 WhatsApp (outro número) hoje: ${nEnv} enviados · ${nPend} esperando · ${nErr} erro${pausado ? ' · <span style="color:#fbbf24">⏸ PAUSADO</span>' : (nPend && prox > Date.now() ? ' · próximo às ' + hm(prox) : '')}</div>`;
         const waLin = q.dataset.min === '1' ? '' : wf.map(x => `<div style="border-top:1px solid #334155;padding:2px 0"><span data-abrir="${x.hash}" style="cursor:pointer;text-decoration:underline">${esc(x.nomeOriginal || x.nome || '(sem nome)')}</span> · ${x.caso} · ${st(x)}</div>`).join('');
         q.innerHTML = cab + botao + linhas + (wf.length ? waCab + waLin : '');
       } catch (e) {}
