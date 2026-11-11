@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.10
+// @version      3.11
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -51,7 +51,7 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.10', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.11', t: Date.now() })); } catch (e) {}
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const dig = s => String(s || '').replace(/\D/g, '');
     const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
@@ -84,14 +84,18 @@
       const abrindo = (() => { try { return JSON.parse(sessionStorage.getItem('dins_wa_abrindo') || 'null'); } catch (e) { return null; } })();
       if (!abrindo || abrindo.hash !== alvo.hash || Date.now() - abrindo.t > 3 * 60000) {
         sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() }));
-        location.href = 'https://web.whatsapp.com/send?phone=' + dig(alvo.fone); return;
+        location.href = 'https://web.whatsapp.com/send?phone=' + (alvo.foneAlt || dig(alvo.fone)); return;
       }
       ocupado = true;
       try {
-        let cx = null; for (let i = 0; i < 40 && !cx; i++) { cx = document.querySelector('#main footer [contenteditable="true"]'); if (!cx) { if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) break; await esp(1000); } }
-        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); marca(alvo, { estado: 'erro', motivo: 'número sem WhatsApp ou conversa não abriu' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+        let cx = null; for (let i = 0; i < 90 && !cx; i++) { cx = document.querySelector('#main footer [contenteditable="true"]'); if (!cx) { if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) break; await esp(1000); } }
+        // 3.11 (Stefany 10:06, caso Carlos Henrique: "todos já estão conversando no WhatsApp… não deveria dar erro"): o número
+        // é bom — o WhatsApp é que demorou. Antes de dar erro, tenta de novo (2ª vez) e, para celular 55+DDD+9+8, também sem o 9.
+        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); const tent = (alvo.tentAbrir || 0) + 1; const semNove = /^55\d{2}9\d{8}$/.test(dig(alvo.fone)) && tent === 2;
+          if (tent < 3) { marca(alvo, { tentAbrir: tent, foneAlt: semNove ? dig(alvo.fone).replace(/^(55\d{2})9/, '$1') : '' }); GM_setValue('wa_prox', Date.now() + 30000); return; }
+          marca(alvo, { estado: 'erro', motivo: 'a conversa não abriu em 3 tentativas (com e sem o 9) — conferir o número' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
         sessionStorage.removeItem('dins_wa_abrindo');
-        const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); const cab = tel ? chave(tel[0]) : '', al = chave(alvo.fone);   // só um número de telefone do cabeçalho (não a data do "visto por último")
+        const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); const cab = tel ? chave(tel[0]) : '', al = chave(alvo.foneAlt || alvo.fone);   // só um número de telefone do cabeçalho (não a data do "visto por último")
         // o cabeçalho às vezes mostra o NOME salvo e não o número: aí vale o número da URL, que é o do cliente
         if (cab && cab !== al) { marca(alvo, { estado: 'erro', motivo: 'número do cabeçalho não confere' }); return; }
         // 3.9 — quem já tem mensagem nossa sem resposta (outra campanha, envio de antes) NÃO recebe outra (caso Silvia 11/11).
