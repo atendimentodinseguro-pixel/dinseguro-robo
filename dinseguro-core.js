@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.24';
+  const VERSAO = '5.25';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -461,7 +461,8 @@
             if (!link) await zz(10000);
           }
           if (!link) throw new Error('gravada Nº ' + nro + ', mas o link não saiu em 12 min → vigia: nuvem verde em ?p=propostas');
-          const f4 = GM_getValue('ficha_atual', null) || {};
+          // 5.25 (caso Fabiano 12/11 12:00: saiu "Josias" no chat do Fabiano — a ficha_atual já era de outro cliente): usa a ficha DESTA ordem
+          const f4 = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
           const bc = String(f4.banco || '').replace(/\D/g, '').padStart(3, '0');
           const aleat = bc === '104' && /3880/.test(String(f4.agencia || ''));
           poeAO(o.hash, { estado: 'link', link, proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal });
