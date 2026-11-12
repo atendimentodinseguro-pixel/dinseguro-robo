@@ -1072,7 +1072,9 @@
           const RGv = GM_getValue('regua', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const hh = new Date().getHours();
         // 4.97: anúncio sem resposta do bot → flow "Inicio do atendimento" (2 min depois de entrar; uma vez por conversa; qualquer hora — foi o cliente que chamou)
         try { const RGa = GM_getValue('regua', {}) || {}; const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NMa = GM_getValue('nao_mexer', {}) || {};
-          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || AF[k] || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47') continue;
+          let STa = null; try { STa = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) {}
+          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47') continue;
+            if (AF[k]) { const falhou = STa && STa.hash === k && STa.acao === 'anuncio_sem_bot' && STa.st === 'erro'; const nT = +(AF[k + '#n'] || 1); if (!(falhou && nT < 3 && Date.now() - AF[k] > 60000)) continue; AF[k + '#n'] = nT + 1; }   // 4.98: deu erro → tenta de novo (até 3x)
             if (Date.now() - (+x.criadoT || 0) < 2 * 60000) continue;
             AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
