@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.58';
+  const VERSAO = '5.59';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2045,6 +2045,20 @@
           if (toque.tipo === 'manha' && alvo.estado !== 'ativa') { reg('não saiu: o cliente falou por último — é atendimento (vigia)', true); const r5 = RG(); if (r5[alvo.hash]) { r5[alvo.hash].estado = 'alerta'; r5[alvo.hash].motivo = 'cliente escreveu e ficou sem resposta (visto no toque da manhã)'; gravaRG(r5); desenharRegua(); } return; }
           estado('pausada', 'cliente respondeu — atendimento humano'); return;
         }
+        // 5.59 (Stefany 18:08, caso Douglas: combinou "amanhã à tarde", respondemos 18:00 e o /132 saiu 18:01 e de novo 18:04):
+        //  (a) cliente falou em qualquer momento DEPOIS do link → a conversa virou atendimento: régua pausada (a sequência 'link' cuida);
+        //  (b) lembrete combinado com o cliente → substitui os toques; (c) o toque já está na conversa → não repete; (d) falamos há < 50 min → espera.
+        { const E = (document.querySelector('.entries') || {}).innerText || ''; const iL = alvo.link ? E.lastIndexOf(alvo.link.slice(0, 30)) : -1;
+          const lis = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 6);
+          const iLi = alvo.link ? lis.map(e => (e.innerText || '').includes(alvo.link.slice(0, 30))).lastIndexOf(true) : -1;
+          if (iLi >= 0 && lis.slice(iLi + 1).some(e => e.classList.contains('left'))) { reg('não saiu: o cliente já conversou depois do link (5.59)', true); estado('pausada', 'cliente respondeu depois do link — atendimento (5.59)'); return; }
+          const esp0 = (GM_getValue('espera', {}) || {})[alvo.hash]; if (esp0 && esp0.tipo === 'lembrete' && (esp0.toques || []).some(q => !q.feito)) { reg('trocado pelo lembrete combinado com o cliente (5.59)', true); return; }
+          const depoisL = iL >= 0 ? E.slice(iL) : E.slice(-4000);
+          if (toque.tipo === '60' && /automaticamente cancelada|ser[áa] cancelada/i.test(depoisL)) { reg('já estava na conversa — não repeti (5.59)', true); return; }
+          if (toque.tipo === '10' && /Conseguiu acessar|conseguiu abrir o link/i.test(depoisL)) { reg('já estava na conversa — não repeti (5.59)', true); return; }
+          const ul = lis.slice(-1)[0]; const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || '');
+          if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
+            if (dif >= 0 && dif < 50 * M && toque.tipo !== 'manha') { const r6 = RG(); const q6 = r6[alvo.hash] && r6[alvo.hash].toques.find(k => k.tipo === toque.tipo); if (q6) { q6.prox = d.getTime() + 60 * M; gravaRG(r6); } return; } } }
         let enviado;
         if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeSeguro(alvo.nome)));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
@@ -2404,7 +2418,7 @@
       const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
       for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
         const ehCpf = /pedimos o CPF/i.test(x.motivo || ''), ehDuv = /aguardando o cliente/i.test(x.motivo || '');   // 5.47: dúvida respondida também
-        const lembrar = DEPOIS.test(x.ultCliTxt || '') && ['acompanhando', 'alerta', 'pausada', 'esgotada'].includes(x.estado);   // 5.56
+        const lembrar = DEPOIS.test(x.ultCliTxt || '') && ['acompanhando', 'alerta', 'pausada', 'esgotada', 'ativa'].includes(x.estado);   // 5.56 / 5.59: também 'ativa'
         const linkParado = x.link && !x.semLink && ['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos';   // 5.57
         if (!lembrar && !linkParado && (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem)))) continue;
         if (DEPOIS.test(x.ultCliTxt || '')) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
