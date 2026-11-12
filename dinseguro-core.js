@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.13';
+  const VERSAO = '5.14';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1421,9 +1421,10 @@
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
-      const r = RG(), x = r[hash]; if (!x || !x.semLink) return;
+      const r = RG(), x = r[hash]; if (!x || !(x.semLink || x.estado === 'alerta')) return;   // 5.14 (caso Odila 80WW: alerta de 07:55 ficou preso depois da nossa resposta 09:11) — alerta também é relido
       const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
-      if (c.estado !== x.estado || c.motivo !== x.motivo) { x.estado = c.estado; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
+      const est = (!x.semLink && c.estado !== 'alerta' && x.link) ? 'ativa' : c.estado;   // conversa com link: alerta resolvido volta para a régua do link
+      if (est !== x.estado || c.motivo !== x.motivo) { x.estado = est; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
     }
     // 4.10 — o mapeamento NÃO pode brigar com o vigia (10/11 17:52: trocava de chat enquanto o vigia atendia).
@@ -1481,7 +1482,7 @@
       if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
-        if (x.semLink) { try { reclassificar(id); } catch (e) {} }
+        if (x.semLink || x.estado === 'alerta') { try { reclassificar(id); } catch (e) {} }   // 5.14
         const r2 = RG(); if (r2[id]) { delete r2[id].reler; r2[id].lidoT = Date.now(); gravaRG(r2); }
       }
       else registrarSemLink(id);
