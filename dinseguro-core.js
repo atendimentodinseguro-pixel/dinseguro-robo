@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.61';
+  const VERSAO = '5.62';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1642,6 +1642,11 @@
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink || x.estado === 'alerta') { try { reclassificar(id); } catch (e) {} }   // 5.14
+        // 5.62 (casos Elisete/Alexandre/Maristelcio): conversa COM link relida → atualiza quem falou por último e quando (sem isso o follow-up 'link' nunca nascia)
+        else if (x.link && ['pausada', 'esgotada', 'acompanhando', 'ativa'].includes(x.estado)) { try { const c = classificar(); const r1 = RG(), y = r1[id]; if (y) {
+          ['vencida','ultCliT','ultT','ultLado','ultCliTxt','comQuem','tags01'].forEach(k => { if (k in c && c[k] !== undefined) y[k] = c[k]; });
+          if (['alerta', 'encerrado'].includes(c.estado) && c.estado !== y.estado) { y.estado = c.estado; y.motivo = c.motivo; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 5.62 relido: ' + c.motivo); }
+          gravaRG(r1); } } catch (e) {} }
         const r2 = RG(); if (r2[id]) { delete r2[id].reler; r2[id].lidoT = Date.now(); gravaRG(r2); }
       }
       else registrarSemLink(id);
@@ -1677,6 +1682,9 @@
       if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && /no bot \(autoatendimento\)/.test(x.motivo || '') && x.estado === 'acompanhando' && !protegido(x.hash)
           && ag - (+x.ultCliT || 0) >= 10 * M && ag - (+x.ultCliT || 0) < 23 * H && ag - (+x.lidoT || 0) > 10 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      // 5.62 (Stefany 18:00–18:02, casos Elisete/Alexandre/Ester): o 'reler' só valia para quem estava na lista visível (~6 conversas),
+      // então 74 marcadas ficaram sem leitura. Agora, sem nada mais urgente, relê uma marcada fora da lista (a mais antiga primeiro).
+      if (!novo) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !protegido(x.hash) && !x.comQuem && x.estado !== 'humano').sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 10000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
