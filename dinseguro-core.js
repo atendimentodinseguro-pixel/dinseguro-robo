@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.15';
+  const VERSAO = '5.16';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -65,7 +65,7 @@
     const parcela = num(f.parcela);
     const liberado = parcela * 28400 / 648.39;
     const inval = INVALIDEZ.includes(esp);
-    if (parcela < 20) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 20: /n30.' };
+    if (parcela < 25) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 25: /n30.' };   // 5.16
     if (idade > 76) return { banco: 'NAO', motivo: 'Acima de 76 anos: não fazemos.' };
     if (idade >= 74) return { banco: 'HUMANO', motivo: '74 a 76 anos: perguntar à Stefany antes de simular ou digitar.' };
     if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'LOAS (87/88): regra própria, não fazemos proposta.' };
@@ -341,7 +341,7 @@
               const f0 = textoParaFicha(t0.value); const m0 = parseFloat(String(f0.margem || '').replace(/[^\d,\-]/g, '').replace(',', '.')) || 0;
               res.push({ mat: c.mat, esp: c.esp, margem: m0, recusa: (f0.recusa || '').split('|')[0] });
             }
-            const comM = res.filter(x => x.margem >= 20 && !x.recusa);
+            const comM = res.filter(x => x.margem >= 25 && !x.recusa);
             const desc = res.map(x => 'esp ' + x.esp + ' …' + x.mat.slice(-4) + ' margem R$ ' + x.margem.toFixed(2).replace('.', ',') + (x.recusa ? ' (' + x.recusa + ')' : '')).join(' · ');
             if (comM.length >= 2) { poeAO(o.hash, { estado: 'com_margem', resumo: 'DOIS benefícios consignáveis com margem: ' + desc + ' → VIGIA: simular e mandar os DOIS (B1/B7), banco pela espécie e idade de cada um' }); return; }
             const alvoB = comM[0] || res[0];
@@ -365,7 +365,7 @@
           const mg = num(ficha.margem), mot = (ficha.recusa || '').split('|')[0];
           const resumo = 'esp ' + (ficha.especie || '?') + ', ' + (ficha.idade || '?') + 'a, margem R$ ' + (ficha.margem || '?');
           let acao = '';
-          if (mot === 'SEM_MARGEM' && mg != null && mg < 20) acao = 'sem_margem';
+          if (mot === 'SEM_MARGEM' && mg != null && mg < 25) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
           else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';
           else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
@@ -389,7 +389,7 @@
             let porque = '';
             if (!okF) porque = 'a ficha salva não é a do cliente';
             else if ((f3.recusa || '').trim()) porque = 'recusa: ' + f3.recusa;
-            else if (!(mg >= 100)) porque = 'margem abaixo de R$ 100';
+            else if (!(mg >= 25)) porque = 'margem abaixo de R$ 25';   // 5.16 (Stefany 12/11 11:25): margem baixa a partir de R$ 25 → simulação com a margem que ele tem
             else if (!/WhatsApp/i.test(f3.telefone_origem || '')) porque = 'sem o WhatsApp do chat na ficha';
             else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1, DAYCOVAL: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';   // 5.11: DAYCOVAL automático (portal do Daycoval)
             else if (num(f3.valor) > 0 && !(vb >= 10000)) porque = 'ficha já tem valor escolhido — vigia confere';
@@ -3946,7 +3946,7 @@
     function naoFazerFlash(f, margem, temEmprestimo) {
       const h = new Date().getHours();
       if (f.recusa) return 'cliente recusado (' + f.recusa.split('|')[0] + ')';
-      if (margem < 20) return 'sem margem';
+      if (margem < 25) return 'sem margem';
       // trava de reforço: nada de consulta paga para quem a tabela de bancos já descarta
       const dd = decidirBanco(f);
       if (dd.banco === 'NAO' || dd.banco === 'HUMANO') return 'fora dos critérios (' + dd.motivo + ')';
@@ -4154,7 +4154,7 @@
         else if (espF && !ESPECIES_OK.includes(espF)) f.recusa = 'ESPECIE_FORA|07|/07 — espécie ' + espF + ' não é atendida, e FECHAR a conversa';
         else if (!negativo(f.pensao))        f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|/inss13 — não fazemos proposta com representante legal';
-        else if (margem < 20)                f.recusa = 'SEM_MARGEM|01 I|/n30';
+        else if (margem < 25)                f.recusa = 'SEM_MARGEM|01 I|/n30';   // 5.16 (Stefany 12/11 11:25): mínimo R$ 25
         else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|acima de 76 anos: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
         else if (idadeF >= 74)               f.recusa = 'IDADE_PERGUNTAR|—|74 a 76 anos: perguntar à Stefany ANTES de simular, digitar ou gastar consulta';
         const d = decidirBanco(f);
