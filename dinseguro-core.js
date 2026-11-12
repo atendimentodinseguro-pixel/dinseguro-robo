@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.50';
+  const VERSAO = '5.51';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2529,7 +2529,9 @@
       const ordem = { erro: 0, bloqueada: 0, alerta: 1, humano: 2, ativa: 3, acompanhando: 4, pausada: 5, esgotada: 6, 'concluída': 7, encerrado: 8, cancelada: 9 };
       // 4.45 (Stefany 11:12, caso Genivaldo): o quadro é da JANELA DE 24 h ABERTA — quem já venceu (lido na tela, ou a última
       // mensagem do cliente tem mais de 24 h) sai daqui e fica com a varredura. Antes inflava o número do quadro.
-      const venceu = x => { const uc = Math.max(+x.ultCliT || 0, +x.cpfSemRespT || 0, +x.semCpfT || 0); return x.vencida || (uc && agora - uc > 24 * H) || /janela de 24 h vencida/i.test(x.motivo || ''); };   // 5.05 (caso Marco Aurélio: CPF 23:23 de ontem, mas ultCliT ficou com uma mensagem mais antiga → achava janela vencida e não consultava)
+      const ESPq = GM_getValue('espera', {}) || {};   // 5.51
+      const venceu = x => { const uc = Math.max(+x.ultCliT || 0, +x.cpfSemRespT || 0, +x.semCpfT || 0); if (!uc && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && (+x.ultT || 0) && agora - x.ultT > 24 * H) return true;   // 5.51: sem hora do cliente e nossa última há mais de 24 h → janela fechada
+        return x.vencida || (uc && agora - uc > 24 * H) || /janela de 24 h vencida/i.test(x.motivo || ''); };   // 5.05 (caso Marco Aurélio: CPF 23:23 de ontem, mas ultCliT ficou com uma mensagem mais antiga → achava janela vencida e não consultava)
       const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && !venceu(x) && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
         .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
       let q = top.getElementById('dins-regua');
@@ -2566,6 +2568,9 @@
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
         if (x.estado === 'ativa') return 'F';
+        // 5.51 (Stefany 17:43: "isso que tem follow-up é follow-up do robô, tem que ficar escrito ali"): tem follow-up agendado → 🟢
+        { const e = ESPq[x.hash]; if (e && (e.toques || []).some(q => !q.feito)) return 'F';
+          if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F'; }
         if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
         return 'A';
       };
