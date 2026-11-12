@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.10';
+  const VERSAO = '5.11';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -390,10 +390,10 @@
             else if ((f3.recusa || '').trim()) porque = 'recusa: ' + f3.recusa;
             else if (!(mg >= 100)) porque = 'margem abaixo de R$ 100';
             else if (!/WhatsApp/i.test(f3.telefone_origem || '')) porque = 'sem o WhatsApp do chat na ficha';
-            else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';
+            else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1, DAYCOVAL: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';   // 5.11: DAYCOVAL automático (portal do Daycoval)
             else if (num(f3.valor) > 0 && !(vb >= 10000)) porque = 'ficha já tem valor escolhido — vigia confere';
             if (porque) poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · não digitei: ' + porque });
-            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
+            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, ficha: bd === 'DAYCOVAL' ? f3 : undefined, resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
           }
           else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
           return;
@@ -415,9 +415,9 @@
     // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
     if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
       if (ocupadoAuto || /[?&]p=propostas/.test(location.search) || !ninguemMexendo()) return;
-      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok'); if (!o) return;
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL'); if (!o) return;
       const pag = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco];
-      if (!pag) { poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban (Quero Mais/Daycoval à mão)' }); return; }
+      if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
       sessionStorage.removeItem('dins_auto_nav');
       const car = botaoRobo('Carregar ficha'), dig = botaoRobo('Digitar'); if (!car || !dig) return;   // painel ainda carregando
@@ -3649,6 +3649,43 @@
       } catch (err) { log('PAROU: ' + err.message, 'erro'); status('erro', { erro: err.message }); }
       finally { rodando = false; const sq = p.querySelector('#dins-seq'); if (sq) sq.textContent = Math.max(GM_getValue('conta_seq', 11), 11); }
     });
+    // 5.11 (Stefany 12/11 10:55: o que ia para o Quero Mais volta para o Daycoval; "o robô tem que fazer"):
+    // ordem automática com banco DAYCOVAL (ficha_ok, ficha guardada na própria ordem) → Fazer tudo aqui → estado 'link'
+    // → o Botmaker manda simulação 1/2 + /parabens sozinho. Erro → 'erro' com o motivo (aparece no quadro como ROBÔ PAROU).
+    if (!QM) {
+      const AOd = () => GM_getValue('auto_ordens', {}) || {};
+      const poeAOd = (h, mud) => { const O = AOd(); if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
+      let autoD = false;
+      setInterval(async () => {
+        if (autoD || rodando || /\/login/.test(location.pathname) || document.querySelector('.cdk-overlay-pane .mat-mdc-dialog-container, .modal.show')) return;
+        // recuperação: proposta gerada aqui pelo painel (à mão) para um cliente cuja ordem parou em "banco DAYCOVAL é à mão" → devolve o link ao Botmaker
+        try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
+          if (r && r.link && Date.now() - Date.parse(r.quando) < 60 * 60000) { const O = AOd(); const q = Object.values(O).find(x => x && x.tipo === 'cpf' && ['com_margem', 'erro'].includes(x.estado) && cp(x.cpf) === cp(r.cpf) && /DAYCOVAL/.test(x.resumo || x.erro || '') && x.propD !== r.proposta);
+            if (q) { poeAOd(q.hash, { estado: 'link', link: r.link, proposta: r.proposta, liberado: r.liberado, parcela: r.parcela, prazo: r.prazo || '108', banco: 'DAYCOVAL', bancoConta: '', propD: r.proposta }); return; } } } catch (e) {}
+        const o = Object.values(AOd()).find(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
+        if (!o) return;
+        autoD = true;
+        try {
+          if (/dados-cliente|dados-complementares|resumo|formalizacao/.test(location.pathname)) {   // tela de um cliente anterior → menu (nunca F5)
+            const m = [...document.querySelectorAll('a,button,li,span')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e)));
+            if (m) m.click(); await sleep(4000); return;
+          }
+          GM_setValue('ficha_atual', o.ficha);
+          poeAOd(o.hash, { estado: 'digitando' });
+          const t0 = Date.now();
+          const b = [...p.querySelectorAll('button')].find(x => x.dataset.a === 'Fazer tudo'); if (!b) throw new Error('botão Fazer tudo não está na tela');
+          b.click();
+          let st = null;
+          for (let i = 0; i < 240 && !st; i++) { await sleep(2500); try { const s0 = JSON.parse(localStorage.getItem('dins_daycoval_status') || 'null'); if (s0 && s0.t >= t0 && (s0.st === 'ok' || s0.st === 'erro')) st = s0; } catch (e) {} }
+          if (!st) throw new Error('a digitação no Daycoval não terminou em 10 min');
+          if (st.st === 'erro') throw new Error(st.erro || 'erro no portal');
+          const f = o.ficha, so0 = x => String(x || '').replace(/\D/g, ''), bc = so0(f.banco).padStart(3, '0');
+          const real = f.banco && so0(f.conta).length >= 3 && f.banco !== '000' && !/derivada|sem conta aqui/i.test(f.conta_origem || '');
+          poeAOd(o.hash, { estado: 'link', link: st.link, proposta: st.proposta, liberado: st.liberado, parcela: st.parcela, prazo: st.prazo || '108', banco: 'DAYCOVAL', bancoConta: real ? (NOME_BANCO[bc] || '') : '', ficha: undefined, propD: st.proposta });
+        } catch (e) { poeAOd(o.hash, { estado: 'erro', erro: 'Daycoval: ' + String(e.message || e) }); }
+        finally { autoD = false; }
+      }, 15000);
+    }
     return;
   }
 
