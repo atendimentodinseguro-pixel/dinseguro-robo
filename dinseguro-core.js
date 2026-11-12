@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.54';
+  const VERSAO = '5.55';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2424,6 +2424,9 @@
         (x.toques || []).forEach(q => { if (!q.feito && ['3h', '08h2'].includes(q.q)) { q.feito = Date.now(); q.st = 'tirado (5.47: Stefany 17:22)'; m = true; } });
         if (!(x.toques || []).some(q => q.q === 'janela')) { const qj = horaJanela(+((RGx[k] || {}).ultCliT) || 0); if (qj && qj > Date.now()) { x.toques.push({ q: 'janela', quando: qj, feito: 0 }); m = true; } } }
       if (m) gravaESP(o); } catch (e) {} }, 15000);
+    setTimeout(() => { try { const r = RG(); let m = 0;   // 5.55 (caso Ester): 'resolvido pelo robô' depois da mensagem do vigia = releitura para entrar na sequência de follow-up
+      for (const k in r) { const x = r[k]; if (x && x.estado === 'acompanhando' && /resolvido pelo robô/.test(x.motivo || '') && !x.reler) { x.reler = 1; m++; } }
+      if (m) gravaRG(r); } catch (e) {} }, 9000);
     setTimeout(() => { try { if (GM_getValue('mig552', '')) return; const o = ESP(), hst = ESP_H(); let m = 0;   // 5.52: desfaz o bloqueio de 36 h gravado hoje pela trava 4.70 (sessão fechada pelo bot)
       for (const k in hst) { if (o[k]) continue; ['cpf', 'duvida'].forEach(t => { if (hst[k][t] && Date.now() - hst[k][t] < 12 * H) { delete hst[k][t]; m++; } }); }
       GM_setValue('espera_hist', hst); GM_setValue('mig552', String(Date.now())); } catch (e) {} }, 12000);
