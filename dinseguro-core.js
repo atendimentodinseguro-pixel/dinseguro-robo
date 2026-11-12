@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.88';
+  const VERSAO = '4.89';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1346,6 +1346,8 @@
       if (window.top.location.hash !== '#/chats/' + id || !document.querySelector('.entries')) return false;
       try { detectarLink(); } catch (e) {}
       const x = RG()[id];
+      // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
+      if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink) { try { reclassificar(id); } catch (e) {} }
@@ -1371,7 +1373,7 @@
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
       let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
-      let novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada')
+      let novo = idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && Date.now() - (+RG()[id].lidoT || 0) > 30 * M))   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
         || FLq.find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
         || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
       // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
