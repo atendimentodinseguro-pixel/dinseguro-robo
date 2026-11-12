@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.12';
+  const VERSAO = '5.13';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -428,8 +428,8 @@
         const antes = logRobo().length;
         car.click(); await zz(2500); dig.click();
         let fim = null;
-        for (let i = 0; i < 60 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon/i.test(l)); }
-        if (!fim) throw new Error('a digitação não terminou em 90 s');
+        for (let i = 0; i < 160 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon/i.test(l)); }
+        if (!fim) throw new Error('a digitação não terminou em 4 min');   // 5.13 (caso Josias TYK97: 90 s era pouco)
         const m = /Pronto \(liberado R\$ ([\d.,]+)\)/.exec(fim);
         if (!m) throw new Error(fim.replace(/^\d\d:\d\d /, '').slice(0, 160));
         poeAO(o.hash, { estado: 'pronto', liberado: m[1], aba: location.search });
