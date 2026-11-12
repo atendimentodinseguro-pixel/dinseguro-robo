@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.31';
+  const VERSAO = '5.32';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1505,9 +1505,7 @@
           HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX);
         } } catch (e) {}
       try { detectarLink(); } catch (e) {}
-      // 5.31: régua sem telefone → guarda o do painel (Home/Lar ou variável "Telefone do WhatsApp") desta conversa
-      try { const tP = document.body.innerText || ''; const fP = (tP.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || tP.match(/Telefone do WhatsApp\s*\n\s*\+?(\d{10,13})/) || [])[1]; const rr = RG(); if (fP && rr[id] && !rr[id].fone && window.top.location.hash === '#/chats/' + id) { rr[id].fone = fP; gravaRG(rr); }
-        const AOf = GM_getValue('auto_ordens', {}) || {}; if (fP && AOf[id] && !AOf[id].fone && window.top.location.hash === '#/chats/' + id) { AOf[id].fone = fP; GM_setValue('auto_ordens', AOf); } } catch (e) {}
+      // 5.32: (tirado) guardar o telefone do painel na régua — painel atrasado poderia gravar o telefone de OUTRO cliente (erro 105)
       // 5.30 (caso Josias 12/11, erro 56): escolha de valor registrada em NOTA de dias antes ("ESCOLHA DE VALOR DO CLIENTE: … escolheu R$ 20.000,00", "pediu R$ 20.000")
       try { const tN = document.body.innerText || ''; const m = [...tN.matchAll(/ESCOLHA DE VALOR DO CLIENTE:[^\n]*?escolheu (?:R\$ ?)?([\d.]+,\d{2})/g)].pop() || [...tN.matchAll(/\bpediu R\$ ?([\d.]+(?:,\d{2})?)/g)].pop();
         if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
