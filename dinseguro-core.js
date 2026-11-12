@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.30';
+  const VERSAO = '5.31';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -379,6 +379,7 @@
             if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
             if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             // 5.00 (caso Ronaldo 12/11: CPF não estava no mapa CPF→WhatsApp): a ordem nasceu do chat do Botmaker e traz o WhatsApp dele (o.fone) → usa esse
+            if (!o.fone) { try { const rq = (GM_getValue('regua', {}) || {})[o.hash] || {}; o.fone = rq.fone || zapDoCpf(o.cpf) || ''; } catch (e) {} }   // 5.31 (caso 9BL8Z: ordem sem telefone) → régua / mapa CPF→WhatsApp
             if (!/^telefone_origem:\s*WhatsApp/im.test(ta.value) && o.fone) { let t = String(o.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
               if (/^\d{11}$/.test(t)) { const put = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
                 put('telefone', t); put('telefone_origem', 'WhatsApp do chat (Botmaker — ordem automática)'); ta.dispatchEvent(new Event('input', { bubbles: true })); } }
@@ -1504,6 +1505,9 @@
           HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX);
         } } catch (e) {}
       try { detectarLink(); } catch (e) {}
+      // 5.31: régua sem telefone → guarda o do painel (Home/Lar ou variável "Telefone do WhatsApp") desta conversa
+      try { const tP = document.body.innerText || ''; const fP = (tP.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || tP.match(/Telefone do WhatsApp\s*\n\s*\+?(\d{10,13})/) || [])[1]; const rr = RG(); if (fP && rr[id] && !rr[id].fone && window.top.location.hash === '#/chats/' + id) { rr[id].fone = fP; gravaRG(rr); }
+        const AOf = GM_getValue('auto_ordens', {}) || {}; if (fP && AOf[id] && !AOf[id].fone && window.top.location.hash === '#/chats/' + id) { AOf[id].fone = fP; GM_setValue('auto_ordens', AOf); } } catch (e) {}
       // 5.30 (caso Josias 12/11, erro 56): escolha de valor registrada em NOTA de dias antes ("ESCOLHA DE VALOR DO CLIENTE: … escolheu R$ 20.000,00", "pediu R$ 20.000")
       try { const tN = document.body.innerText || ''; const m = [...tN.matchAll(/ESCOLHA DE VALOR DO CLIENTE:[^\n]*?escolheu (?:R\$ ?)?([\d.]+,\d{2})/g)].pop() || [...tN.matchAll(/\bpediu R\$ ?([\d.]+(?:,\d{2})?)/g)].pop();
         if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
