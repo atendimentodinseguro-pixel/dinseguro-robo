@@ -3,8 +3,42 @@
 
 (function () {
   'use strict';
+  // 5.64 (Stefany 12/11 19:18: "um robô por aba") — 1) temporizadores por Worker no Botmaker: aba que não está na frente não fica
+  // freada pelo Chrome (1 vez por minuto); 2) junção de GM_setValue entre abas: cada aba grava só o que ELA mudou desde a leitura.
+  const { setTimeout, setInterval, clearTimeout, clearInterval } = (() => {
+    const N = { setTimeout: window.setTimeout.bind(window), setInterval: window.setInterval.bind(window), clearTimeout: window.clearTimeout.bind(window), clearInterval: window.clearInterval.bind(window) };
+    if (location.host !== 'go.botmaker.com' || !/moduleForward\/chats/.test(location.pathname)) return N;
+    try {
+      const w = new Worker(URL.createObjectURL(new Blob(['const m=new Map();onmessage=e=>{const d=e.data;if(d.c){clearTimeout(m.get(d.id));clearInterval(m.get(d.id));m.delete(d.id);return;}if(d.r)m.set(d.id,setInterval(()=>postMessage(d.id),d.ms));else m.set(d.id,setTimeout(()=>{m.delete(d.id);postMessage(d.id);},d.ms));};'], { type: 'text/javascript' })));
+      const cb = new Map(); let n = 1, morto = false;
+      w.onmessage = e => { const f = cb.get(e.data); if (!f) return; if (!f.r) cb.delete(e.data); try { f.fn(...f.a); } catch (er) { console.error(er); } };
+      w.onerror = () => { if (morto) return; morto = true; cb.forEach((f, id) => { f.nat = f.r ? N.setInterval(f.fn, f.ms, ...f.a) : N.setTimeout(f.fn, f.ms, ...f.a); }); };
+      const marca = (fn, ms, a, r) => { if (typeof fn !== 'function') return r ? N.setInterval(fn, ms) : N.setTimeout(fn, ms); ms = Math.max(0, +ms || 0);
+        if (morto) return r ? N.setInterval(fn, ms, ...a) : N.setTimeout(fn, ms, ...a); const id = 'w' + (n++); cb.set(id, { fn, ms, a, r }); w.postMessage({ id, ms, r }); return id; };
+      const tira = id => { if (typeof id === 'string' && id[0] === 'w') { const f = cb.get(id); cb.delete(id); if (f && f.nat) { N.clearTimeout(f.nat); N.clearInterval(f.nat); } w.postMessage({ id, c: 1 }); } else { N.clearTimeout(id); N.clearInterval(id); } };
+      return { setTimeout: (fn, ms, ...a) => marca(fn, ms, a, 0), setInterval: (fn, ms, ...a) => marca(fn, ms, a, 1), clearTimeout: tira, clearInterval: tira };
+    } catch (e) { return N; }
+  })();
+  try {
+    const _gGet = GM_getValue, _gSet = GM_setValue, SNAP = new Map();
+    const JUNTA = /^(regua|espera|espera_hist|auto_ordens|pos_pago|nao_interferir|retorno_feito|golpe_feito|tag_audit|depois_resp|valor_nota|hist_expandido)$/;
+    const multi = () => { try { let n = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^dins_aba_/.test(k)) { const v = JSON.parse(localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000 && v.papel !== 'vigia') n++; } } return n > 1; } catch (e) { return false; } };
+    const obj = v => v && typeof v === 'object' && !Array.isArray(v);
+    const J = v => JSON.stringify(v);
+    GM_getValue = (k, d) => { const v = _gGet(k, d); if (JUNTA.test(k) && obj(v) && multi()) { try { SNAP.set(k, J(v)); } catch (e) {} } else SNAP.delete(k); return v; };
+    GM_setValue = (k, v) => {
+      try { if (JUNTA.test(k) && obj(v) && SNAP.has(k)) { const sb = SNAP.get(k), cur = _gGet(k, null);
+        if (obj(cur) && J(cur) !== sb) {   // outra aba gravou depois da nossa leitura → junta só o que mudamos
+          const base = JSON.parse(sb), out = cur;
+          for (const id of new Set([...Object.keys(base), ...Object.keys(v)])) { const a = base[id], b = v[id]; if (J(a) === J(b)) continue;
+            if (b === undefined) { delete out[id]; continue; }
+            if (obj(a) && obj(b) && obj(out[id])) { for (const f of new Set([...Object.keys(a), ...Object.keys(b)])) { if (J(a[f]) !== J(b[f])) { if (b[f] === undefined) delete out[id][f]; else out[id][f] = b[f]; } } }
+            else out[id] = b; }
+          v = out; } } } catch (e) {}
+      _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
+  } catch (e) {}
 
-  const VERSAO = '5.63';
+  const VERSAO = '5.64';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -484,6 +518,31 @@
   // em localStorage 'dins_fila' (o Claude lê essa fila) e avisa com som + notificação.
   if (location.host === 'go.botmaker.com') {
     if (!/moduleForward\/chats/.test(location.pathname)) return;
+    // 5.64 — UM ROBÔ POR ABA. Papel guardado na própria aba (sessionStorage: sobrevive ao F5, cada aba tem o seu):
+    //   'atendimento' (fila, CPF, ordens, mensagens a quem espera, tags) · 'followup' (toques, esperas, lembretes, esteira, pós-pagamento)
+    //   'varredura' (janelas vencidas, conferência das 24 h, releitura do azul) · 'vigia' (aba do Claude: o robô não mexe) · 'tudo' (padrão).
+    // Papel sem aba viva é feito pela aba 'tudo' (a de menor id) e, sem ela, pela de 'atendimento'. Uma aba só = tudo como antes.
+    const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id'); if (!k) { k = Math.random().toString(36).slice(2, 8); sessionStorage.setItem('dins_aba_id', k); } return k; })();
+    const PAPEIS = ['tudo', 'atendimento', 'followup', 'varredura', 'vigia'];
+    const meuPapel = () => { const p = sessionStorage.getItem('dins_papel') || 'tudo'; return PAPEIS.includes(p) ? p : 'tudo'; };
+    const abasVivas = () => { const o = {}; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue;
+      try { const v = JSON.parse(window.localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000) o[k.slice(9)] = v; else if (Date.now() - (+v.t || 0) > 3600000) window.localStorage.removeItem(k); } catch (e) {} } return o; };
+    const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
+      const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
+      const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
+    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, t: Date.now(), v: VERSAO })); } catch (e) {} };
+    batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
+    // conversa aberta em OUTRA aba (qualquer papel, inclusive o vigia) → quem vai escrever espera (até 90 s)
+    const chatComOutraAba = h => { const V = abasVivas(); return Object.keys(V).some(k => k !== ABA && V[k].hash === h && Date.now() - V[k].t < 20000); };
+    const esperaChatLivre = async h => { for (let i = 0; i < 30; i++) { if (!chatComOutraAba(h)) return true; await new Promise(r => setTimeout(r, 3000)); } return false; };
+    window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); batida(); return 'papel desta aba: ' + p; };
+    window.dinsFaz = faz;
+    // travas que valem só para a PRÓPRIA aba (antes eram de todas: um robô esperava o outro sair da tela)
+    const POR_ABA = /^(dins_nav|dins_mapeando|dins_varrendo|dins_vigia_ocupado|dins_vigia_trava)$/;
+    const localStorage = { getItem: k => (POR_ABA.test(k) ? sessionStorage : window.localStorage).getItem(k), setItem: (k, v) => (POR_ABA.test(k) ? sessionStorage : window.localStorage).setItem(k, v),
+      removeItem: k => (POR_ABA.test(k) ? sessionStorage : window.localStorage).removeItem(k), key: i => window.localStorage.key(i), get length() { return window.localStorage.length; },
+      get dins_ordem() { return window.localStorage.dins_ordem; }, get dins_ordem_status() { return window.localStorage.dins_ordem_status; }, get dins_regua() { return window.localStorage.dins_regua; },
+      get dins_varredura_placar() { return window.localStorage.dins_varredura_placar; }, get dins_varrer_agora() { return window.localStorage.dins_varrer_agora; } };
     const ler = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
     const gravar = (k, v) => localStorage.setItem(k, JSON.stringify(v));
     const bip = () => { try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 250); } catch (e) {} };
@@ -804,6 +863,7 @@
     }
     async function abrir(hash) {
       const alvo = '#/chats/' + hash.replace(/^#\/chats\//, '');
+      if (!(await esperaChatLivre(hash.replace(/^#\/chats\//, '')))) throw new Error('a conversa está aberta em outra aba (vigia ou outro robô) — não mandei nada');   // 5.64
       const antes = foneDoPainel() + '|' + nomeDoPainel();
       if (window.top.location.hash !== alvo) { window.top.location.hash = alvo; await esp(4000); }
       const ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 15000);
@@ -1134,12 +1194,13 @@
         else { grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem'); log && log('Desfecho PAROU: ' + e.message, 'erro'); }
       } finally { rodando = false; }
     }
-    setInterval(olharOrdem, 3000);
+    setInterval(() => { if (faz('atendimento')) olharOrdem(); }, 3000);
     // 4.24 — desfecho automático do CPF sem margem (ordem do Multicorban em GM auto_ordens, estado 'desfecho').
     // Só com a tela livre: sem dins_ordem na fila, vigia parado há 2 min, nenhum desfecho rodando.
     const LINHA_SEM_MARGEM = n => 'Obrigado por mandar' + (n ? ', ' + n : '') + ' 🙏 Já consultei aqui com calma. No momento o seu benefício está sem margem disponível para um novo empréstimo, então infelizmente não conseguimos fazer uma proposta agora. Fique tranquilo(a): não foi feito nada no seu nome. Te explico abaixo 👇';
     const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
     setInterval(() => {
+      if (!faz('atendimento')) return;   // 5.64 papel da aba
       try {
         if (rodando || localStorage.getItem('dins_ordem') || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !(Date.now() - (+localStorage.getItem('dins_varre_livre') || 0) < 12000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.90: no intervalo da varredura (dins_varre_livre) as respostas do robô saem
         if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
@@ -1670,7 +1731,8 @@
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
       let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
-      let novo = idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && RG()[id].reler))   /* 4.99 (Stefany 12/11 09:28: "atendimentos já encerrados não precisa ele olhar"): fechada só volta a ser lida se a conversa andou */   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
+      const fA = faz('atendimento'), fV = faz('varredura'); if (!fA && !fV) return;   // 5.64 papel da aba
+      let novo = !fA ? null : idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && RG()[id].reler))   /* 4.99 (Stefany 12/11 09:28: "atendimentos já encerrados não precisa ele olhar"): fechada só volta a ser lida se a conversa andou */   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
         || FLq.find(id => !RG()[id] && id !== 'F20QOEL8YYLQN2S6SR47')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
         || FLq.find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
         || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
@@ -1680,17 +1742,18 @@
       // vira "encerrado" e sai do vermelho; cliente que falou continua vermelho.
       // 4.85/4.87 (caso Rubi — antes da releitura dos vermelhos, que não deixava chegar a vez): "no bot (autoatendimento)" não é relido sozinho (não é vermelho) → quem parou no bot há 10 min+ é relido a cada 10 min (até 23 h),
       // para o robô ver que parou sem CPF e mandar o pedido de CPF.
-      if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && /no bot \(autoatendimento\)/.test(x.motivo || '') && x.estado === 'acompanhando' && !protegido(x.hash)
+      if (!novo && fA) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && /no bot \(autoatendimento\)/.test(x.motivo || '') && x.estado === 'acompanhando' && !protegido(x.hash)
           && ag - (+x.ultCliT || 0) >= 10 * M && ag - (+x.ultCliT || 0) < 23 * H && ag - (+x.lidoT || 0) > 10 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
-      if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      if (!novo && fA) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       // 5.62 (Stefany 18:00–18:02, casos Elisete/Alexandre/Ester): o 'reler' só valia para quem estava na lista visível (~6 conversas),
       // então 74 marcadas ficaram sem leitura. Agora, sem nada mais urgente, relê uma marcada fora da lista (a mais antiga primeiro).
-      if (!novo) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !protegido(x.hash) && !x.comQuem && x.estado !== 'humano').sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && x.estado !== 'humano').sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 10000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
     setInterval(() => {
+      if (!faz('atendimento')) return;   // 5.64 papel da aba
       const arq = [...document.querySelectorAll('.customer-item')].filter(ci => /ARCHIVED|Arquivad/i.test(ci.innerText)).map(ci => (ci.parentElement || {}).id).filter(Boolean);
       if (!arq.length) return; const r = RG(); let mudou = false;
       arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
@@ -1702,6 +1765,7 @@
     // (texto do cliente numa conversa pausada/acompanhada, ou o bot dizendo que está analisando) → fica VERMELHO no quadro.
     const ESPERA_BOT = /Estou analisando suas informa|Estamos analisando aguarde|aguarde um (atendente|momento)|atendente humano|Assim que concluir irei avisar/i;
     setInterval(() => {
+      if (!faz('atendimento')) return;   // 5.64 papel da aba
       try {
         const r = RG(); let mudou = false;
         document.querySelectorAll('.customer-item').forEach(ci => {
@@ -2046,6 +2110,7 @@
       fupRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
+        if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         const ok = await (async () => { for (let i = 0; i < 40; i++) { if (window.top.location.hash === alvoHash && document.querySelector('.entries')) return true; await new Promise(s => setTimeout(s, 300)); } return false; })();
         if (!ok) throw new Error('não abriu o chat');
@@ -2108,7 +2173,7 @@
         log && log('Régua: erro no toque ' + toque.tipo + ': ' + e.message, 'erro');
       } finally { fupRodando = false; navSolta('fup'); }
     }
-    setInterval(olharFollowups, 60000);
+    setInterval(() => { if (faz('followup')) olharFollowups(); }, 60000);
     // 4.45 — confere a janela de 24 h de quem está no quadro (abre a conversa e lê a caixa de mensagem). Vencida → sai do
     // quadro (fica com a varredura). Roda sozinho 3 min depois de abrir e a cada 60 min, só com a tela livre. À mão: dinsReguaVencidas()
     let vencRodando = false;
@@ -2142,8 +2207,8 @@
         return { conferidas: n, vencidas: v };
       } finally { vencRodando = false; }
     };
-    setTimeout(() => window.dinsReguaVencidas(), 3 * 60000);
-    setInterval(() => { if (!vencRodando) window.dinsReguaVencidas(); }, 60 * 60000);
+    setTimeout(() => { if (faz('varredura')) window.dinsReguaVencidas(); }, 3 * 60000);
+    setInterval(() => { if (!vencRodando && faz('varredura')) window.dinsReguaVencidas(); }, 60 * 60000);
 
     // ================================================================ 4.35 — PÓS-PAGAMENTO e CHAMADA DE VÍDEO (Stefany 11/11 09:53–10:00)
     // "Isso aí é padrão para todo mundo… programar para a gente fazer em escala, no robô, em procedimento."
@@ -2225,6 +2290,7 @@
       posRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
+        if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) throw new Error('não abriu o chat');
@@ -2254,7 +2320,7 @@
         else { const o = POS(), y = o[alvo.hash]; if (y) { y.tent = (y.tent || 0) + 1; y.erro = e.message; if (y.tent >= 3) y.parado = 1; y.hist.push(hhmm(Date.now()) + ' ' + passo + ' erro: ' + e.message); gravaPOS(o); } }
       } finally { posRodando = false; navSolta('pos'); }
     }
-    setInterval(olharPos, 45000);
+    setInterval(() => { if (faz('followup')) olharPos(); }, 45000);
 
     // 4.21 — DESBLOQUEIO / ANUÊNCIA SAEM SOZINHOS (Stefany 19:22 "o follow-up certo sairia sozinho" / 19:49 "finaliza tudo").
     // Esteira diz "falta desbloquear" (215 ASSINATURA DIGITAL OK / AVERBE JA) → linha pessoal + /dsg25a + /dsg25.
@@ -2286,6 +2352,7 @@
     const FIZ_ANU = /(?<![\wÀ-ÿ])(fiz|feito|feita|confirmei|confirmado|consegui|pronto|conclu[ií]|autorizei|ativo|deu certo)(?![\wÀ-ÿ])|✅|👍/i;
     let posAnuRodando = false;
     setInterval(async () => {
+      if (!faz('followup')) return;   // 5.64 papel da aba
       if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       try {
@@ -2334,6 +2401,7 @@
       const marca = (mud, hist) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; Object.assign(x, mud); x.hist.push(hhmm(Date.now()) + ' ' + hist); gravaRG(r2); desenharRegua(); };
       try {
         const alvoHash = '#/chats/' + alvo.hash;
+        if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
@@ -2357,7 +2425,7 @@
       } catch (e) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ' ERRO: ' + e.message); }
       finally { faseRodando = false; navSolta('fase'); }
     }
-    setInterval(olharFases, 90000);
+    setInterval(() => { if (faz('followup')) olharFases(); }, 90000);
 
     // ================================================================ 4.47 — FOLLOW-UPS SEM LINK E LEMBRETES (Stefany 11/11 11:36, autorizado)
     //  1) Pedimos o CPF e o cliente sumiu → toque 1 h depois e outro às 08:00.
@@ -2439,6 +2507,7 @@
     // da conversa ABERTA na tela). Agora a espera do pedido de CPF nasce também pela RÉGUA (motivo "pedimos o CPF", última mensagem nossa).
     // Cadência do CPF (plano aprovado 16:34): 1 h · 3 h · 08:00 do dia seguinte · 08:00 do terceiro dia (este só com a janela aberta).
     setInterval(() => { try {
+      if (!faz('followup')) return;   // 5.64 papel da aba
       const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
       for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || protegido(k) || x.comQuem || x.vencida) continue;
         if (o[k] && !(o[k].tipo === 'lembrete' || /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '') || DEPOIS.test(x.ultCliTxt || ''))) continue;   // 5.60: espera existente só é trocada por lembrete com hora
@@ -2474,7 +2543,7 @@
         (x.toques || []).forEach(q => { if (!q.feito && ['3h', '08h2'].includes(q.q)) { q.feito = Date.now(); q.st = 'tirado (5.47: Stefany 17:22)'; m = true; } });
         if (!(x.toques || []).some(q => q.q === 'janela')) { const qj = horaJanela(+((RGx[k] || {}).ultCliT) || 0); if (qj && qj > Date.now()) { x.toques.push({ q: 'janela', quando: qj, feito: 0 }); m = true; } } }
       if (m) gravaESP(o); } catch (e) {} }, 15000);
-    setTimeout(() => { try { const r = RG(); let m = 0;   // 5.55 (caso Ester): 'resolvido pelo robô' depois da mensagem do vigia = releitura para entrar na sequência de follow-up
+    setTimeout(() => { try { if (!faz('varredura')) return; const r = RG(); let m = 0;   // 5.55 (caso Ester): 'resolvido pelo robô' depois da mensagem do vigia = releitura para entrar na sequência de follow-up
       for (const k in r) { const x = r[k]; if (x && x.estado === 'acompanhando' && /resolvido pelo robô/.test(x.motivo || '') && !x.reler) { x.reler = 1; m++; } }
       if (m) gravaRG(r); } catch (e) {} }, 9000);
     setTimeout(() => { try { if (GM_getValue('mig552', '')) return; const o = ESP(), hst = ESP_H(); let m = 0;   // 5.52: desfaz o bloqueio de 36 h gravado hoje pela trava 4.70 (sessão fechada pelo bot)
@@ -2483,12 +2552,13 @@
     function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
     // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
     // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
-    setInterval(() => { try {   // 5.49: azul sem hora do cliente (nunca lido) → reler
+    setInterval(() => { try { if (!faz('varredura')) return;   // 5.49: azul sem hora do cliente (nunca lido) → reler
       const RGx = RG(); let m = false, n = 0;
       for (const k in RGx) { const x = RGx[k]; if (!x || n >= 5 || !['acompanhando', 'pausada', 'esgotada'].includes(x.estado) || x.reler || protegido(k)) continue;
         if ((!(+x.ultCliT || 0) || Date.now() - (+x.lidoT || 0) > 2 * 3600000) && Date.now() - (+x.lidoT || 0) > 30 * 60000 && Date.now() - (+x.criadoT || +x.linkT || 0) < 48 * 3600000) { x.reler = 1; m = true; n++; } }   // 5.53: também quem foi lido há mais de 2 h
       if (m) gravaRG(RGx); } catch (e) {} }, 5 * 60000);
     setInterval(() => { try {
+      if (!faz('followup')) return;   // 5.64 papel da aba
       if (localStorage.getItem('dins_ordem') || vigiaTrava()) return; const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       const RGx = RG(); let mR = false;
       for (const k in RGx) { const x = RGx[k]; if (!x || x.estado !== 'pausada' || !x.link || protegido(k) || x.comQuem || x.vencida) continue;
@@ -2560,6 +2630,7 @@
       espRodando = true;
       try {
         const alvoHash = '#/chats/' + alvo.hash;
+        if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
@@ -2594,7 +2665,7 @@
         else { const o = ESP(), y = o[alvo.hash]; if (y) { const q = y.toques.find(k => k.q === toque.q); q.tent = (q.tent || 0) + 1; q.prox = Date.now() + 3 * M; q.st = 'erro: ' + e.message; if (q.tent >= 3) { q.feito = Date.now(); y.erro = e.message; } gravaESP(o); } }
       } finally { espRodando = false; navSolta('espera'); }
     }
-    setInterval(olharEspera, 50000);
+    setInterval(() => { if (faz('followup')) olharEspera(); }, 50000);
 
     // 4) QUADRO no canto direito da tela de cima
     function desenharRegua() {
@@ -2654,7 +2725,7 @@
         ['A', '🔵 Aguardando o cliente', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
-      try {
+      if (faz('atendimento')) try {
         const O = GM_getValue('auto_ordens', {}) || {}; let mudouO = false;
         for (const x of lista) {
           const ci = x.contornoInfo; if (!ci || !x.semLink || !x.contornoT || x.ultLado === 'cli' || O[x.hash] || protegido(x.hash)) continue;
@@ -2680,7 +2751,7 @@
       // 5.40 FASE 4: cliente esperando há mais de 10 min (vermelho sem resposta) aparece no topo, com a maior espera; resumo a cada hora em dins_resumo_hora
       const esperando = (grupos.R || []).map(x => ({ x, min: Math.round((agora - (x.ultLado === 'cli' ? (+x.ultCliT || 0) : (+x.handoffT || +x.cpfSemRespT || +x.ultT || 0))) / 60000) })).filter(e => e.min >= 10 && e.min < 24 * 60 && !protegido(e.x.hash) && !e.x.comQuem).sort((a, b) => b.min - a.min);
       try { const hk = new Date().toISOString().slice(0, 13); const RH = JSON.parse(localStorage.getItem('dins_resumo_hora') || '[]'); if (!RH.length || RH[RH.length - 1].h !== hk) { RH.push({ h: hk, hora: hhmm(agora), esperando: esperando.length, maior: esperando[0] ? esperando[0].min : 0, quem: esperando.slice(0, 5).map(e => (e.x.nome || e.x.hash.slice(0, 5)) + ' ' + e.min + 'min'), alerta: nAlerta }); localStorage.setItem('dins_resumo_hora', JSON.stringify(RH.slice(-48))); } } catch (e) {}
-      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 ${({tudo:'',atendimento:'[ATENDIMENTO] ',followup:'[FOLLOW-UP] ',varredura:'[VARREDURA] ',vigia:'[VIGIA] '})[meuPapel()]}Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
         (esperando.length ? `<div style="margin:3px 0;padding:3px 6px;border-radius:6px;background:#7f1d1d;color:#fff;font-weight:700">⏱ ${esperando.length} sem resposta há mais de 10 min — maior: ${esperando[0].min} min (${String(esperando[0].x.nome || esperando[0].x.hash.slice(0, 5)).replace(/</g, '')})</div>` : '') +
         `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}` +
         ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>`;
@@ -3000,6 +3071,7 @@
       return [...vistos.values()].filter(x => !x.arq);
     }
     async function abrirHash(id) {
+      if (!(await esperaChatLivre(id))) return false;   // 5.64: conversa aberta em outra aba
       for (let t = 0; t < 3; t++) {
         while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         // 4.90 (12/11 08:49: 13 clientes novos na fila sem leitura enquanto a varredura das 8h rodava): quem está esperando passa na frente — lê antes de seguir a varredura
@@ -3133,6 +3205,7 @@
     }
     // 5.45: rodada interrompida (recarga, travou) → retoma do cursor, no mesmo dia, antes das 17h, quando a aba está livre há 3 min
     setInterval(() => { try {
+      if (!faz('varredura')) return;   // 5.64 papel da aba
       const c = GM_getValue('varre_cursor', null); const d = new Date();
       if (!c || !c.aberto || c.dia !== d.toDateString() || d.getHours() >= VARRE_LIMITE_H || d.getHours() < 8) return;
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
@@ -3160,6 +3233,7 @@
     window.dinsRecarregarDepois = () => { if (!varrendo && !localStorage.getItem('dins_varrendo')) { window.top.location.reload(); return 'agora'; } localStorage.setItem('dins_recarregar_depois', '1'); return 'depois da rodada'; };
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
     setInterval(async () => {
+      if (!faz('varredura')) return;   // 5.64 papel da aba
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
       const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && y.quem === 'varredura 4.27' && (!y.fechado || (typeof y.fechado === 'string' && /^erro/.test(y.fechado) && (y.fechTent || 0) < 3 && Date.now() - (y.fechT || 0) > 20 * 60000)));   // 4.68: erro ao fechar tenta de novo (até 3x, de 20 em 20 min)
       if (!x) return;
@@ -3204,7 +3278,7 @@
       } catch (e) {}
     }
     setInterval(desenharVarredura, 20000); setTimeout(desenharVarredura, 5000);
-    setInterval(() => { if (localStorage.getItem('dins_varrer_executar')) { localStorage.removeItem('dins_varrer_executar'); const p = GM_getValue('varre_plano', null); if (p) { p.aguardando = false; GM_setValue('varre_plano', p); } varrerJanelaVencida(true); } }, 3000);
+    setInterval(() => { if (!faz('varredura')) return; if (localStorage.getItem('dins_varrer_executar')) { localStorage.removeItem('dins_varrer_executar'); const p = GM_getValue('varre_plano', null); if (p) { p.aguardando = false; GM_setValue('varre_plano', p); } varrerJanelaVencida(true); } }, 3000);
 
     async function varrerJanelaVencidaAntiga() {   // ⛔ substituída pela 4.27 (fica só de referência)
       if (varrendo || rodando || fupRodando) return;
@@ -3531,6 +3605,7 @@
     // O verificador roda de 5 em 5 min só para pegar a hora certa mesmo que a aba tenha
     // sido aberta no meio dela (abrir a aba às 8h05 ainda faz a rodada das 8h acontecer).
     setInterval(() => {
+      if (!faz('varredura')) return;   // 5.64 papel da aba
       const d = new Date();
       if (!HORAS_VARREDURA.includes(d.getHours())) return;
       if (d.getDay() === 0 || d.getDay() === 6) return;          // sábado e domingo, não
@@ -3549,6 +3624,7 @@
     // Com '1' ele respeita quem já foi visto; com 'tudo' ele esquece os vistos e
     // reavalia a lista inteira.
     setInterval(() => {
+      if (!faz('varredura')) return;   // 5.64 papel da aba
       const j = localStorage.getItem('dins_varre_janela');
       if (j) {
         localStorage.removeItem('dins_varre_janela');
@@ -3600,6 +3676,7 @@
 
     // gatilho de fora da aba (o atendimento manda o link e avisa o robô)
     setInterval(() => {
+      if (!faz('atendimento')) return;   // 5.64 papel da aba
       let o; try { o = JSON.parse(localStorage.getItem('dins_link_enviado') || 'null'); } catch (e) { return; }
       if (!o || !o.hash) return;
       localStorage.removeItem('dins_link_enviado');
@@ -3607,8 +3684,8 @@
     }, 3000);
   })();
 
-    setInterval(vigiar, 30000);
-    setTimeout(vigiar, 4000);
+    setInterval(() => { if (faz('atendimento')) vigiar(); }, 30000);
+    setTimeout(() => { if (faz('atendimento')) vigiar(); }, 4000);
     return;
   }
 
