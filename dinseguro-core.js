@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.14';
+  const VERSAO = '5.15';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -367,7 +367,8 @@
           let acao = '';
           if (mot === 'SEM_MARGEM' && mg != null && mg < 20) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
-          else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
+          else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';
+          else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
           else if (!mot) {
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
@@ -1187,6 +1188,9 @@
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado') {   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nao_localizado', t: Date.now() }));
+          } else if (o.acao === 'especie_fora') {   // 5.15: /07 + 07 - Nao Identificado + fechar (DESFECHOS.especie_fora)
+            const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → espécie não consignável: /07 + 07 + fechar (automático 5.15).';
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'especie_fora', t: Date.now(), nota }));
           } else if (o.acao === 'loas_com') {   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão (sem linha extra) + 02 A + fechar
             const pn = primeiroNome(o.nomeReal) || '';
             const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → LOAS com margem ≥ R$ 400: mensagem padrão + 02 A + fechar (automático 5.00).';
