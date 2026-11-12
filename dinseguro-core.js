@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.68';
+  const VERSAO = '5.69';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -413,9 +413,11 @@
             // com margem → digita no VALOR MÁXIMO (valor em branco = parcela da margem, 108x) e para em "Pronto" (o vigia grava e manda
             // simulação 1/2 + link). ⛔ SEM FLASH: o cliente ainda não confirmou (PADRAO-REGRAS-10-11 2b nº 8) — a ficha é da consulta normal.
             // 4.75: regra de valor. Escolheu abaixo de 10 mil no bot → contorno (vigia). 10 mil ou mais → digita ESSE valor.
-            const vb = +o.valorBot || 0;
-            if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
-            if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+            // 5.69 (caso Maria Sandra F9M06: contorno respondido "parcela até R$ 100"): valor decidido pelo VIGIA (o.valorVigia) → digita esse valor de ponta a ponta
+            const vv = +o.valorVigia || 0; const vb = vv > 0 ? Math.max(vv, 10000) : (+o.valorBot || 0);
+            if (vv > 0) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vv)) : ta.value + '\nvalor: ' + brl(vv); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+            else if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
+            else if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             // 5.00 (caso Ronaldo 12/11: CPF não estava no mapa CPF→WhatsApp): a ordem nasceu do chat do Botmaker e traz o WhatsApp dele (o.fone) → usa esse
             if (!o.fone) { try { const rq = (GM_getValue('regua', {}) || {})[o.hash] || {}; o.fone = rq.fone || zapDoCpf(o.cpf) || ''; } catch (e) {} }   // 5.31 (caso 9BL8Z: ordem sem telefone) → régua / mapa CPF→WhatsApp
             if (!/^telefone_origem:\s*WhatsApp/im.test(ta.value) && o.fone) { let t = String(o.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
