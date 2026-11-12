@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.39';
+  const VERSAO = '5.40';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2532,7 +2532,11 @@
       } catch (e) {}
       const grupos = {}; lista.forEach(x => (grupos[bloco(x)] = grupos[bloco(x)] || []).push(x));
       const nAlerta = (grupos.R || []).length;
+      // 5.40 FASE 4: cliente esperando há mais de 10 min (vermelho sem resposta) aparece no topo, com a maior espera; resumo a cada hora em dins_resumo_hora
+      const esperando = (grupos.R || []).map(x => ({ x, min: Math.round((agora - (x.ultLado === 'cli' ? (+x.ultCliT || 0) : (+x.handoffT || +x.cpfSemRespT || +x.ultT || 0))) / 60000) })).filter(e => e.min >= 10 && e.min < 24 * 60).sort((a, b) => b.min - a.min);
+      try { const hk = new Date().toISOString().slice(0, 13); const RH = JSON.parse(localStorage.getItem('dins_resumo_hora') || '[]'); if (!RH.length || RH[RH.length - 1].h !== hk) { RH.push({ h: hk, hora: hhmm(agora), esperando: esperando.length, maior: esperando[0] ? esperando[0].min : 0, quem: esperando.slice(0, 5).map(e => (e.x.nome || e.x.hash.slice(0, 5)) + ' ' + e.min + 'min'), alerta: nAlerta }); localStorage.setItem('dins_resumo_hora', JSON.stringify(RH.slice(-48))); } } catch (e) {}
       const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
+        (esperando.length ? `<div style="margin:3px 0;padding:3px 6px;border-radius:6px;background:#7f1d1d;color:#fff;font-weight:700">⏱ ${esperando.length} sem resposta há mais de 10 min — maior: ${esperando[0].min} min (${String(esperando[0].x.nome || esperando[0].x.hash.slice(0, 5)).replace(/</g, '')})</div>` : '') +
         `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}` +
         ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>`;
       const minimizado = q.dataset.min === '1';
