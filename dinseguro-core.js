@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.08';
+  const VERSAO = '5.09';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -132,7 +132,7 @@
     const inval = (typeof INVALIDEZ !== 'undefined') && INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'));
     if (!inval && CADEIA.includes(dest) && CADEIA.indexOf(aqui) > CADEIA.indexOf(dest)) return '';
     return `⛔ BANCO ERRADO: a ficha é para ${dest} (espécie ${f.especie || '?'}, ${f.idade || '?'} anos) e esta tela é ${aqui}. ` +
-      `Invalidez: ≤39 C6 · 40–52 QUERO MAIS (reserva Daycoval) · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não invalidez: C6 → FACTA → Qualibank.`;
+      `Invalidez: ≤39 C6 · 40–52 DAYCOVAL · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não invalidez: C6 → FACTA → Qualibank.`;
   }
   // 4.04 — TRAVA DO TELEFONE (Stefany 10/11 16:28, caso Vilson: "Você digitou Wilson no quali com o telefone errado. E isso não pode acontecer").
   // O telefone da proposta é SEMPRE o WhatsApp do atendimento (o número do chat do Botmaker), nunca o do cadastro do Multicorban.
