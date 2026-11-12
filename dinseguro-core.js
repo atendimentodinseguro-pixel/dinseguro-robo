@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.26';
+  const VERSAO = '5.27';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -788,6 +788,8 @@
       if (!soDig(q.fone) && !q.nome) { try { const it = JSON.parse(localStorage.getItem('dins_fila') || '[]').find(f => f.id === hash); if (it && it.nome) q.nome = it.nome;
         if (!q.nome) { const li = document.getElementById(hash); const nm = li && (li.querySelector('.customer-name, [class*=name]') || {}).innerText; if (nm) q.nome = nm.trim(); } } catch (e) {} }
       const fEsp = soDig(q.fone);
+      // 5.27 (caso Teresa 12/11: "Informações de contato" recolhido → painel sem Nome/Home): abre a seção antes de conferir
+      if (!foneDoPainel() && !nomeDoPainel()) { try { const sec = [...document.querySelectorAll('div,span,h3,h4,button')].filter(e => e.offsetParent && e.children.length <= 3).find(e => /^\s*Informa[çc][õo]es de contato\s*$/i.test(e.innerText || '')); if (sec) { sec.click(); await esp(1500); } } catch (e) {} }
       const ok = await ate(() => { const f = soDig(foneDoPainel()); if (fEsp) return f && (f === fEsp || f.slice(-10) === fEsp.slice(-10));
         const n = nomeDoPainel(); return n && q.nome && n.trim().toLowerCase() === String(q.nome).trim().toLowerCase(); }, 15000);
       if (!ok) throw new Error('não confirmei que o chat aberto é o do cliente (painel: ' + (nomeDoPainel() || '?') + ') — NÃO mandei nada');
