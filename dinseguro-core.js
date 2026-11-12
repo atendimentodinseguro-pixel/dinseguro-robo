@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.17';
+  const VERSAO = '5.18';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -394,7 +394,7 @@
             else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1, DAYCOVAL: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';   // 5.11: DAYCOVAL automático (portal do Daycoval)
             else if (num(f3.valor) > 0 && !(vb >= 10000)) porque = 'ficha já tem valor escolhido — vigia confere';
             if (porque) poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · não digitei: ' + porque });
-            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, ficha: bd === 'DAYCOVAL' ? f3 : undefined, resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
+            else poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, ficha: f3,   /* 5.18: a ficha vai na ordem (outra consulta no meio troca a ficha_atual) */ resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
           }
           else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
           return;
@@ -422,8 +422,10 @@
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
       sessionStorage.removeItem('dins_auto_nav');
       const car = botaoRobo('Carregar ficha'), dig = botaoRobo('Digitar'); if (!car || !dig) return;   // painel ainda carregando
-      const f = GM_getValue('ficha_atual', null);
-      if (!f || String(f.cpf).replace(/\D/g, '').replace(/^0+/, '') !== o.cpf.replace(/^0+/, '')) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
+      let f = GM_getValue('ficha_atual', null);
+      const cpfOk = x => x && String(x.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
+      if (!cpfOk(f) && cpfOk(o.ficha)) { f = o.ficha; GM_setValue('ficha_atual', f); }   // 5.18: usa a ficha guardada na ordem
+      if (!cpfOk(f)) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
       ocupadoAuto = true; poeAO(o.hash, { estado: 'digitando' });
       if (o.tipo === 'cpf' && !o.aceite && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
