@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.09';
+  const VERSAO = '5.10';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3258,7 +3258,9 @@
     } : {
       nome: 'DAYCOVAL',
       agente: /JADY/i, vendedor: /\d/, comercial: /\d/,
-      tabela: null,                       // no Daycoval a tabela ainda é conferida à mão
+      // 5.10 (caso Marcelo 12/11: esp 32 veio na 800991 - INSS 1 DIG AOL). Daycoval confere pelo NOME (REGRAS-BANCO-DAYCOVAL §6):
+      // invalidez → INSS 1 DIG AOL ESP 32/92 · demais ≥ R$ 15 mil → INSS DIG AOL 15K · demais → INSS 1 DIG AOL
+      tabela: (esp, liberado) => ((typeof INVALIDEZ !== 'undefined' && INVALIDEZ.includes(esp)) || esp === '32' || esp === '92') ? 'INSS 1 DIG AOL ESP 32/92' : (liberado >= 15000 ? 'INSS DIG AOL 15K' : 'INSS 1 DIG AOL'),
       aleatoria: null,                    // usa a sequência 001/0001/N-8 de sempre
     };
     const tx = e => (e && e.textContent || '').replace(/\s+/g, ' ').trim();
@@ -3413,18 +3415,20 @@
       // Kerliane (07/11): espécie 32 simulada na 800991, quando o certo é a 800999. Conferir SEMPRE.
       if (PORTAL.tabela) {
         const certa = PORTAL.tabela(esp, num(res[1]));
-        if (!new RegExp('\\b' + certa + '\\b').test(f._tabela_daycoval)) {
+        const casaTab = (t, alvo) => { t = String(t || '').replace(/\s+/g, ' ').trim(); if (/^\d+$/.test(alvo)) return new RegExp('\\b' + alvo + '\\b').test(t);
+          const i = t.toUpperCase().indexOf(alvo.toUpperCase()); if (i < 0) return false; const resto = t.slice(i + alvo.length); return !/^\s*(ESP|15K)/i.test(resto); };
+        if (!casaTab(f._tabela_daycoval, certa)) {
           log('Tabela veio ' + f._tabela_daycoval + ' — o certo para este caso é a ' + certa + '. Trocando…');
           await clicar(/^(border_color\s*)?Editar Tabela$/i, p);  // 3.73: o botão traz o nome do ícone (border_color) no texto
           const modal = await esperar(() => [...document.querySelectorAll('div.modal-dialog, .cdk-overlay-pane')].filter(vis).find(m => /Taxa/i.test(tx(m))), 15000);
           if (!modal) throw new Error('A janela "Editar Tabela" não abriu para trocar para a ' + certa);
-          const td = await esperar(() => [...modal.querySelectorAll('td')].filter(vis).find(x => tx(x) === certa), 10000);
+          const td = await esperar(() => [...modal.querySelectorAll('td')].filter(vis).find(x => /^\d+$/.test(certa) ? tx(x) === certa : casaTab(tx(x), certa)), 10000);
           if (!td) throw new Error('A tabela ' + certa + ' não aparece na lista do portal. Avise a Stefany.');
           const seta = [...td.closest('tr').querySelectorAll('i, button, mat-icon')].filter(vis).pop();
           if (!seta) throw new Error('Não achei a seta da linha da tabela ' + certa);
           seta.click(); await sleep(2500);
           await fecharAlertas();
-          const novo = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && new RegExp('\\b' + certa + '\\b').test(m[2]) && m; }, 30000);
+          const novo = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && casaTab(m[2].replace(/border_color.*/, ''), certa) && m; }, 30000);
           if (!novo) throw new Error('Troquei a tabela mas o painel não confirmou a ' + certa);
           f._liberado_daycoval = novo[1]; f._tabela_daycoval = novo[2].replace(/border_color.*/, '').trim();
           log('Tabela trocada: ' + f._tabela_daycoval + ' · novo liberado R$ ' + novo[1], 'ok');
