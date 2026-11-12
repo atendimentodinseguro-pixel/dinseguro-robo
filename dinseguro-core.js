@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.43';
+  const VERSAO = '5.44';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1526,7 +1526,7 @@
       if (['fechada', 'cancelada', 'encerrado', 'humano', 'concluída'].includes(x.estado)) return false;
       if (['erro', 'bloqueada', 'alerta'].includes(x.estado)) return true;
       if (x.semLink && x.contornoT && x.ultLado !== 'cli' && ag - x.contornoT > 15 * M) return true;
-      if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && x.ultT && ag - x.ultT > 30 * M) return true;
+      if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && !/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '') && x.ultT && ag - x.ultT > 30 * M) return true;
       return false;
     };
     const vigiaTrabalhando = () => Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M;
@@ -2489,7 +2489,7 @@
       const vermelhoCalc = x => {
         if (x.semLink && x.contornoT && x.ultLado !== 'cli' && agora - x.contornoT > 15 * M && !['humano', 'encerrado'].includes(x.estado))
           return 'contorno ' + hhmm(x.contornoT) + ' sem resposta ' + haMin(x.contornoT) + ' → digitar no valor escolhido (16a)';
-        if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && x.ultT && agora - x.ultT > 30 * M)
+        if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && !/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '') && x.ultT && agora - x.ultT > 30 * M)
           return 'parado no bot ' + haMin(x.ultT) + ', sem CPF → mandar mensagem pedindo o CPF';
         return '';
       };
