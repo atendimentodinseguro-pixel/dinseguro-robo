@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.33';
+  const VERSAO = '5.34';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -704,7 +704,7 @@
     // 5.00: LOAS com margem ≥ R$ 400 — texto da Stefany 07/11 22:00 (claude/MENSAGEM-LOAS-COM-MARGEM.md); {NOME} = primeiro nome
     loas_com:         { atalho: null, tags: ['02 A - Loas Sem Rep Com Margem'], fechar: true,
                         texto: 'Oi, {NOME}! 😊 Aqui é da Dinseguro.\n\nInfelizmente não conseguimos aprovar uma proposta para o seu benefício neste momento. 😔\n\nMas fique tranquilo(a): o seu cadastro continua aqui com a gente. Assim que tivermos uma proposta disponível para o seu benefício, nós entramos em contato com você por aqui mesmo.\n\n🔒 E lembrando sempre: a Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n📲 Para não perder o nosso aviso, salve o nosso contato no celular e siga a gente:\n\n• Instagram: https://www.instagram.com/dinseguro_?igsh=MW90bnoybGIwczA3MA==\n\n• Facebook: https://www.facebook.com/Dinseguro?mibextid=ZbWKw\n\n• Comunidade Dinseguro no WhatsApp: https://chat.whatsapp.com/BmSXjGqkBRF4yRm3u0q37V\n\nObrigada pela confiança 🤝\nUm grande abraço da equipe Dinseguro! 💙' },
-    loas_com:         { atalho: '/n30', tags: ['02 A - Loas Sem Rep Com Margem'], fechar: true, editar: true },
+    // 5.34: (tirada) segunda definição de loas_com com /n30 — sobrescrevia a mensagem LOAS com margem da 5.00
     // 5.26: o atalho /07 NÃO EXISTE no Botmaker (conferido 12/11 11:44) → texto próprio (até a Stefany passar o modelo oficial)
     especie_fora:     { atalho: null,  tags: ['07 - Nao Identificado'], fechar: true,
                         texto: 'Oi! 😊 Aqui é da Dinseguro.\n\nConsultei o seu benefício e, infelizmente, ele é de um tipo que o INSS não libera para empréstimo consignado. Por isso, neste momento não conseguimos fazer uma proposta para você. 😔\n\nAgradecemos muito o seu contato e ficamos à disposição!' },
@@ -1217,7 +1217,7 @@
           o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
         }
         if (mud) GM_setValue('auto_ordens', O);
-      } catch (e) {}
+      } catch (e) { try { localStorage.setItem('dins_conv_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.stack) || e).slice(0, 400)); } catch (_) {} }   // 5.34: erro deste laço fica registrado
     }, 10000);
 
     // ---------------------------------------------------------------------
