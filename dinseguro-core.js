@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.60';
+  const VERSAO = '5.61';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2273,7 +2273,7 @@
     window.dinsLiberarChat = liberarChat;
     // 4.53 (Stefany 12:40, caso Waldirene): depois da anuência mandada, o cliente manda print (contrato "ativo" no Meu INSS) ou diz
     // que fez → a anuência está FEITA → mandar /pos_anuencia (prazo do INSS atualizar o banco). Uma vez só. Só no chat aberto, vigia livre.
-    const FIZ_ANU = /\b(fiz|feito|feita|confirmei|confirmado|consegui|pronto|conclu[ií]|autorizei|ativo|deu certo)\b|✅|👍/i;
+    const FIZ_ANU = /(?<![\wÀ-ÿ])(fiz|feito|feita|confirmei|confirmado|consegui|pronto|conclu[ií]|autorizei|ativo|deu certo)(?![\wÀ-ÿ])|✅|👍/i;
     let posAnuRodando = false;
     setInterval(async () => {
       if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
@@ -2363,7 +2363,7 @@
     const SIG_CPF = /(informe|mande|envie|me manda|digite)[^\n]{0,60}\bCPF\b|n[úu]mero do seu CPF/i;
     const SIG_SIM = /1️⃣\s*Sim|Escolha uma op[çc][ãa]o/i;
     const SIG_DOC = /(foto|imagem)[^\n]{0,40}(documento|RG|CNH)|documento de identifica|envie (o|seu) (RG|documento)|\/CLT1/i;
-    const DEPOIS = /\b(s[óo] amanh[ãa]|amanh[ãa]|mais tarde|depois eu (vejo|fa[çc]o|mando|olho)|vou ver depois|agora n[ãa]o (posso|d[áa])|t[ôo] no trabalho|estou trabalhando|[àa] noite|de noite|mais tardinha)\b/i;
+    const DEPOIS = /(?<![\wÀ-ÿ])(s[óo] amanh[ãa]|amanh[ãa]|mais tarde|depois eu (vejo|fa[çc]o|mando|olho)|vou ver depois|agora n[ãa]o (posso|d[áa])|t[ôo] no trabalho|estou trabalhando|[àa] noite|de noite|mais tardinha)(?![\wÀ-ÿ])/i;
     function horaDita(txt) {
       const t = String(txt || '').toLowerCase();
       const m = t.match(/(?:[àa]s?|depois das?|l[áa] pelas?)\s*(\d{1,2})(?:[:h](\d{2}))?\s*(?:h|hs|horas)?/) || t.match(/\b(\d{1,2})\s*(?:h|hs|horas)\b/);
@@ -3040,7 +3040,7 @@
       if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
       // 4.48 (André 11/11): cliente tinha dito "Não / Vou deixar / Muito pouco valor" e mesmo assim saiu follow-up pelo WhatsApp.
       // Recusa nas últimas mensagens do cliente → não manda follow-up; vai para revisar.
-      const RECUSOU = /\b(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))\b/i;
+      const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
       const cliTxts = [...document.querySelectorAll('.entries [class*="entries-li"].left')].slice(-6).map(e => (e.innerText || '').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '').trim());
       if (cliTxts.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cliTxts.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
       const fe = faseEsteira(RG()[id] || {});
