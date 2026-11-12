@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.44';
+  const VERSAO = '5.45';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2917,30 +2917,48 @@
     }
     window.dinsVarreTestar = async id => { localStorage.setItem('dins_vigia_ocupado', 0); if (!await abrirHash(id)) return { erro: 'não abriu' }; const d = decidirVarredura(id, ''); const c = lerConversaVarredura(id); return Object.assign({ nome: nomeDoContato(), tags: c.tags, fone: c.fone ? '…' + c.fone.slice(-4) : '' }, d); };   // só lê e decide, não executa
     const varreNota = (txt) => 'Varredura ' + new Date().toLocaleString('pt-BR').slice(0, 16) + ' [robô] — ' + txt;
-    async function varrerJanelaVencida(forcarExecucao) {
+    // 5.45 (Stefany 12/11 17:08–17:13 "achar um meio termo… um não atrapalhar o outro" — aprovado):
+    //  • FATIAS: a cada 5 conversas abertas, pausa de 2 min (robô do atendimento e vigia trabalham); com cliente esperando a pausa estica;
+    //  • CURSOR: a rodada guarda o que já fez (GM varre_cursor); recarregou/travou → retoma sozinha do mesmo ponto até as 17h;
+    //  • versão nova do robô só entra entre rodadas: localStorage dins_recarregar_depois='1' → recarrega quando a rodada acabar.
+    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17;
+    async function varrerJanelaVencida(forcarExecucao, retomar) {
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
       varrendo = true; marcaVarrendo();
-      const placar = { versao: VERSAO, inicio: hhmm(Date.now()), lista: 0, abertos: 0, janela_aberta: 0, nao_abriu: 0, fechadas: 0, c01: 0, wa: 0, revisar: 0, erros: 0, fim: '' };
-      const salva = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); } catch (e) {} };
+      const cur0 = retomar ? GM_getValue('varre_cursor', null) : null;
+      const placar = (cur0 && cur0.placar) ? Object.assign({}, cur0.placar, { fim: '', retomada: hhmm(Date.now()) }) : { versao: VERSAO, inicio: hhmm(Date.now()), lista: 0, abertos: 0, janela_aberta: 0, nao_abriu: 0, fechadas: 0, c01: 0, wa: 0, revisar: 0, erros: 0, fim: '' };
+      const cursor = cur0 || { dia: new Date().toDateString(), hora: new Date().getHours(), feitos: [], forcar: !!forcarExecucao, aberto: true };
+      const salva = () => { try { localStorage.setItem('dins_varredura_placar', JSON.stringify(placar)); cursor.placar = placar; cursor.t = Date.now(); GM_setValue('varre_cursor', cursor); } catch (e) {} };
+      let acabou = false;
       try {
         const hoje = new Date().toDateString();
-        const primeira = GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao;
+        const primeira = cur0 ? !!cur0.primeira : (GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao); cursor.primeira = primeira;
         const itens = await colherHashes(); placar.lista = itens.length; salva();
         const plano = { dia: hoje, t: Date.now(), primeira, itens: [], lista: itens.length };
         // 4.64 (Stefany 14:13: "Varredura ainda usa a numeração antiga"): o painel lia o plano da rodada anterior
         // (43 vencidas das 09:02) até achar a 1ª conversa vencida desta rodada. Grava o plano novo já no começo.
         if (!primeira) { const ant = GM_getValue('varre_plano', null); if (ant && ant.dia === hoje && ant.aprovado) plano.aprovado = ant.aprovado; GM_setValue('varre_plano', plano); desenharVarredura(); }
+        if (cur0 && Array.isArray(cur0.itensPlano)) plano.itens = cur0.itensPlano;
+        let naFatia = 0;
         for (const it of itens) {
           marcaVarrendo();
           if (NAO_MEXER_HASH.includes(it.id)) continue;
+          if (cursor.feitos.includes(it.id)) continue;   // 5.45: já feito antes da recarga
+          if (new Date().getHours() >= VARRE_LIMITE_H) { log && log('Varredura: passou das ' + VARRE_LIMITE_H + 'h — o resto fica para a próxima rodada.', 'aviso'); break; }
+          if (naFatia >= VARRE_FATIA) {   // 5.45: pausa da fatia — atendimento trabalha
+            naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
+            while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente() && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
+            localStorage.removeItem('dins_varre_pausa');
+          }
+          cursor.feitos.push(it.id); naFatia++; salva();
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
           const d = decidirVarredura(it.id, it.nome);
           if (d.acao === 'pular') { if (d.motivo === 'janela aberta') placar.janela_aberta++; salva(); continue; }
           const c = lerConversaVarredura(it.id);
           plano.itens.push(Object.assign({ id: it.id, nome: nomeDoContato() || it.nome, fone: c.fone }, d));
-          GM_setValue('varre_plano', plano);
+          GM_setValue('varre_plano', plano); cursor.itensPlano = plano.itens;
           if (primeira) continue;   // 1ª rodada do dia: só monta a lista
           if (d.acao === 'revisar') { placar.revisar++; salva(); continue; }
           if (d.acao === 'fecha') { const r = await executarOrdemVarredura(it.id, 'fecha', varreNota('janela vencida; ' + d.motivo + '. Conversa encerrada.')); r === 'ok' ? placar.fechadas++ : placar.erros++; salva(); continue; }
@@ -2952,9 +2970,21 @@
           }
         }
         if (primeira) { plano.aguardando = true; GM_setValue('varre_plano', plano); log && log('Varredura: 1ª rodada do dia montada (' + plano.itens.length + ' conversas vencidas) — esperando o OK da Stefany no painel.', 'ok'); }
+        acabou = true;
       } catch (e) { placar.erro = String(e.message || e); log && log('Varredura parou: ' + placar.erro, 'erro'); }
-      finally { placar.fim = hhmm(Date.now()); salva(); varrendo = false; localStorage.removeItem('dins_varrendo'); localStorage.removeItem('dins_varre_pausa'); try { limparFiltro(); } catch (e) {} desenharVarredura(); }
+      finally { placar.fim = hhmm(Date.now()); if (acabou) cursor.aberto = false; salva(); varrendo = false; localStorage.removeItem('dins_varrendo'); localStorage.removeItem('dins_varre_pausa'); try { limparFiltro(); } catch (e) {} desenharVarredura();
+        if (localStorage.getItem('dins_recarregar_depois')) { localStorage.removeItem('dins_recarregar_depois'); setTimeout(() => { try { if (!localStorage.getItem('dins_ordem')) window.top.location.reload(); } catch (e) {} }, 5000); } }
     }
+    // 5.45: rodada interrompida (recarga, travou) → retoma do cursor, no mesmo dia, antes das 17h, quando a aba está livre há 3 min
+    setInterval(() => { try {
+      const c = GM_getValue('varre_cursor', null); const d = new Date();
+      if (!c || !c.aberto || c.dia !== d.toDateString() || d.getHours() >= VARRE_LIMITE_H || d.getHours() < 8) return;
+      if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
+      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 3 * 60000 || Date.now() - (+c.t || 0) < 3 * 60000) return;
+      log && log('Varredura: retomando a rodada das ' + c.hora + 'h de onde parou (' + c.feitos.length + ' já feitas).', 'ok');
+      varrerJanelaVencida(c.forcar, true);
+    } catch (e) {} }, 60000);
+    window.dinsRecarregarDepois = () => { if (!varrendo && !localStorage.getItem('dins_varrendo')) { window.top.location.reload(); return 'agora'; } localStorage.setItem('dins_recarregar_depois', '1'); return 'depois da rodada'; };
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
     setInterval(async () => {
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
