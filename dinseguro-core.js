@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.90';
+  const VERSAO = '4.91';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -296,8 +296,12 @@
         } else {
           const ativos = [...document.querySelectorAll('tr')].filter(tr => /\bATIVO\b/.test(tr.innerText) && [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())));
           if (!ativos.length) throw new Error('nenhum benefício ATIVO');
-          if (ativos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
-          [...ativos[0].querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
+          // 4.91 (12/11 08:49, caso Ronaldo: espécie 42 + espécie 87): com mais de um ATIVO, tira LOAS (87/88) quando sobra outro; sobrou um → segue com ele
+          let escolhidos = ativos;
+          if (ativos.length > 1) { const espDe = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); const e = c.find(t => /^\d{1,2}$/.test(t)); return e ? +e : null; };
+            const semLoas = ativos.filter(tr => ![87, 88].includes(espDe(tr))); if (semLoas.length >= 1 && semLoas.length < ativos.length) escolhidos = semLoas; }
+          if (escolhidos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
+          [...escolhidos[0].querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
         }
         for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
