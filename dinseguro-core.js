@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.37';
+  const VERSAO = '5.38';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1079,6 +1079,10 @@
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = [...document.querySelectorAll('.entries [class*="entries-li"].left')].map(e => e.innerText || '').join('\n').slice(-30000);   // 5.35: só mensagens do CLIENTE (o bot tem 0800/números que pareciam CPF — caso Douglas)
           if (/(^|\D)\d{3}\.?\d{3}\.?\d{3}[-.\s]?\d{2}(\D|$)/.test(tx0)) { passos.push('cliente já mandou o CPF — NÃO pedi de novo'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
+        // 5.38: toque de retomada só sai se a ÚLTIMA mensagem da conversa for nossa (cliente não falou depois)
+        if (o.soSeNossaUltima && !o.msgFeita) { try { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 2).slice(-1)[0];
+          let recente = false; { const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh) { let h = +mh[1] % 12; if (/PM/i.test(mh[3])) h += 12; const d = new Date(); d.setHours(h, +mh[2], 0, 0); const dif = Date.now() - d.getTime(); recente = dif >= 0 && dif < 2 * 3600000; } }
+          if (ul && (ul.classList.contains('left') || recente)) { passos.push(recente ? 'falamos há menos de 2 h — NÃO mandei o toque' : 'cliente falou por último — NÃO mandei o toque'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
         if (o.pularSe && !o.msgFeita) { try { if (new RegExp(o.pularSe, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-20000))) { passos.push('já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); } } catch (e) {} }   // 4.79
         if (o.linha && !o.linhaFeita) { await garante(); passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
@@ -2318,7 +2322,7 @@
       if (!tipo) return;
       { const hh = (ESP_H()[hash] || {})[tipo]; if (hh && agora - hh < 36 * H) return; }   // 4.61: já teve a sequência deste tipo
       const t0 = L.ult.t && L.ult.t <= agora ? L.ult.t : agora;
-      const toques = tipo === 'doc' ? [{ q: '1h', quando: t0 + 60 * M, feito: 0 }] : [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: (() => { const d = new Date(t0); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); })(), feito: 0 }];
+      const toques = novaSequencia(tipo, t0);
       o[hash] = { hash, nome, tipo, t0, toques }; gravaESP(o);
       // 4.49 (Stefany 11:52, cliente 62 8153-5140): pedimos o CPF à mão e o chat ficou SEM tag. Padrão: mensagem pessoal + 01 C (sem /n23 — Stefany 12:01).
       // Pedido de CPF registrado e nenhuma tag de situação (01/02/03/07) → robô só põe a 01 C.
@@ -2334,8 +2338,53 @@
       } catch (e) {}
     }
     setInterval(() => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; registrarEspera(h); } catch (e) {} }, 20000);
+    // 5.38 FASE 2 (Stefany 12/11 15:53: "só 1 follow-up"; em todo o dia só 2 esperas foram registradas porque o registro dependia
+    // da conversa ABERTA na tela). Agora a espera do pedido de CPF nasce também pela RÉGUA (motivo "pedimos o CPF", última mensagem nossa).
+    // Cadência do CPF (plano aprovado 16:34): 1 h · 3 h · 08:00 do dia seguinte · 08:00 do terceiro dia (este só com a janela aberta).
+    setInterval(() => { try {
+      const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
+      for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
+        if (x.estado !== 'acompanhando' || !/pedimos o CPF/i.test(x.motivo || '') || x.ultLado !== 'nos' || x.temCpf || x.cpfSem) continue;
+        if (x.link && !x.semLink) continue;
+        const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
+        { const hh = (ESP_H()[k] || {}).cpf; if (hh && agora - hh < 36 * H) continue; }
+        if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera CPF pela régua (pedido ' + hhmm(t0) + ')' }); continue; }
+        o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'cpf', t0, toques: novaSequencia('cpf', t0), origem: 'régua 5.38' }; m = true;
+        try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.38: espera de CPF registrada pela régua (pedido às ' + hhmm(t0) + ')'); } catch (e) {}
+      }
+      if (m) { gravaESP(o); gravaRG(RGx); }
+    } catch (e) {} }, 120000);
+    function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
+    // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
+    // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
+    setInterval(() => { try {
+      if (localStorage.getItem('dins_ordem') || vigiaTrava()) return; const agora = Date.now(); if (!dentroDoHorario(agora)) return;
+      const RGx = RG(); let mR = false;
+      for (const k in RGx) { const x = RGx[k]; if (!x || x.estado !== 'pausada' || !x.link || protegido(k) || x.comQuem || x.vencida) continue;
+        if (agora - (+x.lidoT || 0) > 2 * H && agora - (+x.linkT || 0) < 24 * H && !x.reler) { x.reler = 1; mR = true; }   // relê para saber quem falou por último
+        const t = +x.ultT || 0; if (x.ultLado !== 'nos' || !t || agora - t < 2 * H || agora - t > 20 * H || (+x.lidoT || 0) < t) continue;
+        if (x.retomarT && agora - x.retomarT < 20 * H) continue;
+        try { const fe = faseEsteira(x); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) continue; } catch (e) {}
+        const nm = primeiroNome(x.nomeReal || x.nome);
+        const texto = 'Oi' + (nm ? ', ' + nm : '') + '! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela continua disponível no link que te mandei acima. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, é só me chamar aqui que eu te ajudo. 🤝';
+        if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'retomada com link (última nossa ' + hhmm(t) + ')' }); continue; }
+        x.retomarT = agora; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.38: retomada com link (última mensagem nossa ' + hhmm(t) + ')'); gravaRG(RGx);
+        const dd = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+        localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora, texto, soSeNossaUltima: 1, nota: dd + ' ' + hhmm(agora) + ' [robô 5.38] cliente parou depois de conversar sobre a proposta (última mensagem nossa ' + hhmm(t) + ') → toque de retomada.' }));
+        return;
+      }
+      if (mR) gravaRG(RGx);
+    } catch (e) {} }, 60000);
+    function novaSequencia(tipo, t0) {   // 5.38
+      const manha = dias => { const d = new Date(t0); d.setDate(d.getDate() + dias); d.setHours(8, 0, 0, 0); return d.getTime(); };
+      if (tipo === 'doc') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }];
+      if (tipo === 'cpf') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '3h', quando: t0 + 180 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }, { q: '08h2', quando: manha(2), feito: 0 }];
+      return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }];
+    }
     const TXT_ESP = {
       cpf: { '1h': n => `${n ? n + ', t' : 'T'}udo bem? 😊 Ficou faltando só o número do seu CPF para eu consultar o valor que você consegue liberar. Pode me mandar aqui mesmo, só os números.`,
+             '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
+             '08h2': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
       simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
                    '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
@@ -2351,11 +2400,18 @@
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       let alvo = null, toque = null;
+      // 5.38 (caso Rubi: toques 1h e 08h saíram 08:53 e 08:54): vários vencidos → só o MAIS RECENTE sai (os anteriores ficam 'pulado');
+      // e nunca dois toques com menos de 1 h entre eles.
+      { const o0 = ESP(); let m0 = false;
+        for (const x of Object.values(o0)) { const venc = (x.toques || []).filter(k => !k.feito && k.quando <= agora); if (venc.length > 1) { venc.slice(0, -1).forEach(k => { k.feito = agora; k.st = 'pulado (atrasado — vale o toque seguinte)'; }); m0 = true; }
+          const ultEnv = Math.max(0, ...(x.toques || []).filter(k => /^enviado/.test(k.st || '')).map(k => +k.feito || 0));
+          const prox = (x.toques || []).find(k => !k.feito && k.quando <= agora); if (prox && ultEnv && agora - ultEnv < 60 * M && !(prox.prox > agora)) { prox.prox = ultEnv + 60 * M; m0 = true; } }
+        if (m0) gravaESP(o0); }
       for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q) { alvo = x; toque = q; break; } }
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
       const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); };
-      if (toque.q === '08h' && agora - toque.quando > 3 * H) { marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
+      if (/^08h/.test(toque.q) && agora - toque.quando > 3 * H) { marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
       if (!navPega('espera')) return;
       espRodando = true;
       try {
