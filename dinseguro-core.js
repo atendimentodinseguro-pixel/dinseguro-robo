@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.36';
+  const VERSAO = '5.37';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -264,7 +264,11 @@
     const botaoRobo = t => [...document.querySelectorAll('button[data-a]')].find(b => b.dataset.a === t);
     const logRobo = () => [...document.querySelectorAll('div')].filter(d => /^\d\d:\d\d /.test(d.innerText || '') && d.children.length === 0).map(d => d.innerText);
     let ocupadoAuto = false;
-    const ninguemMexendo = () => !document.querySelector('.modal.show') && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.value);
+    // 5.37 (caso Ramon 16:04: ordem 'nova' parada 15 min): campo com foco e texto parado há mais de 60 s não é gente digitando → solta o foco e segue
+    let ultDigitT = 0; ['keydown', 'input', 'mousedown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultDigitT = Date.now(); }, true));
+    const ninguemMexendo = () => { if (document.querySelector('.modal.show')) return false;
+      const a = document.activeElement; if (!(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.value)) return true;
+      if (Date.now() - ultDigitT > 60000) { try { a.blur(); } catch (e) {} return true; } return false; };
     // ---------- Multicorban
     // 5.04 (12/11 10:06: Alexandre e Franco presos em "consultando" depois de recarregar a aba): consulta interrompida volta para a fila
     if (/multicorban\.com/.test(location.host)) setTimeout(() => { try { const O = AO(); let m = false; for (const h in O) { const x = O[h]; if (x && x.estado === 'consultando' && Date.now() - (x.tMc || x.t || 0) > 2 * 60000) { x.estado = 'nova'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' consulta interrompida (aba recarregada) → de novo'); m = true; } } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 4000);
@@ -1124,7 +1128,7 @@
         try {
           const RGe = GM_getValue('regua', {}) || {}; const hh2 = new Date().getHours(); const FE = window.dinsFaseEsteira;
           const NM = GM_getValue('nao_mexer', {}) || {};
-          for (const k in RGe) { const x = RGe[k]; if (!x || !x.link || typeof FE !== 'function' || NM[k] || x.comQuem) continue;   // conversa que a Stefany/Rômulo está tocando: não mexe
+          for (const k in RGe) { const x = RGe[k]; if (!x || !x.link || typeof FE !== 'function' || NM[k] || x.comQuem || protegido(k)) continue;   // conversa que a Stefany/Rômulo está tocando: não mexe
             const fe = FE(k); if (!fe) continue; const nm = primeiroNome(x.nomeReal || x.nome);
             // (3) cliente disse que desbloqueou → AVERBE JA de 60 em 60 s no Autorizador (só C6), e uma linha de retorno (responde a qualquer hora)
             if (fe.fase === 'falta desbloquear' && /C6/i.test(fe.banco || '') && fe.nome && x.ultLado === 'cli' && (x.ultCliT || 0) > (x.averbarT || 0)
@@ -1165,14 +1169,14 @@
         // 4.97: anúncio sem resposta do bot → flow "Inicio do atendimento" (2 min depois de entrar; uma vez por conversa; qualquer hora — foi o cliente que chamou)
         try { const RGa = GM_getValue('regua', {}) || {}; const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NMa = GM_getValue('nao_mexer', {}) || {};
           let STa = null; try { STa = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) {}
-          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47') continue;
+          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47' || protegido(k)) continue;
             if (AF[k]) { const falhou = STa && STa.hash === k && STa.acao === 'anuncio_sem_bot' && STa.st === 'erro'; const nT = +(AF[k + '#n'] || 1); if (!(falhou && nT < 3 && Date.now() - AF[k] > 60000)) continue; AF[k + '#n'] = nT + 1; }   // 4.98: deu erro → tenta de novo (até 3x)
             if (Date.now() - (+x.criadoT || 0) < 2 * 60000) continue;
             AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
             return; } } catch (e) {}
           for (const k in RGv) { const x = RGv[k];
-            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k]) continue;
+            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k)) continue;
             // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
             // Sinais: ordem automática para este chat (qualquer estado, 23 h), CPF no mapa CPF→chat, ou CPF/consulta registrados na régua.
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) continue;
@@ -1188,6 +1192,41 @@
             PC[k] = Date.now(); for (const q in PC) if (Date.now() - PC[q] > 7 * 864e5) delete PC[q]; GM_setValue('pedir_cpf_feito', PC); return;
           }
         } catch (e) {}
+        // 5.37 FASE 1 — CLIENTE ESPERANDO ATENDENTE (Stefany 12/11 15:46–16:34, casos Genivaldo 10:19, Ester 12:35, Teresa, Menezes):
+        // bot passou para "atendente humano", ou o cliente clicou "Outras opções / Verificar opções / Falar com atendente" e parou,
+        // ou voltou a escrever depois do retorno → em 5 min o robô manda mensagem PESSOAL pedindo o CPF (+ 01 C). Uma vez a cada 12 h.
+        // Fica para o VIGIA (não manda): já tem CPF, humano falando, NÃO MEXER, áudio/imagem/pergunta livre.
+        // Modo teste (localStorage dins_f1_teste != '0'): só registra em dins_f1_log o que faria.
+        try {
+          const RGh = GM_getValue('regua', {}) || {}; const RET = GM_getValue('retorno_feito', {}) || {}; const hh5 = new Date().getHours();
+          const teste = localStorage.getItem('dins_f1_teste') !== '0'; const agora5 = Date.now();
+          const MENU = /^\s*(bolt\s*)?(Outras op[çc][õo]es|Verificar op[çc][õo]es|Falar com (um )?atendente|Verifique a melhor op[çc][ãa]o)/i;
+          for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
+            const handoff = /bot passou para atendente humano/.test(x.motivo || '') && x.handoffT;
+            const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
+            const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
+            if (!handoff && !menu && !voltou) continue;
+            if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida) continue;
+            { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && agora5 - (+AOx.t || 0) < 23 * 3600000) continue; }
+            const t0 = handoff ? x.handoffT : (x.ultCliT || 0); if (!t0 || agora5 - t0 < 5 * 60000 || agora5 - t0 > 23 * 3600000) continue;
+            if (RET[k] && agora5 - RET[k] < 12 * 3600000) continue;
+            if (!(hh5 >= 8 && hh5 < 21)) continue;
+            const nm = primeiroNome(x.nomeReal || x.nome); const saud = hh5 < 12 ? 'Bom dia' : hh5 < 18 ? 'Boa tarde' : 'Boa noite';
+            let texto;
+            if (x.link) texto = saud + (nm ? ', ' + nm : '') + '! 😊 Aqui é da Dinseguro, que bom que você voltou a falar com a gente! Me desculpe a demora para te responder.\n\nPara eu atualizar a sua proposta com o valor de hoje, me manda o número do seu CPF (só os números) que eu já te passo a simulação nova. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.';
+            else if (menu || voltou) texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro, me desculpe a demora.\n\nMe conta: você recebe aposentadoria ou pensão do INSS? Se receber, me manda o seu CPF (só os números) que eu consulto agora a melhor condição para você. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.';
+            else texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro, me desculpe a demora para te responder.\n\nPara eu consultar a melhor condição de empréstimo para você, me manda o número do seu CPF (só os números)? 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.';
+            const motivoR = handoff ? 'bot passou para atendente humano às ' + hhmm(x.handoffT) : 'cliente parou em "' + String(x.ultCliTxt || '').replace(/^\s*bolt\s*/i, '').slice(0, 30) + '" às ' + hhmm(x.ultCliT);
+            if (teste) { let LG = []; try { LG = JSON.parse(localStorage.getItem('dins_f1_log') || '[]'); } catch (e) {}
+              if (!LG.some(l => l.h === k && agora5 - l.t < 30 * 60000)) { LG.push({ t: agora5, h: k, nome: x.nome || '', motivo: motivoR, link: !!x.link, texto: texto.slice(0, 90) }); localStorage.setItem('dins_f1_log', JSON.stringify(LG.slice(-40))); }
+              continue; }
+            RET[k] = agora5; GM_setValue('retorno_feito', RET);
+            const dd5 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            const r5 = GM_getValue('regua', {}) || {}; if (r5[k]) { (r5[k].hist = r5[k].hist || []).push(hhmm(agora5) + ' 5.37: ' + motivoR + ' → mensagem pessoal + pedido de CPF'); GM_setValue('regua', r5); }
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'pedir_cpf', quem: 'robo', t: agora5, texto, nota: dd5 + ' ' + hhmm(agora5) + ' [robô 5.37] ' + motivoR + ' e ninguém respondeu → mensagem pessoal pedindo o CPF + 01 C' + (x.link ? ' (já tinha proposta: atualizar)' : '') + '.' }));
+            return;
+          }
+        } catch (e) { try { localStorage.setItem('dins_conv_erro', new Date().toTimeString().slice(0, 8) + ' f1 ' + String((e && e.stack) || e).slice(0, 300)); } catch (_) {} }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
           const nm = primeiroNome(oL.nomeReal || oL.nome); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
@@ -1392,6 +1431,13 @@
       const hAtual = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || '';
       if (hum && protegido(hAtual)) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — caso que a Stefany pediu para não interferir' };
       if (tem(/^01 D/i)) return { estado: 'acompanhando', motivo: 'fechou negócio (01 D) — acompanhar o banco' };
+      // 5.37 (Stefany 12/11, caso Menezes: 07 às 15:26, clicou "Verificar opções" 15:27 e ninguém viu): tag de retorno dado NÃO encerra
+      // se o cliente escreveu DEPOIS e o bot não respondeu → vermelho para o vigia.
+      { let L0 = null; try { L0 = lados(); } catch (e) {}
+        const voltou = L0 && L0.ult && L0.ult.lado === 'cli' && !/^\s*(ok+|obrigad|obg|brigad|am[ée]m|deus aben|👍|🙏|❤️)/i.test(L0.ult.txt || '');
+        const tagFim = tem(/^01 (I|k)/i) ? '01 I' : tem(/^02 /i) ? '02' : tem(/^03 /i) ? '03' : tem(/^07 /i) ? '07' : '';
+        if (tagFim && voltou) return { estado: 'alerta', motivo: 'cliente voltou a escrever depois do retorno (' + tagFim + '): "' + String(L0.ult.txt || '').slice(0, 40) + '"', voltouAposRetorno: 1,
+          ultCliT: (L0.ultCli && L0.ultCli.t) || 0, ultCliTxt: ((L0.ultCli && L0.ultCli.txt) || '').slice(0, 120), ultT: L0.ult.t || 0, ultLado: 'cli', temCpf: L0.temCpf, comQuem: L0.comQuem, cpfSemRespT: L0.cpfSemRespT || 0, cpfSem: L0.cpfSem || '' }; }
       if (tem(/^01 (I|k)/i)) return { estado: 'encerrado', motivo: 'sem margem — retorno dado' };
       if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
@@ -1476,7 +1522,13 @@
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
     const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0'];   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
-    const protegido = h => { try { return NAO_INTERFERIR_PADRAO.includes(h) || (GM_getValue('nao_interferir', []) || []).includes(h); } catch (e) { return false; } };
+    // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
+    const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i];
+    const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
+    const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (GM_getValue('nao_interferir', []) || []).includes(h) || (GM_getValue('nao_mexer', {}) || {})[h]) return true;
+      const x = (GM_getValue('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
+      const it = (JSON.parse(localStorage.getItem('dins_fila') || '[]') || []).find(f => f && (f.id === h || f.hash === h)); return !!(it && nomeProtegido(it.nome)); } catch (e) { return false; } };
+    window.dinsProtegido = h => protegido(h);
     window.dinsNaoInterferir = (h, on = true) => { const L = GM_getValue('nao_interferir', []) || []; const i = L.indexOf(h); if (on && i < 0) L.push(h); if (!on && i >= 0) L.splice(i, 1); GM_setValue('nao_interferir', L); return L; };
     setTimeout(() => { try { const r = RG(); let n = 0; Object.values(r).forEach(x => { if (x.estado === 'humano' && !protegido(x.hash)) { x.estado = x.link ? 'ativa' : 'acompanhando'; x.reler = 1; x.hist.push(hhmm(Date.now()) + ' 4.44: saiu de "robô não manda nada" — análise normal'); n++; } }); if (n) { gravaRG(r); try { desenharRegua(); } catch (e) {} } } catch (e) {} }, 8000);
     // 4.40 (Stefany 10:37: "Dalva e demais clientes seguem aguardando o robô"): os laços que trocam de conversa (toques,
@@ -2392,7 +2444,7 @@
       try {
         const O = GM_getValue('auto_ordens', {}) || {}; let mudouO = false;
         for (const x of lista) {
-          const ci = x.contornoInfo; if (!ci || !x.semLink || !x.contornoT || x.ultLado === 'cli' || O[x.hash]) continue;
+          const ci = x.contornoInfo; if (!ci || !x.semLink || !x.contornoT || x.ultLado === 'cli' || O[x.hash] || protegido(x.hash)) continue;
           if (agora - x.contornoT <= 15 * M || agora - x.contornoT > 3 * H || ['humano', 'encerrado'].includes(x.estado)) continue;   // só contorno das últimas 3 h (os antigos o vigia vê no vermelho)
           if (!ci.cpf || !(ci.valor >= 500)) { O[x.hash] = { hash: x.hash, nome: x.nome, estado: 'erro', erro: !ci.cpf ? 'sem CPF na conversa' : 'não achei o valor que o cliente escolheu', t: agora }; mudouO = true; continue; }
           O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: ci.cpf, valor: ci.valor, aceite: !!ci.aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (contorno ' + hhmm(x.contornoT) + ')'] };
@@ -2400,8 +2452,10 @@
         }
         // 4.24 (Stefany 11/11 08:17 "a 1 é fantástico, vamos aplicar"): CPF mandado sem resposta → o robô consulta sozinho no Multicorban.
         // Sem margem (margem < R$ 20, INSS ou LOAS) → linha cordial + /n30 + tag + nota + fechar, sem o vigia. O resto fica para o vigia.
-        for (const x of lista) {
-          if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H) continue;   // 5.01 (12/11: CPF das 02:18 ficava sem ordem — atendimento é 24 h): janela de 3 h → 23 h
+        for (const x of Object.values(r).filter(z => z && z.hash && z.estado !== 'fechada')) {
+          // 5.37 (casos João Paulo 14:58 / Ramon 16:04): CPF do cliente sem resposta vira consulta em QUALQUER estado da régua
+          // (alerta, pausada, acompanhando, ativa, cancelada), não só 'alerta' sem link. Fora: humano agora, NÃO MEXER.
+          if (!x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H || x.estado === 'humano' || protegido(x.hash) || x.comQuem) continue;
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
           O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || (((GM_getValue('valor_nota', {}) || {})[x.hash] || {}).v) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
           mudouO = true;
