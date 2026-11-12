@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.51';
+  const VERSAO = '5.52';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1081,7 +1081,8 @@
           const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const it = fl.find(f => f.id === o.hash);
           if (it) { const fe = JSON.parse(localStorage.getItem('dins_feito') || '{}'); fe[o.hash] = it.sig; localStorage.setItem('dins_feito', JSON.stringify(fe)); localStorage.setItem('dins_fila', JSON.stringify(fl.filter(f => f.id !== o.hash))); }
           const rg = GM_getValue('regua', {}) || {}; const q = rg[o.hash];
-          if (q && ['alerta', 'erro'].includes(q.estado)) { const fechou = passos.some(p => /fechad/i.test(p)); q.estado = fechou ? 'encerrado' : 'acompanhando'; q.motivo = 'resolvido pelo robô (' + o.acao + (fechou ? ', conversa fechada' : '') + ')'; q.lidoT = Date.now(); delete q.cpfSemRespT; delete q.cpfSem; (q.hist = q.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + q.motivo); GM_setValue('regua', rg); }
+          if (q && !['alerta', 'erro'].includes(q.estado) && o.acao === 'fase_msg' && passos.some(p => /^msg:/.test(p))) { q.ultLado = 'nos'; q.ultT = Date.now(); if (/resolvido pelo robô/.test(q.motivo || '')) q.motivo = 'última mensagem é nossa — aguardando o cliente'; GM_setValue('regua', rg); }   // 5.52
+          if (q && ['alerta', 'erro'].includes(q.estado)) { const fechou = passos.some(p => /fechad/i.test(p)); q.estado = fechou ? 'encerrado' : 'acompanhando'; q.motivo = fechou ? 'resolvido pelo robô (' + o.acao + ', conversa fechada)' : (o.acao === 'fase_msg' ? 'última mensagem é nossa — aguardando o cliente' : 'resolvido pelo robô (' + o.acao + ')'); if (o.acao === 'fase_msg') { q.ultLado = 'nos'; q.ultT = Date.now(); } /* 5.52: depois da nossa mensagem entra na sequência de follow-up */ q.lidoT = Date.now(); delete q.cpfSemRespT; delete q.cpfSem; (q.hist = q.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + q.motivo); GM_setValue('regua', rg); }
           setTimeout(() => { try { desenharQuadro(JSON.parse(localStorage.getItem('dins_fila') || '[]')); } catch (e) {} try { desenharRegua(); } catch (e) {} }, 500);
         } catch (e) {} } };
       grava('rodando');
@@ -2400,6 +2401,7 @@
         if (x.link && !x.semLink) continue;
         if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
         if (DEPOIS.test(x.ultCliTxt || '')) continue;   // "depois eu vejo" → lembrete (registrado com a conversa aberta)
+        if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) continue;   // 5.52: disse ao bot que não é do INSS
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
         const tipoR = ehCpf ? 'cpf' : 'duvida';
         { const hh = (ESP_H()[k] || {})[tipoR]; if (hh && agora - hh < 36 * H) continue; }
@@ -2415,6 +2417,9 @@
         (x.toques || []).forEach(q => { if (!q.feito && ['3h', '08h2'].includes(q.q)) { q.feito = Date.now(); q.st = 'tirado (5.47: Stefany 17:22)'; m = true; } });
         if (!(x.toques || []).some(q => q.q === 'janela')) { const qj = horaJanela(+((RGx[k] || {}).ultCliT) || 0); if (qj && qj > Date.now()) { x.toques.push({ q: 'janela', quando: qj, feito: 0 }); m = true; } } }
       if (m) gravaESP(o); } catch (e) {} }, 15000);
+    setTimeout(() => { try { if (GM_getValue('mig552', '')) return; const o = ESP(), hst = ESP_H(); let m = 0;   // 5.52: desfaz o bloqueio de 36 h gravado hoje pela trava 4.70 (sessão fechada pelo bot)
+      for (const k in hst) { if (o[k]) continue; ['cpf', 'duvida'].forEach(t => { if (hst[k][t] && Date.now() - hst[k][t] < 12 * H) { delete hst[k][t]; m++; } }); }
+      GM_setValue('espera_hist', hst); GM_setValue('mig552', String(Date.now())); } catch (e) {} }, 12000);
     function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
     // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
     // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
@@ -2501,7 +2506,9 @@
         let L = null; try { L = lados(); } catch (e) {}
         if (L && L.ult && L.ult.lado === 'cli' && alvo.tipo !== 'lembrete') { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // respondeu: não insiste
         // 4.70 (caso Nilva): conversa já encerrada (desfecho) ou cliente que já mandou CPF não recebe cobrança de CPF
-        if ((() => { const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false; const j = p.indexOf('Informações de contato', i); return j > 0 && !/Em atendimento|support_agent/.test(p.slice(i, j)); })() || (alvo.tipo === 'cpf' && L && (L.temCpf || L.cpfSemRespT))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); marcaHistESP(alvo.hash, alvo.tipo); return; }
+        // 5.52: sessão fechada pelo BOT por falta de interação NÃO é desfecho — a janela de 24 h continua e o follow-up sai (casos J4REV/QOZFC/6RKWW)
+        if ((() => { const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false; const j = p.indexOf('Informações de contato', i); if (!(j > 0 && !/Em atendimento|support_agent/.test(p.slice(i, j)))) return false;
+              const fimE = ((document.querySelector('.entries') || {}).innerText || '').slice(-2500); return !/encerrado por falta de intera[çc][ãa]o/i.test(fimE); })() || (alvo.tipo === 'cpf' && L && (L.temCpf || L.cpfSemRespT))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); marcaHistESP(alvo.hash, alvo.tipo); return; }
         if (alvo.tipo === 'lembrete' && L && L.ult && L.ult.lado === 'cli' && !DEPOIS.test(L.ult.txt || '')) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // falou outra coisa depois: é atendimento
         const r = RG(); const temLink = r[alvo.hash] && r[alvo.hash].link && !r[alvo.hash].semLink;
         const n = nomeSeguro(alvo.nome);
@@ -2567,6 +2574,7 @@
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
+        if (protegido(x.hash)) return 'J';   // 5.52: NÃO MEXER fica no amarelo
         if (x.estado === 'ativa') return 'F';
         // 5.51 (Stefany 17:43: "isso que tem follow-up é follow-up do robô, tem que ficar escrito ali"): tem follow-up agendado → 🟢
         { const e = ESPq[x.hash]; if (e && (e.toques || []).some(q => !q.feito)) return 'F';
