@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.05';
+  const VERSAO = '5.06';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1452,6 +1452,18 @@
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
       if (!telaPronta(id)) return false;
       if (window.top.location.hash !== '#/chats/' + id || !document.querySelector('.entries')) return false;
+      // 5.06 (Stefany 12/11 10:33 "pode fazer"): na 1ª leitura, e quando ainda não achou CPF nem escolha de valor, abre o
+      // histórico inteiro ("Ver sessões anteriores" + "Mostrar mensagens a partir das…") antes de decidir. Uma vez a cada 6 h por conversa.
+      try { const x0 = RG()[id]; const HX = GM_getValue('hist_expandido', {}) || {};
+        if ((!x0 || (!x0.cpfSem && !x0.escolha && !x0.temCpf)) && !(Date.now() - (HX[id] || 0) < 6 * H)) {
+          for (let k = 0; k < 8; k++) {
+            const b = [...document.querySelectorAll('button')].filter(e => e.offsetParent).find(e => /Ver sess[õo]es anteriores|Mostrar mensagens a partir/i.test(e.innerText || ''))
+                   || [...document.querySelectorAll('a,span,div')].filter(e => e.offsetParent && e.children.length <= 1).find(e => /^\s*Mostrar mensagens a partir/i.test(e.innerText || ''));
+            if (!b) break; b.click(); await new Promise(r => setTimeout(r, 1800));
+            if (window.top.location.hash !== '#/chats/' + id) return false;
+          }
+          HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX);
+        } } catch (e) {}
       try { detectarLink(); } catch (e) {}
       const x = RG()[id];
       // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
