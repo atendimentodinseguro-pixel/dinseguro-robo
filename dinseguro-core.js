@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.42';
+  const VERSAO = '5.43';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1204,7 +1204,7 @@
         try {
           const RGh = GM_getValue('regua', {}) || {}; const RET = GM_getValue('retorno_feito', {}) || {}; const hh5 = new Date().getHours();
           const teste = localStorage.getItem('dins_f1_teste') !== '0'; const agora5 = Date.now();
-          const MENU = /^\s*(bolt\s*)?(Outras op[çc][õo]es|Verificar op[çc][õo]es|Falar com (um )?atendente|Verifique a melhor op[çc][ãa]o)/i;
+          const MENU = /^\s*(bolt\s*)?(Outras op[çc][õo]es|Verificar op[çc][õo]es|Falar com (um )?atendente|Verifique a melhor op[çc][ãa]o)|quero (falar|conversar) com (uma?|algu[ée]m|pessoa)|n[ãa]o (com|quero) (o )?rob[ôo]|atendente (humano|de verdade)|recebi (sua|a) liga[çc][ãa]o/i;   // 5.43 (caso Nelson 16:47)
           // 5.39 (Stefany 12/11 16:45, caso Marcone "A onde e o escritório"): medo de golpe / pergunta do escritório → /golpe_medo
           // (tem o link do Google com o endereço) — o vídeo de avaliação (fluxo ⚡) continua com o vigia. Uma vez a cada 12 h.
           const GOLPE = /golpe|escrit[óo]rio|endere[çc]o (de voc|da empresa|da dinseguro)|onde (fica|voc[êe]s ficam|[ée] a empresa)|[ée] seguro|[ée] confi[áa]vel|fraude|enganad|desconfi/i;
