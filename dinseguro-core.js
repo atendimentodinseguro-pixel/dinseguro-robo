@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.29';
+  const VERSAO = '5.30';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1290,7 +1290,7 @@
     // (ex.: já respondemos "estou analisando" e a ordem automática não nasceu). Mesma ordem tipo 'cpf' do 4.24/4.73: consulta normal
     // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
     window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
-      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
+      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
     window.dinsNaoMexer = (h, on = true) => { const N = GM_getValue('nao_mexer', {}) || {}; if (on) N[h] = Date.now(); else delete N[h]; GM_setValue('nao_mexer', N); return Object.keys(N); };   // 4.79: o robô não manda nada automático nesse chat
     window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
@@ -1504,6 +1504,9 @@
           HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX);
         } } catch (e) {}
       try { detectarLink(); } catch (e) {}
+      // 5.30 (caso Josias 12/11, erro 56): escolha de valor registrada em NOTA de dias antes ("ESCOLHA DE VALOR DO CLIENTE: … escolheu R$ 20.000,00", "pediu R$ 20.000")
+      try { const tN = document.body.innerText || ''; const m = [...tN.matchAll(/ESCOLHA DE VALOR DO CLIENTE:[^\n]*?escolheu (?:R\$ ?)?([\d.]+,\d{2})/g)].pop() || [...tN.matchAll(/\bpediu R\$ ?([\d.]+(?:,\d{2})?)/g)].pop();
+        if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
       const x = RG()[id];
       // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
       if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
@@ -2396,7 +2399,7 @@
         for (const x of lista) {
           if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H) continue;   // 5.01 (12/11: CPF das 02:18 ficava sem ordem — atendimento é 24 h): janela de 3 h → 23 h
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
-          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
+          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || (((GM_getValue('valor_nota', {}) || {})[x.hash] || {}).v) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
           mudouO = true;
         }
         if (mudouO) GM_setValue('auto_ordens', O);
