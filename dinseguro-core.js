@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.59';
+  const VERSAO = '5.60';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1255,6 +1255,20 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, atalhos: ['/golpe_medo'], nota: dd6 + ' ' + hhmm(agora5) + ' [robô 5.39] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → /golpe_medo (link do Google com o endereço). VIGIA: mandar o fluxo ⚡ Vídeo de avaliação.' }));
             return;
           }
+          // 5.60 (Stefany 18:08, caso Douglas): cliente disse "depois / amanhã / mais tarde" → resposta que leva à ação (condição de hoje, sem apertar demais)
+          // + pede um HORÁRIO certo; o lembrete sai na hora que ele disser (régua 5.56). Uma vez a cada 20 h.
+          const DR = GM_getValue('depois_resp', {}) || {};
+          for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !DEPOIS.test(x.ultCliTxt || '')) continue;
+            if (DR[k] && agora5 - DR[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
+            const nm = primeiroNome(x.nomeReal || x.nome); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
+            const comProp = x.link && !x.semLink;
+            const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp ? '\n\nSó um aviso importante para você não perder: a condição da sua proposta está garantida para hoje. Amanhã o banco pode mudar a taxa e o valor pode ficar menor — aí eu refaço a simulação e, se nada tiver mudado, seguimos com o mesmo valor. Se conseguir, o ideal é finalizar ainda hoje pelo link 🙏' : '') + '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : 'Me diz um horário certinho que fica bom para você, que eu te chamo exatamente nesse horário. 🤝');
+            DR[k] = agora5; GM_setValue('depois_resp', DR);
+            if (teste) continue;
+            const dd7 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, texto, nota: dd7 + ' ' + hhmm(agora5) + ' [robô 5.60] cliente disse "' + String(x.ultCliTxt || '').slice(0, 50) + '" → resposta (condição de hoje + horário certo) e lembrete na hora combinada.' }));
+            return;
+          }
           for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
             const handoff = /bot passou para atendente humano/.test(x.motivo || '') && x.handoffT;
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
@@ -2416,12 +2430,16 @@
     // Cadência do CPF (plano aprovado 16:34): 1 h · 3 h · 08:00 do dia seguinte · 08:00 do terceiro dia (este só com a janela aberta).
     setInterval(() => { try {
       const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
-      for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
+      for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || protegido(k) || x.comQuem || x.vencida) continue;
+        if (o[k] && !(o[k].tipo === 'lembrete' || /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '') || DEPOIS.test(x.ultCliTxt || ''))) continue;   // 5.60: espera existente só é trocada por lembrete com hora
         const ehCpf = /pedimos o CPF/i.test(x.motivo || ''), ehDuv = /aguardando o cliente/i.test(x.motivo || '');   // 5.47: dúvida respondida também
-        const lembrar = DEPOIS.test(x.ultCliTxt || '') && ['acompanhando', 'alerta', 'pausada', 'esgotada', 'ativa'].includes(x.estado);   // 5.56 / 5.59: também 'ativa'
+        const HORA_DITA = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}(:\d{2})?\b/i;   // 5.60: "às 15h" depois do nosso pedido de horário
+        if (o[k] && !(DEPOIS.test(x.ultCliTxt || '') || /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || ''))) continue;
+        const lembrar = (DEPOIS.test(x.ultCliTxt || '') || (HORA_DITA.test(x.ultCliTxt || '') && (GM_getValue('depois_resp', {}) || {})[k])) && ['acompanhando', 'alerta', 'pausada', 'esgotada', 'ativa'].includes(x.estado);   // 5.56 / 5.59: também 'ativa'
         const linkParado = x.link && !x.semLink && ['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos';   // 5.57
         if (!lembrar && !linkParado && (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem)))) continue;
-        if (DEPOIS.test(x.ultCliTxt || '')) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
+        if (lembrar) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
+          if (o[k] && o[k].tipo === 'lembrete' && o[k].base === String(x.ultCliTxt || '').slice(0, 60)) continue;
           const qd = horaDita(x.ultCliTxt); if (qd && qd > agora && (!(+x.ultCliT) || qd < x.ultCliT + 23.5 * H)) {
             o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'lembrete', base: String(x.ultCliTxt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: qd, feito: 0 }], origem: 'régua 5.56' }; m = true;
             try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.56: cliente disse "' + String(x.ultCliTxt).slice(0, 40) + '" → lembrete ' + new Date(qd).toLocaleString('pt-BR').slice(0, 17)); } catch (e) {} }
@@ -2498,14 +2516,14 @@
              '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
              '08h2': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
-      link: { '1h': n => `Oi${n ? ', ' + n : ''}! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela continua disponível no link que te mandei acima. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, é só me chamar aqui que eu te ajudo. 🤝`,
-              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta continua disponível no link que te mandei. Quando puder, é só abrir e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
+      link: { '1h': n => `Oi${n ? ', ' + n : ''}! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela está no link que te mandei acima. Só reforçando: essa condição está garantida para hoje — amanhã o banco pode mudar a taxa e o valor pode ficar diferente. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, me chama aqui que eu te ajudo a finalizar agora. 🤝`,
+              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta ainda está no link que te mandei. Hoje eu confiro com o banco: se a taxa não mudou, seguimos com o mesmo valor. Para garantir, o ideal é finalizar ainda hoje — é só abrir o link e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
       duvida: { '1h': (n, l, a) => a && a.temCpf ? `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.` : `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Se quiser, me manda o seu CPF (só os números) que eu já consulto o valor que você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
                 '08h': (n, l, a) => a && a.temCpf ? `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
       simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
                    '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
       doc: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu tirar a foto do documento? 😊 Assim que você mandar aqui, eu já sigo com a sua proposta. Se tiver qualquer dificuldade, me fala que eu te ajudo.` },
-      lembrete: { 'lembrete': (n, link) => `${n ? 'Oi, ' + n + '! ' : 'Oi! '}Conforme combinamos, estou passando aqui 😊 ` + (link ? 'A sua proposta continua disponível no link que te mandei. Quando puder, é só abrir e fazer a selfie de segurança.' : 'Podemos continuar de onde paramos?') + ' Se precisar de ajuda em qualquer etapa, me chama aqui 🤝' },
+      lembrete: { 'lembrete': (n, link) => `${n ? 'Oi, ' + n + '! ' : 'Oi! '}Conforme combinamos, estou passando aqui 😊 ` + (link ? 'A sua proposta está no link que te mandei. Como as condições do banco podem mudar de um dia para o outro, eu confiro aqui agora: se a taxa não tiver mudado, seguimos com o mesmo valor. O ideal é finalizar hoje, é só abrir o link e fazer a selfie de segurança.' : 'Podemos continuar de onde paramos?') + ' Se precisar de ajuda em qualquer etapa, me chama aqui 🤝' },
     };
     let espRodando = false;
     async function olharEspera() {
