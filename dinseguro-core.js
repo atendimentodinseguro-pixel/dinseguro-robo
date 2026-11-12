@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.83';
+  const VERSAO = '4.84';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -543,6 +543,7 @@
         const R = GM_getValue('regua', {}) || {};
         for (const [id, q] of Object.entries(R)) {
           if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) continue;
+          if (q.hash && q.hash !== id && /^[A-Z0-9]{16,}$/i.test(q.hash)) continue;   // 4.84: entrada com chave errada (ex.: "103") — a certa entra pela própria chave
           if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id) || naTela.has(id)) continue;
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
@@ -1054,9 +1055,9 @@
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
             const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
             const saud = hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite';
-            const texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro.\n\n' + (val ? 'Vi que você fez uma simulação de *R$ ' + val + '* com a gente. ' : 'Vi que você fez uma simulação com a gente. ') + 'Para eu já preparar a sua proposta, pode me informar o número do seu CPF ou do seu benefício?';
+            const texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro.\n\n' + (val ? 'Vi que você fez uma simulação de *R$ ' + val + '* com a gente. ' : x.escolha ? 'Vi que você fez uma simulação com a gente. ' : 'Vi que você começou o seu atendimento com a gente. ') + 'Para eu já ' + (x.escolha ? 'preparar a sua proposta' : 'consultar a melhor condição para você') + ', pode me informar o número do seu CPF ou do seu benefício?';
             const dd = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
-            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'pedir_cpf', quem: 'robo', t: Date.now(), texto, nota: dd + ' ' + hhmm(Date.now()) + ' [robô 4.78] parou no bot sem CPF às ' + hhmm(x.semCpfT) + (val ? ' (simulou R$ ' + val + ')' : '') + ' → pedi o CPF + 01 C.' }));
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: (x.hash && /^[A-Z0-9]{16,}$/i.test(x.hash)) ? x.hash : k, acao: 'pedir_cpf', quem: 'robo', t: Date.now(), texto, nota: dd + ' ' + hhmm(Date.now()) + ' [robô 4.78] parou no bot sem CPF às ' + hhmm(x.semCpfT) + (val ? ' (simulou R$ ' + val + ')' : '') + ' → pedi o CPF + 01 C.' }));
             PC[k] = Date.now(); for (const q in PC) if (Date.now() - PC[q] > 7 * 864e5) delete PC[q]; GM_setValue('pedir_cpf_feito', PC); return;
           }
         } catch (e) {}
@@ -1130,6 +1131,8 @@
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    // 4.84: entradas do quadro guardadas com chave que não é o hash (caso Rubi em "103") → passam para a chave certa
+    setTimeout(() => { try { const r = GM_getValue('regua', {}) || {}; let m = 0; for (const k of Object.keys(r)) { const x = r[k]; if (x && x.hash && x.hash !== k && /^[A-Z0-9]{16,}$/i.test(x.hash) && !/^[A-Z0-9]{16,}$/i.test(k)) { if (!r[x.hash]) r[x.hash] = x; else r[x.hash].reler = 1; delete r[k]; m++; } } if (m) { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} } } catch (e) {} }, 5000);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
     // 4.24 — AVERBE JA automático no Autorizador do C6, SÓ para quem a Stefany/vigia colocar na lista (Stefany 11/11 08:17:
     // "pode ser que o cliente está no AVERBE JA mas ainda não desbloqueou… não é todos").
@@ -1251,8 +1254,8 @@
       }
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
-      if (L && L.semCpfT && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
-        return Object.assign({ estado: 'alerta', motivo: 'simulou R$ ' + brl((L.escolha && L.escolha.valor) || 0) + ' no bot e parou sem CPF às ' + hhmm(L.semCpfT) + ' (ninguém atendeu) → pedir o CPF (7.2) + 01 C' }, ex);
+      if (L && L.semCpfT && (L.escolha || (L.ult && L.ult.lado === 'nos')) && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
+        return Object.assign({ estado: 'alerta', motivo: (L.escolha && L.escolha.valor ? 'simulou R$ ' + brl(L.escolha.valor) + ' no bot e parou sem CPF' : 'entrou no bot e parou sem CPF') + ' às ' + hhmm(L.semCpfT) + ' (ninguém atendeu) → pedir o CPF (7.2) + 01 C' }, ex);
       if (L && L.handoffT && L.ult.lado === 'nos')
         return Object.assign({ estado: 'alerta', motivo: 'bot passou para atendente humano às ' + hhmm(L.handoffT) + ' e ninguém respondeu' }, ex);
       if (clienteRespondeu()) {
@@ -1638,7 +1641,11 @@
       // última mensagem. Cliente passou pelo bot (tem simulação/escolha), nunca mandou CPF, e depois da última mensagem dele só houve bot,
       // modelo de campanha ou mídia (nenhum humano escreveu) → semCpfT = hora da última mensagem do cliente.
       let semCpfT = 0;
-      if (!temCpf && escolha && ultCli) {
+      // 4.84 (Stefany 11/11 21:59, caso Rubi: clicou "Aposentado / Pensão" às 21:09 e parou no meio do bot, sem simulação → o robô dizia
+      // "no bot (autoatendimento)" e ninguém via). Agora vale também SEM simulação: entrou no bot, parou, nunca mandou CPF, ninguém atendeu.
+      // Fica de fora quem disse ao bot que não é do INSS (não sou aposentado, CLT, servidor…).
+      const naoInss = ms.some(m => m.lado === 'cli' && /n[ãa]o sou|\bclt\b|carteira assinada|servidor|forças armadas|bolsa fam/i.test(m.txt || m.raw || ''));
+      if (!temCpf && ultCli && (escolha || !naoInss)) {
         const humano = ms.slice(iCli + 1).some(m => m.lado === 'nos' && !m.bot && !/^\s*(play_arrow|Enviado por [^\n]*$)/.test(m.raw || '') && (m.txt || '').length > 3);
         if (!humano) semCpfT = ultCli.t || 0;
       }
