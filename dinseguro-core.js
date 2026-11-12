@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.23';
+  const VERSAO = '5.24';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
