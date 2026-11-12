@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.99';
+  const VERSAO = '5.00';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -326,7 +326,8 @@
           const resumo = 'esp ' + (ficha.especie || '?') + ', ' + (ficha.idade || '?') + 'a, margem R$ ' + (ficha.margem || '?');
           let acao = '';
           if (mot === 'SEM_MARGEM' && mg != null && mg < 20) acao = 'sem_margem';
-          else if (mot === 'LOAS' && mg != null && mg < 20) acao = 'loas_sem';
+          else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
+          else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
           else if (!mot) {
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
@@ -336,6 +337,10 @@
             const vb = +o.valorBot || 0;
             if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
             if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+            // 5.00 (caso Ronaldo 12/11: CPF não estava no mapa CPF→WhatsApp): a ordem nasceu do chat do Botmaker e traz o WhatsApp dele (o.fone) → usa esse
+            if (!/^telefone_origem:\s*WhatsApp/im.test(ta.value) && o.fone) { let t = String(o.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
+              if (/^\d{11}$/.test(t)) { const put = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
+                put('telefone', t); put('telefone_origem', 'WhatsApp do chat (Botmaker — ordem automática)'); ta.dispatchEvent(new Event('input', { bubbles: true })); } }
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             const f3 = GM_getValue('ficha_atual', null);
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
@@ -647,6 +652,9 @@
     sem_margem:       { atalho: '/n30', tags: ['01 I - INSS Sem margem 2026'], fechar: true },
     sem_margem_k:     { atalho: '/n30', tags: ['01 k SEM Margem Nao Rodar Whats'], fechar: true },
     loas_sem:         { atalho: '/n30', tags: ['02 I - LOAS Sem margem 2026'], fechar: true },
+    // 5.00: LOAS com margem ≥ R$ 400 — texto da Stefany 07/11 22:00 (claude/MENSAGEM-LOAS-COM-MARGEM.md); {NOME} = primeiro nome
+    loas_com:         { atalho: null, tags: ['02 A - Loas Sem Rep Com Margem'], fechar: true,
+                        texto: 'Oi, {NOME}! 😊 Aqui é da Dinseguro.\n\nInfelizmente não conseguimos aprovar uma proposta para o seu benefício neste momento. 😔\n\nMas fique tranquilo(a): o seu cadastro continua aqui com a gente. Assim que tivermos uma proposta disponível para o seu benefício, nós entramos em contato com você por aqui mesmo.\n\n🔒 E lembrando sempre: a Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n📲 Para não perder o nosso aviso, salve o nosso contato no celular e siga a gente:\n\n• Instagram: https://www.instagram.com/dinseguro_?igsh=MW90bnoybGIwczA3MA==\n\n• Facebook: https://www.facebook.com/Dinseguro?mibextid=ZbWKw\n\n• Comunidade Dinseguro no WhatsApp: https://chat.whatsapp.com/BmSXjGqkBRF4yRm3u0q37V\n\nObrigada pela confiança 🤝\nUm grande abraço da equipe Dinseguro! 💙' },
     loas_com:         { atalho: '/n30', tags: ['02 A - Loas Sem Rep Com Margem'], fechar: true, editar: true },
     especie_fora:     { atalho: '/07',  tags: ['07 - Nao Identificado'], fechar: true },
     sem_cpf:          { atalho: '/n23', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
@@ -1110,6 +1118,10 @@
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado') {   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nao_localizado', t: Date.now() }));
+          } else if (o.acao === 'loas_com') {   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão (sem linha extra) + 02 A + fechar
+            const pn = primeiroNome(o.nomeReal) || '';
+            const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → LOAS com margem ≥ R$ 400: mensagem padrão + 02 A + fechar (automático 5.00).';
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'loas_com', t: Date.now(), nota, texto: DESFECHOS.loas_com.texto.replace('{NOME}', pn).replace('Oi, ! ', 'Oi! ') }));
           } else {
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)) }));
