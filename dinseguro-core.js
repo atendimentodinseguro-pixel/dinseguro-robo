@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.02';
+  const VERSAO = '5.03';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -764,11 +764,29 @@
     }
 
     // 1. abrir o chat certo  ⚠️ o hash fica na janela de CIMA
+    // 5.03 (12/11 10:00, caso Marcelo → Franco): o endereço trocava mas o painel continuava mostrando o chat anterior, e a
+    // mensagem saiu para outro cliente. Agora o robô só escreve depois de CONFIRMAR que o painel é do cliente da ordem:
+    // telefone do painel = telefone do quadro; sem telefone conhecido, a conversa tem que ter mudado e o nome bater.
+    const foneDoPainel = () => ((document.body.innerText || '').match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
+    const nomeDoPainel = () => ((document.body.innerText || '').match(/\bNome\s*\n\s*([^\n]+)/) || [])[1] || '';
+    const soDig = v => String(v || '').replace(/\D/g, '');
+    async function confereChat(hash) {
+      const q = (GM_getValue('regua', {}) || {})[hash] || {};
+      const fEsp = soDig(q.fone);
+      const ok = await ate(() => { const f = soDig(foneDoPainel()); if (fEsp) return f && (f === fEsp || f.slice(-10) === fEsp.slice(-10));
+        const n = nomeDoPainel(); return n && q.nome && n.trim().toLowerCase() === String(q.nome).trim().toLowerCase(); }, 15000);
+      if (!ok) throw new Error('não confirmei que o chat aberto é o do cliente (painel: ' + (nomeDoPainel() || '?') + ') — NÃO mandei nada');
+    }
     async function abrir(hash) {
       const alvo = '#/chats/' + hash.replace(/^#\/chats\//, '');
+      const antes = foneDoPainel() + '|' + nomeDoPainel();
       if (window.top.location.hash !== alvo) { window.top.location.hash = alvo; await esp(4000); }
       const ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 15000);
       if (!ok) throw new Error('não consegui abrir o chat ' + hash);
+      try { await confereChat(hash.replace(/^#\/chats\//, '')); }
+      catch (e) { // painel preso no chat anterior → recarrega o chat uma vez e confere de novo
+        if (foneDoPainel() + '|' + nomeDoPainel() === antes) { window.top.location.hash = '#/chats'; await esp(2500); window.top.location.hash = alvo; await esp(6000); await confereChat(hash.replace(/^#\/chats\//, '')); }
+        else throw e; }
       if (/Chat em atendimento com/.test(document.body.innerText))
         throw new Error('chat bloqueado por atendente — liberar no ⋮ antes');
     }
@@ -1026,7 +1044,7 @@
       try {
         // 4.22 (Stefany 11/11 07:34, caso Vilmar): se a tela trocar de chat no meio, o desfecho VOLTA para o chat e continua
         // de onde parou (não para mais deixando a conversa aberta). A mensagem nunca sai duas vezes (o.msgFeita).
-        const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } };
+        const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } await confereChat(o.hash); };   // 5.03: confere o cliente antes de CADA envio
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
@@ -1034,7 +1052,7 @@
         const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         if (o.pularSe && !o.msgFeita) { try { if (new RegExp(o.pularSe, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-20000))) { passos.push('já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); } } catch (e) {} }   // 4.79
-        if (o.linha && !o.linhaFeita) { passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
+        if (o.linha && !o.linhaFeita) { await garante(); passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
         if (!o.msgFeita) {
           if (o.atalhos && o.atalhos.length) { for (let i = (o.atIdx || 0); i < o.atalhos.length; i++) { await garante(); const [at, md] = String(o.atalhos[i]).split('|'); passos.push('msg:' + await respostaRapida(at, false, false, null, o.trocas, md === 'midia')); salvaProgresso({ atIdx: i + 1 }); await esp(1500); } }   // 4.79: várias respostas rápidas em ordem
