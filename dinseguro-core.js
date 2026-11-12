@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.66';
+  const VERSAO = '5.67';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -531,7 +531,9 @@
       const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
     let batH = null, batMud = Date.now();
-    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batH = h; batMud = Date.now(); } window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO })); } catch (e) {} };
+    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batH = h; batMud = Date.now(); } window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
+      try { const P = meuPapel(); const pre = P === 'tudo' ? '' : '[' + ({ atendimento: 'ATENDIMENTO', followup: 'FOLLOW-UP', varredura: 'VARREDURA', vigia: 'VIGIA' })[P] + '] '; const t0 = window.top.document.title || ''; const limpo = t0.replace(/^\[(ATENDIMENTO|FOLLOW-UP|VARREDURA|VIGIA)\] /, ''); if (t0 !== pre + limpo) window.top.document.title = pre + limpo; } catch (e) {}   // 5.67: nome do papel na aba
+    } catch (e) {} };
     batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
     // conversa aberta em OUTRA aba (qualquer papel, inclusive o vigia) → quem vai escrever espera (até 90 s)
     const chatComOutraAba = h => { const V = abasVivas(); return Object.keys(V).some(k => k !== ABA && V[k].hash === h && Date.now() - V[k].t < 20000 && (Date.now() - (+V[k].mud || 0) < (['vigia', 'tudo'].includes(V[k].papel) ? 10 : 2) * 60000)); };   // robô parado na conversa há 2 min+ não segura ninguém; o vigia segura enquanto estiver nela
