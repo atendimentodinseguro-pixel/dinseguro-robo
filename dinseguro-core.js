@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.38';
+  const VERSAO = '5.39';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1205,6 +1205,18 @@
           const RGh = GM_getValue('regua', {}) || {}; const RET = GM_getValue('retorno_feito', {}) || {}; const hh5 = new Date().getHours();
           const teste = localStorage.getItem('dins_f1_teste') !== '0'; const agora5 = Date.now();
           const MENU = /^\s*(bolt\s*)?(Outras op[çc][õo]es|Verificar op[çc][õo]es|Falar com (um )?atendente|Verifique a melhor op[çc][ãa]o)/i;
+          // 5.39 (Stefany 12/11 16:45, caso Marcone "A onde e o escritório"): medo de golpe / pergunta do escritório → /golpe_medo
+          // (tem o link do Google com o endereço) — o vídeo de avaliação (fluxo ⚡) continua com o vigia. Uma vez a cada 12 h.
+          const GOLPE = /golpe|escrit[óo]rio|endere[çc]o (de voc|da empresa|da dinseguro)|onde (fica|voc[êe]s ficam|[ée] a empresa)|[ée] seguro|[ée] confi[áa]vel|fraude|enganad|desconfi/i;
+          const GF = GM_getValue('golpe_feito', {}) || {};
+          for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !GOLPE.test(x.ultCliTxt || '')) continue;
+            if (GF[k] && agora5 - GF[k] < 12 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 23 * 3600000) continue;
+            if (teste) { let LG = []; try { LG = JSON.parse(localStorage.getItem('dins_f1_log') || '[]'); } catch (e) {} if (!LG.some(l => l.h === k && /golpe/.test(l.motivo))) { LG.push({ t: agora5, h: k, nome: x.nome || '', motivo: 'golpe/escritório: "' + String(x.ultCliTxt || '').slice(0, 40) + '"', link: !!x.link, texto: '/golpe_medo' }); localStorage.setItem('dins_f1_log', JSON.stringify(LG.slice(-40))); } continue; }
+            GF[k] = agora5; GM_setValue('golpe_feito', GF);
+            const dd6 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, atalhos: ['/golpe_medo'], nota: dd6 + ' ' + hhmm(agora5) + ' [robô 5.39] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → /golpe_medo (link do Google com o endereço). VIGIA: mandar o fluxo ⚡ Vídeo de avaliação.' }));
+            return;
+          }
           for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
             const handoff = /bot passou para atendente humano/.test(x.motivo || '') && x.handoffT;
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
@@ -3611,7 +3623,8 @@
       await escolher(lista(/^Sexo$/), new RegExp('^' + sexo + '$'));
       await escolher(lista(/^Estado Civil$/), /^SOLTEIRO$/);
       const mae = entrada(/^Nome M[ãa]e$/);
-      if (mae && !mae.value) { if (!f.mae) throw new Error('Falta o nome da mãe na ficha (pegue no Auto-Complete do New Corban)'); await digitar(mae, f.mae); }
+      // 5.39 (caso Douglas 15:50): sem nome da mãe → "NÃO INFORMADO" (regra do Prompt-Atendimento: mãe que não temos → NÃO INFORMADO)
+      if (mae && !mae.value) { if (!f.mae) log('Ficha sem nome da mãe → NÃO INFORMADO.', 'aviso'); await digitar(mae, f.mae || 'NAO INFORMADO'); }
       await escolher(lista(/^Tipo DOC$/), /^RG/);
       const doc = entrada(/^Nº DOC$/); if (doc && !doc.value) await digitar(doc, f.cpf);
       const emi = entrada(/^Emissor$/); if (emi && !emi.value) await digitar(emi, 'SSP');
@@ -3686,6 +3699,12 @@
           log(`Conta ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv} já está em outro CPF → próxima da sequência.`);
           c = seqConta();
           continue;
+        }
+        // 5.39 (caso Douglas 15:55: 001/0001/33-8 "Número da conta inválido"): conta aleatória recusada como inválida → Caixa 104/3880/111113-1
+        if (!real && /conta inv[áa]lid|n[úu]mero da conta/i.test(alertas().join(' ')) && c.banco !== '104') {
+          await fecharAlertas(); if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
+          log(`Conta ${c.banco} ${c.conta}-${c.dv} inválida → Caixa 104 ag 3880 cc 111113-1.`, 'aviso');
+          c = { banco: '104', agencia: '3880', conta: '111113', dv: '1' }; continue;
         }
         await semErro('Incluir conta');
         if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);   // número da sequência usado = nunca repetir
@@ -3810,7 +3829,8 @@
       const poeAOd = (h, mud) => { const O = AOd(); if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
       let autoD = false;
       setInterval(async () => {
-        if (autoD || rodando || /\/login/.test(location.pathname) || document.querySelector('.cdk-overlay-pane .mat-mdc-dialog-container, .modal.show')) return;
+        // 5.39 (caso Douglas: ficha_ok DAYCOVAL parada 10 min): só um diálogo VISÍVEL segura o executor (as janelas "Editar Tabela" ficam escondidas na página)
+        if (autoD || rodando || /\/login/.test(location.pathname) || [...document.querySelectorAll('.cdk-overlay-pane .mat-mdc-dialog-container, .modal.show')].some(e => vis(e))) return;
         // recuperação: proposta gerada aqui pelo painel (à mão) para um cliente cuja ordem parou em "banco DAYCOVAL é à mão" → devolve o link ao Botmaker
         try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
           if (r && r.link && Date.now() - Date.parse(r.quando) < 60 * 60000) { const O = AOd(); const q = Object.values(O).find(x => x && x.tipo === 'cpf' && ['com_margem', 'erro'].includes(x.estado) && cp(x.cpf) === cp(r.cpf) && /DAYCOVAL/.test(x.resumo || x.erro || '') && x.propD !== r.proposta);
