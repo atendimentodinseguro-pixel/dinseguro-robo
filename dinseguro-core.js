@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.47';
+  const VERSAO = '5.48';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1539,7 +1539,7 @@
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
     const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0'];   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
-    const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i];
+    const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^⚫/, /^romulo\b/i, /^jair\b/i];   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (GM_getValue('nao_interferir', []) || []).includes(h) || (GM_getValue('nao_mexer', {}) || {})[h]) return true;
       const x = (GM_getValue('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
