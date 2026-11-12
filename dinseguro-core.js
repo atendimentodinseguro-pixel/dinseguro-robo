@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.18';
+  const VERSAO = '5.19';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4471,7 +4471,7 @@
       if (!m || !m.classList.contains('show')) return null;
       const b = m.querySelector('.iv2-bh-pick');
       if (b) return b;
-      return /nenhum|n[ãa]o h[áa]|sem hist/i.test(m.innerText) ? 'vazio' : null;
+      return /nenhum|n[ãa]o h[áa]|sem hist|n[ãa]o encontrad/i.test(m.innerText) ? 'vazio' : null;   // 5.19: "Cliente não encontrado." = vazio
     }, 12000);
     if (pick && pick !== 'vazio') {
       pick.click(); await sleep(1200);
