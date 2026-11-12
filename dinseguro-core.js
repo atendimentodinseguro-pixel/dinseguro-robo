@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.01';
+  const VERSAO = '5.02';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -303,14 +303,52 @@
         if (temDetalhe()) {
           if (!/Situa[çc][ãa]o\s*\n?\s*ATIVO\b/.test(document.body.innerText)) throw new Error('benefício não está ATIVO');
         } else {
-          const ativos = [...document.querySelectorAll('tr')].filter(tr => /\bATIVO\b/.test(tr.innerText) && [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())));
-          if (!ativos.length) throw new Error('nenhum benefício ATIVO');
-          // 4.91 (12/11 08:49, caso Ronaldo: espécie 42 + espécie 87): com mais de um ATIVO, tira LOAS (87/88) quando sobra outro; sobrou um → segue com ele
-          let escolhidos = ativos;
-          if (ativos.length > 1) { const espDe = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); const e = c.find(t => /^\d{1,2}$/.test(t)); return e ? +e : null; };
-            const semLoas = ativos.filter(tr => ![87, 88].includes(espDe(tr))); if (semLoas.length >= 1 && semLoas.length < ativos.length) escolhidos = semLoas; }
-          if (escolhidos.length > 1) throw new Error('mais de um benefício ATIVO — escolher à mão');
-          [...escolhidos[0].querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
+          // 5.02 (Stefany 12/11 09:56, caso Paola): REGRA DOS VÁRIOS BENEFÍCIOS (erro 72 + B1–B8 de 07/11):
+          //  • ler TODAS as linhas; só ATIVO conta (cessado não);
+          //  • MESMO número de benefício em mais de uma linha → vale uma só: a mais recente (DDB) e ativa;
+          //  • consignável = espécie atendida (ESPECIES_OK); LOAS 87/88 tem regra própria (só se não houver outro);
+          //  • NÚMEROS DIFERENTES consignáveis → o cliente tem mais de um benefício: consultar CADA UM (ficha) e
+          //    – só um com margem → segue com esse; – os dois com margem → os DOIS são levados (vigia simula e manda os dois: B1/B7);
+          //    – nenhum com margem → desfecho normal (sem margem), só depois de olhar todos.
+          const linhasB = () => [...document.querySelectorAll('tr')].filter(tr => [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())));
+          const infoB = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); return { mat: c.find(t => /^\d{8,11}$/.test(t)) || '', esp: String(+(c.find(t => /^\d{1,2}$/.test(t)) || 0)).padStart(2, '0'), ddb: c.find(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t)) || '', ativo: /\bATIVO\b/.test(tr.innerText), valor: c.find(t => /R\$/.test(t)) || '' }; };
+          const ordData = d => d.split('/').reverse().join('');
+          const ativosB = linhasB().map(infoB).filter(x => x.ativo);
+          if (!ativosB.length) throw new Error('nenhum benefício ATIVO');
+          const porMat = {}; for (const x of ativosB) { const k = x.mat || ('?' + Math.random()); if (!porMat[k] || ordData(x.ddb) > ordData(porMat[k].ddb)) porMat[k] = x; }
+          const unicos = Object.values(porMat);
+          const consig = unicos.filter(x => ESPECIES_OK.includes(x.esp) && !['87', '88'].includes(x.esp));
+          const loasB = unicos.filter(x => ['87', '88'].includes(x.esp));
+          const cands = consig.length ? consig : (loasB.length ? loasB : unicos);   // nenhum consignável → abre o primeiro (a ficha dá o desfecho da espécie)
+          const abrirMat = async mat => { let tr = linhasB().find(t => infoB(t).mat === mat && /\bATIVO\b/.test(t.innerText));
+            if (!tr) { // voltar para a lista: refaz a busca pelo CPF (nunca history.back)
+              const off1 = document.getElementById('offline'); if (off1 && !off1.checked) { off1.click(); await zz(800); } const r1 = document.getElementById('cpf'); if (r1 && !r1.checked) { r1.click(); await zz(800); }
+              const in1 = document.getElementById('input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(in1, o.cpf); in1.dispatchEvent(new Event('input', { bubbles: true })); await zz(500); document.getElementById('localizar').click();
+              for (let i = 0; i < 15 && !(tr = linhasB().find(t => infoB(t).mat === mat && /\bATIVO\b/.test(t.innerText))); i++) await zz(1000); }
+            if (!tr) throw new Error('não achei de novo a linha do benefício ' + mat.slice(-4));
+            [...tr.querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
+            for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000); };
+          if (cands.length > 1) {
+            const res = [];
+            for (const c of cands) {
+              await abrirMat(c.mat);
+              [...document.querySelectorAll('textarea')].forEach(t => { if (/^cpf:/m.test(t.value)) t.value = ''; });
+              const g0 = botaoRobo('Gerar ficha'); if (!g0) throw new Error('painel do robô (Gerar ficha) não está na tela'); g0.click();
+              let t0 = null; for (let i = 0; i < 75; i++) { await zz(1000); t0 = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value) && new RegExp('^beneficio: *0*' + c.mat.replace(/^0+/, ''), 'm').test(t.value)); if (t0) break; }
+              if (!t0) throw new Error('a ficha do benefício ' + c.mat.slice(-4) + ' não foi gerada');
+              const f0 = textoParaFicha(t0.value); const m0 = parseFloat(String(f0.margem || '').replace(/[^\d,\-]/g, '').replace(',', '.')) || 0;
+              res.push({ mat: c.mat, esp: c.esp, margem: m0, recusa: (f0.recusa || '').split('|')[0] });
+            }
+            const comM = res.filter(x => x.margem >= 20 && !x.recusa);
+            const desc = res.map(x => 'esp ' + x.esp + ' …' + x.mat.slice(-4) + ' margem R$ ' + x.margem.toFixed(2).replace('.', ',') + (x.recusa ? ' (' + x.recusa + ')' : '')).join(' · ');
+            if (comM.length >= 2) { poeAO(o.hash, { estado: 'com_margem', resumo: 'DOIS benefícios consignáveis com margem: ' + desc + ' → VIGIA: simular e mandar os DOIS (B1/B7), banco pela espécie e idade de cada um' }); return; }
+            const alvoB = comM[0] || res[0];
+            await abrirMat(alvoB.mat);
+            poeAO(o.hash, { estado: 'consultando', resumo: 'vários benefícios: ' + desc + ' → seguiu com …' + alvoB.mat.slice(-4) });
+          } else {
+            await abrirMat(cands[0].mat);
+          }
+          [...document.querySelectorAll('textarea')].forEach(t => { if (/^cpf:/m.test(t.value)) t.value = ''; });   // não aproveitar ficha de outro benefício
         }
         for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
