@@ -1356,6 +1356,7 @@
     // 5.23: na régua reaberta pelo 5.21, link de mais de 3 h → "Conseguiu acessar?" e /132 não fazem mais sentido (fica o da manhã/retorno); NÃO MEXER → humano
     try { const r1 = RG(); const NM1 = GM_getValue('nao_mexer', {}) || {}; let m1 = false; for (const k in r1) { const x = r1[k]; if (!x || !/reaberta \(5\.21\)/.test(x.motivo || '')) continue;
       if (NM1[k]) { x.estado = 'humano'; x.motivo = 'NÃO MEXER (Stefany) — robô não manda nada'; m1 = true; continue; }
+      if ((+x.ultCliT || 0) > (+x.linkT || 0)) { x.estado = 'pausada'; x.motivo = 'cliente respondeu depois do link — atendimento humano (5.23)'; m1 = true; continue; }   // já conversou depois do link: sem toque automático
       if (Date.now() - (+x.linkT || 0) > 3 * 3600000) (x.toques || []).forEach(q => { if ((q.tipo === '10' || q.tipo === '60') && !q.feito) { q.feito = Date.now(); q.st = 'pulado (régua reaberta 5.21 — link antigo)'; m1 = true; } });
       x.motivo = 'reaberta (5.21/5.23): o link não encerra a régua'; m1 = true; } if (m1) gravaRG(r1); } catch (e) {}
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
