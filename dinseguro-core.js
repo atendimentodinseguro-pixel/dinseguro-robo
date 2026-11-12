@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.97';
+  const VERSAO = '4.98';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -736,9 +736,15 @@
     async function executarFluxo(nome) {
       const botao = await ate(() => document.querySelector('.flow-selector-menu'), 8000);
       if (!botao) throw new Error('não achei o botão de executar flow');
-      clicar(botao); await esp(1500);
-      const campo = await ate(() => [...document.querySelectorAll('input')]
-        .filter(vis).find(e => /Buscar fluxos/i.test(e.placeholder || '')), 8000);
+      // 4.98 (12/11 09:23: "a janela EXECUTAR FLOW não abriu"): o Botmaker só abre com a sequência completa de ponteiro no ÍCONE
+      const abreFlow = () => { const ic = botao.querySelector('.flow-selector-icon') || botao; const W = ic.ownerDocument.defaultView; const r = ic.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, view: W, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 };
+        ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(t => ic.dispatchEvent(new (t.startsWith('pointer') ? W.PointerEvent : W.MouseEvent)(t, o))); };
+      const achaCampo = () => [...document.querySelectorAll('input')].filter(vis).find(e => /Buscar fluxos/i.test(e.placeholder || ''));
+      abreFlow(); await esp(1500);
+      if (!achaCampo()) { clicar(botao); await esp(1500); }
+      if (!achaCampo()) { abreFlow(); await esp(2000); }
+      const campo = await ate(achaCampo, 8000);
       if (!campo) throw new Error('a janela EXECUTAR FLOW não abriu');
       campo.focus(); setNativo(campo, ''); await esp(500);
       setNativo(campo, semAcento(nome).split(' ')[0]);   // "inicio" basta para filtrar
