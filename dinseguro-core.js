@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.85';
+  const VERSAO = '4.86';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1131,6 +1131,16 @@
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    // 4.86: ao carregar, o último desfecho/ordem OK (feito antes da 4.83) e as ordens automáticas terminadas também contam como resolvidas
+    setTimeout(() => { try {
+      const RS = JSON.parse(localStorage.getItem('dins_resolvidos') || '{}'); let m = 0;
+      const st = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); if (st && st.st === 'ok' && st.hash && !(RS[st.hash] >= st.t)) { RS[st.hash] = st.t; m++; }
+      const O = GM_getValue('auto_ordens', {}) || {}; for (const h in O) { const o = O[h]; if (o && ['desfecho_ok', 'feito'].includes(o.estado) && !RS[h] && Date.now() - (o.t || 0) < 24 * 3600000) { RS[h] = (o.t || 0) + 3 * 60000; m++; } }
+      if (m) { localStorage.setItem('dins_resolvidos', JSON.stringify(RS)); const rg = GM_getValue('regua', {}) || {}; let mu = false;
+        for (const h in RS) { const q = rg[h]; if (q && ['alerta', 'erro'].includes(q.estado) && (+q.ultCliT || 0) <= RS[h]) { q.estado = 'encerrado'; q.motivo = 'resolvido pelo robô'; delete q.cpfSemRespT; delete q.cpfSem; (q.hist = q.hist || []).push(hhmm(Date.now()) + ' resolvido pelo robô (4.86)'); mu = true; } }
+        if (mu) GM_setValue('regua', rg);
+        const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); localStorage.setItem('dins_fila', JSON.stringify(fl.filter(f => !(RS[f.id] && new Date(f.quando).getTime() <= RS[f.id])))); }
+    } catch (e) {} }, 6000);
     // 4.84: entradas do quadro guardadas com chave que não é o hash (caso Rubi em "103") → passam para a chave certa
     setTimeout(() => { try { const r = GM_getValue('regua', {}) || {}; let m = 0; for (const k of Object.keys(r)) { const x = r[k]; if (x && x.hash && x.hash !== k && /^[A-Z0-9]{16,}$/i.test(x.hash) && !/^[A-Z0-9]{16,}$/i.test(k)) { if (!r[x.hash]) r[x.hash] = x; else r[x.hash].reler = 1; delete r[k]; m++; } } if (m) { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} } } catch (e) {} }, 5000);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
