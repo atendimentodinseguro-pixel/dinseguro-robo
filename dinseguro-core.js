@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.41';
+  const VERSAO = '5.42';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3843,7 +3843,7 @@
         if (!o) return;
         autoD = true;
         try {
-          if (/dados-cliente|dados-complementares|resumo|formalizacao/.test(location.pathname)) {   // tela de um cliente anterior → menu (nunca F5)
+          if (/dados-cliente|dados-complementares|resumo|formalizacao|pagina-inicial|proposta-pesquisa/.test(location.pathname)) {   // tela de um cliente anterior / página inicial → menu (nunca F5) — 5.42
             const m = [...document.querySelectorAll('a,button,li,span')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e)));
             if (m) m.click(); await sleep(4000); return;
           }
