@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.70';
+  const VERSAO = '5.71';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4864,6 +4864,11 @@
   // ---- 3. Dados pessoais e endereço
   async function dadosPessoais(f) {
     setv('documento', so(f.cpf));
+    // 5.71 (caso Maria Sandra C6 980035912, 12/11 19:49: gravou MASCULINO — a ficha veio sem sexo e o campo ficou no padrão)
+    try { const e = el('sexo'); if (e) { const sx = (f.sexo || '').trim().toUpperCase(); const fem = /^F/.test(sx) ? true : /^M/.test(sx) ? false : /A$/i.test((f.nome || '').trim().split(/\s+/)[0] || '');
+      const opt = [...e.options].find(o => fem ? /fem/i.test(o.text) : /masc/i.test(o.text));
+      if (opt && e.value !== opt.value) { if ($ && $(e).selectpicker) { $(e).selectpicker('val', opt.value); $(e).trigger('change'); } else { e.value = opt.value; e.dispatchEvent(new Event('change', { bubbles: true })); } }
+      if (opt) log('Sexo: ' + opt.text + (sx ? '' : ' (pelo primeiro nome — a ficha veio sem sexo)')); } } catch (e) {}
     if (!el('dt_emissao').value) setv('dt_emissao', PADRAO.dt_emissao);
     setSelect('estado_civil', 'SOLTEIRO') || setSelect('estado_civil', 'Solteiro');
     const tel = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
