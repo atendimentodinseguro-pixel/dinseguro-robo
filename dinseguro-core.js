@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.03';
+  const VERSAO = '5.04';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -266,6 +266,8 @@
     let ocupadoAuto = false;
     const ninguemMexendo = () => !document.querySelector('.modal.show') && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && document.activeElement.value);
     // ---------- Multicorban
+    // 5.04 (12/11 10:06: Alexandre e Franco presos em "consultando" depois de recarregar a aba): consulta interrompida volta para a fila
+    if (/multicorban\.com/.test(location.host)) setTimeout(() => { try { const O = AO(); let m = false; for (const h in O) { const x = O[h]; if (x && x.estado === 'consultando' && Date.now() - (x.tMc || x.t || 0) > 2 * 60000) { x.estado = 'nova'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' consulta interrompida (aba recarregada) → de novo'); m = true; } } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 4000);
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
       const o = Object.values(AO()).find(x => x.estado === 'nova'); if (!o) return;
