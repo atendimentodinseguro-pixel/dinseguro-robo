@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.82';
+  const VERSAO = '4.83';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -497,6 +497,7 @@
 
       const feito = ler('dins_feito', {});
       const ignorar = ler('dins_ignorar', []);
+      const RESOLV = ler('dins_resolvidos', {});   // 4.83: resolvido pelo robô depois da última mensagem do cliente → não volta para a fila
       const antiga = ler('dins_fila', []);
       const naTela = new Set(itens.map(x => x.id));
       const fila = [];
@@ -507,6 +508,7 @@
         const sig = x.msg ? x.msg.slice(0, 60) : (x.naoLidas > 0 ? '[sem texto] ' + x.naoLidas : '');
         if (feito[x.id] === sig && sig !== '') continue;
         if (feito[x.id] === '' && !x.msg && x.naoLidas === 0) continue;
+        if (RESOLV[x.id] && !(x.naoLidas > 0 && (ler('dins_pend', {})[x.id] || {}).t > RESOLV[x.id])) continue;   // 4.83
         // Chat com atendente humano: também entra na fila quando o cliente está esperando (mandou mensagem e
         // ninguém respondeu) ou quando o atendente só disse que vai verificar/analisar. O vigia decide pelo
         // conteúdo: CPF/simulação/link ele faz; dúvida ou assunto fora do roteiro fica com o humano.
@@ -545,6 +547,7 @@
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
           if (feito[id] === sigQ) continue;
+          if (RESOLV[id] && (+q.ultCliT || 0) <= RESOLV[id]) continue;   // 4.83
           const velhoQ = antiga.find(f => f.id === id);
           fila.push({ id, nome: q.nome || '', msg: '[quadro] ' + String(q.motivo || '').slice(0, 70), sig: sigQ, humano: '', quando: velhoQ ? velhoQ.quando : new Date().toISOString() });
         }
@@ -563,7 +566,7 @@
         const alt = h ? h.getBoundingClientRect().height : 0;
         if (inner && n && alt) listaCompleta = inner.scrollHeight <= n * alt + 5;
       } catch (e) {}
-      if (!listaCompleta) for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id)
+      if (!listaCompleta) for (const f of antiga) if (!naTela.has(f.id) && !fila.some(g => g.id === f.id) && feito[f.id] !== f.sig && !ignorar.includes(f.id) && !(RESOLV[f.id] && new Date(f.quando).getTime() <= RESOLV[f.id])
         && Date.now() - new Date(f.quando).getTime() < 24 * 3600 * 1000) fila.push(f);
       // v3.68 (Stefany 10/11): conversa ABERTA cuja última mensagem é NOSSA (atendente ou bot, fora o aviso de
       // "aguarde um atendente") sai da LISTA. ⛔ Não encerra a conversa. Só vale depois de a mesma conversa ficar
@@ -937,8 +940,18 @@
       if (!d) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', erro: 'ação desconhecida: ' + o.acao })); ultima = id; return; }
       rodando = true; ultima = id;
       const passos = [];
-      const grava = (st, extra) => localStorage.setItem('dins_ordem_status',
+      const grava = (st, extra) => { localStorage.setItem('dins_ordem_status',
         JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
+        // 4.83 (Stefany 11/11 21:58, caso Fernando: "depois que ele responde, ele fica pendente… já fechou, já resolveu, e não coloca como resolvido"):
+        // ordem terminada com sucesso → sai da fila "Esperando atendimento" e o quadro deixa de pedir "responder agora".
+        if (st === 'ok' && o.hash && !/pular|nada/i.test(String(o.acao))) { try {
+          const RS = JSON.parse(localStorage.getItem('dins_resolvidos') || '{}'); RS[o.hash] = Date.now(); localStorage.setItem('dins_resolvidos', JSON.stringify(RS));
+          const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const it = fl.find(f => f.id === o.hash);
+          if (it) { const fe = JSON.parse(localStorage.getItem('dins_feito') || '{}'); fe[o.hash] = it.sig; localStorage.setItem('dins_feito', JSON.stringify(fe)); localStorage.setItem('dins_fila', JSON.stringify(fl.filter(f => f.id !== o.hash))); }
+          const rg = GM_getValue('regua', {}) || {}; const q = rg[o.hash];
+          if (q && ['alerta', 'erro'].includes(q.estado)) { const fechou = passos.some(p => /fechad/i.test(p)); q.estado = fechou ? 'encerrado' : 'acompanhando'; q.motivo = 'resolvido pelo robô (' + o.acao + (fechou ? ', conversa fechada' : '') + ')'; q.lidoT = Date.now(); delete q.cpfSemRespT; delete q.cpfSem; (q.hist = q.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + q.motivo); GM_setValue('regua', rg); }
+          setTimeout(() => { try { desenharQuadro(JSON.parse(localStorage.getItem('dins_fila') || '[]')); } catch (e) {} try { desenharRegua(); } catch (e) {} }, 500);
+        } catch (e) {} } };
       grava('rodando');
       try {
         // 4.22 (Stefany 11/11 07:34, caso Vilmar): se a tela trocar de chat no meio, o desfecho VOLTA para o chat e continua
@@ -1343,7 +1356,11 @@
       if (mapeando || rodando || fupRodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;   // 4.27: não briga com a varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
-      let novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada') || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
+      // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
+      let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
+      let novo = idsDaLista().find(id => !RG()[id] || RG()[id].estado === 'fechada')
+        || FLq.find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
+        || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
       // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
       // e o quadro nunca mais a releu — ficou pedindo "responder agora" 12 h depois. Agora, sem nada novo, o robô RELÊ (abre a conversa)
       // o vermelho cuja última leitura passou de 20 min, um por minuto, o mais velho primeiro. Lida de novo: tag de desfecho (01 I, 02, 03, 07)
@@ -1351,7 +1368,7 @@
       if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
-    }, 60000);
+    }, 30000);   // 4.83: de 60 s para 30 s
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
     setInterval(() => {
       const arq = [...document.querySelectorAll('.customer-item')].filter(ci => /ARCHIVED|Arquivad/i.test(ci.innerText)).map(ci => (ci.parentElement || {}).id).filter(Boolean);
@@ -1374,7 +1391,7 @@
           const sig = t.replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig) { x.listaT = Date.now(); if (x.semLink && x.estado !== 'humano') x.reler = 1; mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
           const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada'].includes(x.estado));
           if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
-            x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)';
+            x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)'; x.reler = 1;   // 4.83: relê para achar CPF
             x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
           } else if (nossa && x.estado === 'alerta' && /\(lista/.test(x.motivo || '')) {
             x.estado = x.estadoAntes || 'acompanhando'; x.motivo = 'respondido'; x.hist.push(hhmm(Date.now()) + ' respondido — saiu do alerta'); mudou = true;
