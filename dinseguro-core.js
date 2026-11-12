@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.65';
+  const VERSAO = '5.66';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -534,7 +534,7 @@
     const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batH = h; batMud = Date.now(); } window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO })); } catch (e) {} };
     batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
     // conversa aberta em OUTRA aba (qualquer papel, inclusive o vigia) → quem vai escrever espera (até 90 s)
-    const chatComOutraAba = h => { const V = abasVivas(); return Object.keys(V).some(k => k !== ABA && V[k].hash === h && Date.now() - V[k].t < 20000 && (['vigia', 'tudo'].includes(V[k].papel) || Date.now() - (+V[k].mud || 0) < 2 * 60000)); };   // robô parado na conversa há 2 min+ não segura ninguém; o vigia segura enquanto estiver nela
+    const chatComOutraAba = h => { const V = abasVivas(); return Object.keys(V).some(k => k !== ABA && V[k].hash === h && Date.now() - V[k].t < 20000 && (Date.now() - (+V[k].mud || 0) < (['vigia', 'tudo'].includes(V[k].papel) ? 10 : 2) * 60000)); };   // robô parado na conversa há 2 min+ não segura ninguém; o vigia segura enquanto estiver nela
     const esperaChatLivre = async h => { for (let i = 0; i < 30; i++) { if (!chatComOutraAba(h)) return true; await new Promise(r => setTimeout(r, 3000)); } return false; };
     window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); batida(); return 'papel desta aba: ' + p; };
     window.dinsFaz = faz;
