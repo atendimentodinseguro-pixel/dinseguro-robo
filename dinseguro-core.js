@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.87';
+  const VERSAO = '4.88';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1405,7 +1405,7 @@
           const id = (ci.parentElement || {}).id; const x = r[id]; if (!x) return;
           const t = ci.innerText || ''; if (/ARCHIVED|Arquivad/i.test(t)) return;
           const nossa = /\b(done_all|check)\b/.test(t);
-          const sig = t.replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig) { x.listaT = Date.now(); if (x.semLink && x.estado !== 'humano') x.reler = 1; mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
+          const sig = t.replace(/Dura[çc][ãa]o:?\s*[\d:]+|\b\d{1,2}:\d{2}(:\d{2})?\b|\b\d+\s*(s|min|h|d)\b|\bAgora\b|\bontem\b/gi, '').replace(/\s+/g, ' ').slice(0, 120); if (x.prevSig && x.prevSig !== sig)   /* 4.88: sem o relógio da lista (mudava todo minuto e marcava TODO MUNDO para reler — o caso Rubi nunca chegava a vez) */ { x.listaT = Date.now(); if (x.semLink && x.estado !== 'humano') x.reler = 1; mudou = true; } if (x.prevSig !== sig) { x.prevSig = sig; mudou = true; }   // 4.13: conversa andou
           const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada'].includes(x.estado));
           if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)'; x.reler = 1;   // 4.83: relê para achar CPF
