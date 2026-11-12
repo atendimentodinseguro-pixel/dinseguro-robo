@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.92';
+  const VERSAO = '4.93';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1379,6 +1379,7 @@
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
       let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
       let novo = idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && Date.now() - (+RG()[id].lidoT || 0) > 30 * M))   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
+        || FLq.find(id => !RG()[id] && id !== 'F20QOEL8YYLQN2S6SR47')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
         || FLq.find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
         || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
       // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
