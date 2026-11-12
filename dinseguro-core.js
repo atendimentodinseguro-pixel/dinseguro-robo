@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.93';
+  const VERSAO = '4.94';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1808,6 +1808,11 @@
         const agora = Date.now();
         const alvos = Object.values(RG()).filter(x => !['fechada', 'cancelada', 'esgotada', 'encerrado', 'concluída'].includes(x.estado) && !x.vencida && (agora - x.linkT < 48 * H || ['humano', 'alerta', 'erro'].includes(x.estado)) && !protegido(x.hash)).map(x => x.hash);
         for (const h of alvos) {
+          // 4.94 (12/11 09:00: conferência das vencidas da manhã segurava a tela e 10 clientes da fila ficavam sem leitura) — quem está esperando passa na frente
+          try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
+            const urg = FL.filter(id => id !== 'F20QOEL8YYLQN2S6SR47' && !protegido(id) && (!RR[id] || RR[id].reler || (+RR[id].listaT || 0) > (+RR[id].lidoT || 0))).slice(0, 2);
+            for (const id of urg) { if (vigiaTrava() || localStorage.getItem('dins_ordem')) break; if (navPega('mapa')) { try { await mapearUm0(id); } catch (e) {} finally { navSolta('mapa'); } } }
+          } catch (e) {}
           let livre = false;
           for (let k = 0; k < 60; k++) { if (!(fupRodando || posRodando || rodando || localStorage.getItem('dins_ordem') || vigiaTrava() || Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) && navPega('vence')) { livre = true; break; } await new Promise(r => setTimeout(r, 3000)); }
           if (!livre) continue;   // 4.46: nunca passa por cima do vigia
