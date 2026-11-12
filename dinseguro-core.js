@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.94';
+  const VERSAO = '4.95';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -138,6 +138,15 @@
   // O telefone da proposta é SEMPRE o WhatsApp do atendimento (o número do chat do Botmaker), nunca o do cadastro do Multicorban.
   // O robô do Botmaker guarda CPF → WhatsApp de cada chat aberto (GM 'zap_por_cpf'); a ficha puxa dali e marca telefone_origem.
   // Sem essa marca, NADA é digitado. Exceção à mão: escrever na ficha  telefone_origem: WhatsApp (conferido pelo vigia)
+  // 4.95 (Stefany 12/11 09:02: "A preferência é do atendimento… a varredura fica em segundo plano. Espera acabar o atendimento, depois reativa a varredura")
+  // Atendimento pendente = cliente da fila que o robô ainda não leu / andou depois da leitura, ordem automática em andamento, ou alerta lido há menos de 30 min.
+  const atendimentoPendente = () => { try {
+    if (localStorage.getItem('dins_ordem')) return true;
+    const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const RR = GM_getValue('regua', {}) || {}; const NM = GM_getValue('nao_mexer', {}) || {}; const AO = GM_getValue('auto_ordens', {}) || {};
+    if (Object.values(AO).some(o => o && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(o.estado) && Date.now() - (o.t || 0) < 40 * 60000)) return true;
+    return FL.some(f => { const id = f.id; if (!id || id === 'F20QOEL8YYLQN2S6SR47' || NM[id]) return false; const q = RR[id]; if (!q) return true; if (q.comQuem) return false;
+      return !!q.reler || (+q.listaT || 0) > (+q.lidoT || 0) || (q.estado === 'alerta' && Date.now() - (+q.lidoT || 0) < 30 * 60000); });
+  } catch (e) { return false; } };
   const zapDoCpf = cpf => { const c = String(cpf || '').replace(/\D/g, ''); const ZM = GM_getValue('zap_por_cpf', {}) || {}; const z = ZM[c] || ZM[c.padStart(11, '0')] || ZM[c.replace(/^0+/, '')];   /* 4.92: CPF com zero na frente (Multicorban mostra sem o zero — caso Ronaldo) */ if (!z || !z.fone) return ''; let t = String(z.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2); return t; };   // 4.05: WhatsApp vem sem o 9 → celular com 9
   function telefoneErrado(f) {
     let t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
@@ -1373,7 +1382,7 @@
     // daqui em diante sozinho: conversa nova na lista entra no quadro (uma por minuto, só com a tela livre)
     let mapeando = false;
     setInterval(async () => {
-      if (mapeando || rodando || fupRodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;   // 4.27: não briga com a varredura
+      if (mapeando || rodando || fupRodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.27: não briga com a varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
@@ -1704,7 +1713,7 @@
     let fupRodando = false;
     async function olharFollowups() {
       if (vigiaTrava()) return;   // 4.54
-      if (fupRodando || rodando || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
+      if (fupRodando || rodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;
       if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
       const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
       // 4.42: o vigia marcava 'ocupado' a cada ação e segurava os toques por 2 min seguidos (caso Dalva/Lu 11/11) — agora 45 s
@@ -1808,6 +1817,7 @@
         const agora = Date.now();
         const alvos = Object.values(RG()).filter(x => !['fechada', 'cancelada', 'esgotada', 'encerrado', 'concluída'].includes(x.estado) && !x.vencida && (agora - x.linkT < 48 * H || ['humano', 'alerta', 'erro'].includes(x.estado)) && !protegido(x.hash)).map(x => x.hash);
         for (const h of alvos) {
+          { const ini = Date.now(); while (atendimentoPendente() && Date.now() - ini < 45 * 60000) await new Promise(r => setTimeout(r, 5000)); }   // 4.95: atendimento primeiro
           // 4.94 (12/11 09:00: conferência das vencidas da manhã segurava a tela e 10 clientes da fila ficavam sem leitura) — quem está esperando passa na frente
           try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
             const urg = FL.filter(id => id !== 'F20QOEL8YYLQN2S6SR47' && !protegido(id) && (!RR[id] || RR[id].reler || (+RR[id].listaT || 0) > (+RR[id].lidoT || 0))).slice(0, 2);
@@ -2133,7 +2143,7 @@
       if (vigiaTrava()) return;   // 4.54
       if (espRodando || fupRodando || posRodando || faseRodando || rodando || localStorage.getItem('dins_ordem')) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
-      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) return;
+      if ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa')) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       let alvo = null, toque = null;
@@ -2558,6 +2568,7 @@
       for (let t = 0; t < 3; t++) {
         while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         // 4.90 (12/11 08:49: 13 clientes novos na fila sem leitura enquanto a varredura das 8h rodava): quem está esperando passa na frente — lê antes de seguir a varredura
+        if (t === 0) { const ini = Date.now(); while (atendimentoPendente() && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
         if (t === 0) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
         if (t === 0) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
           const urg = FL.filter(h => h !== id && h !== 'F20QOEL8YYLQN2S6SR47' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
