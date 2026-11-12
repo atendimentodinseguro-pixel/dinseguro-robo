@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.11';
+  const VERSAO = '5.12';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1056,6 +1056,9 @@
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
         const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
+        // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
+        if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = ((document.querySelector('.entries') || {}).innerText || '').slice(-30000);
+          if (/(^|\D)\d{3}\.?\d{3}\.?\d{3}[-.\s]?\d{2}(\D|$)/.test(tx0)) { passos.push('cliente já mandou o CPF — NÃO pedi de novo'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
         if (o.pularSe && !o.msgFeita) { try { if (new RegExp(o.pularSe, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-20000))) { passos.push('já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); } } catch (e) {} }   // 4.79
         if (o.linha && !o.linhaFeita) { await garante(); passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
@@ -1152,6 +1155,11 @@
             return; } } catch (e) {}
           for (const k in RGv) { const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k]) continue;
+            // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
+            // Sinais: ordem automática para este chat (qualquer estado, 23 h), CPF no mapa CPF→chat, ou CPF/consulta registrados na régua.
+            { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) continue;
+              const ZC = GM_getValue('zap_por_cpf', {}) || {}; if (Object.values(ZC).some(v => v === k || (v && (v.hash === k || v.h === k)))) continue;
+              if (x.cpf || x.temCpf || x.cpfT || x.cpfSemRespT) continue; }
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
             const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
