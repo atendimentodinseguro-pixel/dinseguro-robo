@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.69';
+  const VERSAO = '5.70';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1465,8 +1465,8 @@
     // 4.74 (Stefany 11/11 17:39, caso Maristelcio: "quero que o robô faça ele"): o vigia entrega ao robô um cliente que mandou CPF
     // (ex.: já respondemos "estou analisando" e a ordem automática não nasceu). Mesma ordem tipo 'cpf' do 4.24/4.73: consulta normal
     // (sem flash) → com margem digita no máximo e para em "Pronto". Uso: dinsAutoCpf('HASH', 'CPF', 'Nome').
-    window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
-      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; GM_setValue('auto_ordens', O); return true; };
+    window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite, extra) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
+      O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; if (extra && typeof extra === 'object') Object.assign(O[h], extra); GM_setValue('auto_ordens', O); return true; };   // 5.70: extra = { valorVigia, fone, … }
     window.dinsNaoMexer = (h, on = true) => { const N = GM_getValue('nao_mexer', {}) || {}; if (on) N[h] = Date.now(); else delete N[h]; GM_setValue('nao_mexer', N); return Object.keys(N); };   // 4.79: o robô não manda nada automático nesse chat
     window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
