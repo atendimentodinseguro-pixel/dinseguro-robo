@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.72';
+  const VERSAO = '5.73';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -532,8 +532,8 @@
     const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
       const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
-    let batH = null, batMud = Date.now();
-    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batH = h; batMud = Date.now(); } window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
+    let batH = null, batMud = 0;
+    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
       try { const P = meuPapel(); const pre = P === 'tudo' ? '' : '[' + ({ atendimento: 'ATENDIMENTO', followup: 'FOLLOW-UP', varredura: 'VARREDURA', vigia: 'VIGIA' })[P] + '] '; const t0 = window.top.document.title || ''; const limpo = t0.replace(/\[?[A-Z][A-Z-]{1,11}\] ?/g, '');   /* 5.68: o Botmaker põe 🔔(n) na frente e corta o título — tira qualquer pedaço do rótulo */ if (t0 !== pre + limpo) window.top.document.title = pre + limpo; } catch (e) {}   // 5.67: nome do papel na aba
     } catch (e) {} };
     batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
@@ -1194,6 +1194,7 @@
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
         // 4.22: até 3 tentativas, continuando do passo que faltou (a mensagem não repete)
+        if (/outra aba/.test(e.message || '') && Date.now() - (+o.t0 || (o.t0 = +o.t || Date.now())) < 20 * 60000) { o.t = Date.now(); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e2) {} grava('esperando', { erro: e.message }); ultima = ''; return; }   // 5.73 (caso Vms EHRY6: sem margem 19:32 nunca saiu): conversa aberta em outra aba não gasta tentativa — espera até 20 min
         o.tent = (o.tent || 0) + 1;
         if (o.tent < 3) { o.t = Date.now(); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e2) {} grava('repetindo', { erro: e.message, tent: o.tent }); ultima = ''; log && log('Desfecho parou (' + e.message + ') — tento de novo do ponto que faltou.', 'erro'); }
         else { grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem'); log && log('Desfecho PAROU: ' + e.message, 'erro'); }
