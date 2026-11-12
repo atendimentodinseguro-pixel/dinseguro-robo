@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.95';
+  const VERSAO = '4.96';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1402,7 +1402,7 @@
       if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
-    }, 30000);   // 4.83: de 60 s para 30 s
+    }, 10000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
     setInterval(() => {
       const arq = [...document.querySelectorAll('.customer-item')].filter(ci => /ARCHIVED|Arquivad/i.test(ci.innerText)).map(ci => (ci.parentElement || {}).id).filter(Boolean);
