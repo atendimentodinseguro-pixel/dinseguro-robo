@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.48';
+  const VERSAO = '5.49';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2379,6 +2379,11 @@
     function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
     // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
     // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
+    setInterval(() => { try {   // 5.49: azul sem hora do cliente (nunca lido) → reler
+      const RGx = RG(); let m = false, n = 0;
+      for (const k in RGx) { const x = RGx[k]; if (!x || n >= 5 || !['acompanhando', 'pausada', 'esgotada'].includes(x.estado) || x.reler || protegido(k)) continue;
+        if (!(+x.ultCliT || 0) && Date.now() - (+x.lidoT || 0) > 30 * 60000 && Date.now() - (+x.criadoT || +x.linkT || 0) < 48 * 3600000) { x.reler = 1; m = true; n++; } }
+      if (m) gravaRG(RGx); } catch (e) {} }, 5 * 60000);
     setInterval(() => { try {
       if (localStorage.getItem('dins_ordem') || vigiaTrava()) return; const agora = Date.now(); if (!dentroDoHorario(agora)) return;
       const RGx = RG(); let mR = false;
@@ -2583,6 +2588,17 @@
         const v = vermelhoCalc(x); if (v && !['erro', 'bloqueada', 'alerta'].includes(x.estado)) return v;
         if (x.junto) return (['alerta', 'erro'].includes(x.estado) ? (x.motivo || x.estado) + ' · ⚠ ' : '') + x.junto;
         if (x.comQuem && x.ultLado !== 'cli' && x.semLink) return 'com ' + x.comQuem + ' — mensagem dele(a) é a última';
+        // 5.49 (Stefany 17:28: "16 pessoas naquela fila errado, tem que ser reavaliado"): no azul mostra o PRÓXIMO follow-up
+        // (ou que não há nenhum) e a janela; quem nunca foi lido (sem hora da última mensagem do cliente) é marcado para reler.
+        if (['acompanhando', 'pausada', 'esgotada'].includes(x.estado)) { try {
+          const e = (GM_getValue('espera', {}) || {})[x.hash]; const pq = e && (e.toques || []).filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
+          const jan = (+x.ultCliT || 0) ? Math.round((x.ultCliT + 24 * 3600000 - Date.now()) / 3600000) : null;
+          const jtx = jan === null ? ' · janela: ? (relendo)' : jan <= 0 ? ' · janela FECHADA → varredura' : ' · janela fecha em ' + jan + ' h';
+          const base = (x.motivo || x.estado).replace(/ — .*/, '');
+          if (pq) return base + ' · próximo follow-up ' + pq.q + ' às ' + hhmm(pq.quando) + jtx;
+          if (x.estado === 'esgotada' || (x.link && x.toques && x.toques.every(q => q.feito))) return base + ' · follow-ups do link feitos' + jtx;
+          if (x.estado === 'pausada') return base + ' · retomada automática 2 h depois da nossa última mensagem' + jtx;
+          return base + ' · ⚠ sem follow-up agendado' + jtx; } catch (e) {} }
         if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? (new Date(prox.quando).toDateString() === new Date().toDateString() ? 'hoje 08:00' : 'amanhã 08:00') : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
         if (atras(x)) return 'toque atrasado';
         return (x.semLink ? '' : x.estado + ' · ') + (x.motivo || x.estado);
