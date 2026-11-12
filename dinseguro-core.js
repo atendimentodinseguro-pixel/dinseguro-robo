@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.20';
+  const VERSAO = '5.21';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1082,7 +1082,9 @@
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
         try { if (window.dinsEsperaTirar) window.dinsEsperaTirar(o.hash); } catch (e) {}   // 4.70 (caso Nilva 15:43): desfecho cancela também o follow-up de CPF/simulação
-        try { window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
+        // 5.21 (Stefany 12/11 11:57, casos Alexandre e Marcelo: responderam depois do link e ninguém viu): link/mensagem de fase/pedido de CPF NÃO encerram a régua —
+        // a régua do link continua e a resposta do cliente volta para "Responder agora". Só desfecho final (sem margem, 07, LOAS, fecha…) cancela.
+        try { if (!['sim_link', 'fase_msg', 'pedir_cpf', 'anuncio_sem_bot', 'so_tag'].includes(o.acao)) window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
         localStorage.removeItem('dins_ordem');  // 3.76: ordem cumprida não roda de novo quando a aba recarrega
         log && log('Desfecho ' + o.acao + ' concluído: ' + passos.join(' · '), 'ok');
       } catch (e) {
@@ -1345,6 +1347,9 @@
     };
     // ajustes manuais (vigia/Stefany): nome real, pausar, retomar, cancelar
     window.dinsReguaNome = (hash, nome) => { const r = RG(); if (r[hash]) { r[hash].nome = nome; gravaRG(r); desenharRegua(); } return !!r[hash]; };
+    // 5.21: desfaz o cancelamento errado (régua cancelada por 'desfecho sim_link/fase_msg/pedir_cpf' nas últimas 48 h) → volta a acompanhar e relê
+    try { const r0 = RG(); let m0 = false; for (const k in r0) { const x = r0[k]; if (x && x.estado === 'cancelada' && /^desfecho (sim_link|fase_msg|pedir_cpf|anuncio_sem_bot|so_tag)$/.test(x.motivo || '') && Date.now() - (+x.linkT || +x.criadoT || 0) < 48 * 3600000) {
+      x.estado = x.link ? 'ativa' : 'acompanhando'; x.motivo = 'reaberta (5.21): o link não encerra a régua'; x.reler = 1; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' reaberta 5.21'); m0 = true; } } if (m0) gravaRG(r0); } catch (e) {}
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     // 4.59 (Stefany 13:22, caso Jairo): retomar a régua depois de reenviar o link disparava na hora o toque de 10 min que estava
     // vencido desde a manhã ("Conseguiu acessar?" 1 min depois do link). Agora retomar RECOMEÇA a contagem a partir de agora.
