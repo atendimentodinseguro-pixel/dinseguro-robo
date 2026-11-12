@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.73';
+  const VERSAO = '5.74';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1388,7 +1388,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'loas_com', t: Date.now(), nota, texto: DESFECHOS.loas_com.texto.replace('{NOME}', pn).replace('Oi, ! ', 'Oi! ') }));
           } else {
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
-          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)) }));
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)), nome: o.nome || '', fone: o.fone || (((GM_getValue('regua', {}) || {})[o.hash]) || {}).fone || '' }));   // 5.74: nome/fone na ordem (caso Vms: painel 'V.m.d.' ≠ lista 'Vms' → o sem margem nunca saiu)
           }
           o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
         }
