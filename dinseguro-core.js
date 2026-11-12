@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.98';
+  const VERSAO = '4.99';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -522,6 +522,7 @@
         if (feito[x.id] === sig && sig !== '') continue;
         if (feito[x.id] === '' && !x.msg && x.naoLidas === 0) continue;
         if (RESOLV[x.id] && !(x.naoLidas > 0 && (ler('dins_pend', {})[x.id] || {}).t > RESOLV[x.id])) continue;   // 4.83
+        { const q0 = (GM_getValue('regua', {}) || {})[x.id]; if (q0 && ['encerrado', 'concluída', 'fechada', 'cancelada', 'esgotada'].includes(q0.estado) && !(x.naoLidas > 0 && (ler('dins_pend', {})[x.id] || {}).t > (+q0.lidoT || 0))) continue; }   // 4.99: atendimento encerrado não volta para a fila (só se o cliente escrever de novo)
         // Chat com atendente humano: também entra na fila quando o cliente está esperando (mandou mensagem e
         // ninguém respondeu) ou quando o atendente só disse que vai verificar/analisar. O vigia decide pelo
         // conteúdo: CPF/simulação/link ele faz; dúvida ou assunto fora do roteiro fica com o humano.
@@ -562,6 +563,7 @@
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
           if (feito[id] === sigQ) continue;
           if (RESOLV[id] && (+q.ultCliT || 0) <= RESOLV[id]) continue;   // 4.83
+          if (['encerrado', 'concluída', 'fechada', 'cancelada', 'esgotada'].includes(q.estado)) continue;   // 4.99
           const velhoQ = antiga.find(f => f.id === id);
           fila.push({ id, nome: q.nome || '', msg: '[quadro] ' + String(q.motivo || '').slice(0, 70), sig: sigQ, humano: '', quando: velhoQ ? velhoQ.quando : new Date().toISOString() });
         }
@@ -1409,7 +1411,7 @@
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
       let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
-      let novo = idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && Date.now() - (+RG()[id].lidoT || 0) > 30 * M))   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
+      let novo = idsDaLista().find(id => !RG()[id] || (RG()[id].estado === 'fechada' && RG()[id].reler))   /* 4.99 (Stefany 12/11 09:28: "atendimentos já encerrados não precisa ele olhar"): fechada só volta a ser lida se a conversa andou */   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
         || FLq.find(id => !RG()[id] && id !== 'F20QOEL8YYLQN2S6SR47')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
         || FLq.find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
         || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
