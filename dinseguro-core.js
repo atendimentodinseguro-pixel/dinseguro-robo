@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.55';
+  const VERSAO = '5.56';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2404,10 +2404,15 @@
       const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
       for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
         const ehCpf = /pedimos o CPF/i.test(x.motivo || ''), ehDuv = /aguardando o cliente/i.test(x.motivo || '');   // 5.47: dúvida respondida também
-        if (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem))) continue;
+        const lembrar = DEPOIS.test(x.ultCliTxt || '') && ['acompanhando', 'alerta', 'pausada', 'esgotada'].includes(x.estado);   // 5.56
+        if (!lembrar && (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem)))) continue;
+        if (DEPOIS.test(x.ultCliTxt || '')) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
+          const qd = horaDita(x.ultCliTxt); if (qd && qd > agora && (!(+x.ultCliT) || qd < x.ultCliT + 23.5 * H)) {
+            o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'lembrete', base: String(x.ultCliTxt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: qd, feito: 0 }], origem: 'régua 5.56' }; m = true;
+            try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.56: cliente disse "' + String(x.ultCliTxt).slice(0, 40) + '" → lembrete ' + new Date(qd).toLocaleString('pt-BR').slice(0, 17)); } catch (e) {} }
+          continue; }
         if (x.link && !x.semLink) continue;
         if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
-        if (DEPOIS.test(x.ultCliTxt || '')) continue;   // "depois eu vejo" → lembrete (registrado com a conversa aberta)
         if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) continue;   // 5.52: disse ao bot que não é do INSS
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
         const tipoR = ehCpf ? 'cpf' : 'duvida';
