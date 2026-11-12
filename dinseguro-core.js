@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.46';
+  const VERSAO = '5.47';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2334,7 +2334,7 @@
       if (!tipo) return;
       { const hh = (ESP_H()[hash] || {})[tipo]; if (hh && agora - hh < 36 * H) return; }   // 4.61: já teve a sequência deste tipo
       const t0 = L.ult.t && L.ult.t <= agora ? L.ult.t : agora;
-      const toques = novaSequencia(tipo, t0);
+      const toques = novaSequencia(tipo, t0, (L.ultCli && L.ultCli.t) || 0);
       o[hash] = { hash, nome, tipo, t0, toques }; gravaESP(o);
       // 4.49 (Stefany 11:52, cliente 62 8153-5140): pedimos o CPF à mão e o chat ficou SEM tag. Padrão: mensagem pessoal + 01 C (sem /n23 — Stefany 12:01).
       // Pedido de CPF registrado e nenhuma tag de situação (01/02/03/07) → robô só põe a 01 C.
@@ -2356,16 +2356,26 @@
     setInterval(() => { try {
       const o = ESP(); const RGx = RG(); const agora = Date.now(); let m = false;
       for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
-        if (x.estado !== 'acompanhando' || !/pedimos o CPF/i.test(x.motivo || '') || x.ultLado !== 'nos' || x.temCpf || x.cpfSem) continue;
+        const ehCpf = /pedimos o CPF/i.test(x.motivo || ''), ehDuv = /aguardando o cliente/i.test(x.motivo || '');   // 5.47: dúvida respondida também
+        if (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem))) continue;
         if (x.link && !x.semLink) continue;
+        if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
+        if (DEPOIS.test(x.ultCliTxt || '')) continue;   // "depois eu vejo" → lembrete (registrado com a conversa aberta)
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
-        { const hh = (ESP_H()[k] || {}).cpf; if (hh && agora - hh < 36 * H) continue; }
+        const tipoR = ehCpf ? 'cpf' : 'duvida';
+        { const hh = (ESP_H()[k] || {})[tipoR]; if (hh && agora - hh < 36 * H) continue; }
+        if (tipoR === 'duvida' && localStorage.getItem('dins_f3_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera DÚVIDA pela régua (última nossa ' + hhmm(t0) + ')' }); continue; }
         if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera CPF pela régua (pedido ' + hhmm(t0) + ')' }); continue; }
-        o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'cpf', t0, toques: novaSequencia('cpf', t0), origem: 'régua 5.38' }; m = true;
-        try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.38: espera de CPF registrada pela régua (pedido às ' + hhmm(t0) + ')'); } catch (e) {}
+        o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: tipoR, t0, temCpf: !!x.temCpf, toques: novaSequencia(tipoR, t0, +x.ultCliT || 0), origem: 'régua 5.47' }; m = true;
+        try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.47: espera de ' + (tipoR === 'cpf' ? 'CPF' : 'dúvida') + ' registrada pela régua (nossa última ' + hhmm(t0) + ')'); } catch (e) {}
       }
       if (m) { gravaESP(o); gravaRG(RGx); }
     } catch (e) {} }, 120000);
+    setTimeout(() => { try { const o = ESP(); const RGx = RG(); let m = false;
+      for (const k in o) { const x = o[k]; if (!x || !['cpf', 'simulacao'].includes(x.tipo)) continue;
+        (x.toques || []).forEach(q => { if (!q.feito && ['3h', '08h2'].includes(q.q)) { q.feito = Date.now(); q.st = 'tirado (5.47: Stefany 17:22)'; m = true; } });
+        if (!(x.toques || []).some(q => q.q === 'janela')) { const qj = horaJanela(+((RGx[k] || {}).ultCliT) || 0); if (qj && qj > Date.now()) { x.toques.push({ q: 'janela', quando: qj, feito: 0 }); m = true; } } }
+      if (m) gravaESP(o); } catch (e) {} }, 15000);
     function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
     // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
     // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
@@ -2387,17 +2397,27 @@
       }
       if (mR) gravaRG(RGx);
     } catch (e) {} }, 60000);
-    function novaSequencia(tipo, t0) {   // 5.38
+    // 5.47 (Stefany 12/11 17:22): sequência de quem está "aguardando o cliente" = 1 h depois · 08:00 do dia seguinte ·
+    // aviso de final de janela 1 h antes de completar 24 h da última mensagem do CLIENTE (7.8, nunca depois das 21h) · depois a varredura.
+    // Vale para pedido de CPF, simulação e dúvida respondida (o 3 h e o 08h D+2 do CPF saíram).
+    function horaJanela(ultCliT) { if (!ultCliT) return 0; let q = ultCliT + 23 * H; const d = new Date(q);
+      if (d.getHours() >= 21) { d.setHours(20, 45, 0, 0); q = d.getTime(); } else if (d.getHours() < 8) { d.setDate(d.getDate() - 1); d.setHours(20, 45, 0, 0); q = d.getTime(); }
+      return q; }
+    function novaSequencia(tipo, t0, ultCliT) {   // 5.38 / 5.47
       const manha = dias => { const d = new Date(t0); d.setDate(d.getDate() + dias); d.setHours(8, 0, 0, 0); return d.getTime(); };
       if (tipo === 'doc') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }];
-      if (tipo === 'cpf') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '3h', quando: t0 + 180 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }, { q: '08h2', quando: manha(2), feito: 0 }];
-      return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }];
+      const seq = [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }];
+      const qj = horaJanela(ultCliT); if (qj && qj > t0 + 90 * M) seq.push({ q: 'janela', quando: qj, feito: 0 });
+      return seq.sort((a, b) => a.quando - b.quando);
     }
+    const TXT_JANELA = n => `${n ? n + ', e' : 'E'}stou passando só para avisar de uma coisa daqui do sistema 😊\n\nO nosso atendimento por aqui se encerra automaticamente daqui a pouco, e depois disso eu não consigo mais te responder nesta conversa.\n\nSe ainda quiser tirar qualquer dúvida ou continuar, é só me mandar uma mensagem — qualquer palavra já mantém a conversa aberta.\n\nSe preferir deixar para depois, sem problema nenhum: eu te procuro pelo WhatsApp mais para a frente 💛`;
     const TXT_ESP = {
       cpf: { '1h': n => `${n ? n + ', t' : 'T'}udo bem? 😊 Ficou faltando só o número do seu CPF para eu consultar o valor que você consegue liberar. Pode me mandar aqui mesmo, só os números.`,
              '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
              '08h2': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
+      duvida: { '1h': (n, l, a) => a && a.temCpf ? `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.` : `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Se quiser, me manda o seu CPF (só os números) que eu já consulto o valor que você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
+                '08h': (n, l, a) => a && a.temCpf ? `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
       simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
                    '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
       doc: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu tirar a foto do documento? 😊 Assim que você mandar aqui, eu já sigo com a sua proposta. Se tiver qualquer dificuldade, me fala que eu te ajudo.` },
@@ -2444,8 +2464,8 @@
         // 4.60: o nome do chat aberto tem que ser o do registro (Josias ≠ Lu Andrade)
         { const nt = (nomeDoContato() || '').trim().toLowerCase(), na = (alvo.nome || '').trim().toLowerCase();
           if (na && nt && nt.split(' ')[0] !== na.split(' ')[0]) throw new Error('nome do chat (' + nt + ') não é o do registro (' + na + ')'); }
-        const f = (TXT_ESP[alvo.tipo] || {})[toque.q]; if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
-        await mensagemLivre(f(n, temLink));
+        const f = (TXT_ESP[alvo.tipo] || {})[toque.q] || (toque.q === 'janela' ? TXT_JANELA : null); if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
+        await mensagemLivre(f(n, temLink, alvo));
         marcaQ({ feito: Date.now() }, 'enviado ' + hhmm(Date.now()));
         marcaHistESP(alvo.hash, alvo.tipo);   // 4.61
         try { const r2 = RG(); if (r2[alvo.hash]) { r2[alvo.hash].hist.push(hhmm(Date.now()) + ' follow-up ' + alvo.tipo + ' ' + toque.q + ' enviado'); gravaRG(r2); } } catch (e) {}
