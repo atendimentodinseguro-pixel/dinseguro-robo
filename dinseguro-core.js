@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.16';
+  const VERSAO = '5.17';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -425,11 +425,12 @@
       const f = GM_getValue('ficha_atual', null);
       if (!f || String(f.cpf).replace(/\D/g, '').replace(/^0+/, '') !== o.cpf.replace(/^0+/, '')) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
       ocupadoAuto = true; poeAO(o.hash, { estado: 'digitando' });
+      if (o.tipo === 'cpf' && !o.aceite && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
         const antes = logRobo().length;
         car.click(); await zz(2500); dig.click();
         let fim = null;
-        for (let i = 0; i < 160 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon/i.test(l)); }
+        for (let i = 0; i < 160 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon|NÃO gravar|PAROU/i.test(l)); }   // 5.17: 'NÃO gravar' também encerra
         if (!fim) throw new Error('a digitação não terminou em 4 min');   // 5.13 (caso Josias TYK97: 90 s era pouco)
         const m = /Pronto \(liberado R\$ ([\d.,]+)\)/.exec(fim);
         if (!m) throw new Error(fim.replace(/^\d\d:\d\d /, '').slice(0, 160));
@@ -4491,6 +4492,9 @@
       else if (vale(tela.banco) && tela.conta) { banco = tela.banco; agRaw = tela.agencia; contaCheia = tela.conta + tela.dv; origemConta = 'New Corban (auto-complete)'; }
       else if (vale(so(f.banco))) { banco = so(f.banco); agRaw = so(f.agencia); contaCheia = ''; origemConta = 'ficha, sem conta'; }
       else if (vale(tela.banco)) { banco = tela.banco; agRaw = tela.agencia; contaCheia = ''; origemConta = 'New Corban, sem conta'; }
+      // 5.17 (REGRA-CONTA-BANCARIA §2, caso Josias 12/11): nem o banco em lugar nenhum + cliente AINDA NÃO ACEITOU (ordem automática de simulação + link)
+      // → Caixa 104 / 3880 / 111113-1 poupança direto, sem pedir conta. Quem já aceitou continua: /08 + 30 min.
+      else if (f.aleatoria_ok) { banco = '104'; agRaw = '3880'; contaCheia = '1111131'; origemConta = 'aleatória Caixa (sem banco em lugar nenhum; ainda não aceitou)'; log && log('Sem banco em lugar nenhum e ainda não aceitou → Caixa 104 / 3880 / 111113-1 (aleatória).'); }
       else throw new Error('Cliente SEM BANCO: NÃO gravar. Confira o FullConsig (banco "V8" não vale). Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
       banco = banco.padStart(3, '0');
       let agencia = agOk(agRaw);
