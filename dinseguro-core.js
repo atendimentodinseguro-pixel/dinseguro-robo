@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.32';
+  const VERSAO = '5.33';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1111,7 +1111,7 @@
     const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
     setInterval(() => {
       try {
-        if (rodando || localStorage.getItem('dins_ordem') || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !(Date.now() - (+localStorage.getItem('dins_varre_livre') || 0) < 12000))) return;   // 4.90: no intervalo da varredura (dins_varre_livre) as respostas do robô saem
+        if (rodando || localStorage.getItem('dins_ordem') || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !(Date.now() - (+localStorage.getItem('dins_varre_livre') || 0) < 12000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.90: no intervalo da varredura (dins_varre_livre) as respostas do robô saem
         if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
         const O = GM_getValue('auto_ordens', {}) || {};
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
