@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.89';
+  const VERSAO = '4.90';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1000,7 +1000,7 @@
     const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
     setInterval(() => {
       try {
-        if (rodando || localStorage.getItem('dins_ordem') || (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000)) return;
+        if (rodando || localStorage.getItem('dins_ordem') || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !(Date.now() - (+localStorage.getItem('dins_varre_livre') || 0) < 12000))) return;   // 4.90: no intervalo da varredura (dins_varre_livre) as respostas do robô saem
         if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
         const O = GM_getValue('auto_ordens', {}) || {};
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
@@ -1336,6 +1336,7 @@
     const navPega = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem !== quem && Date.now() - n.t < 3 * M && !(n.quem === 'mapa' && quem !== 'mapa')) return false;   /* 4.41: mapear é o menos importante — toque, pós e fechador passam na frente */ localStorage.setItem('dins_nav', JSON.stringify({ quem, t: Date.now() })); return true; } catch (e) { return true; } };
     const navSolta = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem === quem) localStorage.removeItem('dins_nav'); } catch (e) {} };
     async function mapearUm(id) { if (!navPega('mapa')) return false; try { return await mapearUm0(id); } finally { navSolta('mapa'); } }
+    window.__dinsMapear0 = id => mapearUm0(id);   // 4.90: a varredura chama para quem chegou na fila no meio dela
     async function mapearUm0(id) {
       if (vigiaTrava()) return false;   // 4.54
       if (vigiaTrabalhando()) return false;
@@ -2546,6 +2547,12 @@
     async function abrirHash(id) {
       for (let t = 0; t < 3; t++) {
         while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
+        // 4.90 (12/11 08:49: 13 clientes novos na fila sem leitura enquanto a varredura das 8h rodava): quem está esperando passa na frente — lê antes de seguir a varredura
+        if (t === 0) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
+        if (t === 0) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
+          const urg = FL.filter(h => h !== id && h !== 'F20QOEL8YYLQN2S6SR47' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
+          for (const h of urg) { marcaVarrendo(); try { if (window.__dinsMapear0) await window.__dinsMapear0(h); } catch (e) {} marcaVarrendo(); await esp(1500); }
+        } catch (e) {} }
         window.top.location.hash = '#/chats/' + id; await esp(6000);
         for (let i = 0; i < 8 && !telaPronta(id); i++) await esp(1500);
         if (window.top.location.hash === '#/chats/' + id && document.querySelector('.entries') && telaPronta(id)) return true;
