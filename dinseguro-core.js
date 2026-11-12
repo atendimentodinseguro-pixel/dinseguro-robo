@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.84';
+  const VERSAO = '4.85';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1369,6 +1369,10 @@
       // o vermelho cuja última leitura passou de 20 min, um por minuto, o mais velho primeiro. Lida de novo: tag de desfecho (01 I, 02, 03, 07)
       // vira "encerrado" e sai do vermelho; cliente que falou continua vermelho.
       if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      // 4.85 (caso Rubi): "no bot (autoatendimento)" não é relido sozinho (não é vermelho) → quem parou no bot há 10 min+ é relido a cada 10 min (até 23 h),
+      // para o robô ver que parou sem CPF e mandar o pedido de CPF.
+      if (!novo) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && /no bot \(autoatendimento\)/.test(x.motivo || '') && x.estado === 'acompanhando' && !protegido(x.hash)
+          && ag - (+x.ultCliT || 0) >= 10 * M && ag - (+x.ultCliT || 0) < 23 * H && ag - (+x.lidoT || 0) > 10 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 30000);   // 4.83: de 60 s para 30 s
