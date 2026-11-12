@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.00';
+  const VERSAO = '5.01';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2285,7 +2285,7 @@
         // 4.24 (Stefany 11/11 08:17 "a 1 é fantástico, vamos aplicar"): CPF mandado sem resposta → o robô consulta sozinho no Multicorban.
         // Sem margem (margem < R$ 20, INSS ou LOAS) → linha cordial + /n30 + tag + nota + fechar, sem o vigia. O resto fica para o vigia.
         for (const x of lista) {
-          if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 3 * H) continue;
+          if (x.estado !== 'alerta' || !x.semLink || !x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H) continue;   // 5.01 (12/11: CPF das 02:18 ficava sem ordem — atendimento é 24 h): janela de 3 h → 23 h
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
           O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
           mudouO = true;
