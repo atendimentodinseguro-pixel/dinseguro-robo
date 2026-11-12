@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.49';
+  const VERSAO = '5.50';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -952,7 +952,26 @@
     }
 
     // 3. tag (a caixa de busca tem id "addtag")
+    // 5.50 (Stefany 12/11 17:30): REGRA DAS TAGS — 01 C + informou CPF/tem proposta → tira 01 C, põe 01 A · 01 A + assinou → tira 01 A, põe 01 D ·
+    // 01 D + contratou e sobrou margem → mantém 01 D + 01 J · 01 D + margem acabou → mantém 01 D + 01 k. Retorno dado (01 I/k, 02, 03, 07) também tira a 01 C.
+    async function tirarTag(re) {
+      const chips = [...document.querySelectorAll('.MuiChip-root')].filter(c => vis(c) && re.test(((c.querySelector('.MuiChip-label') || {}).textContent || '').trim()) && c.querySelector('.MuiChip-deleteIcon'));
+      const tirou = [];
+      for (const c of chips) { const nm = ((c.querySelector('.MuiChip-label') || {}).textContent || '').trim(); clicar(c.querySelector('.MuiChip-deleteIcon')); await esp(1500);
+        const ok = await ate(() => [...document.querySelectorAll('button')].filter(vis).find(b => /^(Sim|Confirmar|Remover|Excluir|OK)$/i.test(txt(b))), 2500); if (ok) { clicar(ok); await esp(1500); }
+        tirou.push(nm); }
+      await fecharMenus(); return tirou;
+    }
     async function addTag(nome) {
+      const r = await addTag0(nome);
+      try { const t = String(nome); let tirou = [];
+        if (/^01 A/i.test(t) || /^01 (I|k)/i.test(t) || /^0[237]/.test(t)) tirou = tirou.concat(await tirarTag(/^01 C\b/i));
+        if (/^01 D/i.test(t)) tirou = tirou.concat(await tirarTag(/^01 [AC]\b/i));
+        if (tirou.length) return r + ' (tirei: ' + tirou.join(', ') + ')'; } catch (e) {}
+      return r;
+    }
+    async function addTag0(nome) {
+      const prefixo = /\*$/.test(nome); nome = nome.replace(/\*$/, '');
       if (new RegExp(nome.slice(0, 12).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(areaTags())) return nome + ' (já tinha)';
       const mais = maisDe(/^Tags$/);
       if (!mais) throw new Error('botão + das Tags não encontrado');
@@ -961,7 +980,7 @@
       if (!campo) throw new Error('caixa de tag não abriu');
       campo.focus(); setNativo(campo, nome.slice(0, 11));
       const op = await ate(() => [...document.querySelectorAll('li,[role=option]')]
-        .filter(vis).find(o => txt(o) === nome), 10000);
+        .filter(vis).find(o => prefixo ? txt(o).startsWith(nome) : txt(o) === nome), 10000);
       if (!op) {
         const ops = [...document.querySelectorAll('li,[role=option]')].filter(vis).map(txt).slice(0, 8).join(' / ');
         await fecharMenus();
@@ -1194,6 +1213,24 @@
             const dd = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: (x.hash && /^[A-Z0-9]{16,}$/i.test(x.hash)) ? x.hash : k, acao: 'pedir_cpf', quem: 'robo', t: Date.now(), texto, nota: dd + ' ' + hhmm(Date.now()) + ' [robô 4.78] parou no bot sem CPF às ' + hhmm(x.semCpfT) + (val ? ' (simulou R$ ' + val + ')' : '') + ' → pedi o CPF + 01 C.' }));
             PC[k] = Date.now(); for (const q in PC) if (Date.now() - PC[q] > 7 * 864e5) delete PC[q]; GM_setValue('pedir_cpf_feito', PC); return;
+          }
+        } catch (e) {}
+        // 5.50 AUDITORIA DAS TAGS (Stefany 12/11 17:30, caso Douglas: tinha proposta e estava com 01 C) — conversa lida nos últimos 30 min:
+        //  01 C e já tem proposta/consulta com margem → 01 A (tira a 01 C) · 01 A e já assinou (esteira) → 01 D (tira a 01 A). Uma vez a cada 2 h.
+        try {
+          const RGt = GM_getValue('regua', {}) || {}; const AOt = GM_getValue('auto_ordens', {}) || {}; const TA = GM_getValue('tag_audit', {}) || {}; const ag = Date.now();
+          for (const k in RGt) { const x = RGt[k]; if (!x || !Array.isArray(x.tags01) || protegido(k) || x.comQuem || ag - (+x.lidoT || 0) > 30 * 60000) continue;
+            if (TA[k] && ag - TA[k] < 2 * 3600000) continue;
+            const tem = re => x.tags01.some(t => re.test(t)); let nova = '';
+            const ao = AOt[k]; const comProposta = (x.link && !x.semLink) || (ao && ['com_margem', 'link', 'link_enviado', 'feito', 'gravada', 'pronto'].includes(ao.estado));
+            let fe = null; try { fe = faseEsteira(x); } catch (e) {}
+            if (tem(/^01 A/i) && fe && !['não assinou', 'andamento', 'recusada'].includes(fe.fase) && !tem(/^01 D/i)) nova = '01 D - Inss Fechou*';
+            else if (tem(/^01 C/i) && comProposta && !tem(/^01 (A|D)/i)) nova = '01 A - Inss Com Margem - SEM 87 E 88';
+            else if (tem(/^01 C/i) && tem(/^01 (A|D|I|k)|^0[237]/i)) nova = (x.tags01.find(t => /^01 (A|D|I|k)|^0[237]/i.test(t)) || '');   // sobrou a 01 C junto com outra → reaplica a outra (tira a 01 C)
+            if (!nova) continue;
+            TA[k] = ag; GM_setValue('tag_audit', TA);
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'so_tag', quem: 'robo', t: ag, tags: [nova], msgFeita: 1, linhaFeita: 1, nota: String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0') + ' ' + hhmm(ag) + ' [robô 5.50] tags: ' + x.tags01.join(', ') + ' → ' + nova.replace(/\*$/, '') + ' (regra das tags da Stefany).' }));
+            return;
           }
         } catch (e) {}
         // 5.37 FASE 1 — CLIENTE ESPERANDO ATENDENTE (Stefany 12/11 15:46–16:34, casos Genivaldo 10:19, Ester 12:35, Teresa, Menezes):
@@ -1439,7 +1476,9 @@
     // 3.95 — TODA conversa da janela de 24h entra no quadro (Stefany 10/11 15:14: "não vai entrar só em quem tem link…
     // ele tem que estar lá e tem que estar mensurado… a gente fez as tentativas que cabia para ele").
     // Sem link: entra como 'acompanhando' com a situação lida da conversa (tags, quem falou por último, atendente).
-    function classificar() {
+    // 5.50: guarda também as tags de situação (01 A/C/D/I/J/k, 02, 03, 07) para a auditoria de tags
+    function classificar() { const c = classificar0(); try { c.tags01 = [...document.querySelectorAll('.MuiChip-label')].map(e => (e.textContent || '').trim()).filter(t => /^0\d/.test(t)); } catch (e) {} return c; }
+    function classificar0() {
       const T = document.body.innerText;
       const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
       const tem = re => tags.some(t => re.test(t));
@@ -1508,13 +1547,13 @@
       const c = classificar();
       r[hash] = { hash, criadoT: Date.now(), fone: foneDoContato(), nome: nomeDoContato(), link: '', linkT: Date.now(), semLink: true,
         estado: c.estado, motivo: c.motivo, toques: [], tent: 0, lidoT: Date.now(), hist: [hhmm(Date.now()) + ' mapeado: ' + c.motivo] };
-      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
+      ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c) r[hash][k] = c[k]; });
       gravaRG(r); return true;
     }
     function reclassificar(hash) {        // conversa aberta de novo: atualiza a situação de quem não tem régua de link
       if (!telaPronta(hash)) return;
       const r = RG(), x = r[hash]; if (!x || !(x.semLink || x.estado === 'alerta')) return;   // 5.14 (caso Odila 80WW: alerta de 07:55 ficou preso depois da nossa resposta 09:11) — alerta também é relido
-      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
+      const c = classificar(); let mud = false; x.lidoT = Date.now(); ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c && JSON.stringify(x[k]) !== JSON.stringify(c[k])) { x[k] = c[k]; mud = true; } });
       const est = (!x.semLink && c.estado !== 'alerta' && x.link) ? 'ativa' : c.estado;   // conversa com link: alerta resolvido volta para a régua do link
       if (est !== x.estado || c.motivo !== x.motivo) { x.estado = est; x.motivo = c.motivo; x.hist.push(hhmm(Date.now()) + ' ' + c.motivo); mud = true; }
       gravaRG(r); if (mud) desenharRegua();
@@ -1581,7 +1620,7 @@
         if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
       const x = RG()[id];
       // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
-      if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
+      if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink || x.estado === 'alerta') { try { reclassificar(id); } catch (e) {} }   // 5.14
@@ -2085,7 +2124,7 @@
     window.dinsPosVer = () => Object.values(POS()).map(x => ({ nome: x.nome, hash: x.hash, estado: x.estado || '', extra: x.extra ? (x.extraOfereceu ? 'oferecido ' : 'sem valor ') + hhmm(x.extra) : (x.verExtra ? 'VER VALOR EXTRA desde ' + hhmm(x.verExtra) : ''), t22: hhmm(x.t22), w40: x.w40 ? hhmm(x.w40) : '', p102: x.p102 ? hhmm(x.p102) : '', video: x.tVideo ? hhmm(x.tVideo) + (x.videoPerg ? ' → perguntado ' + hhmm(x.videoPerg) : '') : '', erro: x.erro || '' }));
     window.dinsPosExtra = (hash, ofereceu) => { const o = POS(), x = o[hash]; if (!x) return false; x.extra = Date.now(); x.extraOfereceu = !!ofereceu; x.hist.push(hhmm(Date.now()) + (ofereceu ? ' valor extra oferecido — /W40 quando responder (ou 30 min)' : ' sem valor extra — /W40 agora')); gravaPOS(o);
       // 4.37 (Stefany 10:19): "todo cliente que fez proposta com a gente, recebeu e ainda sobrou margem → tag 01 J"
-      if (ofereceu && !localStorage.getItem('dins_ordem')) try { localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao: 'so_tag', tags: ['01 J Tem Margem Rodar Disparo'], t: Date.now() })); } catch (e) {}
+      if (!localStorage.getItem('dins_ordem')) try { localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao: 'so_tag', tags: [ofereceu ? '01 J Tem Margem Rodar Disparo' : '01 k SEM Margem Nao Rodar Whats'], t: Date.now() })); } catch (e) {}   // 5.50: sem margem que sobrou → 01 D + 01 k
       return true; };
     window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
     window.dinsReguaSemLinkComLink = () => Object.values(RG()).filter(x => x.semLink && /^01 A sem link/.test(x.motivo || '')).map(x => ({ hash: x.hash, nome: x.nome }));
