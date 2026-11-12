@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.21';
+  const VERSAO = '5.22';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -780,7 +780,10 @@
     const nomeDoPainel = () => ((document.body.innerText || '').match(/\bNome\s*\n\s*([^\n]+)/) || [])[1] || '';
     const soDig = v => String(v || '').replace(/\D/g, '');
     async function confereChat(hash) {
-      const q = (GM_getValue('regua', {}) || {})[hash] || {};
+      const q = Object.assign({}, (GM_getValue('regua', {}) || {})[hash] || {});
+      // 5.22 (caso Teresa 12/11: régua sem telefone nem nome → 'painel: ?'): completa com o nome da fila ou da lista de conversas
+      if (!soDig(q.fone) && !q.nome) { try { const it = JSON.parse(localStorage.getItem('dins_fila') || '[]').find(f => f.id === hash); if (it && it.nome) q.nome = it.nome;
+        if (!q.nome) { const li = document.getElementById(hash); const nm = li && (li.querySelector('.customer-name, [class*=name]') || {}).innerText; if (nm) q.nome = nm.trim(); } } catch (e) {} }
       const fEsp = soDig(q.fone);
       const ok = await ate(() => { const f = soDig(foneDoPainel()); if (fEsp) return f && (f === fEsp || f.slice(-10) === fEsp.slice(-10));
         const n = nomeDoPainel(); return n && q.nome && n.trim().toLowerCase() === String(q.nome).trim().toLowerCase(); }, 15000);
