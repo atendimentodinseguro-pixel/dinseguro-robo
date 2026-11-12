@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.27';
+  const VERSAO = '5.28';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -779,8 +779,9 @@
     // 5.03 (12/11 10:00, caso Marcelo → Franco): o endereço trocava mas o painel continuava mostrando o chat anterior, e a
     // mensagem saiu para outro cliente. Agora o robô só escreve depois de CONFIRMAR que o painel é do cliente da ordem:
     // telefone do painel = telefone do quadro; sem telefone conhecido, a conversa tem que ter mudado e o nome bater.
-    const foneDoPainel = () => ((document.body.innerText || '').match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || '';
-    const nomeDoPainel = () => ((document.body.innerText || '').match(/\bNome\s*\n\s*([^\n]+)/) || [])[1] || '';
+    // 5.28 (caso Teresa: contato sem "Informações de contato"): também lê a variável "Telefone do WhatsApp" e o nome do cabeçalho (acima de "Última sessão")
+    const foneDoPainel = () => { const t = document.body.innerText || ''; return (t.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || t.match(/Telefone do WhatsApp\s*\n\s*\+?(\d{10,13})/) || [])[1] || ''; };
+    const nomeDoPainel = () => { const t = document.body.innerText || ''; return ((t.match(/\bNome\s*\n\s*([^\n]+)/) || t.match(/\n\s*([^\n]{2,60}?)\s*\n\s*[ÚU]ltima sess[ãa]o/) || [])[1] || '').trim(); };
     const soDig = v => String(v || '').replace(/\D/g, '');
     async function confereChat(hash) {
       const q = Object.assign({}, (GM_getValue('regua', {}) || {})[hash] || {});
