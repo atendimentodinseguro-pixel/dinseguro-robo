@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '4.96';
+  const VERSAO = '4.97';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -660,6 +660,8 @@
     // 4.72 (Stefany 11/11 17:02, caso Jamerson): CPF não localizado no Multicorban (como CPF e como matrícula) →
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     nao_localizado:   { fluxo: 'Inicio do atendimento', tags: ['07 - Nao Identificado'], fechar: false, tagsAntes: true },
+    // 4.97 (Stefany 12/11 09:15 "pode ensinar ele"; casos Vania 11/11 21:35 e Gladimir 12/11 07:14): entrou pelo anúncio e o bot não respondeu → flow "Inicio do atendimento"
+    anuncio_sem_bot:  { fluxo: 'Inicio do atendimento', tags: [], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
     // 4.79: mensagem da fase da esteira (documento / desbloqueio / anuência) — o.linha + o.atalhos, sem tag, sem fechar
     fase_msg:         { atalho: null,   tags: [], fechar: false },
@@ -1062,6 +1064,13 @@
         // até 45 min depois de parar pede o CPF a qualquer hora (ele estava interagindo); mais que isso, só das 8h às 21h. Uma vez por conversa.
         try {
           const RGv = GM_getValue('regua', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const hh = new Date().getHours();
+        // 4.97: anúncio sem resposta do bot → flow "Inicio do atendimento" (2 min depois de entrar; uma vez por conversa; qualquer hora — foi o cliente que chamou)
+        try { const RGa = GM_getValue('regua', {}) || {}; const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NMa = GM_getValue('nao_mexer', {}) || {};
+          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || AF[k] || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47') continue;
+            if (Date.now() - (+x.criadoT || 0) < 2 * 60000) continue;
+            AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
+            return; } } catch (e) {}
           for (const k in RGv) { const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k]) continue;
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
@@ -1266,6 +1275,11 @@
       if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
+      // 4.97: última sessão só com o "Anúncio ou link de referência" (cliente veio do anúncio) e NENHUMA mensagem depois → bot não respondeu
+      try { const E = (document.querySelector('.entries') || {}).innerText || ''; const k = E.lastIndexOf('Sessão '); const ult = k >= 0 ? E.slice(k) : E;
+        if (/An[úu]ncio ou link de refer[êe]ncia/i.test(ult) && !/Enviado (pelo|por)/i.test(ult) && !/\b\d{2}:\d{2}\s*(AM|PM)\b/.test(ult.replace(/Sess[ãa]o[^\n]*\n[^\n]*\n?/, '')))
+          return { estado: 'alerta', motivo: 'veio do anúncio e o bot não respondeu → flow Inicio do atendimento (robô)', anuncioSemBot: 1 };
+      } catch (e) {}
       let L = null; try { L = lados(); } catch (e) {}
       const ex = L ? { vencida: (() => { try { return janelaVencidaAgora(); } catch (e) { return false; } })(), ultCliT: (L.ultCli && L.ultCli.t) || 0, ultCliTxt: ((L.ultCli && L.ultCli.txt) || '').slice(0, 120), ultT: L.ult.t || 0, ultLado: L.ult.lado, botParado: L.ult.lado === 'nos' && L.ult.bot, contornoT: L.contornoT, temCpf: L.temCpf, comQuem: L.comQuem, handoffT: L.handoffT || 0, contornoInfo: L.contornoInfo || null, cpfSemRespT: L.cpfSemRespT || 0, cpfSem: L.cpfSem || '', escolha: L.escolha || null, semCpfT: L.semCpfT || 0 } : {};
       const OK_SO = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]oe|👍|🙏|❤️|😊)([\s.!,👍🙏😊❤️]+(ok+|obrigad[oa]|obg|obgd[ao]?|brigad[oa]))*[\s.!,👍🙏😊❤️]*$/i;
