@@ -2542,6 +2542,7 @@
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
+    try { localStorage.removeItem('dins_varre_pausa'); } catch (e) {}   // 4.95: pausa velha de antes do recarregar não vale
     async function colherHashes() {
       // 4.63 (Stefany 13:57: "43 vencidas" e a varredura das 12:03 leu lista 0): abrir um chat pelo endereço (#/chats/ID) ou a busca
       // do vigia deixam um FILTRO na lista ("Usuário 'ID'", "Usuários com o texto …") e a varredura só via aquele chat.
@@ -2674,7 +2675,7 @@
         }
         if (primeira) { plano.aguardando = true; GM_setValue('varre_plano', plano); log && log('Varredura: 1ª rodada do dia montada (' + plano.itens.length + ' conversas vencidas) — esperando o OK da Stefany no painel.', 'ok'); }
       } catch (e) { placar.erro = String(e.message || e); log && log('Varredura parou: ' + placar.erro, 'erro'); }
-      finally { placar.fim = hhmm(Date.now()); salva(); varrendo = false; localStorage.removeItem('dins_varrendo'); try { limparFiltro(); } catch (e) {} desenharVarredura(); }
+      finally { placar.fim = hhmm(Date.now()); salva(); varrendo = false; localStorage.removeItem('dins_varrendo'); localStorage.removeItem('dins_varre_pausa'); try { limparFiltro(); } catch (e) {} desenharVarredura(); }
     }
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
     setInterval(async () => {
@@ -2688,7 +2689,7 @@
         if (!janelaVencidaAgora()) { x.fechado = 'não (cliente voltou e a janela reabriu — é do vigia)'; }
         else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota('janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
         const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; if (typeof x.fechado === 'string' && /^erro/.test(x.fechado)) { f2[i].fechTent = (f2[i].fechTent || 0) + 1; f2[i].fechT = Date.now(); } GM_setValue('wa_fila', f2); }
-      } finally { varrendo = false; navSolta('fecha'); localStorage.removeItem('dins_varrendo'); desenharVarredura(); }
+      } finally { varrendo = false; navSolta('fecha'); localStorage.removeItem('dins_varrendo'); localStorage.removeItem('dins_varre_pausa'); desenharVarredura(); }
     }, 60000);
     // painel da varredura (lista da 1ª rodada com o botão de OK + resumo)
     function desenharVarredura() {
