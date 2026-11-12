@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.52';
+  const VERSAO = '5.53';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1527,6 +1527,9 @@
       if (tem(/^01 A/i)) return Object.assign({ estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' }, ex);
       if (tem(/^01 C/i)) return Object.assign({ estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' }, ex);
       const fim = (document.querySelector('.entries') || {}).innerText || '';
+      // 5.53 (Stefany 17:51, caso Alma Ferida): o bot encerrou a sessão por falta de interação e ninguém falou depois → sai do "aguardando" (⚪);
+      // se tiver follow-up agendado, continua no 🟢 até a janela fechar; depois das 24 h é da varredura.
+      if (L && L.ult && L.ult.lado === 'nos' && /encerrado por falta de intera[çc][ãa]o/i.test(L.ult.raw || L.ult.txt || '')) return Object.assign({ estado: 'encerrado', motivo: 'sessão encerrada pelo bot por falta de interação' }, ex);
       if (ex.botParado || (!L && /Enviado pelo credsegurobank[\s\S]{0,1500}$/.test(fim.slice(-1600)))) return Object.assign({ estado: 'acompanhando', motivo: 'no bot (autoatendimento)' }, ex);
       return Object.assign({ estado: 'acompanhando', motivo: 'última mensagem é nossa — aguardando o cliente' }, ex);
     }
@@ -2426,7 +2429,7 @@
     setInterval(() => { try {   // 5.49: azul sem hora do cliente (nunca lido) → reler
       const RGx = RG(); let m = false, n = 0;
       for (const k in RGx) { const x = RGx[k]; if (!x || n >= 5 || !['acompanhando', 'pausada', 'esgotada'].includes(x.estado) || x.reler || protegido(k)) continue;
-        if (!(+x.ultCliT || 0) && Date.now() - (+x.lidoT || 0) > 30 * 60000 && Date.now() - (+x.criadoT || +x.linkT || 0) < 48 * 3600000) { x.reler = 1; m = true; n++; } }
+        if ((!(+x.ultCliT || 0) || Date.now() - (+x.lidoT || 0) > 2 * 3600000) && Date.now() - (+x.lidoT || 0) > 30 * 60000 && Date.now() - (+x.criadoT || +x.linkT || 0) < 48 * 3600000) { x.reler = 1; m = true; n++; } }   // 5.53: também quem foi lido há mais de 2 h
       if (m) gravaRG(RGx); } catch (e) {} }, 5 * 60000);
     setInterval(() => { try {
       if (localStorage.getItem('dins_ordem') || vigiaTrava()) return; const agora = Date.now(); if (!dentroDoHorario(agora)) return;
@@ -2537,7 +2540,8 @@
       // 4.45 (Stefany 11:12, caso Genivaldo): o quadro é da JANELA DE 24 h ABERTA — quem já venceu (lido na tela, ou a última
       // mensagem do cliente tem mais de 24 h) sai daqui e fica com a varredura. Antes inflava o número do quadro.
       const ESPq = GM_getValue('espera', {}) || {};   // 5.51
-      const venceu = x => { const uc = Math.max(+x.ultCliT || 0, +x.cpfSemRespT || 0, +x.semCpfT || 0); if (!uc && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && (+x.ultT || 0) && agora - x.ultT > 24 * H) return true;   // 5.51: sem hora do cliente e nossa última há mais de 24 h → janela fechada
+      const venceu = x => { const uc = Math.max(+x.ultCliT || 0, +x.cpfSemRespT || 0, +x.semCpfT || 0); if (!uc && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && (+x.ultT || 0) && agora - x.ultT > 24 * H) return true;
+        if (!uc && !(+x.ultT || 0) && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && agora - Math.max(+x.criadoT || 0, +x.linkT || 0) > 24 * H) return true;   // 5.53: nunca lida e com mais de 24 h   // 5.51: sem hora do cliente e nossa última há mais de 24 h → janela fechada
         return x.vencida || (uc && agora - uc > 24 * H) || /janela de 24 h vencida/i.test(x.motivo || ''); };   // 5.05 (caso Marco Aurélio: CPF 23:23 de ontem, mas ultCliT ficou com uma mensagem mais antiga → achava janela vencida e não consultava)
       const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && !venceu(x) && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
         .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
