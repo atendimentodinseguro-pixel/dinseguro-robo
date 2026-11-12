@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.06';
+  const VERSAO = '5.07';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -603,14 +603,17 @@
         for (const [id, q] of Object.entries(R)) {
           if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) continue;
           if (q.hash && q.hash !== id && /^[A-Z0-9]{16,}$/i.test(q.hash)) continue;   // 4.84: entrada com chave errada (ex.: "103") — a certa entra pela própria chave
-          if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id) || naTela.has(id)) continue;
+          if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id)) continue;   // 5.07: estar na tela não tira da fila (caso Marcelo 72ND: última msg era do bot, a lista não punha e o quadro pulava)
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
           if (feito[id] === sigQ) continue;
           if (RESOLV[id] && (+q.ultCliT || 0) <= RESOLV[id]) continue;   // 4.83
           if (['encerrado', 'concluída', 'fechada', 'cancelada', 'esgotada'].includes(q.estado)) continue;   // 4.99
           const velhoQ = antiga.find(f => f.id === id);
-          fila.push({ id, nome: q.nome || '', msg: '[quadro] ' + String(q.motivo || '').slice(0, 70), sig: sigQ, humano: '', quando: velhoQ ? velhoQ.quando : new Date().toISOString() });
+          // 5.07: ordem automática parada (com margem e não digitou / erro) → a fila diz o motivo para o vigia
+          let msgQ = '[quadro] ' + String(q.motivo || '').slice(0, 70);
+          try { const AOq = (GM_getValue('auto_ordens', {}) || {})[id]; if (AOq && ['com_margem', 'erro'].includes(AOq.estado)) msgQ = '🔴 ROBÔ PAROU: ' + String(AOq.erro || AOq.resumo || '').slice(-90); else if (AOq && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(AOq.estado)) continue; } catch (e) {}   // robô ainda trabalhando → não chama o vigia
+          fila.push({ id, nome: q.nome || '', msg: msgQ, sig: sigQ, humano: '', quando: velhoQ ? velhoQ.quando : new Date().toISOString() });
         }
       } catch (e) {}
       // quem saiu da tela (rolou para baixo) continua na fila até ser marcado como feito
