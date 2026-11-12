@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.22';
+  const VERSAO = '5.23';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1353,6 +1353,11 @@
     // 5.21: desfaz o cancelamento errado (régua cancelada por 'desfecho sim_link/fase_msg/pedir_cpf' nas últimas 48 h) → volta a acompanhar e relê
     try { const r0 = RG(); let m0 = false; for (const k in r0) { const x = r0[k]; if (x && x.estado === 'cancelada' && /^desfecho (sim_link|fase_msg|pedir_cpf|anuncio_sem_bot|so_tag)$/.test(x.motivo || '') && Date.now() - (+x.linkT || +x.criadoT || 0) < 48 * 3600000) {
       x.estado = x.link ? 'ativa' : 'acompanhando'; x.motivo = 'reaberta (5.21): o link não encerra a régua'; x.reler = 1; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' reaberta 5.21'); m0 = true; } } if (m0) gravaRG(r0); } catch (e) {}
+    // 5.23: na régua reaberta pelo 5.21, link de mais de 3 h → "Conseguiu acessar?" e /132 não fazem mais sentido (fica o da manhã/retorno); NÃO MEXER → humano
+    try { const r1 = RG(); const NM1 = GM_getValue('nao_mexer', {}) || {}; let m1 = false; for (const k in r1) { const x = r1[k]; if (!x || !/reaberta \(5\.21\)/.test(x.motivo || '')) continue;
+      if (NM1[k]) { x.estado = 'humano'; x.motivo = 'NÃO MEXER (Stefany) — robô não manda nada'; m1 = true; continue; }
+      if (Date.now() - (+x.linkT || 0) > 3 * 3600000) (x.toques || []).forEach(q => { if ((q.tipo === '10' || q.tipo === '60') && !q.feito) { q.feito = Date.now(); q.st = 'pulado (régua reaberta 5.21 — link antigo)'; m1 = true; } });
+      x.motivo = 'reaberta (5.21/5.23): o link não encerra a régua'; m1 = true; } if (m1) gravaRG(r1); } catch (e) {}
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     // 4.59 (Stefany 13:22, caso Jairo): retomar a régua depois de reenviar o link disparava na hora o toque de 10 min que estava
     // vencido desde a manhã ("Conseguiu acessar?" 1 min depois do link). Agora retomar RECOMEÇA a contagem a partir de agora.
