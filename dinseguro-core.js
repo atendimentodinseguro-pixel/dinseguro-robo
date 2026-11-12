@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.45';
+  const VERSAO = '5.46';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2983,6 +2983,19 @@
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 3 * 60000 || Date.now() - (+c.t || 0) < 3 * 60000) return;
       log && log('Varredura: retomando a rodada das ' + c.hora + 'h de onde parou (' + c.feitos.length + ' já feitas).', 'ok');
       varrerJanelaVencida(c.forcar, true);
+    } catch (e) {} }, 60000);
+    // 5.46 (Stefany 12/11 17:16, caso Danie: o chat "sumiu" da lista e só voltou depois de atualizar a página): a lista do Botmaker
+    // às vezes para de atualizar. Rotina: a cada 10 min, com a aba LIVRE (nada rodando, vigia parado, caixa vazia, sem varredura), recarrega.
+    const CARREGOU_T = Date.now();
+    setInterval(() => { try {
+      if (Date.now() - CARREGOU_T < 10 * 60000) return;
+      if (varrendo || rodando || fupRodando || posRodando || faseRodando || espRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
+      if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 3 * 60000) return;
+      const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
+      const AOr = GM_getValue('auto_ordens', {}) || {}; if (Object.values(AOr).some(o => o && ['link', 'link_enviado', 'desfecho', 'desfecho_enviado'].includes(o.estado) && Date.now() - (+o.tEnv || +o.t || 0) < 5 * 60000)) return;
+      localStorage.setItem('dins_ultimo_refresh', new Date().toTimeString().slice(0, 5));
+      window.top.location.reload();
     } catch (e) {} }, 60000);
     window.dinsRecarregarDepois = () => { if (!varrendo && !localStorage.getItem('dins_varrendo')) { window.top.location.reload(); return 'agora'; } localStorage.setItem('dins_recarregar_depois', '1'); return 'depois da rodada'; };
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
