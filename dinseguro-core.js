@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.07';
+  const VERSAO = '5.08';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -74,7 +74,7 @@
       if (idade >= 60) return { banco: 'FACTA', motivo: 'Invalidez 60–73: FACTA mesmo acima de R$ 20 mil' + nota };
       if (idade >= 58) return { banco: 'QUALIBANK', motivo: 'Invalidez 58–59: Qualibank, tabela de invalidez (566), 108x' + nota };
       if (idade >= 53) return { banco: 'C6', motivo: 'Invalidez 53–57: C6, sempre 108x' + nota };
-      if (idade >= 40) return { banco: 'QUEROMAIS', motivo: 'Invalidez 40–52: Quero Mais' + nota };
+      if (idade >= 40) return { banco: 'DAYCOVAL', motivo: 'Invalidez 40–52: Daycoval (Stefany 12/11 10:55: o que ia para o Quero Mais volta para o Daycoval — mesmo sistema)' + nota };
       return { banco: 'C6', motivo: 'Invalidez até 39: C6, sempre 108x' + nota };
     }
     // Mudança da Stefany, 07/11/2026 12:53, "por enquanto": não sendo invalidez,
@@ -116,11 +116,11 @@
   // Ficha em texto (chave: valor) <-> objeto
   // 3.87 — TRAVA DE BANCO (Stefany 10/11 14:19, caso Marcio: "deixe isso anotado no robô, porque você não pode errar isso").
   // O banco sai SÓ da ficha (decidirBanco: espécie + idade). INVALIDEZ por idade:
-  //   até 39 → C6 · 40–52 → QUERO MAIS (reserva: DAYCOVAL, NUNCA FACTA) · 53–57 → C6 · 58–59 → QUALIBANK (566) · 60–73 → FACTA.
+  //   até 39 → C6 · 40–52 → DAYCOVAL (5.08; Quero Mais saiu — NUNCA FACTA) · 53–57 → C6 · 58–59 → QUALIBANK (566) · 60–73 → FACTA.
   // Não invalidez: C6 → FACTA → Qualibank 631; Não Perturbe → Qualibank.
   // Banco que falhou NÃO decide o próximo: conta recusada no Quero Mais → numeração em sequência (3.86), não outro banco.
   // Só passa se a ficha tiver a linha  banco_ordem_stefany: <BANCO>  (ordem dela, escrita à mão na ficha).
-  const RESERVA = { QUEROMAIS: ['DAYCOVAL'] };
+  const RESERVA = { QUEROMAIS: ['DAYCOVAL'], DAYCOVAL: [] };   // 5.08: Daycoval é o banco principal da faixa 40–52 da invalidez
   function bancoErrado(f, tela) {
     const dest = String(f.banco_destino || '').toUpperCase(), aqui = String(tela || '').toUpperCase();
     if (!dest || !aqui || dest === aqui) return '';
@@ -4236,8 +4236,8 @@
           // deixa a ordem pronta para o robô de desfecho do Botmaker
           try { localStorage.setItem('dins_ficha_recusa', JSON.stringify({ cpf: f.cpf, nome: f.nome, motivo: r[0], tag: r[1], oque: r[2], t: Date.now() })); } catch (er) {}
           log(`Ficha salva como RECUSA (${r[0]}). No Botmaker: tag ${r[1]} · ${r[2]}`, 'erro');
-        } else if ((f.banco_destino || '').toUpperCase() === 'QUEROMAIS') {
-          log('Ficha salva. Abra o portal do Quero Mais (pelo menu, sem F5) e clique "Fazer tudo".', 'ok');
+        } else if (['QUEROMAIS', 'DAYCOVAL'].includes((f.banco_destino || '').toUpperCase())) {
+          log('Ficha salva. Abra o portal do ' + ((f.banco_destino || '').toUpperCase() === 'DAYCOVAL' ? 'Daycoval' : 'Quero Mais') + ' (pelo menu, sem F5) e clique "Fazer tudo".', 'ok');
         } else if (['HUMANO', 'NAO'].includes((f.banco_destino || '').toUpperCase())) {
           log('Ficha salva. Destino: ' + f.banco_destino + ' — ver o REGRAS-BANCO desse banco.', 'ok');
         } else {
