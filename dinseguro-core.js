@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.56';
+  const VERSAO = '5.57';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2405,17 +2405,20 @@
       for (const k in RGx) { const x = RGx[k]; if (!x || !x.hash || o[k] || protegido(k) || x.comQuem || x.vencida) continue;
         const ehCpf = /pedimos o CPF/i.test(x.motivo || ''), ehDuv = /aguardando o cliente/i.test(x.motivo || '');   // 5.47: dúvida respondida também
         const lembrar = DEPOIS.test(x.ultCliTxt || '') && ['acompanhando', 'alerta', 'pausada', 'esgotada'].includes(x.estado);   // 5.56
-        if (!lembrar && (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem)))) continue;
+        const linkParado = x.link && !x.semLink && ['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos';   // 5.57
+        if (!lembrar && !linkParado && (x.estado !== 'acompanhando' || !(ehCpf || ehDuv) || x.ultLado !== 'nos' || (ehCpf && (x.temCpf || x.cpfSem)))) continue;
         if (DEPOIS.test(x.ultCliTxt || '')) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
           const qd = horaDita(x.ultCliTxt); if (qd && qd > agora && (!(+x.ultCliT) || qd < x.ultCliT + 23.5 * H)) {
             o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'lembrete', base: String(x.ultCliTxt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: qd, feito: 0 }], origem: 'régua 5.56' }; m = true;
             try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.56: cliente disse "' + String(x.ultCliTxt).slice(0, 40) + '" → lembrete ' + new Date(qd).toLocaleString('pt-BR').slice(0, 17)); } catch (e) {} }
           continue; }
-        if (x.link && !x.semLink) continue;
+        // 5.57 (Stefany 18:00, caso Alexandre): com link, cliente conversou e parou (pausada/esgotada, última nossa) → sequência completa 'link'
+        const ehLink = x.link && !x.semLink;
+        if (ehLink && !(['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos')) continue;
         if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
         if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) continue;   // 5.52: disse ao bot que não é do INSS
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
-        const tipoR = ehCpf ? 'cpf' : 'duvida';
+        const tipoR = ehLink ? 'link' : ehCpf ? 'cpf' : 'duvida';
         { const hh = (ESP_H()[k] || {})[tipoR]; if (hh && agora - hh < 36 * H) continue; }
         if (tipoR === 'duvida' && localStorage.getItem('dins_f3_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera DÚVIDA pela régua (última nossa ' + hhmm(t0) + ')' }); continue; }
         if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera CPF pela régua (pedido ' + hhmm(t0) + ')' }); continue; }
@@ -2450,6 +2453,7 @@
         if (agora - (+x.lidoT || 0) > 2 * H && agora - (+x.linkT || 0) < 24 * H && !x.reler) { x.reler = 1; mR = true; }   // relê para saber quem falou por último
         const t = +x.ultT || 0; if (x.ultLado !== 'nos' || !t || agora - t < 2 * H || agora - t > 20 * H || (+x.lidoT || 0) < t) continue;
         if (x.retomarT && agora - x.retomarT < 20 * H) continue;
+        if ((ESP()[k] || {}).tipo === 'link') continue;   // 5.57: a sequência 'link' cuida
         try { const fe = faseEsteira(x); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) continue; } catch (e) {}
         const nm = primeiroNome(x.nomeReal || x.nome);
         const texto = 'Oi' + (nm ? ', ' + nm : '') + '! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela continua disponível no link que te mandei acima. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, é só me chamar aqui que eu te ajudo. 🤝';
@@ -2480,6 +2484,8 @@
              '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
              '08h2': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
+      link: { '1h': n => `Oi${n ? ', ' + n : ''}! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela continua disponível no link que te mandei acima. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, é só me chamar aqui que eu te ajudo. 🤝`,
+              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta continua disponível no link que te mandei. Quando puder, é só abrir e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
       duvida: { '1h': (n, l, a) => a && a.temCpf ? `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.` : `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Se quiser, me manda o seu CPF (só os números) que eu já consulto o valor que você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
                 '08h': (n, l, a) => a && a.temCpf ? `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
       simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
@@ -2520,6 +2526,10 @@
         if (tagsChat.some(t => /^(01 D|01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }
         let L = null; try { L = lados(); } catch (e) {}
         if (L && L.ult && L.ult.lado === 'cli' && alvo.tipo !== 'lembrete') { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // respondeu: não insiste
+        // 5.57: a nossa última mensagem saiu há menos de 50 min (vigia/robô falou agora) → este toque espera mais 1 h
+        { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 6).slice(-1)[0];
+          const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
+            if (dif >= 0 && dif < 50 * M && toque.q !== 'lembrete' && toque.q !== 'janela') { const o = ESP(), y = o[alvo.hash]; if (y) { const q = y.toques.find(k => k.q === toque.q && !k.feito); if (q) q.prox = d.getTime() + 60 * M; gravaESP(o); } return; } } }
         // 4.70 (caso Nilva): conversa já encerrada (desfecho) ou cliente que já mandou CPF não recebe cobrança de CPF
         // 5.52: sessão fechada pelo BOT por falta de interação NÃO é desfecho — a janela de 24 h continua e o follow-up sai (casos J4REV/QOZFC/6RKWW)
         if ((() => { const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false; const j = p.indexOf('Informações de contato', i); if (!(j > 0 && !/Em atendimento|support_agent/.test(p.slice(i, j)))) return false;
