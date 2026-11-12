@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.57';
+  const VERSAO = '5.58';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3111,6 +3111,10 @@
       localStorage.setItem('dins_ultimo_refresh', new Date().toTimeString().slice(0, 5));
       window.top.location.reload();
     } catch (e) {} }, 60000);
+    // 5.58: reler à mão — __R.dinsReler('HASH') ou __R.dinsReler('azul') (todos do azul/pausada/esgotada das últimas 48 h)
+    window.dinsReler = h => { const r = RG(); let n = 0; for (const k in r) { const x = r[k]; if (!x) continue;
+        if (h === 'azul' ? (['acompanhando', 'pausada', 'esgotada', 'encerrado'].includes(x.estado) && Date.now() - Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0) < 48 * 3600000) : k === h) { x.reler = 1; n++; } }
+      gravaRG(r); return n; };
     window.dinsRecarregarDepois = () => { if (!varrendo && !localStorage.getItem('dins_varrendo')) { window.top.location.reload(); return 'agora'; } localStorage.setItem('dins_recarregar_depois', '1'); return 'depois da rodada'; };
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
     setInterval(async () => {
