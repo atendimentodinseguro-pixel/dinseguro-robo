@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.28';
+  const VERSAO = '5.29';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -781,7 +781,7 @@
     // telefone do painel = telefone do quadro; sem telefone conhecido, a conversa tem que ter mudado e o nome bater.
     // 5.28 (caso Teresa: contato sem "Informações de contato"): também lê a variável "Telefone do WhatsApp" e o nome do cabeçalho (acima de "Última sessão")
     const foneDoPainel = () => { const t = document.body.innerText || ''; return (t.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || t.match(/Telefone do WhatsApp\s*\n\s*\+?(\d{10,13})/) || [])[1] || ''; };
-    const nomeDoPainel = () => { const t = document.body.innerText || ''; return ((t.match(/\bNome\s*\n\s*([^\n]+)/) || t.match(/\n\s*([^\n]{2,60}?)\s*\n\s*[ÚU]ltima sess[ãa]o/) || [])[1] || '').trim(); };
+    const nomeDoPainel = () => { const t = document.body.innerText || ''; return ((t.match(/\bNome\s*\n\s*([^\n]+)/) || t.match(/\n\s*([^\n]{2,60}?)\s*\n+\s*(?:edit\s*\n+\s*)?[ÚU]ltima sess[ãa]o/) || [])[1] || '').trim(); };
     const soDig = v => String(v || '').replace(/\D/g, '');
     async function confereChat(hash) {
       const q = Object.assign({}, (GM_getValue('regua', {}) || {})[hash] || {});
