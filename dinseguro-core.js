@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.71';
+  const VERSAO = '5.72';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1705,7 +1705,11 @@
         if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
       const x = RG()[id];
       // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
-      if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG(); if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
+      if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG();
+        // 5.72 (Stefany 19:53, caso Silvio RJ5XO: fechado 12:47, voltou para a fila 19:35 só porque a conversa foi aberta de novo): só reabre se o CLIENTE escreveu depois do fechamento
+        const fT = +x.fechadaT || (() => { const hs = (x.hist || []).filter(h => /conversa fechada/.test(h)).pop(); const m = hs && /^(\d\d):(\d\d)/.exec(hs); if (!m) return 0; const d = new Date(+x.ultT || Date.now()); d.setHours(+m[1], +m[2], 0, 0); return d.getTime(); })();
+        if (fT && !((+c.ultCliT || 0) > fT)) { if (r0[id]) { r0[id].lidoT = Date.now(); delete r0[id].reler; gravaRG(r0); } return true; }
+        if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
       if (x) {
         const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink || x.estado === 'alerta') { try { reclassificar(id); } catch (e) {} }   // 5.14
@@ -1752,7 +1756,7 @@
       if (!novo && fA) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       // 5.62 (Stefany 18:00–18:02, casos Elisete/Alexandre/Ester): o 'reler' só valia para quem estava na lista visível (~6 conversas),
       // então 74 marcadas ficaram sem leitura. Agora, sem nada mais urgente, relê uma marcada fora da lista (a mais antiga primeiro).
-      if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && x.estado !== 'humano').sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
     }, 10000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
@@ -1761,7 +1765,7 @@
       if (!faz('atendimento')) return;   // 5.64 papel da aba
       const arq = [...document.querySelectorAll('.customer-item')].filter(ci => /ARCHIVED|Arquivad/i.test(ci.innerText)).map(ci => (ci.parentElement || {}).id).filter(Boolean);
       if (!arq.length) return; const r = RG(); let mudou = false;
-      arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
+      arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.fechadaT = Date.now(); x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
       if (mudou) { gravaRG(r); desenharRegua(); }
     }, 30000);
     // 4.07 — CLIENTE ESPERANDO PELA LISTA (Stefany 10/11 17:05, caso Alexsandra: respondeu o remarketing às 15:50, o bot só disse
