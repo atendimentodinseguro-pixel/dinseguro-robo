@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.35';
+  const VERSAO = '5.36';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -789,6 +789,8 @@
       // 5.22 (caso Teresa 12/11: régua sem telefone nem nome → 'painel: ?'): completa com o nome da fila ou da lista de conversas
       if (!soDig(q.fone) && !q.nome) { try { const it = JSON.parse(localStorage.getItem('dins_fila') || '[]').find(f => f.id === hash); if (it && it.nome) q.nome = it.nome;
         if (!q.nome) { const li = document.getElementById(hash); const nm = li && (li.querySelector('.customer-name, [class*=name]') || {}).innerText; if (nm) q.nome = nm.trim(); } } catch (e) {} }
+      // 5.36 (caso Teresa 15:50: régua sem nome e fora da fila → ordem do vigia nunca saía): usa o nome/fone que veio na própria ordem
+      if (!soDig(q.fone) && !q.nome) { try { const od = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (od && od.hash === hash) { if (od.fone) q.fone = od.fone; if (od.nome) q.nome = od.nome; } } catch (e) {} }
       const fEsp = soDig(q.fone);
       // 5.27 (caso Teresa 12/11: "Informações de contato" recolhido → painel sem Nome/Home): abre a seção antes de conferir
       if (!foneDoPainel() && !nomeDoPainel()) { try { const sec = [...document.querySelectorAll('div,span,h3,h4,button')].filter(e => e.offsetParent && e.children.length <= 3).find(e => /^\s*Informa[çc][õo]es de contato\s*$/i.test(e.innerText || '')); if (sec) { sec.click(); await esp(1500); } } catch (e) {} }
