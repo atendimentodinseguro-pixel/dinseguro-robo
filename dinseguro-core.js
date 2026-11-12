@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const VERSAO = '5.19';
+  const VERSAO = '5.20';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4607,6 +4607,7 @@
       }
       if (a === 'Digitar') {
         const f = textoParaFicha(ta.value);
+        { const g = GM_getValue('ficha_atual'); if (g && g.aleatoria_ok && so(g.cpf) === so(f.cpf)) f.aleatoria_ok = 1; }   // 5.20: a marca da aleatória não passa pelo texto da ficha
         if (!so(f.cpf) || !so(f.beneficio) || !num(f.parcela)) return log('Ficha precisa de cpf, beneficio e parcela.', 'erro');
         if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
