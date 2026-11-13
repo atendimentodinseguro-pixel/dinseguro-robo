@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.26';
+  const VERSAO = '6.27';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -97,6 +97,7 @@
   // Tabela do claude/REGRAS-BANCOS.md, atualizada em 07/11/2026.
   // ⚠️ O BMG saiu em 05/11: tudo que ia para ele vai para a FACTA.
   function decidirBanco(f) {
+    { const bo = String(f.banco_ordem_stefany || '').toUpperCase().trim(); if (/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)$/.test(bo)) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 6.27
     const idade = parseInt(f.idade) || 0;
     const esp = String(f.especie || '').padStart(2, '0');
     const parcela = num(f.parcela);
@@ -440,6 +441,7 @@
             // 5.99 (Stefany 13/11 11:11, caso Michele: mandou a conta certa) — conta informada pelo cliente/vigia: extra.contaFix = { banco, agencia, conta, tipo_conta }
             if (o.contaFix && typeof o.contaFix === 'object') { const put2 = (k, v) => { if (!v) return; ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
               put2('banco', o.contaFix.banco); put2('agencia', o.contaFix.agencia); put2('conta', o.contaFix.conta); put2('tipo_conta', o.contaFix.tipo_conta); put2('conta_origem', 'informada pelo cliente no chat (vigia)'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
+            if (o.bancoStefany) { const put3 = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; }; put3('banco_ordem_stefany', String(o.bancoStefany).toUpperCase()); put3('banco_destino', String(o.bancoStefany).toUpperCase()); ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 6.27: banco mandado pela Stefany (extra.bancoStefany)
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             const f3 = GM_getValue('ficha_atual', null);
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
