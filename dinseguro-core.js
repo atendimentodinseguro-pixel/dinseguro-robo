@@ -25,7 +25,7 @@
     const multi = () => { try { let n = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^dins_aba_/.test(k)) { const v = JSON.parse(localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000 && v.papel !== 'vigia') n++; } } return n > 1; } catch (e) { return false; } };
     const obj = v => v && typeof v === 'object' && !Array.isArray(v);
     const J = v => JSON.stringify(v);
-    GM_getValue = (k, d) => { const v = _gGet(k, d); if (JUNTA.test(k) && obj(v) && multi()) { try { SNAP.set(k, J(v)); } catch (e) {} } else SNAP.delete(k); return v; };
+    GM_getValue = (k, d) => { const v = _gGet(k, d); if (JUNTA.test(k) && obj(v)) {   /* 5.77 (Ester/Vms sumiram da régua às 21h: aba que esteve congelada gravou a régua velha por cima) — junta SEMPRE, não só com várias abas vivas */ try { SNAP.set(k, J(v)); } catch (e) {} } else SNAP.delete(k); return v; };
     GM_setValue = (k, v) => {
       try { if (JUNTA.test(k) && obj(v) && SNAP.has(k)) { const sb = SNAP.get(k), cur = _gGet(k, null);
         if (obj(cur) && J(cur) !== sb) {   // outra aba gravou depois da nossa leitura → junta só o que mudamos
@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.76';
+  const VERSAO = '5.77';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
