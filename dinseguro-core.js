@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.80';
+  const VERSAO = '5.81';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1201,7 +1201,7 @@
         if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
-        try { if (window.dinsEsperaTirar) window.dinsEsperaTirar(o.hash); } catch (e) {}   // 4.70 (caso Nilva 15:43): desfecho cancela também o follow-up de CPF/simulação
+        try { if (window.dinsEsperaTirar && !['sim_link', 'fase_msg', 'pedir_cpf', 'anuncio_sem_bot', 'so_tag'].includes(o.acao)) window.dinsEsperaTirar(o.hash); } catch (e) {}   // 5.81 (Stefany 21:36, azuis sem follow-up: o pedido de CPF/mensagem do robô apagava a própria espera e bloqueava 36 h) · 4.70 (caso Nilva 15:43): desfecho cancela também o follow-up de CPF/simulação
         // 5.21 (Stefany 12/11 11:57, casos Alexandre e Marcelo: responderam depois do link e ninguém viu): link/mensagem de fase/pedido de CPF NÃO encerram a régua —
         // a régua do link continua e a resposta do cliente volta para "Responder agora". Só desfecho final (sem margem, 07, LOAS, fecha…) cancela.
         try { if (!['sim_link', 'fase_msg', 'pedir_cpf', 'anuncio_sem_bot', 'so_tag'].includes(o.acao)) window.dinsReguaCancelar(o.hash, 'desfecho ' + o.acao); if (d.fechar) { const r = GM_getValue('regua', {}); if (r[o.hash]) { r[o.hash].estado = 'fechada'; r[o.hash].motivo = 'conversa fechada (' + o.acao + ')'; GM_setValue('regua', r); localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } } } catch (e) {}
@@ -2572,7 +2572,8 @@
         const ehLink = x.link && !x.semLink;
         if (ehLink && !(['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos')) continue;
         if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
-        if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) continue;   // 5.52: disse ao bot que não é do INSS
+        if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) { if (x.estado !== 'encerrado') { x.estado = 'encerrado'; x.motivo = 'não é do INSS (disse ao bot: ' + String(x.ultCliTxt).slice(0, 25) + ')'; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.81: ' + x.motivo); m = true; } continue; }   // 5.52 / 5.81: sai do azul
+        if (/^\s*(bolt\s*)?encerrar( agora)?\s*$/i.test(x.ultCliTxt || '')) { if (x.estado !== 'encerrado') { x.estado = 'encerrado'; x.motivo = 'cliente encerrou no bot'; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.81: cliente clicou Encerrar no bot — sem follow-up'); m = true; } continue; }
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
         const tipoR = ehLink ? 'link' : ehCpf ? 'cpf' : 'duvida';
         { const hh = (ESP_H()[k] || {})[tipoR]; if (hh && agora - hh < 36 * H) continue; }
@@ -2594,6 +2595,9 @@
     setTimeout(() => { try { if (GM_getValue('mig552', '')) return; const o = ESP(), hst = ESP_H(); let m = 0;   // 5.52: desfaz o bloqueio de 36 h gravado hoje pela trava 4.70 (sessão fechada pelo bot)
       for (const k in hst) { if (o[k]) continue; ['cpf', 'duvida'].forEach(t => { if (hst[k][t] && Date.now() - hst[k][t] < 12 * H) { delete hst[k][t]; m++; } }); }
       GM_setValue('espera_hist', hst); GM_setValue('mig552', String(Date.now())); } catch (e) {} }, 12000);
+    setTimeout(() => { try { if (GM_getValue('mig581', '')) return; const o = ESP(), hst = ESP_H(), r = RG(); let n = 0;
+      for (const k in r) { const x = r[k]; if (!x || o[k] || !hst[k] || x.estado !== 'acompanhando' || x.ultLado !== 'nos') continue; ['cpf', 'duvida'].forEach(t => { if (hst[k][t] && Date.now() - hst[k][t] < 36 * H) { delete hst[k][t]; n++; } }); }
+      GM_setValue('espera_hist', hst); GM_setValue('mig581', String(Date.now() + '|' + n)); } catch (e) {} }, 14000);
     function logF2(e) { try { const LG = JSON.parse(localStorage.getItem('dins_f2_log') || '[]'); if (LG.some(l => l.h === e.h && l.o === e.o)) return; e.t = Date.now(); LG.push(e); localStorage.setItem('dins_f2_log', JSON.stringify(LG.slice(-40))); } catch (_) {} }
     // 5.38 FASE 2 — RETOMADA COM LINK (caso Alexandre: link 10:28, respondeu "bom dia" 10:55, respondemos 11:57 e ninguém mais falou por 3 h):
     // régua 'pausada' (cliente já conversou depois do link), última mensagem NOSSA há 2–20 h → um toque de retomada (uma vez a cada 20 h).
@@ -2762,7 +2766,8 @@
         if (x.estado === 'ativa') return 'F';
         // 5.51 (Stefany 17:43: "isso que tem follow-up é follow-up do robô, tem que ficar escrito ali"): tem follow-up agendado → 🟢
         { const e = ESPq[x.hash]; if (e && (e.toques || []).some(q => !q.feito)) return 'F';
-          if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F'; }
+          if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F';
+          if (x.estado === 'esgotada' && x.link && !x.vencida) return 'F'; }   // 5.81: follow-ups feitos → a varredura pega quando a janela vencer (automático)
         if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
         return 'A';
       };
@@ -2832,7 +2837,7 @@
           const jtx = jan === null ? ' · janela: ? (relendo)' : jan <= 0 ? ' · janela FECHADA → varredura' : ' · janela fecha em ' + jan + ' h';
           const base = (x.motivo || x.estado).replace(/ — .*/, '');
           if (pq) return base + ' · próximo follow-up ' + pq.q + ' às ' + hhmm(pq.quando) + jtx;
-          if (x.estado === 'esgotada' || (x.link && x.toques && x.toques.every(q => q.feito))) return base + ' · follow-ups do link feitos' + jtx;
+          if (x.estado === 'esgotada' || (x.link && x.toques && x.toques.every(q => q.feito))) { const vz = (+x.ultCliT || 0) + 24 * 3600000; return base + ' · follow-ups do link feitos · próximo: VARREDURA depois que a janela vencer (' + hhmm(vz) + ')' + jtx; }
           if (x.estado === 'pausada') return base + ' · retomada automática 2 h depois da nossa última mensagem' + jtx;
           return base + ' · ⚠ sem follow-up agendado' + jtx; } catch (e) {} }
         if (!x.semLink && x.estado === 'ativa') { const prox = x.toques.find(k2 => !k2.feito); return prox ? 'próximo toque: ' + (prox.tipo === 'manha' ? (new Date(prox.quando).toDateString() === new Date().toDateString() ? 'hoje 08:00' : 'amanhã 08:00') : prox.tipo + ' min às ' + hhmm(prox.quando)) : '—'; }
