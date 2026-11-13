@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.02';
+  const VERSAO = '6.03';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3233,7 +3233,7 @@
       for (let t = 0; t < 3; t++) {
         while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         // 4.90 (12/11 08:49: 13 clientes novos na fila sem leitura enquanto a varredura das 8h rodava): quem está esperando passa na frente — lê antes de seguir a varredura
-        if (t === 0) { const ini = Date.now(); while (atendimentoPendente() && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
+        if (t === 0) { const ini = Date.now(); while (atendimentoPendente(true) && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
         if (t === 0) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
         if (t === 0) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
           const urg = FL.filter(h => h !== id && h !== 'F20QOEL8YYLQN2S6SR47' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
