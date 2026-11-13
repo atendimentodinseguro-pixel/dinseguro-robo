@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.78';
+  const VERSAO = '5.79';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1335,6 +1335,19 @@
             GF[k] = agora5; GM_setValue('golpe_feito', GF);
             const dd6 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, atalhos: ['/golpe_medo'], nota: dd6 + ' ' + hhmm(agora5) + ' [robô 5.39] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → /golpe_medo (link do Google com o endereço). VIGIA: mandar o fluxo ⚡ Vídeo de avaliação.' }));
+            return;
+          }
+          // 5.79 (Stefany 21:22): cliente perguntou de QUITAÇÃO ANTECIPADA / desconto de juros / pagar menos juros → linha pessoal + PDF "INSS6A - Manual quitação antecipada INSS".
+          // Uma vez a cada 20 h por cliente; só 8h–21h.
+          const QUIT = /quit(a|ar|o|e|ação|acao)|antecipa(d|r|ç)|adiantad|desconto (de|dos|nos) juros|pagar menos juros|abatimento|amortiza/i;
+          const QF = GM_getValue('quitacao_feita', {}) || {}; const hq = new Date().getHours();
+          for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !QUIT.test(x.ultCliTxt || '')) continue;
+            if (QF[k] && agora5 - QF[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hq >= 8 && hq < 21)) continue;
+            if (teste) continue;
+            QF[k] = agora5; GM_setValue('quitacao_feita', QF);
+            const nmq = primeiroNome(x.nomeReal || x.nome); const ddq = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            const linhaQ = 'Tem sim' + (nmq ? ', ' + nmq : '') + '! 😊 Você pode quitar o empréstimo adiantado quando quiser, inteiro ou só algumas parcelas, e os juros das parcelas que você antecipar são descontados — é um direito garantido por lei. Quanto antes quitar, menos juros paga. Te mando abaixo o nosso manual de quitação antecipada, com o passo a passo 👇';
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, linha: linhaQ, atalhos: ['INSS6A - Manual quitação antecipada INSS|midia'], nota: ddq + ' ' + hhmm(agora5) + ' [robô 5.79] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → linha de quitação antecipada + PDF INSS6A.' }));
             return;
           }
           // 5.60 (Stefany 18:08, caso Douglas): cliente disse "depois / amanhã / mais tarde" → resposta que leva à ação (condição de hoje, sem apertar demais)
