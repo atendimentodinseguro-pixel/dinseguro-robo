@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.22';
+  const VERSAO = '6.23';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -589,7 +589,7 @@
           const R0 = GM_getValue('regua', {}) || {}; const atual = R0[batH] || {}; const falta = Object.values(R0).filter(x => x && x.reler && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).length;
           b.textContent = '🧹 VARREDURA · agora: ' + (batH ? String(atual.nomeReal || atual.nome || batH.slice(0, 6)).split(' ')[0] : 'esperando') + ' · releitura: faltam ' + falta; }
       } catch (e) {}
-      try { const P = meuPapel(); const pre = P === 'tudo' ? '[ROBO] ' : '[' + ({ atendimento: 'ATENDIMENTO', followup: 'FOLLOW-UP', varredura: 'VARREDURA', vigia: 'VIGIA' })[P] + '] '; const t0 = window.top.document.title || ''; const limpo = t0.replace(/\[?[A-Z][A-Z-]{1,11}\] ?/g, '').replace(/(\(💬\)\s*)+/g, '(💬) '); /* 5.92: título sem (💬) repetido */   /* 5.68: o Botmaker põe 🔔(n) na frente e corta o título — tira qualquer pedaço do rótulo */ if (t0 !== pre + limpo) window.top.document.title = pre + limpo; } catch (e) {}   // 5.67: nome do papel na aba
+      try { const P = meuPapel(); const pre = P === 'tudo' ? '[ROBO] ' : '[' + ({ atendimento: 'ATENDIMENTO', followup: 'FOLLOW-UP', varredura: 'VARREDURA', vigia: 'VIGIA' })[P] + '] '; const t0 = window.top.document.title || ''; const limpo = t0.replace(/\[?[A-Z][A-Z-]{0,11}\] ?/g, '').replace(/\)\s+(?=\S)/g, m => m).replace(/(\(💬\)\s*)+/g, '(💬) '); /* 5.92: título sem (💬) repetido */   /* 5.68: o Botmaker põe 🔔(n) na frente e corta o título — tira qualquer pedaço do rótulo */ if (t0 !== pre + limpo) window.top.document.title = pre + limpo; } catch (e) {}   // 5.67: nome do papel na aba
     } catch (e) {} };
     batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
     // conversa aberta em OUTRA aba (qualquer papel, inclusive o vigia) → quem vai escrever espera (até 90 s)
