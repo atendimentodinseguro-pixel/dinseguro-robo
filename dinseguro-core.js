@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.12';
+  const VERSAO = '6.13';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -185,7 +185,7 @@
   function telefoneErrado(f) {
     let t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
     if (!/^WhatsApp/i.test(String(f.telefone_origem || ''))) return '⛔ TELEFONE NÃO CONFERIDO: o telefone da proposta tem que ser o WhatsApp do cliente (o do chat do Botmaker), não o do cadastro. Abra o chat dele no Botmaker, gere a ficha de novo, ou escreva o WhatsApp na ficha com a linha  telefone_origem: WhatsApp (conferido pelo vigia).';
-    if (t.length < 10) return '⛔ Falta o telefone (WhatsApp do cliente) na ficha.';
+    if (t.length < 10) return '⛔ Falta o telefone (WhatsApp do cliente) na ficha.'; f.telefone = t;   /* 6.13 (Silvia 13/11 14:20: o portal recusou "(62) 8 4301-599"): grava o celular já com o 9 */
     const z = zapDoCpf(f.cpf); if (z && z !== t) { f.telefone = z; f.telefone_origem = 'WhatsApp do chat do Botmaker (corrigido pelo robô 6.10: a ficha tinha ' + t + ')'; try { if (typeof log === 'function') log('Telefone da ficha trocado pelo WhatsApp do chat deste CPF.', 'aviso'); } catch (e) {} return ''; }   // 6.10 (Stefany 13:53 "conserte o robô"): o WhatsApp do chat vence — corrige em vez de parar
     return '';
   }
@@ -4006,7 +4006,7 @@
       const nasc = document.querySelector('input[formcontrolname=dataNascimento]');
       if (nasc && !so(nasc.value)) { if (!f.nascimento) throw new Error('Falta data de nascimento na ficha'); await digitar(nasc, so(f.nascimento)); }
       const cel = document.querySelector('input[formcontrolname=nroTelefoneCelular]');
-      if (cel) { const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length < 10) throw new Error('Falta telefone (celular) na ficha'); if (so(cel.value) !== t) await digitar(cel, t); }   // 4.04: troca o celular que o portal trouxe do cadastro
+      if (cel) { let t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);   /* 6.13: celular sem o 9 → com 9 */ if (t.length < 10) throw new Error('Falta telefone (celular) na ficha'); if (so(cel.value) !== t) await digitar(cel, t); }   // 4.04: troca o celular que o portal trouxe do cadastro
       log('Dados do cliente ok.');
       const achaCard = () => [...document.querySelectorAll('a')].find(a => vis(a) && new RegExp('Matr[íi]cula ' + f.beneficio).test(tx(a)));
       if (!achaCard()) {
@@ -4457,7 +4457,7 @@
       const cn = campo(/^Cidade de nascimento$/);
       if (cn && !cn.value) { if (cn.getAttribute('role') === 'combobox') await combo(/^Cidade de nascimento$/, f.cidade || '', new RegExp('^' + (f.cidade || 'x') + '$', 'i')); else await digitar(cn, f.cidade || ''); }
       await combo(/^Estado civil$/, 'SOLT', /^SOLTEIRO$/);
-      const cel = campo(/^Celular$/); const t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
+      const cel = campo(/^Celular$/); let t = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);   /* 6.13 */
       if (cel && so(cel.value) !== t) { if (t.length < 10) throw new Error('Falta celular na ficha'); await digitar(cel, t); await sleep(1500); }   // 4.04
       // v3.16: BMG não aceita o mesmo e-mail em CPFs diferentes → naoinformado1@, 2@, 3@… (sequência)
       const em = campo(/^Email$/); if (em && !em.value) { let mail = f.email; if (!mail || /^naoinformado@/i.test(mail)) { const n = GM_getValue('email_seq', 1); mail = 'naoinformado' + n + '@gmail.com'; GM_setValue('email_seq', n + 1); log('E-mail usado: ' + mail); } await digitar(em, mail); }
