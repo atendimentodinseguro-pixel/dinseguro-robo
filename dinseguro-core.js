@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.07';
+  const VERSAO = '6.08';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4437,7 +4437,7 @@
     function proximaConta() { const n = Math.max(GM_getValue('conta_seq', 14), 14); return { banco: '001', agencia: '0001', conta: String(n), dv: '8', seq: n }; }
     async function dados(f) {
       await esperar(() => campo(/^Nome da mãe$/), 30000);
-      if (!f.mae && !campo(/^Nome da mãe$/).value) throw new Error('Falta o nome da mãe na ficha');
+      if (!f.mae && !campo(/^Nome da mãe$/).value) { f.mae = 'NAO INFORMADO'; try { log('Sem nome da mãe na ficha → NAO INFORMADO (padrão da Stefany 13/11 13:08).', 'aviso'); } catch (e) {} }   // 6.08: antes parava com erro
       await preencher(/^Nome da mãe$/, f.mae);
       await combo(/^Tipo de documento$/, 'CPF', /^CPF$/);
       const doc = campo(/^Número do documento$/); if (so(doc.value) !== f.cpf) await digitar(doc, f.cpf);
