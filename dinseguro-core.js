@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.77';
+  const VERSAO = '5.78';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1358,6 +1358,9 @@
             if (!handoff && !menu && !voltou) continue;
             if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida) continue;
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && (AOx.cpf || agora5 - (+AOx.t || 0) < 23 * 3600000)) continue; }   // 5.76: já temos o CPF dele (ordem antiga) → nunca pedir de novo
+            // 5.78 (Stefany 21:13: "analisar o histórico completo… até achar pelo menos o CPF"): antes de pedir CPF, a conversa INTEIRA tem que ter sido lida
+            // (sessões anteriores abertas) nas últimas 6 h. Se não foi, marca para a VARREDURA reler o histórico todo e só depois decide.
+            { const HXp = GM_getValue('hist_expandido', {}) || {}; if (!(HXp[k] && agora5 - HXp[k] < 6 * 3600000)) { const rr = GM_getValue('regua', {}) || {}; if (rr[k] && !rr[k].reler) { rr[k].reler = 1; rr[k].relerHist = 1; (rr[k].hist = rr[k].hist || []).push(hhmm(agora5) + ' 5.78: antes de pedir CPF → ler o histórico completo'); GM_setValue('regua', rr); } continue; } }
             if (x.link && !x.semLink) continue;   // 5.76 (Stefany 21:08, caso Ester: já tinha proposta digitada e o robô pediu o CPF de novo) → quem tem proposta vai para o VIGIA (vermelho), não recebe pedido de CPF
             const t0 = handoff ? x.handoffT : (x.ultCliT || 0); if (!t0 || agora5 - t0 < 5 * 60000 || agora5 - t0 > 23 * 3600000) continue;
             if (RET[k] && agora5 - RET[k] < 12 * 3600000) continue;
@@ -1706,14 +1709,14 @@
       // 5.06 (Stefany 12/11 10:33 "pode fazer"): na 1ª leitura, e quando ainda não achou CPF nem escolha de valor, abre o
       // histórico inteiro ("Ver sessões anteriores" + "Mostrar mensagens a partir das…") antes de decidir. Uma vez a cada 6 h por conversa.
       try { const x0 = RG()[id]; const HX = GM_getValue('hist_expandido', {}) || {};
-        if ((!x0 || (!x0.cpfSem && !x0.escolha && !x0.temCpf)) && !(Date.now() - (HX[id] || 0) < 6 * H)) {
+        if (((!x0 || (!x0.cpfSem && !x0.escolha && !x0.temCpf)) && !(Date.now() - (HX[id] || 0) < 6 * H)) || (x0 && x0.relerHist)) {   // 5.78: relerHist = pedido de leitura completa
           for (let k = 0; k < 8; k++) {
             const b = [...document.querySelectorAll('button')].filter(e => e.offsetParent).find(e => /Ver sess[õo]es anteriores|Mostrar mensagens a partir/i.test(e.innerText || ''))
                    || [...document.querySelectorAll('a,span,div')].filter(e => e.offsetParent && e.children.length <= 1).find(e => /^\s*Mostrar mensagens a partir/i.test(e.innerText || ''));
             if (!b) break; b.click(); await new Promise(r => setTimeout(r, 1800));
             if (window.top.location.hash !== '#/chats/' + id) return false;
           }
-          HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX);
+          HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX); try { const rq = RG(); if (rq[id] && rq[id].relerHist) { delete rq[id].relerHist; gravaRG(rq); } } catch (e) {}
         } } catch (e) {}
       try { detectarLink(); } catch (e) {}
       // 5.32: (tirado) guardar o telefone do painel na régua — painel atrasado poderia gravar o telefone de OUTRO cliente (erro 105)
