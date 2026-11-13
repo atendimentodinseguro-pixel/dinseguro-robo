@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.96';
+  const VERSAO = '5.97';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -584,6 +584,10 @@
       const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=' + screen.availWidth + ',height=' + screen.availHeight + ',left=0,top=0');
       window.localStorage.setItem('dins_janela_try', String(Date.now())); if (!w) { window.localStorage.setItem('dins_popup_bloq', String(Date.now())); return 'pop-up bloqueado'; } window.localStorage.removeItem('dins_popup_bloq'); return 'abri a janela ' + (n + 1) + '/3'; };
     window.dinsAbrirJanelas = abrirJanela;
+    // 5.97: janela EXTRA aberta pelo robô (papel 'tudo' automático, com os 3 papéis já com dono em outras janelas há 1 min) fecha sozinha
+    { let sobra = 0; setInterval(() => { try { if (!/^dins_robo_/.test(window.top.name || '') || !papelAuto() || meuPapel() !== 'tudo') { sobra = 0; return; }
+      const V = abasVivas(); const donos = ['atendimento', 'followup', 'varredura'].every(r => Object.keys(V).some(k => k !== ABA && V[k].papel === r));
+      if (!donos) { sobra = 0; return; } if (!sobra) sobra = Date.now(); if (Date.now() - sobra > 60000) window.top.close(); } catch (e) {} }, 15000); }
     // 5.87 (Stefany 09:18: "abriram menores"): janela aberta pelo robô pequena demais vira layout de celular — aumenta sozinha
     try { if (/^dins_robo_/.test(window.top.name || '') && window.top.outerWidth < screen.availWidth - 20) { window.top.moveTo(0, 0); window.top.resizeTo(screen.availWidth, screen.availHeight); } } catch (e) {}
     setInterval(() => { try {
@@ -591,7 +595,7 @@
       const top = window.top.document; let bt = top.getElementById('dins-abrir-jan');
       if (n >= 3 || Date.now() - T0 < 90000) { if (bt) bt.remove(); return; }
       const lider = Object.keys(V).sort()[0] === ABA;   // só uma aba tenta (a de menor id)
-      if (lider && Date.now() - (+window.localStorage.getItem('dins_janela_try') || 0) > 3 * 60000 && !(Date.now() - (+window.localStorage.getItem('dins_popup_bloq') || 0) < 30 * 60000)) abrirJanela();
+      // 5.97 (Stefany 10:33 "toda hora abrindo mais abas"): NÃO abre sozinho (a janela some da contagem enquanto recarrega e o robô abria outra) — só pelo botão 🪟
       if (lider && !bt) { bt = top.createElement('button'); bt.id = 'dins-abrir-jan'; bt.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border-radius:10px;border:0;background:#2563eb;color:#fff;font:600 13px sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
         bt.onclick = () => { bt.textContent = '🪟 ' + abrirJanela(); }; top.body.appendChild(bt); }
       if (bt) bt.textContent = '🪟 Abrir janela de robô (' + n + '/3)';
@@ -3348,7 +3352,8 @@
     // às vezes para de atualizar. Rotina: a cada 10 min, com a aba LIVRE (nada rodando, vigia parado, caixa vazia, sem varredura), recarrega.
     const CARREGOU_T = Date.now();
     setInterval(() => { try {
-      if (Date.now() - CARREGOU_T < 10 * 60000) return;
+      if (Date.now() - CARREGOU_T < 30 * 60000) return;   // 5.97 (Stefany 10:33 "telas brancas toda hora"): 30 min, não 10
+      if (meuPapel() === 'vigia') return;   // 5.97: a aba do vigia não recarrega sozinha
       if (varrendo || rodando || fupRodando || posRodando || faseRodando || espRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
       if (Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 3 * 60000) return;
