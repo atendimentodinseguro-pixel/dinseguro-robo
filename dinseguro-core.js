@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.25';
+  const VERSAO = '6.26';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3217,7 +3217,7 @@
     //  5) PRIMEIRA RODADA DO DIA: monta a lista e espera o botão "✅ Pode executar" no painel (regra dela); as outras rodam direto.
     // Liberar 01 D: dinsVarreLiberar('HASH', 'chamar'|'so_fechar').  Rodar agora: localStorage.dins_varrer_agora='1'.
     const DESF_TAG = /^(01 I|01 k|02 |03 |07 |Acima De 80)/i;
-    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47'];   // chat de teste "Romulo"
+    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3', '3JRR7X56WSMO5SZEHW3K', 'TYK97LS0A0LUTJ89N3WG'];   // 6.26: teste Romulo · João Carlos · Carmen · Lu Andrade · Marcelo 72ND · teste da Stefany · Josias (proposta a cancelar)   // chat de teste "Romulo"
     window.dinsVarreLiberar = (hash, modo) => { const L = GM_getValue('varre_liberados', {}) || {}; if (modo) L[hash] = modo; else delete L[hash]; GM_setValue('varre_liberados', L); return L[hash] || null; };
     window.dinsVarreVer = () => GM_getValue('varre_plano', null);
     // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
@@ -3340,6 +3340,47 @@
         return c.fone ? { acao: 'wa', caso, motivo: c.temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno' } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
       return { acao: 'c01', motivo: 'sem interação (só o fluxo do bot)' };
     }
+    // 6.26 (Stefany 13/11 16:24 "a varredura segue lenta" → "leitura pelo servidor"): decide pela conversa do SERVIDOR, sem abrir a tela.
+    // Só decide 'wa' e 'revisar' (que não precisam da tela). Fechar / 01 C / chat com atendente (BOT_MUTED) / dúvida → null = abre a tela como antes.
+    async function decidirVarreduraApi(it) {
+      try {
+        const j = await apiLer(it.id, 40); if (!j || !j.customer) return null;
+        const cu = j.customer; const lu = +cu.lastUserMessageTimeStamp || 0;
+        if (!lu || Date.now() - lu < 24 * 3600000) return null;
+        if (cu.BOT_MUTED) return null;
+        if (/^(Jair|⚫️|Romulo)/.test(String(it.nome || '').trim()) || /CONGELADO/i.test(it.nome || '')) return null;
+        const tags = (cu.tags || []).map(String);
+        const temTag = re => tags.some(t => re.test(t));
+        if (temTag(/01.?D|Fechou.?Neg/i)) return null;
+        if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return null;   // desfecho → fecha (tela)
+        if ((GM_getValue('wa_bloqueados', []) || []).includes(it.id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
+        const txtDe = m => { let s = typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''); try { const o = JSON.parse(s); if (o && o.button) s = o.button; } catch (e) {} return String(s || '').replace(/\s+/g, ' ').trim(); };
+        const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME))).map(m => ({ lado: m.FROM === 'me' ? 'nos' : 'cli', bot: m.FROM === 'me' && /^Bot$/i.test(m.FROM_NAME || ''), txt: txtDe(m) }));
+        if (!ms.length) return null;
+        const CPFRE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/;
+        const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
+        const u = ms[ms.length - 1];
+        if (u.lado === 'cli' && !/^\s*\{?"?button/.test(u.txt) && u.txt !== 'undefined' && !OK_V.test(u.txt) && !CPFRE.test(u.txt) && !(ms.length > 1 && ms[ms.length - 2].lado === 'nos' && ms[ms.length - 2].bot)) return { acao: 'revisar', motivo: 'cliente escreveu "' + u.txt.slice(0, 60) + '" e ficou sem resposta' };
+        if (u.lado === 'cli' && CPFRE.test(u.txt)) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
+        const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
+        const cli6 = ms.filter(m => m.lado === 'cli').slice(-6).map(m => m.txt);
+        if (cli6.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
+        const fe = faseEsteira(RG()[it.id] || {});
+        if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
+        const nos = ms.filter(m => m.lado === 'nos').map(m => m.txt).join('\n');
+        const fone = String(cu.WHATSAPP_CURATED_NUM || cu.PLATFORM_CONTACT_ID || '').replace(/\D/g, '');
+        const link = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)/i.test(nos);
+        const prop = /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(nos);
+        if (link || prop) return fone.length >= 10 ? { acao: 'wa', caso: 'link', motivo: 'link enviado sem resposta', fone } : { acao: 'revisar', motivo: 'link enviado, mas sem telefone' };
+        const temCpf = ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt));
+        if (temCpf && !temTag(/01.?A|Com.?Margem/i)) return { acao: 'revisar', motivo: 'tem CPF sem tag (conferir margem)' };
+        const nossaHumana = ms.some(m => m.lado === 'nos' && !m.bot && /\*?\[[^\]\n]{2,40}\]/.test(m.txt));
+        const pediuCpf = /CPF/i.test(nos) && /(me (envie|mande|passa)|informe|número do seu CPF|seu CPF)/i.test(nos);
+        if (temCpf || nossaHumana) { const caso = temCpf ? 'atendimento' : (pediuCpf ? 'cpf' : 'atendimento');
+          return fone.length >= 10 ? { acao: 'wa', caso, motivo: (temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno') + ' [servidor]', fone } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
+        return null;   // só o fluxo do bot → 01 C + fechar (precisa da tela)
+      } catch (e) { return null; }
+    }
     async function executarOrdemVarredura(hash, acao, nota) {
       while (localStorage.getItem('dins_ordem')) await esp(3000);
       const t0 = Date.now();
@@ -3390,6 +3431,14 @@
           // 6.01: janela de 24 h ainda aberta (última mensagem do cliente há menos de 23 h 30, pelo servidor) → pula sem abrir a tela
           { const j = await apiLer(it.id, 1); const lu = j && +j.customer.lastUserMessageTimeStamp; if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++; try { const f9 = j && String(j.customer.WHATSAPP_CURATED_NUM || j.customer.PLATFORM_CONTACT_ID || '').replace(/\D/g, ''); if (f9 && f9.length >= 10) (window.__dinsVarreFone = window.__dinsVarreFone || {})[it.id] = f9; } catch (e) {}   /* 6.19 */
             if (lu > 0 && Date.now() - lu < 23.5 * 3600000) { placar.janela_aberta++; API_PLACAR.puladas++; naFatia--; salva(); continue; } }   // não conta na fatia (não usou a tela)
+          { const dA = await decidirVarreduraApi(it);   // 6.26: decidiu pelo servidor → não abre a tela
+            if (dA) { naFatia--; placar.servidor = (placar.servidor || 0) + 1;
+              plano.itens.push(Object.assign({ id: it.id, nome: it.nome, fone: dA.fone || '' }, dA)); GM_setValue('varre_plano', plano); cursor.itensPlano = plano.itens;
+              if (primeira) { salva(); continue; }
+              if (dA.acao === 'revisar') { placar.revisar++; salva(); continue; }
+              if (dA.acao === 'wa') { const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
+                if (!ja) { f.push({ hash: it.id, fone: dA.fone, nome: nomeSeguro(it.nome), caso: dA.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
+                placar.wa++; salva(); continue; } } }
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
           const d = decidirVarredura(it.id, it.nome);
