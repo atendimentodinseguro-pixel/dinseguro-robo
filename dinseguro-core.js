@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.24';
+  const VERSAO = '6.25';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1084,7 +1084,7 @@
       const hash0 = window.top.location.hash, nome0 = nomeDoContato();
       // 4.70 (caso Nilva 15:43: o mesmo follow-up saiu 2x — dois Chromes com o robô): se o mesmo texto já está entre as
       // últimas mensagens NOSSAS da conversa, não manda de novo.
-      const jaTem = () => { const k = texto.replace(/[*_\s]/g, '').slice(0, 45); return [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k)); };
+      const jaTem = () => { const url = (String(texto).match(/https?:\/\/\S+/) || [])[0]; const k = url ? url.replace(/[*_\s]/g, '') : texto.replace(/[*_\s]/g, '').slice(0, 45);   /* 6.25 (caso Jeferson 16:18): mensagem com link compara pelo LINK — o /parabens começa sempre igual e o link novo era barrado como DUPLICADO */ return [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k)); };
       if (jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
       ta.focus(); setNativo(ta, texto); await esp(800 + Math.floor(Math.random() * 4000));
       if (jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }
