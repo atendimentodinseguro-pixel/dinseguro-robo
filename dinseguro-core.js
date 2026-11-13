@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.27';
+  const VERSAO = '6.28';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4387,7 +4387,7 @@
             if (/\/login/.test(location.pathname)) {
               const pw = document.querySelector('input[type=password]'); const tok = [...document.querySelectorAll('input')].some(i => vis(i) && /token|c[óo]digo/i.test((i.placeholder || '') + (i.name || '') + (i.id || '')));
               const ult = +sessionStorage.getItem('dins_dcy_entrar') || 0;
-              if (!tok && pw && pw.value && Date.now() - ult > 120000) { const b = [...document.querySelectorAll('button')].find(x => vis(x) && /^\s*ENTRAR\s*$/i.test(tx(x))); if (b) { sessionStorage.setItem('dins_dcy_entrar', Date.now()); b.click(); } }
+              if (false && !tok && pw && pw.value && Date.now() - ult > 120000) {   /* 6.28 (13/11 17:00: 'Usuário ou senha inválidos' depois de recarregar): login automático DESLIGADO — risco de bloquear o usuário; o vigia ou a Stefany entram */ const b = [...document.querySelectorAll('button')].find(x => vis(x) && /^\s*ENTRAR\s*$/i.test(tx(x))); if (b) { sessionStorage.setItem('dins_dcy_entrar', Date.now()); b.click(); } }
               return;
             }
             const aviso = [...document.querySelectorAll('.modal.show, .cdk-overlay-pane')].find(e => vis(e) && /vinculad[oa]s ao Correspondente/i.test(e.textContent || ''));
