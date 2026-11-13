@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.92';
+  const VERSAO = '5.93';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -257,7 +257,7 @@
         const c = [...r.children];
         const cpf = ((c[1].innerText.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/) || [])[0] || '').replace(/\D/g, '');
         const nome = (c[1].innerText.split('\n').map(x => x.trim()).filter(x => x && !/^[A-Z]{2}$/.test(x))[0] || '').trim();
-        const link = ([...r.querySelectorAll('[data-bs-content]')].map(e => e.getAttribute('data-bs-content')).find(v => /^https?:\/\//.test(v || '')) || '').trim();
+        const link = ([...r.querySelectorAll('[data-bs-content]')].map(e => e.getAttribute('data-bs-content')).find(v => /^https?:\/\//.test(v || '')) || ([...r.querySelectorAll('[onclick]')].map(e => ((e.getAttribute('onclick') || '').match(/copyString\('(https?:\/\/[^']+)'\)/) || [])[1]).find(Boolean)) || '').trim();   // 5.93: link também do botão copiar (copyString)
         const badge = c[5] && c[5].querySelector('.badge');
         const statusBanco = badge ? badge.innerText.trim() : (c[5] ? c[5].innerText.trim() : '');
         const real = badge ? (badge.getAttribute('data-bs-content') || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
@@ -283,6 +283,11 @@
       const b = document.getElementById('esteira_refresh'); if (b) b.click();
       setTimeout(lerEsteira, 8000);
     }, 5 * 60 * 1000);
+    // 5.93 (Stefany 13/11 10:05: "só ir lá buscar no New Corban, a proposta já está pronta, o link está lá"): com proposta gravada esperando link,
+    // a aba ?p=propostas atualiza a lista de 1 em 1 min (não 5) para o digitador achar o link pela lista.
+    setInterval(() => { try { if (!/[?&]p=propostas/.test(location.search) || document.querySelector('.modal.show')) return;
+      const AO = GM_getValue('auto_ordens', {}) || {}; if (!Object.values(AO).some(o => o && o.estado === 'gravada' && Date.now() - (+o.t || 0) < 3 * 3600000)) return;
+      const b = document.getElementById('esteira_refresh'); if (b) b.click(); setTimeout(lerEsteira, 8000); } catch (e) {} }, 60000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
 
@@ -495,14 +500,18 @@
           poeAO(o.hash, { estado: 'gravada', proposta: nro });
           const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText));
           const LK = () => { const mm = MD(); if (!mm) return ''; return [...mm.querySelectorAll('input')].map(x => x.value).find(v => /^https?:\/\//.test(v)) || (mm.innerText.match(/https?:\/\/\S+/) || [])[0] || ''; };
-          let link = LK();
-          for (let i = 0; !link && i < 24; i++) {   // C6 demora de 1 a 8 min: tenta de 30 em 30 s, até ~12 min
+          let link = LK(); const tGrav = Date.now();
+          // 5.93: segunda forma de achar o link — a lista de Propostas (aba ?p=propostas grava em GM 'esteira' por CPF)
+          const linkDaLista = () => { try { const E = GM_getValue('esteira', {}) || {}; const c = String(o.cpf || '').replace(/\D/g, '');
+            const r = Object.values(E).filter(x => x && x.link && x.cpf === c && (+x.t || 0) > tGrav && /cadastrad|pendente|assinatura/i.test((x.status || '') + ' ' + (x.statusBanco || ''))).sort((a, b) => b.t - a.t)[0]; return r ? r.link : ''; } catch (e) { return ''; } };
+          for (let i = 0; !link && i < 40; i++) {   // C6 demora de 1 a 8 min: tenta de 30 em 30 s, até ~20 min (5.93: e confere a lista de Propostas)
+            if ((link = linkDaLista())) break;
             const mm = MD(); if (!mm) throw new Error('o quadro "Proposta gerada" fechou antes do link (Nº ' + nro + ')');
             const b = [...mm.querySelectorAll('button,a')].find(x => /consultar link|tentar de novo/i.test(x.innerText)); if (b) b.click();
             for (let k = 0; k < 10 && !(link = LK()); k++) await zz(2000);
             if (!link) await zz(10000);
           }
-          if (!link) throw new Error('gravada Nº ' + nro + ', mas o link não saiu em 12 min → vigia: nuvem verde em ?p=propostas');
+          if (!link) throw new Error('gravada Nº ' + nro + ', mas o link não saiu em 20 min (nem no quadro nem na lista de Propostas) → vigia: nuvem verde em ?p=propostas');
           // 5.25 (caso Fabiano 12/11 12:00: saiu "Josias" no chat do Fabiano — a ficha_atual já era de outro cliente): usa a ficha DESTA ordem
           const f4 = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
           const bc = String(f4.banco || '').replace(/\D/g, '').padStart(3, '0');
