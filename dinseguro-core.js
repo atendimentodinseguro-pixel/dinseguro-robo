@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.01';
+  const VERSAO = '6.02';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -174,10 +174,10 @@
   // Sem essa marca, NADA é digitado. Exceção à mão: escrever na ficha  telefone_origem: WhatsApp (conferido pelo vigia)
   // 4.95 (Stefany 12/11 09:02: "A preferência é do atendimento… a varredura fica em segundo plano. Espera acabar o atendimento, depois reativa a varredura")
   // Atendimento pendente = cliente da fila que o robô ainda não leu / andou depois da leitura, ordem automática em andamento, ou alerta lido há menos de 30 min.
-  const atendimentoPendente = () => { try {
+  const atendimentoPendente = soTela => { try {   // 6.01: soTela = só o que precisa da TELA do Botmaker (consulta/digitação nos bancos não segura a varredura)
     if (localStorage.getItem('dins_ordem')) return true;
     const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const RR = GM_getValue('regua', {}) || {}; const NM = GM_getValue('nao_mexer', {}) || {}; const AO = GM_getValue('auto_ordens', {}) || {};
-    if (Object.values(AO).some(o => o && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(o.estado) && Date.now() - (o.t || 0) < 40 * 60000)) return true;
+    if (Object.values(AO).some(o => o && (soTela ? ['link'] : ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link']).includes(o.estado) && Date.now() - (o.t || 0) < 40 * 60000)) return true;
     return FL.some(f => { const id = f.id; if (!id || id === 'F20QOEL8YYLQN2S6SR47' || NM[id]) return false; const q = RR[id]; if (!q) return true; if (q.comQuem) return false;
       return !!q.reler || (+q.listaT || 0) > (+q.lidoT || 0) || (q.estado === 'alerta' && Date.now() - (+q.lidoT || 0) < 30 * 60000); });
   } catch (e) { return false; } };
@@ -3334,13 +3334,13 @@
           if (new Date().getHours() >= VARRE_LIMITE_H) { log && log('Varredura: passou das ' + VARRE_LIMITE_H + 'h — o resto fica para a próxima rodada.', 'aviso'); break; }
           if (naFatia >= VARRE_FATIA) {   // 5.45: pausa da fatia — atendimento trabalha
             naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
-            while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente() && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
+            while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente(true) && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
             localStorage.removeItem('dins_varre_pausa');
           }
           cursor.feitos.push(it.id); naFatia++; salva();
           // 6.01: janela de 24 h ainda aberta (última mensagem do cliente há menos de 23 h 30, pelo servidor) → pula sem abrir a tela
           { const j = await apiLer(it.id, 1); const lu = j && +j.customer.lastUserMessageTimeStamp; if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
-            if (lu > 0 && Date.now() - lu < 23.5 * 3600000) { placar.janela_aberta++; API_PLACAR.puladas++; salva(); continue; } }
+            if (lu > 0 && Date.now() - lu < 23.5 * 3600000) { placar.janela_aberta++; API_PLACAR.puladas++; naFatia--; salva(); continue; } }   // não conta na fatia (não usou a tela)
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
           const d = decidirVarredura(it.id, it.nome);
