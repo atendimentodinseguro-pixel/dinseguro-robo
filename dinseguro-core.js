@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.87';
+  const VERSAO = '5.88';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1268,7 +1268,7 @@
           const RGe = GM_getValue('regua', {}) || {}; const hh2 = new Date().getHours(); const FE = window.dinsFaseEsteira;
           const NM = GM_getValue('nao_mexer', {}) || {};
           for (const k in RGe) { const x = RGe[k]; if (!x || !x.link || typeof FE !== 'function' || NM[k] || x.comQuem || protegido(k)) continue;   // conversa que a Stefany/Rômulo está tocando: não mexe
-            const fe = FE(k); if (!fe) continue; const nm = primeiroNome(x.nomeReal || x.nome);
+            const fe = FE(k); if (!fe) continue; const nm = primeiroNome(x.nomeReal);
             // (3) cliente disse que desbloqueou → AVERBE JA de 60 em 60 s no Autorizador (só C6), e uma linha de retorno (responde a qualquer hora)
             if (fe.fase === 'falta desbloquear' && /C6/i.test(fe.banco || '') && fe.nome && x.ultLado === 'cli' && (x.ultCliT || 0) > (x.averbarT || 0)
                 && /desbloque|liberei|j[áa] (fiz|liberei|desbloq)|consegui|t[áa] feito|fiz o desbloqueio/i.test(x.ultCliTxt || '')) {
@@ -1326,7 +1326,7 @@
             { const AOy = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOy && AOy.cpf) continue; }   // 5.80: CPF já conhecido (ordem antiga)
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
-            const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
+            const nm = primeiroNome(x.nomeReal); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
             const saud = hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite';
             const texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro.\n\n' + (val ? 'Vi que você fez uma simulação de *R$ ' + val + '* com a gente. ' : x.escolha ? 'Vi que você fez uma simulação com a gente. ' : 'Vi que você começou o seu atendimento com a gente. ') + 'Para eu já ' + (x.escolha ? 'preparar a sua proposta' : 'consultar a melhor condição para você') + ', pode me informar o número do seu CPF ou do seu benefício?';
             const dd = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
@@ -1381,7 +1381,7 @@
             if (QF[k] && agora5 - QF[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hq >= 8 && hq < 21)) continue;
             if (teste) continue;
             QF[k] = agora5; GM_setValue('quitacao_feita', QF);
-            const nmq = primeiroNome(x.nomeReal || x.nome); const ddq = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+            const nmq = primeiroNome(x.nomeReal); const ddq = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
             const linhaQ = 'Tem sim' + (nmq ? ', ' + nmq : '') + '! 😊 Você pode quitar o empréstimo adiantado quando quiser, inteiro ou só algumas parcelas, e os juros das parcelas que você antecipar são descontados — é um direito garantido por lei. Quanto antes quitar, menos juros paga. Te mando abaixo o nosso manual de quitação antecipada, com o passo a passo 👇';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, linha: linhaQ, atalhos: ['INSS6A - Manual quitação antecipada INSS|midia'], nota: ddq + ' ' + hhmm(agora5) + ' [robô 5.79] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → linha de quitação antecipada + PDF INSS6A.' }));
             return;
@@ -1391,7 +1391,7 @@
           const DR = GM_getValue('depois_resp', {}) || {};
           for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !DEPOIS.test(x.ultCliTxt || '')) continue;
             if (DR[k] && agora5 - DR[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
-            const nm = primeiroNome(x.nomeReal || x.nome); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
+            const nm = primeiroNome(x.nomeReal); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
             const comProp = x.link && !x.semLink;
             const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp ? '\n\nSó um aviso importante para você não perder: a condição da sua proposta está garantida para hoje. Amanhã o banco pode mudar a taxa e o valor pode ficar menor — aí eu refaço a simulação e, se nada tiver mudado, seguimos com o mesmo valor. Se conseguir, o ideal é finalizar ainda hoje pelo link 🙏' : '') + '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : 'Me diz um horário certinho que fica bom para você, que eu te chamo exatamente nesse horário. 🤝');
             DR[k] = agora5; GM_setValue('depois_resp', DR);
@@ -1414,7 +1414,7 @@
             const t0 = handoff ? x.handoffT : (x.ultCliT || 0); if (!t0 || agora5 - t0 < 5 * 60000 || agora5 - t0 > 23 * 3600000) continue;
             if (RET[k] && agora5 - RET[k] < 12 * 3600000) continue;
             if (!(hh5 >= 8 && hh5 < 21)) continue;
-            const nm = primeiroNome(x.nomeReal || x.nome); const saud = hh5 < 12 ? 'Bom dia' : hh5 < 18 ? 'Boa tarde' : 'Boa noite';
+            const nm = primeiroNome(x.nomeReal); const saud = hh5 < 12 ? 'Bom dia' : hh5 < 18 ? 'Boa tarde' : 'Boa noite';
             let texto;
             if (x.link) texto = saud + (nm ? ', ' + nm : '') + '! 😊 Aqui é da Dinseguro, que bom que você voltou a falar com a gente! Me desculpe a demora para te responder.\n\nPara eu atualizar a sua proposta com o valor de hoje, me manda o número do seu CPF (só os números) que eu já te passo a simulação nova. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.';
             else if (menu || voltou) texto = saud + (nm ? ', ' + nm : '') + '! Tudo bem? 😊 Aqui é da Dinseguro, me desculpe a demora.\n\nMe conta: você recebe aposentadoria ou pensão do INSS? Se receber, me manda o seu CPF (só os números) que eu consulto agora a melhor condição para você. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.';
@@ -1432,7 +1432,7 @@
         } catch (e) { try { localStorage.setItem('dins_conv_erro', new Date().toTimeString().slice(0, 8) + ' f1 ' + String((e && e.stack) || e).slice(0, 300)); } catch (_) {} }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
-          const nm = primeiroNome(oL.nomeReal || oL.nome); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          const nm = primeiroNome(oL.nomeReal); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           const aceiteBn = oL.aceite && oL.bancoConta;
           const linha = aceiteBn
             ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
@@ -2654,7 +2654,7 @@
         if (x.retomarT && agora - x.retomarT < 20 * H) continue;
         if ((ESP()[k] || {}).tipo === 'link') continue;   // 5.57: a sequência 'link' cuida
         try { const fe = faseEsteira(x); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) continue; } catch (e) {}
-        const nm = primeiroNome(x.nomeReal || x.nome);
+        const nm = primeiroNome(x.nomeReal);
         const texto = 'Oi' + (nm ? ', ' + nm : '') + '! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela continua disponível no link que te mandei acima. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, é só me chamar aqui que eu te ajudo. 🤝';
         if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'retomada com link (última nossa ' + hhmm(t) + ')' }); continue; }
         x.retomarT = agora; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.38: retomada com link (última mensagem nossa ' + hhmm(t) + ')'); gravaRG(RGx);
