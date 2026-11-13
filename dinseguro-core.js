@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.28';
+  const VERSAO = '6.29';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4250,7 +4250,7 @@
           continue;
         }
         // 5.39 (caso Douglas 15:55: 001/0001/33-8 "Número da conta inválido"): conta aleatória recusada como inválida → Caixa 104/3880/111113-1
-        if (!real && /conta inv[áa]lid|n[úu]mero da conta/i.test(alertas().join(' ')) && c.banco !== '104') {
+        if (!real && /conta inv[áa]lid|n[úu]mero da conta|ag[êe]ncia v[áa]lida|ag[êe]ncia inv[áa]lid/i.test(alertas().join(' ')) && c.banco !== '104') {   /* 6.29 (caso Marcelo RDLWQ 17:10: Bradesco ag 0244 'Informe uma agência válida') */
           await fecharAlertas(); if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
           log(`Conta ${c.banco} ${c.conta}-${c.dv} inválida → Caixa 104 ag 3880 cc 111113-1.`, 'aviso');
           c = { banco: '104', agencia: '3880', conta: '111113', dv: '1' }; continue;
