@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.29';
+  const VERSAO = '6.30';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -309,7 +309,7 @@
     let ocupadoAuto = false, ocupadoT = 0;
     // 6.14 (Stefany 14:26, caso Édina: ordem 'nova' parada 5 min com a aba do Multicorban parada): passo que nunca termina deixava o robô ocupado para sempre.
     // Ocupado há mais de 4 min → recarrega a aba (a consulta interrompida volta para a fila pela regra 5.04).
-    setInterval(() => { if (ocupadoAuto && ocupadoT && Date.now() - ocupadoT > 4 * 60000) { try { console.log('[Dinseguro] robô travado há 4 min — recarregando a aba'); } catch (e) {} location.reload(); } }, 30000);
+    setInterval(() => { if (ocupadoAuto && ocupadoT && Date.now() - ocupadoT > (/newcorban/.test(location.host) ? 25 : 4) * 60000) {   /* 6.30: no New Corban o C6 espera o link até 20 min — 4 min derrubava a espera (caso Marcelo 980051138) */ try { console.log('[Dinseguro] robô travado há 4 min — recarregando a aba'); } catch (e) {} location.reload(); } }, 30000);
     // 5.37 (caso Ramon 16:04: ordem 'nova' parada 15 min): campo com foco e texto parado há mais de 60 s não é gente digitando → solta o foco e segue
     let ultDigitT = 0; ['keydown', 'input', 'mousedown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultDigitT = Date.now(); }, true));
     const ninguemMexendo = () => { if (document.querySelector('.modal.show')) return false;
