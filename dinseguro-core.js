@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.79';
+  const VERSAO = '5.80';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1288,6 +1288,9 @@
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) continue;
               const ZC = GM_getValue('zap_por_cpf', {}) || {}; if (Object.values(ZC).some(v => v === k || (v && (v.hash === k || v.h === k)))) continue;
               if (x.cpf || x.temCpf || x.cpfT || x.cpfSemRespT) continue; }
+            // 5.80 (caso Helder VQJR7 21:15: clicou "Encerrar agora" no bot e recebeu pedido de CPF): cliente que encerrou sozinho não recebe pedido
+            if (/encerrar( agora| o atendimento| atendimento)?\b|n[ãa]o (tenho|quero) interesse|n[ãa]o preciso|s[óo] (estava|tava) olhando/i.test(x.ultCliTxt || '') || /Se no futuro precisar de cr[ée]dito/i.test(x.ultBotTxt || x.ultTxt || '')) continue;
+            { const AOy = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOy && AOy.cpf) continue; }   // 5.80: CPF já conhecido (ordem antiga)
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
             const nm = primeiroNome(x.nome); const val = x.escolha && x.escolha.valor ? brl(x.escolha.valor) : '';
