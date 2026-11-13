@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.00';
+  const VERSAO = '6.01';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -421,6 +421,8 @@
             // 4.75: regra de valor. Escolheu abaixo de 10 mil no bot → contorno (vigia). 10 mil ou mais → digita ESSE valor.
             // 5.69 (caso Maria Sandra F9M06: contorno respondido "parcela até R$ 100"): valor decidido pelo VIGIA (o.valorVigia) → digita esse valor de ponta a ponta
             const vv = +o.valorVigia || 0; const vb = vv > 0 ? Math.max(vv, 10000) : (+o.valorBot || 0);
+            // 6.01 (Stefany 13/11 11:17, caso Marilza: margem da consulta R$ 152,82 x extrato R$ 567,34): parcela decidida pelo vigia (regra de 3) vence a da consulta
+            if (+o.parcelaVigia > 0) { ta.value = /^parcela:.*$/m.test(ta.value) ? ta.value.replace(/^parcela:.*$/m, 'parcela: ' + brl(+o.parcelaVigia)) : ta.value + '\nparcela: ' + brl(+o.parcelaVigia); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             if (vv > 0) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vv)) : ta.value + '\nvalor: ' + brl(vv); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             else if (vb > 0 && vb < 10000) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → VIGIA: contorno /simula + opções' }); return; }
             else if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -537,6 +539,19 @@
     //   'atendimento' (fila, CPF, ordens, mensagens a quem espera, tags) · 'followup' (toques, esperas, lembretes, esteira, pós-pagamento)
     //   'varredura' (janelas vencidas, conferência das 24 h, releitura do azul) · 'vigia' (aba do Claude: o robô não mexe) · 'tudo' (padrão).
     // Papel sem aba viva é feito pela aba 'tudo' (a de menor id) e, sem ela, pela de 'atendimento'. Uma aba só = tudo como antes.
+    // 6.01 (Stefany 13/11 12:09): LEITURA PELO SERVIDOR do Botmaker, sem abrir a conversa na tela (não puxa as outras abas).
+    // Guarda o pedido que a própria tela faz (POST /opsvc/sg9/msg4c wsType 'messages', com o token dela) e repete trocando só o customerId.
+    // Sem pedido recente (> 40 min) ou com erro → null, e o robô segue pelo caminho antigo (abrir na tela).
+    const APIW = (() => { try { return ((typeof unsafeWindow !== 'undefined') ? unsafeWindow : window).top; } catch (e) { return null; } })();
+    try { if (APIW && !APIW.__dinsApiHook) { APIW.__dinsApiHook = 1; const f0 = APIW.fetch; APIW.__dinsFetch0 = f0;
+      APIW.fetch = function (u, o) { try { const url = String((u && u.url) || u); if (/\/msg4c$/.test(url) && o && typeof o.body === 'string' && /"wsType":"messages"/.test(o.body)) APIW.__dinsMsgReq = { u: url, o: { method: o.method || 'POST', headers: o.headers, body: o.body, credentials: o.credentials }, t: Date.now() }; } catch (e) {} return f0.apply(this, arguments); }; } } catch (e) {}
+    async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
+      const b = JSON.parse(L.o.body); b.showLoading = false; b.message.customerId = id; b.message.start = 0; b.message.end = n || 20;
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+      try { const r = await APIW.__dinsFetch0.call(APIW, L.u, Object.assign({}, L.o, { body: JSON.stringify(b), signal: ctl.signal })); if (!r.ok) return null; const j = await r.json(); return (j && j.customer) ? j : null; } finally { clearTimeout(tm); }
+    } catch (e) { return null; } }
+    window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
+    const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
     const T0 = Date.now();
     const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id');
       // 5.86: janela aberta por window.open herda a sessionStorage da que abriu — se o meu id já tem batida viva, sou cópia: id novo e papel automático
@@ -1235,7 +1250,8 @@
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
-        const chaveDesf = o.hash + '|' + o.acao; const feitos = GM_getValue('desf_msg_feita', {}) || {};
+        const chaveDesf = o.hash + '|' + o.acao + (o.acao === 'sim_link' ? '|' + (((o.trocas || []).find(t => /link/i.test(t[0])) || [])[1] || o.t || '') : '');   // 6.01 (Michele/Marilza 13/11): proposta REFEITA tem outro link → não é repetição
+        const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = [...document.querySelectorAll('.entries [class*="entries-li"].left')].map(e => e.innerText || '').join('\n').slice(-30000);   // 5.35: só mensagens do CLIENTE (o bot tem 0800/números que pareciam CPF — caso Douglas)
@@ -1791,6 +1807,10 @@
     async function mapearUm0(id) {
       if (vigiaTrava()) return false;   // 4.54
       if (vigiaTrabalhando()) return false;
+      // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
+      try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 10 * 60000) { const j = await apiLer(id, 1);
+        const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
+        if (lm && lm < +x0.lidoT) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; return true; } } } catch (e) {}
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
@@ -3318,6 +3338,9 @@
             localStorage.removeItem('dins_varre_pausa');
           }
           cursor.feitos.push(it.id); naFatia++; salva();
+          // 6.01: janela de 24 h ainda aberta (última mensagem do cliente há menos de 23 h 30, pelo servidor) → pula sem abrir a tela
+          { const j = await apiLer(it.id, 1); const lu = j && +j.customer.lastUserMessageTimeStamp; if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
+            if (lu > 0 && Date.now() - lu < 23.5 * 3600000) { placar.janela_aberta++; API_PLACAR.puladas++; salva(); continue; } }
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
           const d = decidirVarredura(it.id, it.nome);
@@ -5143,6 +5166,11 @@
     { const t = prazoProibido(f, (el('prazo') || {}).value); if (t) throw new Error(t); }
     // 4.12 — liberado abaixo do valor que o cliente pediu NÃO grava
     { const ped = num(f.valor), lib = num(f._liberado); if (ped > 0 && lib > 0 && lib < ped) throw new Error(`⛔ Liberado R$ ${brl(lib)} abaixo do pedido R$ ${brl(ped)}: aumente a parcela (o cliente pediu ${brl(ped)} → tem que ser ${brl(ped)} ou mais).`); }
+    // 6.01 (Stefany 13/11 11:50): no C6, cliente com 2 propostas em andamento → a 3ª é REPROVADA sozinha. Não grava: o vigia pede à Stefany quais cancelar.
+    if (pagina === 'c6' && !window.__dinsC6TerceiraOk) { try { const cpfL = String(f.cpf || '').replace(/\D/g, '').replace(/^0+/, ''); const E = GM_getValue('esteira', {}) || {}; const vistos = new Set();
+      const ativas = Object.keys(E).filter(k => k.startsWith('C:')).map(k => E[k]).filter(r => r && String(r.cpf || '').replace(/^0+/, '') === cpfL && /C6/i.test(r.banco || '') && Date.now() - (+r.t || 0) < 3 * 24 * 3600000 && !/cancel|reprov|pag[oa]\b|integrad|finaliz|recusad/i.test((r.status || '') + ' ' + (r.statusBanco || '') + ' ' + (r.real || ''))).filter(r => { const k = r.link || r.status + r.nome; if (vistos.has(k)) return false; vistos.add(k); return true; });
+      if (ativas.length >= 2) throw new Error('⛔ C6: o cliente já tem ' + ativas.length + ' propostas em andamento — o C6 REPROVA a 3ª. Pedir à Stefany quais cancelar (claude/PADRAO-CANCELAMENTO-C6.md). Depois: window.__dinsC6TerceiraOk = true e Gravar.');
+    } catch (e) { if (/C6: o cliente já tem/.test(e.message)) throw e; } }
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
     el('btn_gravar_proposta').click();
