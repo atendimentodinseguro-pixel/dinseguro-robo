@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.89';
+  const VERSAO = '5.90';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -572,11 +572,11 @@
     // Precisa de pop-up liberado para go.botmaker.com (senão aparece o botão 🪟 — um clique abre uma janela). Robôs = abas vivas que não são o vigia.
     const robosVivos = () => Object.values(abasVivas()).filter(v => v.papel !== 'vigia').length;
     const abrirJanela = () => { const n = robosVivos(); if (n >= 3) return 'já tem ' + n + ' janelas de robô';
-      const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=1280,height=760,left=' + [0, 120, 240][Math.min(n, 2)] + ',top=' + [0, 40, 80][Math.min(n, 2)]);
+      const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=' + screen.availWidth + ',height=' + screen.availHeight + ',left=0,top=0');
       window.localStorage.setItem('dins_janela_try', String(Date.now())); if (!w) { window.localStorage.setItem('dins_popup_bloq', String(Date.now())); return 'pop-up bloqueado'; } window.localStorage.removeItem('dins_popup_bloq'); return 'abri a janela ' + (n + 1) + '/3'; };
     window.dinsAbrirJanelas = abrirJanela;
     // 5.87 (Stefany 09:18: "abriram menores"): janela aberta pelo robô pequena demais vira layout de celular — aumenta sozinha
-    try { if (/^dins_robo_/.test(window.top.name || '') && window.top.outerWidth < 1100) window.top.resizeTo(Math.min(1280, screen.availWidth), Math.min(760, screen.availHeight)); } catch (e) {}
+    try { if (/^dins_robo_/.test(window.top.name || '') && window.top.outerWidth < screen.availWidth - 20) { window.top.moveTo(0, 0); window.top.resizeTo(screen.availWidth, screen.availHeight); } } catch (e) {}
     setInterval(() => { try {
       const V = abasVivas(); V[ABA] = { papel: meuPapel(), t: Date.now() }; const n = Object.values(V).filter(v => v.papel !== 'vigia').length;
       const top = window.top.document; let bt = top.getElementById('dins-abrir-jan');
