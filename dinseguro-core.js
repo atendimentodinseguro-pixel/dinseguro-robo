@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.84';
+  const VERSAO = '5.85';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1188,7 +1188,7 @@
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = [...document.querySelectorAll('.entries [class*="entries-li"].left')].map(e => e.innerText || '').join('\n').slice(-30000);   // 5.35: só mensagens do CLIENTE (o bot tem 0800/números que pareciam CPF — caso Douglas)
-          if (/(^|\D)\d{3}\.?\d{3}\.?\d{3}[-.\s]?\d{2}(\D|$)/.test(tx0)) { passos.push('cliente já mandou o CPF — NÃO pedi de novo'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
+          if (/(^|\D)\d{3}\.?\d{3}\.?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(tx0)) { passos.push('cliente já mandou o CPF — NÃO pedi de novo'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
         // 5.38: toque de retomada só sai se a ÚLTIMA mensagem da conversa for nossa (cliente não falou depois)
         if (o.soSeNossaUltima && !o.msgFeita) { try { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 2).slice(-1)[0];
           let recente = false; { const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh) { let h = +mh[1] % 12; if (/PM/i.test(mh[3])) h += 12; const d = new Date(); d.setHours(h, +mh[2], 0, 0); const dif = Date.now() - d.getTime(); recente = dif >= 0 && dif < 2 * 3600000; } }
@@ -1747,7 +1747,7 @@
       try { detectarLink(); } catch (e) {}
       // 5.82 (Stefany 21:13–21:16, caso Ester: o CPF estava no campo CPF das VARIÁVEIS do contato e numa NOTA de 28/10, e o robô pediu de novo)
       try { const T9 = document.body.innerText; let cv = '';
-        const iv = T9.search(/Vari[áa]veis/); if (iv >= 0) { const mm = T9.slice(iv, iv + 4000).match(/\nCPF\s*\n+\s*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/); if (mm) cv = mm[1].replace(/\D/g, ''); }
+        const iv = T9.search(/Vari[áa]veis/); if (iv >= 0) { const mm = T9.slice(iv, iv + 4000).match(/\nCPF\s*\n+\s*(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)/); if (mm) cv = mm[1].replace(/\D/g, ''); }
         if (!cv) { const ino = T9.search(/\nNotas\s*\n/); if (ino >= 0) { const mm2 = T9.slice(ino, ino + 8000).match(/\bCPF\s*\n*\s*(\d{3}\.\d{3}\.\d{3}-\d{2})/); if (mm2) cv = mm2[1].replace(/\D/g, ''); } }
         if (cv && cv.length === 11 && !/^(\d)\1+$/.test(cv)) { const r9 = RG(); if (r9[id] && r9[id].cpfVar !== cv) { r9[id].cpfVar = cv; (r9[id].hist = r9[id].hist || []).push(hhmm(Date.now()) + ' 5.82: CPF achado no painel (variáveis/notas) — não pedir de novo'); gravaRG(r9); } } } catch (e) {}
       // 5.32: (tirado) guardar o telefone do painel na régua — painel atrasado poderia gravar o telefone de OUTRO cliente (erro 105)
@@ -1924,7 +1924,7 @@
         const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || !telaPronta(h)) return;
         const fone = foneDoContato(); if (!fone) return;
         const txt = document.body.innerText;
-        const achados = [...new Set([...(txt.match(/(?<![\d.])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![\d-])/g) || [])].map(z => z.replace(/\D/g, '')).filter(cpfOk))];
+        const achados = [...new Set([...(txt.match(/(?<![\d.])\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(?![\d-])/g) || [])].map(z => z.replace(/\D/g, '')).filter(cpfOk))];
         if (!achados.length) return;
         const m = GM_getValue('zap_por_cpf', {}) || {}; let mudou = false;
         achados.forEach(c => { if (!m[c] || m[c].fone !== fone || Date.now() - m[c].t > 3600e3) { m[c] = { fone, hash: h, t: Date.now() }; mudou = true; } });
@@ -2051,11 +2051,11 @@
         const iVal = antesC.map(m => m.lado === 'cli' && VAL(m) >= 500).lastIndexOf(true);
         const valor = iVal >= 0 ? VAL(antesC[iVal]) : 0;
         const aceite = iVal >= 0 && antesC.slice(iVal).some(m => m.lado === 'cli' && /Sim desejo contratar|quero contratar/i.test(m.txt));
-        const cpfM = [...ms].reverse().find(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));
-        const cpf = cpfM ? (cpfM.raw.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/)[0] || '').replace(/\D/g, '') : '';
+        const cpfM = [...ms].reverse().find(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(m.raw));
+        const cpf = cpfM ? (cpfM.raw.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/)[0] || '').replace(/\D/g, '') : '';
         contornoInfo = { valor, aceite, cpf };
       }
-      const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(m.raw));   // CPF mandado PELO CLIENTE
+      const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(m.raw));   // CPF mandado PELO CLIENTE
       // 4.14 — HANDOFF (Stefany 10/11 18:41, caso Carmen): o bot disse "logo você será atendido(a) por um atendente humano"
       // e DEPOIS mandou outra mensagem dele (vídeo). A prévia da lista mostrava só o vídeo → ninguém pôs na fila.
       const HANDOFF_RE = /atendido\(a\) por um atendente humano|atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir irei avisar/i;
@@ -2066,7 +2066,7 @@
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
       // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
       // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
-      const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/;
+      const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/;
       const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const cpfSem = cpfSemRespT ? (ms[iCpf].raw.match(CPF_RE)[0] || '').replace(/\D/g, '') : '';   // 4.24: o robô consulta sozinho
@@ -3058,7 +3058,7 @@
       const e = document.querySelector('.entries');
       const t = e ? e.innerText : '';
       return {
-        cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(t),
+        cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(t),
         link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin)/i.test(t),
         prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t),
         // qualquer "[Nome]" conta: mensagem nossa E nota interna. Nota interna quer dizer
@@ -3185,7 +3185,7 @@
       if ((GM_getValue('wa_bloqueados', []) || []).includes(id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
       const L = c.L, u = L && L.ult;
       const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
-      if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(u.raw || ''))
+      if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(u.raw || ''))
         return { acao: 'revisar', motivo: 'cliente escreveu "' + (u.txt || '').slice(0, 60) + '" e ficou sem resposta' };
       if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
       // 4.48 (André 11/11): cliente tinha dito "Não / Vou deixar / Muito pouco valor" e mesmo assim saiu follow-up pelo WhatsApp.
