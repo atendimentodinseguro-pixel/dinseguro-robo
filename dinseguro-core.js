@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.98';
+  const VERSAO = '5.99';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -429,6 +429,9 @@
             if (!/^telefone_origem:\s*WhatsApp/im.test(ta.value) && o.fone) { let t = String(o.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
               if (/^\d{11}$/.test(t)) { const put = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
                 put('telefone', t); put('telefone_origem', 'WhatsApp do chat (Botmaker — ordem automática)'); ta.dispatchEvent(new Event('input', { bubbles: true })); } }
+            // 5.99 (Stefany 13/11 11:11, caso Michele: mandou a conta certa) — conta informada pelo cliente/vigia: extra.contaFix = { banco, agencia, conta, tipo_conta }
+            if (o.contaFix && typeof o.contaFix === 'object') { const put2 = (k, v) => { if (!v) return; ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
+              put2('banco', o.contaFix.banco); put2('agencia', o.contaFix.agencia); put2('conta', o.contaFix.conta); put2('tipo_conta', o.contaFix.tipo_conta); put2('conta_origem', 'informada pelo cliente no chat (vigia)'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             const f3 = GM_getValue('ficha_atual', null);
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
