@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.90';
+  const VERSAO = '5.91';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3153,6 +3153,8 @@
         const x = chip.querySelector('.MuiChip-deleteIcon, svg'); if (!x) break;
         x.dispatchEvent(new MouseEvent('click', { bubbles: true })); await esp(1500);
       }
+      // 5.91 (Stefany 13/11 09:40 "não foi iniciado": rodadas 08:56 e 09:21 leram lista 0): janela pequena/conversa aberta = a lista não aparece.
+      for (let k = 0; k < 10 && !document.querySelector('.customer-item'); k++) { try { if (/#\/chats\/./.test(window.top.location.hash)) window.top.location.hash = '#/chats'; if (window.top.outerWidth < screen.availWidth - 20) { window.top.moveTo(0, 0); window.top.resizeTo(screen.availWidth, screen.availHeight); } } catch (e) {} await esp(3000); }
       let sc = document.querySelector('.customer-item') && document.querySelector('.customer-item').parentElement;
       for (let k = 0; k < 6 && sc && sc.scrollHeight <= sc.clientHeight + 5; k++) sc = sc.parentElement;
       const vistos = new Map();
