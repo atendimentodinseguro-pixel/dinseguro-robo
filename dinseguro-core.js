@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.75';
+  const VERSAO = '5.76';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1357,7 +1357,8 @@
             const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
             if (!handoff && !menu && !voltou) continue;
             if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida) continue;
-            { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && agora5 - (+AOx.t || 0) < 23 * 3600000) continue; }
+            { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && (AOx.cpf || agora5 - (+AOx.t || 0) < 23 * 3600000)) continue; }   // 5.76: já temos o CPF dele (ordem antiga) → nunca pedir de novo
+            if (x.link && !x.semLink) continue;   // 5.76 (Stefany 21:08, caso Ester: já tinha proposta digitada e o robô pediu o CPF de novo) → quem tem proposta vai para o VIGIA (vermelho), não recebe pedido de CPF
             const t0 = handoff ? x.handoffT : (x.ultCliT || 0); if (!t0 || agora5 - t0 < 5 * 60000 || agora5 - t0 > 23 * 3600000) continue;
             if (RET[k] && agora5 - RET[k] < 12 * 3600000) continue;
             if (!(hh5 >= 8 && hh5 < 21)) continue;
