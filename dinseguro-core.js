@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.82';
+  const VERSAO = '5.83';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1606,7 +1606,7 @@
       // 5.37 (Stefany 12/11, caso Menezes: 07 às 15:26, clicou "Verificar opções" 15:27 e ninguém viu): tag de retorno dado NÃO encerra
       // se o cliente escreveu DEPOIS e o bot não respondeu → vermelho para o vigia.
       { let L0 = null; try { L0 = lados(); } catch (e) {}
-        const voltou = L0 && L0.ult && L0.ult.lado === 'cli' && !/^\s*(ok+|obrigad|obg|brigad|am[ée]m|deus aben|👍|🙏|❤️)/i.test(L0.ult.txt || '');
+        const voltou = L0 && L0.ult && L0.ult.lado === 'cli' && !/^\s*(ok+|obrigad|obg|brigad|am[ée]m|deus aben|👍|🙏|❤️)/i.test(L0.ult.txt || '') && !(+L0.ult.t && Date.now() - L0.ult.t > 24 * 3600000);   // 5.83 (caso Lu Tasca: "Olá" de 16/12/2025 virou vermelho): só vale mensagem das últimas 24 h
         const tagFim = tem(/^01 (I|k)/i) ? '01 I' : tem(/^02 /i) ? '02' : tem(/^03 /i) ? '03' : tem(/^07 /i) ? '07' : '';
         if (tagFim && voltou) return { estado: 'alerta', motivo: 'cliente voltou a escrever depois do retorno (' + tagFim + '): "' + String(L0.ult.txt || '').slice(0, 40) + '"', voltouAposRetorno: 1,
           ultCliT: (L0.ultCli && L0.ultCli.t) || 0, ultCliTxt: ((L0.ultCli && L0.ultCli.txt) || '').slice(0, 120), ultT: L0.ult.t || 0, ultLado: 'cli', temCpf: L0.temCpf, comQuem: L0.comQuem, cpfSemRespT: L0.cpfSemRespT || 0, cpfSem: L0.cpfSem || '' }; }
