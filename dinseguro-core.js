@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.04';
+  const VERSAO = '6.05';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2797,6 +2797,10 @@
         if (tagsChat.some(t => /^(01 D|01 I|01 k|02 I|03 A|03 B|05 |06 |07 )/i.test(t))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }
         let L = null; try { L = lados(); } catch (e) {}
         if (L && L.ult && L.ult.lado === 'cli' && alvo.tipo !== 'lembrete') { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // respondeu: não insiste
+        // 6.05 (Stefany 13/11 12:40, caso Zélia ZXTN3: voltou HOJE 12:21 por anúncio e às 12:37 recebeu o aviso de "fim de janela" calculado pela janela
+        // de 09/11). Vale a ÚLTIMA janela: o aviso só sai se a última mensagem do cliente (de qualquer sessão) foi há ~23 h; senão remarca para a janela atual.
+        if (toque.q === 'janela') { const uc = (L && L.ultCli && +L.ultCli.t) || 0; const qj = horaJanela(uc);
+          if (!uc || !qj || agora < qj - 10 * M || agora - qj > 60 * M) { if (qj > agora + 10 * M) marcaQ({ quando: qj }, 'remarcado para a janela de agora (' + hhmm(qj) + ') — o cliente voltou depois'); else marcaQ({ feito: agora }, 'pulado (não é a janela atual)'); return; } }
         // 5.57: a nossa última mensagem saiu há menos de 50 min (vigia/robô falou agora) → este toque espera mais 1 h
         { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 6).slice(-1)[0];
           const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
