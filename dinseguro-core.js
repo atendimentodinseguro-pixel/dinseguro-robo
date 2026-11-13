@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.97';
+  const VERSAO = '5.98';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -556,7 +556,7 @@
       if (autos.length > 1 || fixos.some(f => f !== 'vigia')) { const i = autos.indexOf(ABA); novo = falta[i] || 'tudo'; }
       if (novo !== meuPapel()) { sessionStorage.setItem('dins_papel', novo); sessionStorage.setItem('dins_papel_auto', '1'); } };
     let batH = null, batMud = 0;
-    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ try { autoPapel(); } catch (e) {} window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), auto: papelAuto() ? 1 : 0, hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
+    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ try { autoPapel(); } catch (e) {} window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), auto: papelAuto() ? 1 : 0, hash: meuPapel() === 'vigia' ? '' : h, mud: batMud, t: Date.now(), v: VERSAO }));   /* 5.98: o Botmaker leva a aba do vigia junto para a conversa que o robô abre — o vigia segura conversa só pela reserva (dinsReservar), não pela tela */
       try {   // 5.75: aviso de janela de robô parada (sem sinal há 2 min+, vista na última hora) — aparece no quadro de todas as abas
         const mortos = []; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(window.localStorage.getItem(k) || '{}'); const ida = Date.now() - (+v.t || 0); if (v.papel && v.papel !== 'vigia' && ida > 2 * 60000 && ida < 3600000 && !Object.values(abasVivas()).some(w => w.papel === v.papel)) mortos.push(v.papel.toUpperCase() + ' (' + Math.round(ida / 60000) + ' min)'); }
         window.localStorage.setItem('dins_abas_paradas', JSON.stringify(mortos));
