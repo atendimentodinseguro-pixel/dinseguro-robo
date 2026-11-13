@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.19';
+  const VERSAO = '6.20';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1821,7 +1821,7 @@
         const passouHumano = u && /atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir|logo voc[êe] ser[áa] atendid/i.test(String(u.MESSAGE || ''));
         if (u && u.FROM === 'me' && u.FROM_NAME === 'Bot' && ut && Date.now() - ut < 6 * 60000 && soBotao && !passouHumano) { API_ADIA[id] = Date.now() + 2 * 60000; API_PLACAR.bot = (API_PLACAR.bot || 0) + 1; return false; } } else API_PLACAR.falhas++; } } catch (e) {}
       // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
-      try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 10 * 60000) { const j = await apiLer(id, 1);
+      try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 6 * 3600000) { const j = await apiLer(id, 1);   /* 6.20 (Stefany 15:10: robô recarregado relia tudo na tela): vale até 6 h, não só 10 min */
         const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
         if (lm && lm < +x0.lidoT) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; return true; } } } catch (e) {}
       // 6.04 (Stefany 13/11 12:38 "vamos pra cima"): RELEITURA DE VERMELHO (a cada 20 min) sem abrir a tela — se no servidor não há mensagem
