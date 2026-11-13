@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.20';
+  const VERSAO = '6.21';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4323,6 +4323,25 @@
       let autoD = false;
       setInterval(async () => {
         // 5.39 (caso Douglas: ficha_ok DAYCOVAL parada 10 min): só um diálogo VISÍVEL segura o executor (as janelas "Editar Tabela" ficam escondidas na página)
+        // 6.21 (Stefany 13/11 15:27 "pode sim"): o portal não sai da Formalização pelo menu depois de uma proposta pronta — o robô
+        // recarrega a página sozinho, entra com o login SALVO (só clica em ENTRAR; nunca digita senha nem token) e fecha o aviso do correspondente.
+        try {
+          const temOrdem = Object.values(AOd()).some(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
+          if (temOrdem && !autoD && !rodando) {
+            if (/\/login/.test(location.pathname)) {
+              const pw = document.querySelector('input[type=password]'); const tok = [...document.querySelectorAll('input')].some(i => vis(i) && /token|c[óo]digo/i.test((i.placeholder || '') + (i.name || '') + (i.id || '')));
+              const ult = +sessionStorage.getItem('dins_dcy_entrar') || 0;
+              if (!tok && pw && pw.value && Date.now() - ult > 120000) { const b = [...document.querySelectorAll('button')].find(x => vis(x) && /^\s*ENTRAR\s*$/i.test(tx(x))); if (b) { sessionStorage.setItem('dins_dcy_entrar', Date.now()); b.click(); } }
+              return;
+            }
+            const aviso = [...document.querySelectorAll('.modal.show, .cdk-overlay-pane')].find(e => vis(e) && /vinculad[oa]s ao Correspondente/i.test(e.textContent || ''));
+            if (aviso) { const ok = [...aviso.querySelectorAll('button')].find(x => /OK,?\s*ENTENDI/i.test(tx(x))); if (ok) { ok.click(); return; } }
+            if (/formalizacao|resumo/.test(location.pathname)) {
+              const n = (+sessionStorage.getItem('dins_dcy_menu') || 0) + 1; sessionStorage.setItem('dins_dcy_menu', n);
+              if (n >= 3) { sessionStorage.setItem('dins_dcy_menu', 0); log('Formalização presa: recarregando a página para começar o próximo cliente.'); location.reload(); return; }
+            } else sessionStorage.setItem('dins_dcy_menu', 0);
+          }
+        } catch (e) {}
         if (autoD || rodando || /\/login/.test(location.pathname) || [...document.querySelectorAll('.cdk-overlay-pane .mat-mdc-dialog-container, .modal.show')].some(e => vis(e))) return;
         // recuperação: proposta gerada aqui pelo painel (à mão) para um cliente cuja ordem parou em "banco DAYCOVAL é à mão" → devolve o link ao Botmaker
         try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
