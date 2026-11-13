@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.93';
+  const VERSAO = '5.94';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1025,6 +1025,12 @@
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
         .replace(/[*_]/g, '').includes(trecho.trim().slice(0, 30));
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
+      // 5.94 (Stefany 13/11 10:16): balão com "!" vermelho = NÃO foi enviado ao cliente. ✓ = saiu; ✓✓ cinza = chegou; ✓✓ azul = viu.
+      // Espera o tique aparecer (até 25 s); sem tique → erro para o vigia reenviar (o "não duplicar" impede o robô de mandar de novo sozinho).
+      { const k0 = valorEnviado.replace(/[*_\s]/g, '').slice(0, 30); let tq = '';
+        for (let i = 0; i < 25 && !tq; i++) { const b = [...document.querySelectorAll('.entries [class*="entries-li"].right')].reverse().find(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k0));
+          tq = b ? ([...b.querySelectorAll('.material-icons, .material-symbols-outlined')].map(x => (x.innerText || '').trim()).find(x => /^(done_all|check|done)$/.test(x)) || '') : ''; if (!tq) await esp(1000); }
+        if (!tq) throw new Error('a mensagem ficou com ! vermelho (sem tique) — NÃO chegou ao cliente: reenviar à mão'); }
       // Stefany, 07/11 16:18: quem registra o link sou eu. Toda mensagem que sai com
       // link (o /bn54n e o /parabens levam link) agenda sozinha o follow-up de 10 e 60 min.
       // v3.80 (Stefany 10/11, caso Evandro): o /n30 leva o link do GRUPO de WhatsApp e das redes sociais — isso
@@ -1057,6 +1063,12 @@
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
         .replace(/[*_]/g, '').includes(texto.replace(/[*_]/g, '').slice(0, 30));
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
+      // 5.94 (Stefany 13/11 10:16): balão com "!" vermelho = NÃO foi enviado ao cliente. ✓ = saiu; ✓✓ cinza = chegou; ✓✓ azul = viu.
+      // Espera o tique aparecer (até 25 s); sem tique → erro para o vigia reenviar (o "não duplicar" impede o robô de mandar de novo sozinho).
+      { const k0 = texto.replace(/[*_\s]/g, '').slice(0, 30); let tq = '';
+        for (let i = 0; i < 25 && !tq; i++) { const b = [...document.querySelectorAll('.entries [class*="entries-li"].right')].reverse().find(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k0));
+          tq = b ? ([...b.querySelectorAll('.material-icons, .material-symbols-outlined')].map(x => (x.innerText || '').trim()).find(x => /^(done_all|check|done)$/.test(x)) || '') : ''; if (!tq) await esp(1000); }
+        if (!tq) throw new Error('a mensagem ficou com ! vermelho (sem tique) — NÃO chegou ao cliente: reenviar à mão'); }
       return texto.slice(0, 40);
     }
 
