@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.94';
+  const VERSAO = '5.95';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2127,7 +2127,11 @@
           const v = /Receba:?\s*R\$\s*([\d.]+,\d{2})/i.exec(t); const pz = /Pague em:?\s*(\d{2,3})\s*x/i.exec(t);
           const valor = v ? parseFloat(v[1].replace(/\./g, '').replace(',', '.')) : 0;
           const aceite = ms.slice(iSim + 1).some(m => m.lado === 'cli' && /sim,?\s*desejo contratar|quero contratar/i.test(m.txt || m.raw || ''));
-          if (valor > 0) escolha = { valor, prazo: pz ? +pz[1] : 0, aceite }; } }
+          // 5.95 (Stefany 13/11 10:21, caso Michelle: simulou R$ 20 mil e depois clicou "Fazer nova simulação"): o que vale é a RESPOSTA depois da
+          // simulação. "Nova simulação" / "Não desejo contratar" / "Outro valor" sem nova simulação depois = RECUSOU esse valor → vai o máximo.
+          const recusou = !aceite && ms.slice(iSim + 1).some(m => m.lado === 'cli' && /nova simula[çc][ãa]o|fazer (uma )?nova|simular (outro|novamente|de novo)|outro valor|n[ãa]o desejo contratar|n[ãa]o quero (contratar|esse)/i.test(m.txt || m.raw || ''));
+          if (valor > 0 && !recusou) escolha = { valor, prazo: pz ? +pz[1] : 0, aceite };
+          if (valor > 0 && recusou) escolha = null; } }
       // 4.76 (Stefany 11/11 18:37, caso Nathalie: simulou R$ 3.000 no bot às 12:31, parou sem CPF, 6 h sem ninguém): lê o CONTEXTO, não só a
       // última mensagem. Cliente passou pelo bot (tem simulação/escolha), nunca mandou CPF, e depois da última mensagem dele só houve bot,
       // modelo de campanha ou mídia (nenhum humano escreveu) → semCpfT = hora da última mensagem do cliente.
