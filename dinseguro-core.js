@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.13';
+  const VERSAO = '6.14';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -302,7 +302,10 @@
     const zz = ms => new Promise(r => setTimeout(r, ms));
     const botaoRobo = t => [...document.querySelectorAll('button[data-a]')].find(b => b.dataset.a === t);
     const logRobo = () => [...document.querySelectorAll('div')].filter(d => /^\d\d:\d\d /.test(d.innerText || '') && d.children.length === 0).map(d => d.innerText);
-    let ocupadoAuto = false;
+    let ocupadoAuto = false, ocupadoT = 0;
+    // 6.14 (Stefany 14:26, caso Édina: ordem 'nova' parada 5 min com a aba do Multicorban parada): passo que nunca termina deixava o robô ocupado para sempre.
+    // Ocupado há mais de 4 min → recarrega a aba (a consulta interrompida volta para a fila pela regra 5.04).
+    setInterval(() => { if (ocupadoAuto && ocupadoT && Date.now() - ocupadoT > 4 * 60000) { try { console.log('[Dinseguro] robô travado há 4 min — recarregando a aba'); } catch (e) {} location.reload(); } }, 30000);
     // 5.37 (caso Ramon 16:04: ordem 'nova' parada 15 min): campo com foco e texto parado há mais de 60 s não é gente digitando → solta o foco e segue
     let ultDigitT = 0; ['keydown', 'input', 'mousedown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultDigitT = Date.now(); }, true));
     const ninguemMexendo = () => { if (document.querySelector('.modal.show')) return false;
@@ -315,7 +318,7 @@
       if (sessionStorage.getItem('dins_mc_manual') === '1') return;   // 5.75 (Stefany 21:02: "uma para você e uma para ele"): aba do Multicorban do VIGIA — o robô não pega ordem aqui
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
       const o = Object.values(AO()).find(x => x.estado === 'nova'); if (!o) return;
-      ocupadoAuto = true; poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
+      ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
       try {
         const off0 = document.getElementById('offline'); if (off0 && !off0.checked) { off0.click(); await zz(800); }   // 4.72: sempre consulta normal (nunca flash sem querer)
         const r = document.getElementById('cpf'); if (r && !r.checked) { r.click(); await zz(800); }
@@ -463,7 +466,7 @@
         if (!/WhatsApp/i.test(f2.telefone_origem || '')) throw new Error('sem o WhatsApp do chat na ficha (abra o chat do cliente no Botmaker)');
         poeAO(o.hash, { estado: 'ficha_ok', banco: (f2.banco_destino || '').toUpperCase(), nomeReal: f2.nome });
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
-      finally { ocupadoAuto = false; }
+      finally { ocupadoAuto = false; ocupadoT = 0; }
     }, 15000);
     // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
     if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
@@ -478,7 +481,7 @@
       const cpfOk = x => x && String(x.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
       if (!cpfOk(f) && cpfOk(o.ficha)) { f = o.ficha; GM_setValue('ficha_atual', f); }   // 5.18: usa a ficha guardada na ordem
       if (!cpfOk(f)) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
-      ocupadoAuto = true; poeAO(o.hash, { estado: 'digitando' });
+      ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'digitando' });
       if (o.tipo === 'cpf' && !o.aceite && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
         const antes = logRobo().length;
@@ -526,7 +529,7 @@
           setTimeout(() => { location.href = location.origin + '/?p=' + pag; }, 3000);   // tela limpa para o próximo cliente
         }
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
-      finally { ocupadoAuto = false; }
+      finally { ocupadoAuto = false; ocupadoT = 0; }
     }, 15000);
   }
 
