@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.08';
+  const VERSAO = '6.09';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3219,6 +3219,8 @@
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
+    window.dinsVarreLigada = on => { if (on !== undefined) GM_setValue('varredura_ligada', !!on); return GM_getValue('varredura_ligada', true); };   // 6.09: desliga a varredura neste perfil do Chrome (ela passa para o perfil 'varredura')
+    try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreLigada = window.dinsVarreLigada; } catch (e) {}
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
     try { localStorage.removeItem('dins_varre_pausa'); } catch (e) {}   // 4.95: pausa velha de antes do recarregar não vale
