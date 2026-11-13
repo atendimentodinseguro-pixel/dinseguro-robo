@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.21';
+  const VERSAO = '6.22';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -74,6 +74,9 @@
     '041': 'Banrisul', '070': 'BRB', '004': 'Banco do Nordeste', '037': 'Banpará', '021': 'Banestes', '047': 'Banese', '290': 'PagBank', '380': 'PicPay' };
 
   const so = s => (s || '').replace(/\D/g, '');
+  // 6.22 (caso Jeferson 15:22: ficha sem UF → Daycoval parou em 'UF obrigatório'): UF pelo DDD do WhatsApp quando a ficha não traz
+  const UF_DDD = {"11": "SP", "12": "SP", "13": "SP", "14": "SP", "15": "SP", "16": "SP", "17": "SP", "18": "SP", "19": "SP", "21": "RJ", "22": "RJ", "24": "RJ", "27": "ES", "28": "ES", "31": "MG", "32": "MG", "33": "MG", "34": "MG", "35": "MG", "37": "MG", "38": "MG", "41": "PR", "42": "PR", "43": "PR", "44": "PR", "45": "PR", "46": "PR", "47": "SC", "48": "SC", "49": "SC", "51": "RS", "53": "RS", "54": "RS", "55": "RS", "61": "DF", "62": "GO", "64": "GO", "63": "TO", "65": "MT", "66": "MT", "67": "MS", "68": "AC", "69": "RO", "71": "BA", "73": "BA", "74": "BA", "75": "BA", "77": "BA", "79": "SE", "81": "PE", "87": "PE", "82": "AL", "83": "PB", "84": "RN", "85": "CE", "88": "CE", "86": "PI", "89": "PI", "91": "PA", "93": "PA", "94": "PA", "92": "AM", "97": "AM", "95": "RR", "96": "AP", "98": "MA", "99": "MA"};
+  const ufDoDDD = t => { const d = String(t || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); return UF_DDD[d.slice(0, 2)] || ''; };
   // v3.10: agência válida = 4 dígitos (ou 4 + dígito); fora disso está errada → 0001. Banco do cliente sempre que existir.
   const agOk = a => { const d = so(a); return d.length === 4 ? d : d.length === 3 ? '0' + d : d.length === 5 ? d.slice(0, 4) : '0001'; };   // v3.14: 3 dígitos → zero na frente
   const bancoOk = b => { const d = so(b); return d && !/^0+$/.test(d) ? d.padStart(3, '0') : ''; };
@@ -4110,6 +4113,8 @@
     // ---- 2. Dados Cadastrais
     async function cadastrais(f) {
       await sleep(1500);
+      if (!/^[A-Z]{2}$/i.test(String(f.uf || '').trim())) { f.uf = ufDoDDD(f.telefone) || 'SP'; log('Ficha sem UF → ' + f.uf + ' (pelo DDD do WhatsApp).', 'aviso'); }   /* 6.22 */
+      if (/^CEP$/i.test(String(f.cidade || '').trim())) f.cidade = '';
       const email = entrada(/^Email$/); if (email && !email.value) await digitar(email, f.email || PADRAO.email);
       const nome = f.nome || ''; const sx0 = (f.sexo || '').trim().toUpperCase(); const sexo = /^F/.test(sx0) ? 'FEMININO' : /^M/.test(sx0) ? 'MASCULINO' : (/A$/i.test(nome.split(' ')[0]) ? 'FEMININO' : 'MASCULINO');  // 3.74: ficha traz M/F
       await escolher(lista(/^Sexo$/), new RegExp('^' + sexo + '$'));
@@ -4128,7 +4133,7 @@
       const cep = entrada(/^CEP$/, sr);
       if (cep && !so(cep.value)) {
         if (!f.cep) { const CEPUF = { SP: '01001000', RJ: '20010000', MG: '30110000', PR: '80010000', RS: '90010000', SC: '88010000', BA: '40010000', PE: '50010000', CE: '60010000', GO: '74003010', DF: '70040010', ES: '29010000', PA: '66010000', AM: '69005000', MA: '65010000', PB: '58010000', RN: '59010000', AL: '57020000', SE: '49010000', PI: '64000000', MT: '78005000', MS: '79002000', RO: '76801000', TO: '77001002', AC: '69900000', AP: '68900000', RR: '69301000' };
-          const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10 */
+          if (!String(f.uf || '').trim() || !/^[A-Z]{2}$/i.test(String(f.uf).trim())) f.uf = ufDoDDD(f.telefone) || 'SP'; if (/^CEP$/i.test(String(f.cidade || '').trim())) f.cidade = '';   /* 6.22 */ const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10 */
         await digitar(cep, f.cep);
         const lupa = caixa(/^CEP$/, sr).querySelector('mat-icon, button, [class*=search]'); if (lupa) lupa.click();
         await esperar(() => (entrada(/^Endere[çc]o$/, sr) || {}).value, 10000);
@@ -4509,7 +4514,7 @@
       await sleep(500); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
       // endereço
       const cep = campo(/^CEP$/); if (cep && !so(cep.value)) { if (!f.cep) { const CEPUF = { SP: '01001000', RJ: '20010000', MG: '30110000', PR: '80010000', RS: '90010000', SC: '88010000', BA: '40010000', PE: '50010000', CE: '60010000', GO: '74003010', DF: '70040010', ES: '29010000', PA: '66010000', AM: '69005000', MA: '65010000', PB: '58010000', RN: '59010000', AL: '57020000', SE: '49010000', PI: '64000000', MT: '78005000', MS: '79002000', RO: '76801000', TO: '77001002', AC: '69900000', AP: '68900000', RR: '69301000' };
-          const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10: PADRAO-ENDERECO-ALEATORIO (cliente não mandou endereço → aleatório) */ await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
+          if (!String(f.uf || '').trim() || !/^[A-Z]{2}$/i.test(String(f.uf).trim())) f.uf = ufDoDDD(f.telefone) || 'SP'; if (/^CEP$/i.test(String(f.cidade || '').trim())) f.cidade = '';   /* 6.22 */ const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10: PADRAO-ENDERECO-ALEATORIO (cliente não mandou endereço → aleatório) */ await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
       const nu = campo(/^Número$/); if (nu && (!nu.value || nu.value === '0') && so(f.numero)) await digitar(nu, so(f.numero)); else if (nu && !nu.value) await digitar(nu, '0');
       // banco
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
