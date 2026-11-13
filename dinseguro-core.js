@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.83';
+  const VERSAO = '5.84';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -533,8 +533,17 @@
     const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
       const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
+    // 5.84 (Stefany 13/11 08:57: "não vi a iniciação com as 4 janelas"): o papel ficava só na aba e sumia quando o Chrome fechava.
+    // Agora as janelas do Botmaker se dividem SOZINHAS: papel não escolhido à mão = automático. Com 1 aba de robô → 'tudo';
+    // com 2 ou mais → por ordem de id: atendimento, followup, varredura (os papéis que nenhuma aba fixa tem). A aba do vigia é sempre fixa.
+    const papelAuto = () => { const p = sessionStorage.getItem('dins_papel'); return !p || sessionStorage.getItem('dins_papel_auto') === '1'; };
+    const autoPapel = () => { if (!papelAuto()) return; const V = abasVivas(); V[ABA] = { papel: meuPapel(), auto: 1, t: Date.now() };
+      const fixos = Object.values(V).filter(v => !v.auto).map(v => v.papel); const falta = ['atendimento', 'followup', 'varredura'].filter(r => !fixos.includes(r));
+      const autos = Object.keys(V).filter(k => V[k].auto).sort(); let novo = 'tudo';
+      if (autos.length > 1 || fixos.some(f => f !== 'vigia')) { const i = autos.indexOf(ABA); novo = falta[i] || 'tudo'; }
+      if (novo !== meuPapel()) { sessionStorage.setItem('dins_papel', novo); sessionStorage.setItem('dins_papel_auto', '1'); } };
     let batH = null, batMud = 0;
-    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
+    const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ try { autoPapel(); } catch (e) {} window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), auto: papelAuto() ? 1 : 0, hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
       try {   // 5.75: aviso de janela de robô parada (sem sinal há 2 min+, vista na última hora) — aparece no quadro de todas as abas
         const mortos = []; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(window.localStorage.getItem(k) || '{}'); const ida = Date.now() - (+v.t || 0); if (v.papel && v.papel !== 'vigia' && ida > 2 * 60000 && ida < 3600000) mortos.push(v.papel.toUpperCase() + ' (' + Math.round(ida / 60000) + ' min)'); }
         window.localStorage.setItem('dins_abas_paradas', JSON.stringify(mortos));
@@ -552,7 +561,8 @@
     window.dinsReservar = (h, on = true) => { const r = (() => { try { return JSON.parse(window.localStorage.getItem('dins_vigia_reserva') || '{}'); } catch (e) { return {}; } })(); if (on) r[h] = Date.now(); else delete r[h]; for (const k in r) if (Date.now() - r[k] > 10 * 60000) delete r[k]; window.localStorage.setItem('dins_vigia_reserva', JSON.stringify(r)); return Object.keys(r); };
     window.dinsQuemEsta = h => { const V = abasVivas(); return Object.keys(V).filter(k => V[k].hash === h && k !== ABA).map(k => V[k].papel); };
     const esperaChatLivre = async h => { if (meuPapel() !== 'vigia') { for (let i = 0; i < 60 && reservaVigia(h); i++) await new Promise(r => setTimeout(r, 10000)); if (reservaVigia(h)) return false; } for (let i = 0; i < 30; i++) { if (!chatComOutraAba(h)) return true; await new Promise(r => setTimeout(r, 3000)); } return false; };
-    window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); batida(); return 'papel desta aba: ' + p; };
+    window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); sessionStorage.removeItem('dins_papel_auto'); batida(); return 'papel desta aba: ' + p + ' (fixo)'; };
+    window.dinsPapelAuto = () => { sessionStorage.removeItem('dins_papel'); sessionStorage.setItem('dins_papel_auto', '1'); batida(); return 'papel automático: ' + meuPapel(); };
     window.dinsFaz = faz;
     // travas que valem só para a PRÓPRIA aba (antes eram de todas: um robô esperava o outro sair da tela)
     const POR_ABA = /^(dins_nav|dins_mapeando|dins_varrendo|dins_vigia_ocupado|dins_vigia_trava)$/;
