@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.18';
+  const VERSAO = '6.19';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3385,7 +3385,7 @@
           }
           cursor.feitos.push(it.id); naFatia++; salva();
           // 6.01: janela de 24 h ainda aberta (última mensagem do cliente há menos de 23 h 30, pelo servidor) → pula sem abrir a tela
-          { const j = await apiLer(it.id, 1); const lu = j && +j.customer.lastUserMessageTimeStamp; if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
+          { const j = await apiLer(it.id, 1); const lu = j && +j.customer.lastUserMessageTimeStamp; if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++; try { const f9 = j && String(j.customer.WHATSAPP_CURATED_NUM || j.customer.PLATFORM_CONTACT_ID || '').replace(/\D/g, ''); if (f9 && f9.length >= 10) (window.__dinsVarreFone = window.__dinsVarreFone || {})[it.id] = f9; } catch (e) {}   /* 6.19 */
             if (lu > 0 && Date.now() - lu < 23.5 * 3600000) { placar.janela_aberta++; API_PLACAR.puladas++; naFatia--; salva(); continue; } }   // não conta na fatia (não usou a tela)
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
