@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.99';
+  const VERSAO = '6.00';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -5050,8 +5050,10 @@
 
   // ---- 4. Banco: Histórico Bancário (salvo no sistema) > ficha (Multicorban) > 0001/001-1
   async function dadosBancarios(f) {
-    el('btn-historico-bancario').click();
-    const pick = await esperar(() => {
+    // 6.00 (Stefany 13/11 11:15, Michele digitada 2x com a conta errada): conta INFORMADA PELO CLIENTE vence o Histórico Bancário
+    const contaDoCliente = /cliente/i.test(f.conta_origem || '') && so(f.banco) && so(f.conta);
+    if (!contaDoCliente) el('btn-historico-bancario').click(); else log('Conta informada pelo cliente — NÃO uso o Histórico Bancário.', 'ok');
+    const pick = contaDoCliente ? 'vazio' : await esperar(() => {
       const m = el('integrationsv2-bank-history-modal');
       if (!m || !m.classList.contains('show')) return null;
       const b = m.querySelector('.iv2-bh-pick');
