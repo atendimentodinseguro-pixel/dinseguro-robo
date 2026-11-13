@@ -528,7 +528,7 @@
     const T0 = Date.now();
     const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id');
       // 5.86: janela aberta por window.open herda a sessionStorage da que abriu — se o meu id já tem batida viva, sou cópia: id novo e papel automático
-      try { const b = k && JSON.parse(window.localStorage.getItem('dins_aba_' + k) || 'null'); if (b && Date.now() - (+b.t || 0) < 15000) { k = ''; sessionStorage.removeItem('dins_papel'); sessionStorage.setItem('dins_papel_auto', '1'); } } catch (e) {}
+      try { let nm = ''; try { nm = window.top.name || ''; } catch (e) {} if (/^dins_robo_/.test(nm) && !sessionStorage.getItem('dins_copia_ok')) { sessionStorage.setItem('dins_copia_ok', '1'); k = ''; sessionStorage.removeItem('dins_papel'); sessionStorage.setItem('dins_papel_auto', '1'); } } catch (e) {}
       if (!k) { k = Math.random().toString(36).slice(2, 8); sessionStorage.setItem('dins_aba_id', k); } return k; })();
     const PAPEIS = ['tudo', 'atendimento', 'followup', 'varredura', 'vigia'];
     const meuPapel = () => { const p = sessionStorage.getItem('dins_papel') || 'tudo'; return PAPEIS.includes(p) ? p : 'tudo'; };
