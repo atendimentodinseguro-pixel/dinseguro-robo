@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.16';
+  const VERSAO = '6.17';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3230,6 +3230,24 @@
     const marcaVarrendo = () => localStorage.setItem('dins_varrendo', Date.now());
     try { localStorage.removeItem('dins_varre_pausa'); } catch (e) {}   // 4.95: pausa velha de antes do recarregar não vale
     async function colherHashes() {
+      // 6.17 (Stefany 14:33 "não sei que lista ele tá pegando"): a lista vem do SERVIDOR do Botmaker (sync/customers), a mesma que a tela usa,
+      // mas inteira e sem depender de filtro da tela nem de rolar. Medido 13/11 14:45: 77 conversas (40 fora das 24h); a tela do perfil novo mostrava 35.
+      try {
+        const L = APIW && APIW.__dinsMsgReq;
+        if (L && APIW.__dinsFetch0 && Date.now() - L.t < 40 * 60000) {
+          let biz = 'credsegurobank'; try { biz = JSON.parse(L.o.body).businessId || biz; } catch (e) {}
+          const ac = new AbortController(); const to = setTimeout(() => ac.abort(), 15000);
+          const r = await APIW.__dinsFetch0.call(APIW, 'https://go.botmaker.com/sg9/rest/operator/sync/customers', { method: 'POST', headers: L.o.headers, credentials: L.o.credentials || 'include', signal: ac.signal,
+            body: JSON.stringify({ businessId: biz, message: { startIndex: 0, filteredStartIndex: 0, filters: [], occurrences: 500, useLongTermSearch: false, checksum: 'initialFilters', impl: 'customersSearch' } }) });
+          clearTimeout(to);
+          const j = r.ok ? await r.json() : null;
+          if (j && Array.isArray(j.customers) && j.customers.length) {
+            const lst = j.customers.filter(c => c && c._id_ && !c.ARCHIVED).map(c => ({ id: c._id_, nome: ((c.FIRST_NAME || '') + ' ' + (c.LAST_NAME || '')).trim(), arq: false, ultCli: +c.lastUserMessageTimeStamp || 0, fechada: !!c.isWhatsAppWindowClosed }));
+            try { localStorage.setItem('dins_varre_fonte', JSON.stringify({ fonte: 'servidor', n: lst.length, fechadas: lst.filter(x => x.fechada).length, t: Date.now() })); } catch (e) {}
+            return lst;
+          }
+        }
+      } catch (e) { try { localStorage.setItem('dins_varre_fonte', JSON.stringify({ fonte: 'tela', erro: String(e.message || e).slice(0, 80), t: Date.now() })); } catch (e2) {} }
       // 4.63 (Stefany 13:57: "43 vencidas" e a varredura das 12:03 leu lista 0): abrir um chat pelo endereço (#/chats/ID) ou a busca
       // do vigia deixam um FILTRO na lista ("Usuário 'ID'", "Usuários com o texto …") e a varredura só via aquele chat.
       // Tira o filtro antes de ler a lista.
