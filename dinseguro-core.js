@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.23';
+  const VERSAO = '6.24';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4359,7 +4359,7 @@
           if (/dados-cliente|dados-complementares|resumo|formalizacao|pagina-inicial|proposta-pesquisa/.test(location.pathname)) {   // tela de um cliente anterior / página inicial → menu (nunca F5) — 5.42
             // 6.15 (caso Édina 14:30): fundo de janela (.modal-backdrop) que ficou sozinho na tela bloqueava o clique no menu — o robô ficava clicando sem sair da Formalização
             if (![...document.querySelectorAll('.modal.show')].some(e => vis(e))) document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-            const m = [...document.querySelectorAll('a,button,li,span')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e)));
+            const m = [...document.querySelectorAll('a'), ...document.querySelectorAll('button,li,span')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e)));   /* 6.24: o LI do menu vinha primeiro e o clique nele não troca de tela — vale o A.nav-link */
             if (m) m.click(); await sleep(4000); return;
           }
           GM_setValue('ficha_atual', o.ficha);
