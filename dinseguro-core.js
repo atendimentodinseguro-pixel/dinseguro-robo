@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.86';
+  const VERSAO = '5.87';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -549,7 +549,7 @@
     let batH = null, batMud = 0;
     const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ try { autoPapel(); } catch (e) {} window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), auto: papelAuto() ? 1 : 0, hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
       try {   // 5.75: aviso de janela de robô parada (sem sinal há 2 min+, vista na última hora) — aparece no quadro de todas as abas
-        const mortos = []; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(window.localStorage.getItem(k) || '{}'); const ida = Date.now() - (+v.t || 0); if (v.papel && v.papel !== 'vigia' && ida > 2 * 60000 && ida < 3600000) mortos.push(v.papel.toUpperCase() + ' (' + Math.round(ida / 60000) + ' min)'); }
+        const mortos = []; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(window.localStorage.getItem(k) || '{}'); const ida = Date.now() - (+v.t || 0); if (v.papel && v.papel !== 'vigia' && ida > 2 * 60000 && ida < 3600000 && !Object.values(abasVivas()).some(w => w.papel === v.papel)) mortos.push(v.papel.toUpperCase() + ' (' + Math.round(ida / 60000) + ' min)'); }
         window.localStorage.setItem('dins_abas_paradas', JSON.stringify(mortos));
         if (meuPapel() === 'varredura') { const top = window.top.document; let b = top.getElementById('dins-varre-agora'); if (!b) { b = top.createElement('div'); b.id = 'dins-varre-agora'; b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:4px;z-index:2147483001;background:#4c1d95;color:#fff;border-radius:8px;padding:3px 10px;font:600 12px system-ui,sans-serif;pointer-events:none'; top.body.appendChild(b); }
           const R0 = GM_getValue('regua', {}) || {}; const atual = R0[batH] || {}; const falta = Object.values(R0).filter(x => x && x.reler && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).length;
@@ -572,9 +572,11 @@
     // Precisa de pop-up liberado para go.botmaker.com (senão aparece o botão 🪟 — um clique abre uma janela). Robôs = abas vivas que não são o vigia.
     const robosVivos = () => Object.values(abasVivas()).filter(v => v.papel !== 'vigia').length;
     const abrirJanela = () => { const n = robosVivos(); if (n >= 3) return 'já tem ' + n + ' janelas de robô';
-      const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=512,height=760,left=' + L + ',top=0');
+      const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=1280,height=760,left=' + [0, 120, 240][Math.min(n, 2)] + ',top=' + [0, 40, 80][Math.min(n, 2)]);
       window.localStorage.setItem('dins_janela_try', String(Date.now())); if (!w) { window.localStorage.setItem('dins_popup_bloq', String(Date.now())); return 'pop-up bloqueado'; } window.localStorage.removeItem('dins_popup_bloq'); return 'abri a janela ' + (n + 1) + '/3'; };
     window.dinsAbrirJanelas = abrirJanela;
+    // 5.87 (Stefany 09:18: "abriram menores"): janela aberta pelo robô pequena demais vira layout de celular — aumenta sozinha
+    try { if (/^dins_robo_/.test(window.top.name || '') && window.top.outerWidth < 1100) window.top.resizeTo(Math.min(1280, screen.availWidth), Math.min(760, screen.availHeight)); } catch (e) {}
     setInterval(() => { try {
       const V = abasVivas(); V[ABA] = { papel: meuPapel(), t: Date.now() }; const n = Object.values(V).filter(v => v.papel !== 'vigia').length;
       const top = window.top.document; let bt = top.getElementById('dins-abrir-jan');
