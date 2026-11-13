@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.10';
+  const VERSAO = '6.11';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3248,14 +3248,16 @@
       if (sc) { sc.scrollTop = 0; await esp(300); }
       return [...vistos.values()].filter(x => !x.arq);
     }
+    // 6.11 (Stefany 13/11 13:13–14:03): varredura num perfil do Chrome só dela → não espera o atendimento (que roda no outro perfil)
+    const varreSozinha = () => { try { return sessionStorage.getItem('dins_papel') === 'varredura' && !Object.keys(localStorage).some(k => { if (!/^dins_aba_/.test(k)) return false; try { const x = JSON.parse(localStorage.getItem(k)); return x && x.papel !== 'varredura' && x.papel !== 'vigia' && Date.now() - (+x.t || 0) < 3 * 60000; } catch (e) { return false; } }); } catch (e) { return false; } };
     async function abrirHash(id) {
       if (!(await esperaChatLivre(id))) return false;   // 5.64: conversa aberta em outra aba
       for (let t = 0; t < 3; t++) {
         while (vigiaTrava() || vigiaTrabalhando() || localStorage.getItem('dins_ordem') || fupRodando || posRodando || faseRodando || espRodando) {   /* 4.55: cliente em andamento passa na frente da varredura */ marcaVarrendo(); await esp(5000); }   // o vigia (cliente) tem prioridade
         // 4.90 (12/11 08:49: 13 clientes novos na fila sem leitura enquanto a varredura das 8h rodava): quem está esperando passa na frente — lê antes de seguir a varredura
-        if (t === 0) { const ini = Date.now(); while (atendimentoPendente(true) && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
-        if (t === 0) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
-        if (t === 0) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
+        if (t === 0 && !varreSozinha()) { const ini = Date.now(); while (atendimentoPendente(true) && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
+        if (t === 0 && !varreSozinha()) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
+        if (t === 0 && !varreSozinha()) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
           const urg = FL.filter(h => h !== id && h !== 'F20QOEL8YYLQN2S6SR47' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
           for (const h of urg) { marcaVarrendo(); try { if (window.__dinsMapear0) await window.__dinsMapear0(h); } catch (e) {} marcaVarrendo(); await esp(1500); }
         } catch (e) {} }
@@ -3352,7 +3354,7 @@
           if (NAO_MEXER_HASH.includes(it.id)) continue;
           if (cursor.feitos.includes(it.id)) continue;   // 5.45: já feito antes da recarga
           if (new Date().getHours() >= VARRE_LIMITE_H) { log && log('Varredura: passou das ' + VARRE_LIMITE_H + 'h — o resto fica para a próxima rodada.', 'aviso'); break; }
-          if (naFatia >= VARRE_FATIA) {   // 5.45: pausa da fatia — atendimento trabalha
+          if (naFatia >= VARRE_FATIA && !varreSozinha()) {   // 5.45: pausa da fatia — atendimento trabalha (6.11: não quando a varredura tem perfil próprio)
             naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
             while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente(true) && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
             localStorage.removeItem('dins_varre_pausa');
