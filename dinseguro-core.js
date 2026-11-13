@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.15';
+  const VERSAO = '6.16';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -547,7 +547,7 @@
     // Sem pedido recente (> 40 min) ou com erro → null, e o robô segue pelo caminho antigo (abrir na tela).
     const APIW = (() => { try { return ((typeof unsafeWindow !== 'undefined') ? unsafeWindow : window).top; } catch (e) { return null; } })();
     try { if (APIW && !APIW.__dinsApiHook) { APIW.__dinsApiHook = 1; const f0 = APIW.fetch; APIW.__dinsFetch0 = f0;
-      APIW.fetch = function (u, o) { try { const url = String((u && u.url) || u); if (/\/msg4c$/.test(url) && o && typeof o.body === 'string' && /"wsType":"messages"/.test(o.body)) APIW.__dinsMsgReq = { u: url, o: { method: o.method || 'POST', headers: o.headers, body: o.body, credentials: o.credentials }, t: Date.now() }; } catch (e) {} return f0.apply(this, arguments); }; } } catch (e) {}
+      APIW.fetch = function (u, o) { try { const url = String((u && u.url) || u); if (/\/msg4c$/.test(url) && o && typeof o.body === 'string' && /"wsType":"messages"/.test(o.body)) APIW.__dinsMsgReq = { u: url, o: { method: o.method || 'POST', headers: o.headers, body: o.body, credentials: o.credentials }, t: Date.now() }; } catch (e) {} try { const url2 = String((u && u.url) || u); if (/\/sync\/(customers|ticketsAndContacts4c)$/.test(url2) && o) (APIW.__dinsSyncReq = APIW.__dinsSyncReq || {})[url2.split('/').pop()] = { u: url2, o: { method: o.method || 'POST', headers: o.headers, body: typeof o.body === 'string' ? o.body : '', credentials: o.credentials }, t: Date.now() }; } catch (e) {}   /* 6.16: guarda o pedido da lista de clientes (para a varredura buscar no servidor) */ return f0.apply(this, arguments); }; } } catch (e) {}
     async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
       const b = JSON.parse(L.o.body); b.showLoading = false; b.message.customerId = id; b.message.start = 0; b.message.end = n || 20;
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
