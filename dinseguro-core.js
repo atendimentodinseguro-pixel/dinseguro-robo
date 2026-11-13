@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.03';
+  const VERSAO = '6.04';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1811,6 +1811,11 @@
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 10 * 60000) { const j = await apiLer(id, 1);
         const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
         if (lm && lm < +x0.lidoT) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; return true; } } } catch (e) {}
+      // 6.04 (Stefany 13/11 12:38 "vamos pra cima"): RELEITURA DE VERMELHO (a cada 20 min) sem abrir a tela — se no servidor não há mensagem
+      // nova desde a última leitura e as etiquetas são as mesmas, nada mudou: continua vermelho, só anota a hora da leitura.
+      try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && x0.apiTags && /^(alerta|erro)$/.test(x0.estado || '')) { const j = await apiLer(id, 1);
+        if (j) { API_PLACAR.lidas++; const lm = Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); const tg = (j.customer.tags || []).slice().sort().join('|');
+          if (lm && lm < +x0.lidoT && tg === x0.apiTags) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; API_PLACAR.vermelhos = (API_PLACAR.vermelhos || 0) + 1; return true; } } else API_PLACAR.falhas++; } } catch (e) {}
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
@@ -1854,6 +1859,7 @@
           if (['alerta', 'encerrado'].includes(c.estado) && c.estado !== y.estado) { y.estado = c.estado; y.motivo = c.motivo; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 5.62 relido: ' + c.motivo); }
           gravaRG(r1); } } catch (e) {} }
         const r2 = RG(); if (r2[id]) { delete r2[id].reler; r2[id].lidoT = Date.now(); gravaRG(r2); }
+        try { apiLer(id, 1).then(j => { if (!j) return; const r3 = RG(); if (r3[id]) { r3[id].apiTags = (j.customer.tags || []).slice().sort().join('|'); gravaRG(r3); } }); } catch (e) {}   // 6.04: etiquetas no servidor no momento da leitura
       }
       else registrarSemLink(id);
       return true;
