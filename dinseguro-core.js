@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.09';
+  const VERSAO = '6.10';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -186,7 +186,7 @@
     let t = String(f.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2);
     if (!/^WhatsApp/i.test(String(f.telefone_origem || ''))) return '⛔ TELEFONE NÃO CONFERIDO: o telefone da proposta tem que ser o WhatsApp do cliente (o do chat do Botmaker), não o do cadastro. Abra o chat dele no Botmaker, gere a ficha de novo, ou escreva o WhatsApp na ficha com a linha  telefone_origem: WhatsApp (conferido pelo vigia).';
     if (t.length < 10) return '⛔ Falta o telefone (WhatsApp do cliente) na ficha.';
-    const z = zapDoCpf(f.cpf); if (z && z !== t) return `⛔ TELEFONE DIFERENTE DO WHATSAPP: a ficha tem ${t} e o chat do Botmaker deste CPF é ${z}. Corrija a ficha.`;
+    const z = zapDoCpf(f.cpf); if (z && z !== t) { f.telefone = z; f.telefone_origem = 'WhatsApp do chat do Botmaker (corrigido pelo robô 6.10: a ficha tinha ' + t + ')'; try { if (typeof log === 'function') log('Telefone da ficha trocado pelo WhatsApp do chat deste CPF.', 'aviso'); } catch (e) {} return ''; }   // 6.10 (Stefany 13:53 "conserte o robô"): o WhatsApp do chat vence — corrige em vez de parar
     return '';
   }
   // 4.09 — PRAZO CURTO NÃO SE DIGITA (Stefany 10/11 17:41: "36 vezes... até simular, ok, no último caso. Digitar em 36 vezes, a gente não te autoriza").
@@ -4101,7 +4101,8 @@
       const sr = secao(/^Dados Residenciais$/);
       const cep = entrada(/^CEP$/, sr);
       if (cep && !so(cep.value)) {
-        if (!f.cep) throw new Error('Falta CEP na ficha');
+        if (!f.cep) { const CEPUF = { SP: '01001000', RJ: '20010000', MG: '30110000', PR: '80010000', RS: '90010000', SC: '88010000', BA: '40010000', PE: '50010000', CE: '60010000', GO: '74003010', DF: '70040010', ES: '29010000', PA: '66010000', AM: '69005000', MA: '65010000', PB: '58010000', RN: '59010000', AL: '57020000', SE: '49010000', PI: '64000000', MT: '78005000', MS: '79002000', RO: '76801000', TO: '77001002', AC: '69900000', AP: '68900000', RR: '69301000' };
+          const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10 */
         await digitar(cep, f.cep);
         const lupa = caixa(/^CEP$/, sr).querySelector('mat-icon, button, [class*=search]'); if (lupa) lupa.click();
         await esperar(() => (entrada(/^Endere[çc]o$/, sr) || {}).value, 10000);
@@ -4460,7 +4461,8 @@
       // v3.12: a UF do documento às vezes não fica gravada (mostra RR mas o BMG acusa "UF") → seleciona de novo no fim
       await sleep(500); await combo(/^UF$/, f.uf, new RegExp('^' + f.uf + '$'));
       // endereço
-      const cep = campo(/^CEP$/); if (cep && !so(cep.value)) { if (!f.cep) throw new Error('Falta CEP na ficha'); await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
+      const cep = campo(/^CEP$/); if (cep && !so(cep.value)) { if (!f.cep) { const CEPUF = { SP: '01001000', RJ: '20010000', MG: '30110000', PR: '80010000', RS: '90010000', SC: '88010000', BA: '40010000', PE: '50010000', CE: '60010000', GO: '74003010', DF: '70040010', ES: '29010000', PA: '66010000', AM: '69005000', MA: '65010000', PB: '58010000', RN: '59010000', AL: '57020000', SE: '49010000', PI: '64000000', MT: '78005000', MS: '79002000', RO: '76801000', TO: '77001002', AC: '69900000', AP: '68900000', RR: '69301000' };
+          const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10: PADRAO-ENDERECO-ALEATORIO (cliente não mandou endereço → aleatório) */ await digitar(cep, f.cep); await esperar(() => (campo(/^Endereço$/) || {}).value, 10000); }
       const nu = campo(/^Número$/); if (nu && (!nu.value || nu.value === '0') && so(f.numero)) await digitar(nu, so(f.numero)); else if (nu && !nu.value) await digitar(nu, '0');
       // banco
       await combo(/^Tipo de crédito$/, 'Transf', /Transfer/);
