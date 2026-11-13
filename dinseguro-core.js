@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.74';
+  const VERSAO = '5.75';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -307,6 +307,7 @@
     // 5.04 (12/11 10:06: Alexandre e Franco presos em "consultando" depois de recarregar a aba): consulta interrompida volta para a fila
     if (/multicorban\.com/.test(location.host)) setTimeout(() => { try { const O = AO(); let m = false; for (const h in O) { const x = O[h]; if (x && x.estado === 'consultando' && Date.now() - (x.tMc || x.t || 0) > 2 * 60000) { x.estado = 'nova'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' consulta interrompida (aba recarregada) → de novo'); m = true; } } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 4000);
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
+      if (sessionStorage.getItem('dins_mc_manual') === '1') return;   // 5.75 (Stefany 21:02: "uma para você e uma para ele"): aba do Multicorban do VIGIA — o robô não pega ordem aqui
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
       const o = Object.values(AO()).find(x => x.estado === 'nova'); if (!o) return;
       ocupadoAuto = true; poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
@@ -534,12 +535,23 @@
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
     let batH = null, batMud = 0;
     const batida = () => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== batH) { batMud = batH === null ? 0 : Date.now(); batH = h; }   /* 5.73: a conversa que o Botmaker reabre sozinho ao carregar não segura ninguém */ window.localStorage.setItem('dins_aba_' + ABA, JSON.stringify({ papel: meuPapel(), hash: h, mud: batMud, t: Date.now(), v: VERSAO }));
+      try {   // 5.75: aviso de janela de robô parada (sem sinal há 2 min+, vista na última hora) — aparece no quadro de todas as abas
+        const mortos = []; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(window.localStorage.getItem(k) || '{}'); const ida = Date.now() - (+v.t || 0); if (v.papel && v.papel !== 'vigia' && ida > 2 * 60000 && ida < 3600000) mortos.push(v.papel.toUpperCase() + ' (' + Math.round(ida / 60000) + ' min)'); }
+        window.localStorage.setItem('dins_abas_paradas', JSON.stringify(mortos));
+        if (meuPapel() === 'varredura') { const top = window.top.document; let b = top.getElementById('dins-varre-agora'); if (!b) { b = top.createElement('div'); b.id = 'dins-varre-agora'; b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:4px;z-index:2147483001;background:#4c1d95;color:#fff;border-radius:8px;padding:3px 10px;font:600 12px system-ui,sans-serif;pointer-events:none'; top.body.appendChild(b); }
+          const R0 = GM_getValue('regua', {}) || {}; const atual = R0[batH] || {}; const falta = Object.values(R0).filter(x => x && x.reler && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).length;
+          b.textContent = '🧹 VARREDURA · agora: ' + (batH ? String(atual.nomeReal || atual.nome || batH.slice(0, 6)).split(' ')[0] : 'esperando') + ' · releitura: faltam ' + falta; }
+      } catch (e) {}
       try { const P = meuPapel(); const pre = P === 'tudo' ? '' : '[' + ({ atendimento: 'ATENDIMENTO', followup: 'FOLLOW-UP', varredura: 'VARREDURA', vigia: 'VIGIA' })[P] + '] '; const t0 = window.top.document.title || ''; const limpo = t0.replace(/\[?[A-Z][A-Z-]{1,11}\] ?/g, '');   /* 5.68: o Botmaker põe 🔔(n) na frente e corta o título — tira qualquer pedaço do rótulo */ if (t0 !== pre + limpo) window.top.document.title = pre + limpo; } catch (e) {}   // 5.67: nome do papel na aba
     } catch (e) {} };
     batida(); setInterval(batida, 5000); try { window.top.addEventListener('hashchange', batida); window.addEventListener('beforeunload', () => window.localStorage.removeItem('dins_aba_' + ABA)); } catch (e) {}
     // conversa aberta em OUTRA aba (qualquer papel, inclusive o vigia) → quem vai escrever espera (até 90 s)
     const chatComOutraAba = h => { const V = abasVivas(); return Object.keys(V).some(k => k !== ABA && V[k].hash === h && Date.now() - V[k].t < 20000 && (Date.now() - (+V[k].mud || 0) < (['vigia', 'tudo'].includes(V[k].papel) ? 10 : 2) * 60000)); };   // robô parado na conversa há 2 min+ não segura ninguém; o vigia segura enquanto estiver nela
-    const esperaChatLivre = async h => { for (let i = 0; i < 30; i++) { if (!chatComOutraAba(h)) return true; await new Promise(r => setTimeout(r, 3000)); } return false; };
+    // 5.75 (caso Vms 21:02: robô e vigia escreveram no mesmo minuto): o vigia RESERVA a conversa antes de escrever — vale na hora, para todas as abas
+    const reservaVigia = h => { try { const r = JSON.parse(window.localStorage.getItem('dins_vigia_reserva') || '{}'); return r[h] && Date.now() - r[h] < 10 * 60000; } catch (e) { return false; } };
+    window.dinsReservar = (h, on = true) => { const r = (() => { try { return JSON.parse(window.localStorage.getItem('dins_vigia_reserva') || '{}'); } catch (e) { return {}; } })(); if (on) r[h] = Date.now(); else delete r[h]; for (const k in r) if (Date.now() - r[k] > 10 * 60000) delete r[k]; window.localStorage.setItem('dins_vigia_reserva', JSON.stringify(r)); return Object.keys(r); };
+    window.dinsQuemEsta = h => { const V = abasVivas(); return Object.keys(V).filter(k => V[k].hash === h && k !== ABA).map(k => V[k].papel); };
+    const esperaChatLivre = async h => { if (meuPapel() !== 'vigia') { for (let i = 0; i < 60 && reservaVigia(h); i++) await new Promise(r => setTimeout(r, 10000)); if (reservaVigia(h)) return false; } for (let i = 0; i < 30; i++) { if (!chatComOutraAba(h)) return true; await new Promise(r => setTimeout(r, 3000)); } return false; };
     window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); batida(); return 'papel desta aba: ' + p; };
     window.dinsFaz = faz;
     // travas que valem só para a PRÓPRIA aba (antes eram de todas: um robô esperava o outro sair da tela)
@@ -875,8 +887,11 @@
       if (!ok) throw new Error('não consegui abrir o chat ' + hash);
       try { await confereChat(hash.replace(/^#\/chats\//, '')); }
       catch (e) { // painel preso no chat anterior → recarrega o chat uma vez e confere de novo
-        if (foneDoPainel() + '|' + nomeDoPainel() === antes) { window.top.location.hash = '#/chats'; await esp(2500); window.top.location.hash = alvo; await esp(6000); await confereChat(hash.replace(/^#\/chats\//, '')); }
-        else throw e; }
+        // 5.75 (casos Maria 20:30 'painel: Carmen' e Vms 'painel: V.m.d.'): painel desatualizado → reabre a conversa até 3 vezes antes de desistir
+        let ok2 = false, ult = e;
+        for (let t = 0; t < 3 && !ok2; t++) { window.top.location.hash = '#/chats'; await esp(2500 + t * 1500); window.top.location.hash = alvo; await esp(6000 + t * 2000);
+          try { await confereChat(hash.replace(/^#\/chats\//, '')); ok2 = true; } catch (e2) { ult = e2; } }
+        if (!ok2) throw ult; }
       if (/Chat em atendimento com/.test(document.body.innerText))
         throw new Error('chat bloqueado por atendente — liberar no ⋮ antes');
     }
@@ -2761,7 +2776,7 @@
       // 5.40 FASE 4: cliente esperando há mais de 10 min (vermelho sem resposta) aparece no topo, com a maior espera; resumo a cada hora em dins_resumo_hora
       const esperando = (grupos.R || []).map(x => ({ x, min: Math.round((agora - (x.ultLado === 'cli' ? (+x.ultCliT || 0) : (+x.handoffT || +x.cpfSemRespT || +x.ultT || 0))) / 60000) })).filter(e => e.min >= 10 && e.min < 24 * 60 && !protegido(e.x.hash) && !e.x.comQuem).sort((a, b) => b.min - a.min);
       try { const hk = new Date().toISOString().slice(0, 13); const RH = JSON.parse(localStorage.getItem('dins_resumo_hora') || '[]'); if (!RH.length || RH[RH.length - 1].h !== hk) { RH.push({ h: hk, hora: hhmm(agora), esperando: esperando.length, maior: esperando[0] ? esperando[0].min : 0, quem: esperando.slice(0, 5).map(e => (e.x.nome || e.x.hash.slice(0, 5)) + ' ' + e.min + 'min'), alerta: nAlerta }); localStorage.setItem('dins_resumo_hora', JSON.stringify(RH.slice(-48))); } } catch (e) {}
-      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 ${({tudo:'',atendimento:'[ATENDIMENTO] ',followup:'[FOLLOW-UP] ',varredura:'[VARREDURA] ',vigia:'[VIGIA] '})[meuPapel()]}Acompanhamento dos clientes — janela 24h (${lista.length})${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
+      const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 ${({tudo:'',atendimento:'[ATENDIMENTO] ',followup:'[FOLLOW-UP] ',varredura:'[VARREDURA] ',vigia:'[VIGIA] '})[meuPapel()]}Acompanhamento dos clientes — janela 24h (${lista.length})${(() => { try { const m = JSON.parse(localStorage.getItem('dins_abas_paradas') || '[]'); return m.length ? ' <span style="color:#fca5a5">⚠ janela parada: ' + m.join(', ') + '</span>' : ''; } catch (e) { return ''; } })()}${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
         (esperando.length ? `<div style="margin:3px 0;padding:3px 6px;border-radius:6px;background:#7f1d1d;color:#fff;font-weight:700">⏱ ${esperando.length} sem resposta há mais de 10 min — maior: ${esperando[0].min} min (${String(esperando[0].x.nome || esperando[0].x.hash.slice(0, 5)).replace(/</g, '')})</div>` : '') +
         `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}` +
         ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>`;
