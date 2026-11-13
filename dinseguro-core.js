@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.85';
+  const VERSAO = '5.86';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -525,7 +525,11 @@
     //   'atendimento' (fila, CPF, ordens, mensagens a quem espera, tags) · 'followup' (toques, esperas, lembretes, esteira, pós-pagamento)
     //   'varredura' (janelas vencidas, conferência das 24 h, releitura do azul) · 'vigia' (aba do Claude: o robô não mexe) · 'tudo' (padrão).
     // Papel sem aba viva é feito pela aba 'tudo' (a de menor id) e, sem ela, pela de 'atendimento'. Uma aba só = tudo como antes.
-    const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id'); if (!k) { k = Math.random().toString(36).slice(2, 8); sessionStorage.setItem('dins_aba_id', k); } return k; })();
+    const T0 = Date.now();
+    const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id');
+      // 5.86: janela aberta por window.open herda a sessionStorage da que abriu — se o meu id já tem batida viva, sou cópia: id novo e papel automático
+      try { const b = k && JSON.parse(window.localStorage.getItem('dins_aba_' + k) || 'null'); if (b && Date.now() - (+b.t || 0) < 15000) { k = ''; sessionStorage.removeItem('dins_papel'); sessionStorage.setItem('dins_papel_auto', '1'); } } catch (e) {}
+      if (!k) { k = Math.random().toString(36).slice(2, 8); sessionStorage.setItem('dins_aba_id', k); } return k; })();
     const PAPEIS = ['tudo', 'atendimento', 'followup', 'varredura', 'vigia'];
     const meuPapel = () => { const p = sessionStorage.getItem('dins_papel') || 'tudo'; return PAPEIS.includes(p) ? p : 'tudo'; };
     const abasVivas = () => { const o = {}; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue;
@@ -564,6 +568,23 @@
     window.dinsPapel = p => { if (p === undefined) return { papel: meuPapel(), aba: ABA, abas: abasVivas() }; if (!PAPEIS.includes(p)) return 'papéis: ' + PAPEIS.join(', '); sessionStorage.setItem('dins_papel', p); sessionStorage.removeItem('dins_papel_auto'); batida(); return 'papel desta aba: ' + p + ' (fixo)'; };
     window.dinsPapelAuto = () => { sessionStorage.removeItem('dins_papel'); sessionStorage.setItem('dins_papel_auto', '1'); batida(); return 'papel automático: ' + meuPapel(); };
     window.dinsFaz = faz;
+    // 5.86 (Stefany 13/11 09:02: "eu preciso que você faça tudo sozinho"): faltando janela de robô, o robô abre a janela que falta.
+    // Precisa de pop-up liberado para go.botmaker.com (senão aparece o botão 🪟 — um clique abre uma janela). Robôs = abas vivas que não são o vigia.
+    const robosVivos = () => Object.values(abasVivas()).filter(v => v.papel !== 'vigia').length;
+    const abrirJanela = () => { const n = robosVivos(); if (n >= 3) return 'já tem ' + n + ' janelas de robô';
+      const L = [0, 512, 1024][Math.min(n, 2)]; const w = window.top.open('https://go.botmaker.com/#/chats', 'dins_robo_' + Date.now(), 'popup=yes,width=512,height=760,left=' + L + ',top=0');
+      window.localStorage.setItem('dins_janela_try', String(Date.now())); if (!w) { window.localStorage.setItem('dins_popup_bloq', String(Date.now())); return 'pop-up bloqueado'; } window.localStorage.removeItem('dins_popup_bloq'); return 'abri a janela ' + (n + 1) + '/3'; };
+    window.dinsAbrirJanelas = abrirJanela;
+    setInterval(() => { try {
+      const V = abasVivas(); V[ABA] = { papel: meuPapel(), t: Date.now() }; const n = Object.values(V).filter(v => v.papel !== 'vigia').length;
+      const top = window.top.document; let bt = top.getElementById('dins-abrir-jan');
+      if (n >= 3 || Date.now() - T0 < 90000) { if (bt) bt.remove(); return; }
+      const lider = Object.keys(V).sort()[0] === ABA;   // só uma aba tenta (a de menor id)
+      if (lider && Date.now() - (+window.localStorage.getItem('dins_janela_try') || 0) > 3 * 60000 && !(Date.now() - (+window.localStorage.getItem('dins_popup_bloq') || 0) < 30 * 60000)) abrirJanela();
+      if (lider && !bt) { bt = top.createElement('button'); bt.id = 'dins-abrir-jan'; bt.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border-radius:10px;border:0;background:#2563eb;color:#fff;font:600 13px sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+        bt.onclick = () => { bt.textContent = '🪟 ' + abrirJanela(); }; top.body.appendChild(bt); }
+      if (bt) bt.textContent = '🪟 Abrir janela de robô (' + n + '/3)';
+    } catch (e) {} }, 15000);
     // travas que valem só para a PRÓPRIA aba (antes eram de todas: um robô esperava o outro sair da tela)
     const POR_ABA = /^(dins_nav|dins_mapeando|dins_varrendo|dins_vigia_ocupado|dins_vigia_trava)$/;
     const localStorage = { getItem: k => (POR_ABA.test(k) ? sessionStorage : window.localStorage).getItem(k), setItem: (k, v) => (POR_ABA.test(k) ? sessionStorage : window.localStorage).setItem(k, v),
