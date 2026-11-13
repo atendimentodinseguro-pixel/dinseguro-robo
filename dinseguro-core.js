@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.06';
+  const VERSAO = '6.07';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1810,7 +1810,7 @@
       if (vigiaTrabalhando()) return false;
       // 6.06 (Stefany 13/11 12:42 "quero ver esse atendimento mais rápido"): o BOT está conversando com o cliente agora (última mensagem do bot há menos de 6 min)
       // → não abre a tela; o bot está cuidando. Volta a olhar em 2 min (ou antes, se o cliente escrever e a lista mudar de novo).
-      try { const x0 = RG()[id]; if (!(x0 && (x0.reler || x0.relerHist))) { const j = await apiLer(id, 4); if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const u = nm[nm.length - 1]; const ut = u ? Date.parse(u.CREATION_TIME || '') : 0;
+      try { const x0 = RG()[id]; if (!(x0 && x0.relerHist)) { const j = await apiLer(id, 4); if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const u = nm[nm.length - 1]; const ut = u ? Date.parse(u.CREATION_TIME || '') : 0;
         const uc = [...nm].reverse().find(m => m.FROM !== 'me'); const ucTxt = uc ? String(typeof uc.MESSAGE === 'string' ? uc.MESSAGE : JSON.stringify(uc.MESSAGE || '')) : '';
         const soBotao = !uc || /^\s*\{"button"/.test(ucTxt);   // cliente só clicou em botão do bot (nada escrito, nenhum CPF)
         const passouHumano = u && /atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir|logo voc[êe] ser[áa] atendid/i.test(String(u.MESSAGE || ''));
@@ -1893,7 +1893,7 @@
       let novo = !fA ? null : idsDaLista().filter(id => !apiAdiado(id)).find(id => !RG()[id] || (RG()[id].estado === 'fechada' && RG()[id].reler))   /* 4.99 (Stefany 12/11 09:28: "atendimentos já encerrados não precisa ele olhar"): fechada só volta a ser lida se a conversa andou */   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
         || FLq.filter(id => !apiAdiado(id)).find(id => !RG()[id] && id !== 'F20QOEL8YYLQN2S6SR47')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
         || FLq.filter(id => !apiAdiado(id)).find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
-        || idsDaLista().find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
+        || idsDaLista().filter(id => !apiAdiado(id)).find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
       // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
       // e o quadro nunca mais a releu — ficou pedindo "responder agora" 12 h depois. Agora, sem nada novo, o robô RELÊ (abre a conversa)
       // o vermelho cuja última leitura passou de 20 min, um por minuto, o mais velho primeiro. Lida de novo: tag de desfecho (01 I, 02, 03, 07)
