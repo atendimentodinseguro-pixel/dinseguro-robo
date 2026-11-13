@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.11';
+  const VERSAO = '6.12';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -612,7 +612,7 @@
     setInterval(() => { try {
       const V = abasVivas(); V[ABA] = { papel: meuPapel(), t: Date.now() }; const n = Object.values(V).filter(v => v.papel !== 'vigia').length;
       const top = window.top.document; let bt = top.getElementById('dins-abrir-jan');
-      if (n >= 3 || Date.now() - T0 < 90000) { if (bt) bt.remove(); return; }
+      if (true) { if (bt) bt.remove(); return; }   // 6.12 (Stefany 14:05: o botão 🪟 não tem mais utilidade e cobria o painel da varredura) — desligado
       const lider = Object.keys(V).sort()[0] === ABA;   // só uma aba tenta (a de menor id)
       // 5.97 (Stefany 10:33 "toda hora abrindo mais abas"): NÃO abre sozinho (a janela some da contagem enquanto recarrega e o robô abria outra) — só pelo botão 🪟
       if (lider && !bt) { bt = top.createElement('button'); bt.id = 'dins-abrir-jan'; bt.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border-radius:10px;border:0;background:#2563eb;color:#fff;font:600 13px sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
@@ -828,15 +828,17 @@
         top.body.appendChild(q);
         q.addEventListener('click', ev => {
           const id = ev.target.dataset.abrir, ok = ev.target.dataset.ok;
+          if (ev.target.dataset.filamin) { sessionStorage.setItem('dins_fila_min', sessionStorage.getItem('dins_fila_min') === '1' ? '' : '1'); desenharQuadro(ler('dins_fila', [])); return; }
           if (id) window.top.location.hash = '#/chats/' + id;
           if (ok) { const fl = ler('dins_fila', []); const it = fl.find(f => f.id === ok); const fe = ler('dins_feito', {}); if (it) { fe[ok] = it.sig; gravar('dins_feito', fe); } gravar('dins_fila', fl.filter(f => f.id !== ok)); desenharQuadro(ler('dins_fila', [])); }
         });
       }
       const hora = s => new Date(s).toLocaleTimeString('pt-BR').slice(0, 5);
-      q.innerHTML = `<b>🔔 Esperando atendimento (${fila.length})</b>` + fila.map(f =>
+      const minQ = sessionStorage.getItem('dins_fila_min') === '1';   // 6.12: clicar no título minimiza/abre
+      q.innerHTML = `<b data-filamin="1" style="cursor:pointer" title="clique para minimizar/abrir">🔔 Esperando atendimento (${fila.length}) ${minQ ? '▸' : '▾'}</b>` + (minQ ? '' : fila.map(f =>
         `<div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px">
            <span data-abrir="${f.id}" style="cursor:pointer;text-decoration:underline">${hora(f.quando)} · ${f.nome || 'sem nome'}</span>
-           <span data-ok="${f.id}" title="Já atendido" style="cursor:pointer">✓</span></div>`).join('');
+           <span data-ok="${f.id}" title="Já atendido" style="cursor:pointer">✓</span></div>`).join(''));
     }
   // ================================================================ DESFECHO (patches 3.19 + 3.21)
   // O Claude tria e consulta; este robô só executa a ordem já decidida:
