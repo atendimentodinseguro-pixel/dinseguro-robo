@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '5.95';
+  const VERSAO = '5.96';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1455,6 +1455,15 @@
             return;
           }
         } catch (e) { try { localStorage.setItem('dins_conv_erro', new Date().toTimeString().slice(0, 8) + ' f1 ' + String((e && e.stack) || e).slice(0, 300)); } catch (_) {} }
+        // 5.96 (Stefany 13/11 10:25: "tá faltando aquele atendimento cordial… o cliente sempre tem muito medo… atendimento que acolhe"):
+        // assim que chega o CPF, antes do resultado, uma mensagem pessoal curta: recebi, estou consultando, segurança, já volto.
+        { const oA = Object.values(O).find(x => x.tipo === 'cpf' && !x.acolheu && ['nova', 'consultando', 'ficha_ok', 'digitando'].includes(x.estado) && Date.now() - (+x.t || 0) < 15 * 60000 && !x.valorVigia);
+          if (oA) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
+            const nmA = nomeCli(oA); const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
+            const dA = new Date(), ddA = String(dA.getDate()).padStart(2, '0') + '/' + String(dA.getMonth() + 1).padStart(2, '0');
+            const linhaA = sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝';
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: oA.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaA, atalhos: [], nome: oA.nome || '', fone: oA.fone || '', nota: ddA + ' ' + hhmm(Date.now()) + ' [robô 5.96] CPF recebido → mensagem de acolhimento (consultando).' }));
+            return; } }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
           const nm = nomeCli(oL); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
