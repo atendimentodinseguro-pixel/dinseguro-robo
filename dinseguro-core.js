@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.17';
+  const VERSAO = '6.18';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3243,6 +3243,7 @@
           const j = r.ok ? await r.json() : null;
           if (j && Array.isArray(j.customers) && j.customers.length) {
             const lst = j.customers.filter(c => c && c._id_ && !c.ARCHIVED).map(c => ({ id: c._id_, nome: ((c.FIRST_NAME || '') + ' ' + (c.LAST_NAME || '')).trim(), arq: false, ultCli: +c.lastUserMessageTimeStamp || 0, fechada: !!c.isWhatsAppWindowClosed }));
+            try { const FM = window.__dinsVarreFone = window.__dinsVarreFone || {}; j.customers.forEach(c => { const f = String(c.WHATSAPP_CURATED_NUM || c.PLATFORM_CONTACT_ID || '').replace(/\D/g, ''); if (c && c._id_ && f.length >= 10) FM[c._id_] = f; }); } catch (e) {}   // 6.18: telefone vem do servidor (no perfil novo o quadro 'Informações de contato' fica fechado e a tela não mostra)
             try { localStorage.setItem('dins_varre_fonte', JSON.stringify({ fonte: 'servidor', n: lst.length, fechadas: lst.filter(x => x.fechada).length, t: Date.now() })); } catch (e) {}
             return lst;
           }
@@ -3294,7 +3295,7 @@
       const T = document.body.innerText || '';
       const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => (c.textContent || '').trim()).filter(t => /^0\d|^Acima|^Q15/i.test(t));
       const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
-      const fone = (T.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ((RG()[id] || {}).fone) || '';
+      const fone = (T.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ((RG()[id] || {}).fone) || ((window.__dinsVarreFone || {})[id]) || '';   /* 6.18 */
       let L = null; try { L = lados(); } catch (e) {}
       const ent = (document.querySelector('.entries') || {}).innerText || '';
       const ms = L ? null : null;
