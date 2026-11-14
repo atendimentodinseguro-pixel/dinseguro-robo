@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.76';
+  const VERSAO = '6.77';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1995,7 +1995,10 @@
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
             const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
             const tags = (j.customer.tags || []).join('|');
-            if (!/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )|FechouNegocio/i.test(tags)) {
+            // 6.77 (Stefany 13:03 "check-up de todo mundo da janela"; casos Sofia, Helena de Cássia, Virgilaine): cliente que JÁ FECHOU (01 D) e tem margem (01 J)
+            // voltando pelo anúncio também é atendido pelo 6.69 (nova consulta) — mas o CPF digitado por ele NÃO cria ordem sozinho (regra 6.34/6.35).
+            const fechou01J = /(^|\|)01 D|FechouNegocio/i.test(tags) && /01J|01 J/i.test(tags) && !/(^|\|)(01 I|01 k|02 |03 |05 |06 |07 )|01k_SEM/i.test(tags);
+            if (fechou01J || !/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )|FechouNegocio/i.test(tags)) {
               let cs = '', origem = '';
               for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM === 'me') continue;
                 const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
@@ -2005,6 +2008,7 @@
               // botão/texto com R$ → esse valor; "Outro valor"/"Simular outro valor" depois disso → não digita sozinho (vigia pergunta o valor).
               let vEsc = 0, outroV = false; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (m.FROM === 'me') continue; const tt = txt(m);
                 if (/outro valor|simular outro/i.test(tt)) { outroV = true; break; } const mv = tt.match(/R\$\s*([\d.]+,\d{2})/); if (mv) { vEsc = parseFloat(mv[1].replace(/\./g, '').replace(',', '.')) || 0; break; } }
+              if (fechou01J) cs = '';
               if (cs && outroV) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 mandou o CPF mas clicou "Outro valor" sem dizer qual → vigia pergunta o valor (6.72)'); API_ADIA[id] = Date.now() + 30 * 60000; return false; }
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32' + (vEsc ? ', valor escolhido no bot R$ ' + vEsc : '') + ': ' + origem + ', sem abrir a conversa)'] };
