@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.86';
+  const VERSAO = '6.87';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3767,7 +3767,8 @@
     async function checkup24h() { if (checkupRodando) return; checkupRodando = true; const res = [];
       try { const ag = Date.now(); const ids = new Set(Object.values(RG()).filter(x => x && x.hash && ag - Math.max(+x.ultCliT || 0, +x.lidoT || 0, +x.linkT || 0, +x.criadoT || 0) < 24 * 3600000).map(x => x.hash));
         document.querySelectorAll('[id]').forEach(e => { if (/^[A-Z0-9]{20}$/.test(e.id)) ids.add(e.id); });
-        for (const h of ids) { if (protegido(h) || h === 'F20QOEL8YYLQN2S6SR47') continue; let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
+        if (Date.now() - (+localStorage.getItem('dins_checkup_t') || 0) < 12 * 60000) return; localStorage.setItem('dins_checkup_t', String(Date.now()));   // 6.87: no máximo 1 a cada 12 min (também depois de recarregar)
+        for (const h of ids) { if (protegido(h) || h === 'F20QOEL8YYLQN2S6SR47') continue; await new Promise(r => setTimeout(r, 400)); if (rodando || document.hidden === false && 0) {} let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
           const ms = j.newMessages || []; let iC = -1; for (let i = ms.length - 1; i >= 0; i--) { if (ms[i].FROM !== 'me') { iC = i; break; } } if (iC < 0) continue;
           const c = ms[iC]; const tC = new Date(c.CREATION_TIME).getTime() || +c.CREATION_TIME || 0; const min = (Date.now() - tC) / 60000; if (!(min >= 15 && min < 23 * 60)) continue;
           if (ms.slice(iC + 1).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue;
