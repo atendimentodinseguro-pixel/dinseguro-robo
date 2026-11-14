@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.71';
+  const VERSAO = '6.72';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1996,8 +1996,13 @@
                 const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
               // 6.34 (Stefany 14/11 08:50, caso Jeniffer: cliente que JÁ FEZ, perguntando do dia do crédito, recebeu "Recebi o seu CPF"):
               // o CPF da variável do contato NÃO cria ordem sozinho — só o CPF que o cliente acabou de escrever.
+              // 6.72 (caso Silvia R92XG 12:1x: escolheu R$ 10.000,00 no bot): a ordem do servidor leva a ÚLTIMA escolha de valor do cliente (erro 56) —
+              // botão/texto com R$ → esse valor; "Outro valor"/"Simular outro valor" depois disso → não digita sozinho (vigia pergunta o valor).
+              let vEsc = 0, outroV = false; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (m.FROM === 'me') continue; const tt = txt(m);
+                if (/outro valor|simular outro/i.test(tt)) { outroV = true; break; } const mv = tt.match(/R\$\s*([\d.]+,\d{2})/); if (mv) { vEsc = parseFloat(mv[1].replace(/\./g, '').replace(',', '.')) || 0; break; } }
+              if (cs && outroV) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 mandou o CPF mas clicou "Outro valor" sem dizer qual → vigia pergunta o valor (6.72)'); API_ADIA[id] = Date.now() + 30 * 60000; return false; }
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
-                O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
+                O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32' + (vEsc ? ', valor escolhido no bot R$ ' + vEsc : '') + ': ' + origem + ', sem abrir a conversa)'] };
                 GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; }
               // 6.69 (Stefany 14/11 12:37 "pode seguir se auto-regenerando"; casos Luiz, Virgilaine, Milton, Odila, Consuelo): cliente VOLTOU pelo anúncio
               // ("desejo mais informações"), sem resposta humana depois, com CPF no cadastro → sem proposta ativa: boas-vindas + consulta + simulação no máximo;
