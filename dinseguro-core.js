@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.96';
+  const VERSAO = '6.97';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -3792,6 +3792,8 @@
           if (/n[ãa]o sou|bolsa fam/i.test(txAll) || /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) continue;   // não é INSS / já teve desfecho (6.79: em qualquer mensagem dele, não só a última)
           { const hum = ms.filter(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot'); const uh = hum[hum.length - 1]; if (uh && /r[oô]mulo/i.test(uh.FROM_NAME) && !/\[Dinseguro\]/.test(String(uh.MESSAGE || ''))) continue; }   // 6.79: conversa do Rômulo — não tocar
           if (/^\s*\{"button":"\s*(Encerrar agora|Sim|Não)\s*"/i.test(tx) && (Date.now() - tC) > 6 * 3600000) continue;   // 6.79: só clicou botão e já faz 6 h+
+          if (/^\s*\{"button":"\s*Encerrar agora\s*"/i.test(tx)) { let iT = -1; for (let i = iC - 1; i >= 0; i--) { if (ms[i].FROM !== 'me' && !/^\s*\{"button"/.test(String(typeof ms[i].MESSAGE === 'string' ? ms[i].MESSAGE : JSON.stringify(ms[i].MESSAGE || '')))) { iT = i; break; } }
+            if (iT < 0 || ms.slice(iT + 1, iC).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue; }   // 6.97 (caso Cristiane 18:15): 'Encerrar agora' depois de já termos respondido o que ela escreveu = encerrou, não é vermelho
           if (/^\s*(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]o\w*|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i.test(tx.replace(/\{"button"[^}]*\}/g, ''))) continue;   // só agradeceu/confirmou (6.91: + combinado, certo, entendi… — caso Édina 'Combinado')
           const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); res.push({ h, nome, min: Math.round(min), tx: tx.replace(/\{"button":"([^"]*)".*/, '[$1]').slice(0, 60) });
           const r = RG(); const x = r[h] || (r[h] = { hash: h, nome, estado: 'alerta', toques: [], hist: [], criadoT: Date.now() });
