@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.82';
+  const VERSAO = '6.83';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -305,10 +305,10 @@
       const b = document.getElementById('esteira_refresh'); if (b) b.click(); setTimeout(lerEsteira, 8000); } catch (e) {} }, 60000);
     // 6.65: ordens 'gravada' com aguardaLista → acha o link na lista (GM 'esteira', por CPF, depois do Gravar) e passa para 'link' (o Botmaker manda simulação + link)
     setInterval(() => { try { if (!/[?&]p=propostas/.test(location.search)) return; const O = GM_getValue('auto_ordens', {}) || {}; const E = GM_getValue('esteira', {}) || {}; let mud = false;
-      for (const h in O) { const x = O[h]; if (!x || x.estado !== 'gravada' || !x.aguardaLista) continue; const c = String(x.cpf || '').replace(/\D/g, '');
+      for (const h in O) { const x = O[h]; if (!x || !x.aguardaLista || !(x.estado === 'gravada' || (x.estado === 'erro' && Date.now() - (+x.tGrav || 0) < 90 * 60000))) continue; const c = String(x.cpf || '').replace(/\D/g, '');   /* 6.83 (caso Dulce 980057188: link saiu 27 min depois) — depois do aviso de 10 min continua procurando até 90 min */
         const r = Object.values(E).filter(y => y && y.link && y.cpf === c && /web\.c6consig|\/\//.test(y.link) && (+y.t || 0) > (+x.tGrav || 0) - 60000 && /cadastrad|pendente|assinatura/i.test((y.status || '') + ' ' + (y.statusBanco || ''))).sort((a, b) => b.t - a.t)[0];
-        if (r) { x.estado = 'link'; x.link = r.link; delete x.aguardaLista; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' link (lista de propostas)'); mud = true; try { diario(x.nomeReal || x.nome || '', 'link pronto (lista de propostas) → vai mandar simulação + link'); } catch (e) {} }
-        else if (Date.now() - (+x.tGrav || 0) > 10 * 60000) { /* 6.67 (Stefany 14/11 12:30: "se em 10 minutos o link não aparecer, pode chamar") */ x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 10 min → vigia: Autorizador (AND) / nuvem verde'; delete x.aguardaLista; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+        if (r) { x.estado = 'link'; x.link = r.link; delete x.aguardaLista; delete x.erro; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' link (lista de propostas)'); mud = true; try { diario(x.nomeReal || x.nome || '', 'link pronto (lista de propostas) → vai mandar simulação + link'); } catch (e) {} }
+        else if (x.estado === 'gravada' && Date.now() - (+x.tGrav || 0) > 10 * 60000) { /* 6.67 (Stefany 14/11 12:30: "se em 10 minutos o link não aparecer, pode chamar") */ x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 10 min → vigia: Autorizador (AND) / nuvem verde (o robô continua procurando)'; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
       if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 20000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
