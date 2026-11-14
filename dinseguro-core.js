@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.59';
+  const VERSAO = '6.60';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -608,7 +608,7 @@
         const vv = Object.assign({}, ((js.customer || {}).variables) || {}, ((((js.result || {}).state) || {}).variables) || {});
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
     function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
-        O[h] = { hash: h, nome: nome || '', cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
+        O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
     async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
@@ -1980,7 +1980,7 @@
               // 6.34 (Stefany 14/11 08:50, caso Jeniffer: cliente que JÁ FEZ, perguntando do dia do crédito, recebeu "Recebi o seu CPF"):
               // o CPF da variável do contato NÃO cria ordem sozinho — só o CPF que o cliente acabou de escrever.
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
-                O[id] = { hash: id, nome, cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
+                O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
                 GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; } } } } } } catch (e) {}
       // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 6 * 3600000) { const j = await apiLer(id, 1);   /* 6.20 (Stefany 15:10: robô recarregado relia tudo na tela): vale até 6 h, não só 10 min */
