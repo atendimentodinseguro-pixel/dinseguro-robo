@@ -2013,7 +2013,6 @@
               // só vira consulta nova se NÃO houver proposta ativa dele na lista (com proposta ativa é pergunta da proposta → vigia, regra 6.34/6.35)
               if (fechou && cs) { const E8 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cs); const at8 = E8.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')) && Date.now() - (+y.t || 0) < 30 * 24 * 3600000);
                 if (at8) cs = ''; }
-              if (fechou && !fechou01J && !cs) return false;
               if (cs && outroV) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 mandou o CPF mas clicou "Outro valor" sem dizer qual → vigia pergunta o valor (6.72)'); API_ADIA[id] = Date.now() + 30 * 60000; return false; }
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32' + (vEsc ? ', valor escolhido no bot R$ ' + vEsc : '') + ': ' + origem + ', sem abrir a conversa)'] };
