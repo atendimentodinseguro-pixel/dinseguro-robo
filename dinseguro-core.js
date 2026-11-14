@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.43';
+  const VERSAO = '6.44';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -96,7 +96,11 @@
   // Decide banco destino pelas regras combinadas
   // Tabela do claude/REGRAS-BANCOS.md, atualizada em 07/11/2026.
   // ⚠️ O BMG saiu em 05/11: tudo que ia para ele vai para a FACTA.
-  function decidirBanco(f) {
+  // 6.44 (Stefany 14/11 09:47: "vamos deixar o Daycoval pra gente consertar depois. Pode fazer no C6"): Daycoval desligado → C6
+  function decidirBanco(f) { const r = decidirBanco0(f);
+    try { if (r && r.banco === 'DAYCOVAL' && GM_getValue('daycoval_off', 0) && !/DAYCOVAL/i.test(String(f.banco_ordem_stefany || ''))) return { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }; } catch (e) {}
+    return r; }
+  function decidirBanco0(f) {
     { const bo = String(f.banco_ordem_stefany || '').toUpperCase().trim(); if (/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)$/.test(bo)) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 6.27
     const idade = parseInt(f.idade) || 0;
     const esp = String(f.especie || '').padStart(2, '0');
@@ -1617,6 +1621,7 @@
     // 4.84: entradas do quadro guardadas com chave que não é o hash (caso Rubi em "103") → passam para a chave certa
     setTimeout(() => { try { const r = GM_getValue('regua', {}) || {}; let m = 0; for (const k of Object.keys(r)) { const x = r[k]; if (x && x.hash && x.hash !== k && /^[A-Z0-9]{16,}$/i.test(x.hash) && !/^[A-Z0-9]{16,}$/i.test(k)) { if (!r[x.hash]) r[x.hash] = x; else r[x.hash].reler = 1; delete r[k]; m++; } } if (m) { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} } } catch (e) {} }, 5000);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
+    window.dinsDaycovalOff = on => { if (on !== undefined) GM_setValue('daycoval_off', on ? 1 : 0); return GM_getValue('daycoval_off', 0); };   // 6.44
     // 4.24 — AVERBE JA automático no Autorizador do C6, SÓ para quem a Stefany/vigia colocar na lista (Stefany 11/11 08:17:
     // "pode ser que o cliente está no AVERBE JA mas ainda não desbloqueou… não é todos").
     // dinsAverbar('NOME COMPLETO COMO NO C6', true|false)  ·  dinsAverbarVer()
