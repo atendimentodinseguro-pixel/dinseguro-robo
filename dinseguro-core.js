@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.40';
+  const VERSAO = '6.41';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1867,7 +1867,7 @@
         const nao = m => { SRV_PLACAR.tela++; SRV_PLACAR.motivos[m] = (SRV_PLACAR.motivos[m] || 0) + 1; return false; };
         if (desconhecida) return nao('etiqueta ' + desconhecida);
         const LK = /https?:\/\/[^\s*)]+/ig; const fora = /chat\.whatsapp|wa\.me|fb\.me|g\.co|instagram\.com|facebook\.com|youtu|google\.com|botmaker/i;
-        const linkNovo = j.newMessages.some(m => m.FROM === 'me' && m.FROM_NAME !== 'Bot' && (msgTextoSrv(m).match(LK) || []).some(u => !fora.test(u) && !(x0 && x0.link && (x0.link.includes(u) || u.includes(x0.link)))));
+        const lidoAntes = +(x0 && x0.lidoT) || 0; const linkNovo = j.newMessages.some(m => m.FROM === 'me' && m.FROM_NAME !== 'Bot' && (Date.parse(m.CREATION_TIME || '') || 0) > lidoAntes && (msgTextoSrv(m).match(LK) || []).some(u => !fora.test(u) && !(x0 && x0.link && (x0.link.includes(u) || u.includes(x0.link)))));
         if (linkNovo) return nao('link novo');
         const L = ladosServidor(j); if (!L) return nao('sem mensagens');
         const uc = +j.customer.lastUserMessageTimeStamp || 0;
