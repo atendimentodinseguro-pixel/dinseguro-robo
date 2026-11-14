@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.58';
+  const VERSAO = '6.59';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -337,6 +337,14 @@
       if (Date.now() - ultDigitT > 60000) { try { a.blur(); } catch (e) {} return true; } return false; };
     // ---------- Multicorban
     // 5.04 (12/11 10:06: Alexandre e Franco presos em "consultando" depois de recarregar a aba): consulta interrompida volta para a fila
+    // 6.59 (14/11 11:41, caso Elide: a aba do C6 recarregou com ela em 'gravando' e a ordem ficou parada): aba do banco recarregada →
+    // ordem desta aba em 'digitando'/'pronto' volta para 'ficha_ok' (digita de novo); em 'gravando'/'gravada' vira ERRO para o vigia conferir a lista de propostas (nunca regrava sozinho = sem duplicar)
+    if (/newcorban/.test(location.host)) setTimeout(() => { try { const pg = ((location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || '').toLowerCase(); if (!/^(c6|facta|qualibank|presencabank)$/.test(pg)) return;
+      const O = AO(); let m = false; const hh = new Date().toTimeString().slice(0, 5);
+      for (const h in O) { const x = O[h]; if (!x || String(x.banco || '').toLowerCase().replace('presenca', 'presencabank') !== pg || Date.now() - (+x.t || 0) > 6 * 3600000) continue;
+        if (['digitando', 'pronto'].includes(x.estado)) { x.estado = 'ficha_ok'; (x.hist = x.hist || []).push(hh + ' digitação interrompida (aba recarregada) → de novo'); m = true; }
+        else if (x.estado === 'gravando' || (x.estado === 'gravada' && !x.link)) { x.estado = 'erro'; x.erro = 'aba do banco recarregou no meio do ' + (x.estado === 'gravando' ? 'Gravar' : 'link (Nº ' + (x.proposta || '?') + ')') + ' → vigia: conferir na lista de propostas antes de refazer'; (x.hist = x.hist || []).push(hh + ' ' + x.erro); m = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+      if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 1500);
     if (/multicorban\.com/.test(location.host)) setTimeout(() => { try { const O = AO(); let m = false; for (const h in O) { const x = O[h]; if (x && x.estado === 'consultando' && Date.now() - (x.tMc || x.t || 0) > 2 * 60000) { x.estado = 'nova'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' consulta interrompida (aba recarregada) → de novo'); m = true; } } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 4000);
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
       if (sessionStorage.getItem('dins_mc_manual') === '1') return;   // 5.75 (Stefany 21:02: "uma para você e uma para ele"): aba do Multicorban do VIGIA — o robô não pega ordem aqui
