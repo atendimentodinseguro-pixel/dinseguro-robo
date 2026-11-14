@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.36';
+  const VERSAO = '6.37';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1990,7 +1990,10 @@
           // 5.54 (Stefany 17:57, caso Douglas: respondemos, ele respondeu "te retorno amanhã" e ficou no azul): mensagem nova do CLIENTE em conversa
           // 'acompanhando' ou 'encerrado' também é vermelho (vai e vem = pendente para nós responder)
           const pareceEspera = !nossa && (ESPERA_BOT.test(t) || ['pausada', 'esgotada', 'acompanhando', 'encerrado', 'ativa'].includes(x.estado));
-          if (pareceEspera && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
+          // 6.37 (14/11 09:05, caso Roberlan: lista ↔ leitura brigando — 'alerta pela lista' e 'no bot' a cada 1,5 min, o robô relia o mesmo chat sem parar
+          // e os follow-ups das 08:00 nunca tinham vez): se a conversa foi LIDA depois da última mudança na lista, vale a leitura, não a prévia.
+          const lidaDepois = +x.lidoT > 0 && +x.lidoT > (+x.listaT || 0);
+          if (pareceEspera && !lidaDepois && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)'; x.reler = 1;   // 4.83: relê para achar CPF
             x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
           } else if (nossa && x.estado === 'alerta' && /\(lista/.test(x.motivo || '')) {
