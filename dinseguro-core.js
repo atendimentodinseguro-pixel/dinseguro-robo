@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.89';
+  const VERSAO = '6.90';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1350,6 +1350,7 @@
         // de onde parou (não para mais deixando a conversa aberta). A mensagem nunca sai duas vezes (o.msgFeita).
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } await confereChat(o.hash); };   // 5.03: confere o cliente antes de CADA envio
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
+        if (/undefined/.test(String(o.linha || '') + JSON.stringify(o.trocas || []))) throw new Error('mensagem com "undefined" — não envio (6.90)');   // 6.90
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
@@ -1593,6 +1594,8 @@
             return; } }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
+          // 6.90 (caso Dulce JZRGM 16:34: ordem com 'R$ undefined' e sem link quase saiu) — sem valor, parcela, prazo ou link a simulação NÃO sai: vira erro pro vigia.
+          if (!oL.link || !oL.liberado || !oL.parcela || !oL.prazo || /undefined/.test(String(oL.liberado) + oL.parcela + oL.prazo + oL.link)) { oL.estado = 'erro'; oL.erro = 'simulação + link sem valor/parcela/prazo/link na ordem (6.90) → vigia'; GM_setValue('auto_ordens', O); diario(oL.nome || '', '🔴 simulação + link barrada: faltam dados na ordem (6.90)'); return; }
           const nm = nomeCli(oL); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           const aceiteBn = oL.aceite && oL.bancoConta;
           const linha = aceiteBn
