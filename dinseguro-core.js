@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.42';
+  const VERSAO = '6.43';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -989,6 +989,9 @@
       catch (e) { // painel preso no chat anterior → recarrega o chat uma vez e confere de novo
         // 5.75 (casos Maria 20:30 'painel: Carmen' e Vms 'painel: V.m.d.'): painel desatualizado → reabre a conversa até 3 vezes antes de desistir
         let ok2 = false, ult = e;
+        const idA = hash.replace(/^#\/chats\//, '');
+        // 6.43 (14/11 10:02, caso Uana: endereço da Uana e painel do Fabiano): primeiro tenta CLICAR na conversa na lista (o Botmaker atualiza o painel), depois o vai-e-volta do endereço
+        try { const li = document.getElementById(idA); const ci = li && (li.querySelector('.customer-item') || li); if (ci) { ci.click(); await esp(4500); await confereChat(idA); ok2 = true; } } catch (e3) { ult = e3; }
         for (let t = 0; t < 3 && !ok2; t++) { window.top.location.hash = '#/chats'; await esp(2500 + t * 1500); window.top.location.hash = alvo; await esp(6000 + t * 2000);
           try { await confereChat(hash.replace(/^#\/chats\//, '')); ok2 = true; } catch (e2) { ult = e2; } }
         if (!ok2) throw ult; }
