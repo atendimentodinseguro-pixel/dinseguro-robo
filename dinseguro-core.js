@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.99';
+  const VERSAO = '6.100';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -2041,14 +2041,14 @@
               // 6.69 (Stefany 14/11 12:37 "pode seguir se auto-regenerando"; casos Luiz, Virgilaine, Milton, Odila, Consuelo): cliente VOLTOU pelo anúncio
               // ("desejo mais informações"), sem resposta humana depois, com CPF no cadastro → sem proposta ativa: boas-vindas + consulta + simulação no máximo;
               // com proposta ativa na lista: vai para o vigia reenviar simulação + link da proposta (regra da Stefany 11:51).
-              { let iA = -1; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM !== 'me' && /desejo mais informa/i.test(txt(m))) { iA = i; break; } }
+              { let iA = -1; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM !== 'me' && (/desejo mais informa/i.test(txt(m)) || ((m.RENDERING_INFO || {}).referralInfo && !/\d{3}\.?\d{3}\.?\d{3}/.test(txt(m))))) { iA = i; break; }   /* 6.100 (Stefany 20:02, casos Nilson, Simone Santos Costa, Ellis): mensagem só do anúncio, sem texto, também é 'voltou pelo anúncio' */ }
                 const cv = String(((((j.result || {}).state || {}).variables || {}).CPF) || '').replace(/\D/g, '');
                 // 6.86 (caso Marcia Quintanilha HJ481 14:18: voltou pelo anúncio SEM CPF no cadastro e ficou 20 min sem ninguém): pede o CPF sozinho
-                if (iA >= 0 && cv.length !== 11 && Date.now() - (+nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (+nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
+                if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
                   API_ADIA[id] = Date.now() + 30 * 60000; diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'voltou pelo anúncio sem CPF → pedido do CPF (6.86)'); return false; }
-                if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (+nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
+                if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
                   const E9 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cv); const ativa = E9.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')));
                   const nome9 = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); const pn9 = (nome9.split(/\s+/)[0] || '').replace(/[^A-Za-zÀ-ÿ]/g, ''); const pnOk = /^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(pn9) ? pn9 : '';
                   API_ADIA[id] = Date.now() + 30 * 60000;
