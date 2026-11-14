@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.41';
+  const VERSAO = '6.42';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1914,6 +1914,8 @@
           if (lm && lm < +x0.lidoT && tg === x0.apiTags) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; API_PLACAR.vermelhos = (API_PLACAR.vermelhos || 0) + 1; return true; } } else API_PLACAR.falhas++; } } catch (e) {}
       // 6.40: primeiro tenta entender pelo SERVIDOR (sem abrir a tela); só abre se o servidor não explicar
       if (!(RG()[id] || {}).relerHist && await mapearServidor(id)) return true;
+      // 6.42: outro trabalho (toque, pós, ordem) pegou a tela enquanto eu lia pelo servidor → não troco de conversa no meio dele
+      try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if ((n && n.quem !== 'mapa') || localStorage.getItem('dins_ordem') || espRodando || fupRodando || posRodando || faseRodando || rodando) return false; } catch (e) {}
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
@@ -1977,9 +1979,10 @@
       return n;
     };
     // daqui em diante sozinho: conversa nova na lista entra no quadro (uma por minuto, só com a tela livre)
-    let mapeando = false;
+    let mapeando = false; let mapUltT = 0, mapUltTela = true;   // 6.42: leitura pelo servidor é rápida → próxima conversa em 3 s; se precisou da tela, espera 10 s
     setInterval(async () => {
-      if (mapeando || rodando || fupRodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.27: não briga com a varredura
+      if (mapUltTela && Date.now() - mapUltT < 10000) return;
+      if (mapeando || rodando || fupRodando || espRodando || posRodando || faseRodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.27: não briga com a varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * M) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       // 4.83 (caso Fernando: CPF 21:44, ordem só 21:54): quem está na fila "Esperando atendimento" e andou depois da última leitura é relido PRIMEIRO
@@ -2002,8 +2005,8 @@
       // então 74 marcadas ficaram sem leitura. Agora, sem nada mais urgente, relê uma marcada fora da lista (a mais antiga primeiro).
       if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
-      mapeando = true; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; }
-    }, 10000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
+      mapeando = true; const srv0 = SRV_PLACAR.lidas; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; mapUltT = Date.now(); mapUltTela = SRV_PLACAR.lidas === srv0; }
+    }, 3000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
     // 3.95 — Stefany 10/11 15:14: "Fechou a conversa, ele sai." Conversa ARQUIVADA na lista → sai do quadro (e a régua para).
     setInterval(() => {
       if (!faz('atendimento')) return;   // 5.64 papel da aba
