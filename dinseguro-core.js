@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.63';
+  const VERSAO = '6.64';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1316,7 +1316,7 @@
         // 4.83 (Stefany 11/11 21:58, caso Fernando: "depois que ele responde, ele fica pendente… já fechou, já resolveu, e não coloca como resolvido"):
         // ordem terminada com sucesso → sai da fila "Esperando atendimento" e o quadro deixa de pedir "responder agora".
         if (/^(ok|erro)$/.test(st)) { try { const nmD = ((GM_getValue('regua', {}) || {})[o.hash] || {}).nome || o.nome || o.hash.slice(0, 5); const AC = { sim_link: 'mandou simulação + link', fase_msg: 'mandou mensagem', pedir_cpf: 'pediu o CPF', loas_com: 'LOAS: retorno + fechou', loas_sem: 'LOAS: retorno + fechou', sem_margem: 'sem margem: retorno + fechou' }[o.acao] || o.acao;
-          diario(nmD, st === 'ok' ? AC + ' ✓' + (passos.some(p => /fechad/i.test(p)) ? ' (conversa fechada)' : '') : 'NÃO conseguiu (' + AC + '): ' + String((extra || {}).erro || '').slice(0, 80)); } catch (e) {} }
+          diario(nmD, st === 'ok' && passos.some(p => /não repeti/.test(p)) ? AC + ': NÃO saiu de novo (já tinha saído igual antes)' : st === 'ok' ? AC + ' ✓' + (passos.some(p => /fechad/i.test(p)) ? ' (conversa fechada)' : '') : 'NÃO conseguiu (' + AC + '): ' + String((extra || {}).erro || '').slice(0, 80)); } catch (e) {} }
         if (st === 'ok' && o.hash && !/pular|nada/i.test(String(o.acao))) { try {
           const RS = JSON.parse(localStorage.getItem('dins_resolvidos') || '{}'); RS[o.hash] = Date.now(); localStorage.setItem('dins_resolvidos', JSON.stringify(RS));
           const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const it = fl.find(f => f.id === o.hash);
