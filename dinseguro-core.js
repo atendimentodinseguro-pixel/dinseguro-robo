@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.57';
+  const VERSAO = '6.58';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -318,6 +318,18 @@
     // 6.14 (Stefany 14:26, caso Édina: ordem 'nova' parada 5 min com a aba do Multicorban parada): passo que nunca termina deixava o robô ocupado para sempre.
     // Ocupado há mais de 4 min → recarrega a aba (a consulta interrompida volta para a fila pela regra 5.04).
     setInterval(() => { if (ocupadoAuto && ocupadoT && Date.now() - ocupadoT > (/newcorban/.test(location.host) ? 25 : 4) * 60000) {   /* 6.30: no New Corban o C6 espera o link até 20 min — 4 min derrubava a espera (caso Marcelo 980051138) */ try { console.log('[Dinseguro] robô travado há 4 min — recarregando a aba'); } catch (e) {} location.reload(); } }, 30000);
+    // 6.58 (Stefany 14/11 11:40: "o robô tem que de tempos em tempos dar uma atualizadinha na página para não perder a sequência"; caso Fabiana:
+    // ficha pronta 11:33 e a aba do C6 parada até 11:41 com o quadro da proposta do Luiz aberto): aba do New Corban (nunca Daycoval/Quero Mais)
+    // livre → recarrega quando há ficha esperando há 3 min, ou a cada 20 min parada. Nunca com gente mexendo (5 min) nem no meio de uma ordem.
+    const CARREGOU_NC = Date.now();
+    if (/newcorban/.test(location.host) && /[?&]p=(c6|facta|qualibank|presencabank)\b/.test(location.search)) setInterval(() => { try {
+      if (ocupadoAuto || Date.now() - CARREGOU_NC < 2 * 60000) return;
+      if (Date.now() - (ultDigitT || 0) < 5 * 60000) return;
+      const O9 = GM_getValue('auto_ordens', {}) || {}; const vals = Object.values(O9).filter(Boolean);
+      if (vals.some(o => ['digitando', 'pronto', 'gravando', 'gravada'].includes(o.estado) && Date.now() - (+o.t || 0) < 25 * 60000 && (o.aba || location.search) === location.search)) return;
+      const pg = (location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || ''; const esperando = vals.some(o => o.estado === 'ficha_ok' && String(o.banco || '').toLowerCase().replace('presenca', 'presencabank') === pg.toLowerCase() && Date.now() - (+o.t || 0) > 3 * 60000);
+      if (esperando || Date.now() - CARREGOU_NC > 20 * 60000) { try { console.log('[Dinseguro] 6.58: aba do banco parada → atualizando'); } catch (e) {} location.reload(); }
+    } catch (e) {} }, 60000);
     // 5.37 (caso Ramon 16:04: ordem 'nova' parada 15 min): campo com foco e texto parado há mais de 60 s não é gente digitando → solta o foco e segue
     let ultDigitT = 0; ['keydown', 'input', 'mousedown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultDigitT = Date.now(); }, true));
     const ninguemMexendo = () => { if (document.querySelector('.modal.show')) return false;
