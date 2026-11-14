@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.66';
+  const VERSAO = '6.67';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -305,7 +305,7 @@
       for (const h in O) { const x = O[h]; if (!x || x.estado !== 'gravada' || !x.aguardaLista) continue; const c = String(x.cpf || '').replace(/\D/g, '');
         const r = Object.values(E).filter(y => y && y.link && y.cpf === c && /web\.c6consig|\/\//.test(y.link) && (+y.t || 0) > (+x.tGrav || 0) - 60000 && /cadastrad|pendente|assinatura/i.test((y.status || '') + ' ' + (y.statusBanco || ''))).sort((a, b) => b.t - a.t)[0];
         if (r) { x.estado = 'link'; x.link = r.link; delete x.aguardaLista; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' link (lista de propostas)'); mud = true; try { diario(x.nomeReal || x.nome || '', 'link pronto (lista de propostas) → vai mandar simulação + link'); } catch (e) {} }
-        else if (Date.now() - (+x.tGrav || 0) > 25 * 60000) { x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 25 min → vigia: Autorizador (AND) / nuvem verde'; delete x.aguardaLista; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+        else if (Date.now() - (+x.tGrav || 0) > 10 * 60000) { /* 6.67 (Stefany 14/11 12:30: "se em 10 minutos o link não aparecer, pode chamar") */ x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 10 min → vigia: Autorizador (AND) / nuvem verde'; delete x.aguardaLista; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
       if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 20000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
