@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.52';
+  const VERSAO = '6.53';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2494,7 +2494,7 @@
           if (toque.tipo === '10' && /Conseguiu acessar|conseguiu abrir o link/i.test(depoisL)) { reg('já estava na conversa — não repeti (5.59)', true); return; }
           const ul = lis.slice(-1)[0]; const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || '');
           if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
-            if (dif >= 0 && dif < 50 * M && toque.tipo !== 'manha') { const r6 = RG(); const q6 = r6[alvo.hash] && r6[alvo.hash].toques.find(k => k.tipo === toque.tipo); if (q6) { q6.prox = d.getTime() + 60 * M; gravaRG(r6); } return; } } }
+            if (dif >= 0 && dif < 50 * M && toque.tipo !== 'manha' && d.getTime() > (+alvo.linkT || 0) + 3 * M) { const r6 = RG();   /* 6.53 (caso Eduardo: o próprio LINK era a nossa última mensagem e adiava o toque de 10 min em 1 h — 'recebeu o link e não teve continuação') */ const q6 = r6[alvo.hash] && r6[alvo.hash].toques.find(k => k.tipo === toque.tipo); if (q6) { q6.prox = d.getTime() + 60 * M; gravaRG(r6); } return; } } }
         let enviado;
         if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeSeguro(alvo.nome)));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
