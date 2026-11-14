@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.32';
+  const VERSAO = '6.33';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1216,8 +1216,8 @@
         clicar(op); await esp(1200);
       }
       const conf = await ate(() => [...document.querySelectorAll('button')]
-        .filter(vis).find(b => /^Confirmar$/i.test(txt(b)) && !b.disabled), 8000);
-      if (!conf) throw new Error('botão Confirmar não ficou disponível (faltou escolher o tipo?)');
+        .filter(vis).find(b => /^(Confirmar|Fechar conversa)$/i.test(txt(b)) && !b.disabled), 8000);   // 6.33: o Botmaker trocou o botão "Confirmar" por "Fechar conversa" (casos Luzinete/Helena 14/11)
+      if (!conf) throw new Error('botão Confirmar/Fechar conversa não ficou disponível (faltou escolher o tipo?)');
       clicar(conf); await esp(3000);
       return 'fechada';
     }
