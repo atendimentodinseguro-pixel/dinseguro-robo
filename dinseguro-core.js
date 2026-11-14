@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.81';
+  const VERSAO = '6.82';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4555,7 +4555,9 @@
       if (f.uf) await escolher(lista(/^UF Do Benef[íi]cio$/, sbn), new RegExp('^' + f.uf + '$'), f.uf);
       const esp = String(f.especie || '').padStart(2, '0');
       await escolher(lista(/^Tipo de Benef/, sbn), new RegExp('^' + esp + ' -'), esp + ' -');
-      await escolher(lista(/^Dados Banc[áa]rios$/, sbn), re);
+      // 6.82 (caso Simone Daycoval 13:39: 'Opção não encontrada (/39\/8/). Tem: ' — a conta incluída ainda não estava na lista): espera e, se precisar, INCLUIR de novo
+      for (let k = 0; k < 4; k++) { try { await escolher(lista(/^Dados Banc[áa]rios$/, sbn), re); break; } catch (e) { if (k === 3) throw e; await sleep(2500);
+        if (k >= 1) { const bi = [...document.querySelectorAll('button')].find(x => /^INCLUIR$/i.test((x.innerText || '').trim())); if (bi) { bi.click(); await sleep(3000); await fecharAlertas(); } } } }
       // liberação (tabela): meio, conta, tipo
       const lib = secao(/^Dados de Libera[çc][ãa]o$/);
       const sels = [...lib.querySelectorAll('mat-select')].filter(vis);
