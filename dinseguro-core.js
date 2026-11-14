@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.55';
+  const VERSAO = '6.56';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -518,6 +518,10 @@
           let fimG = null; for (let i = 0; i < 70 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6); }
           if (!fimG) throw new Error('o Gravar não respondeu em 60 s');
           const nro = (/Proposta gravada N[º°o]?\s*([A-Z]{0,4}\d+)/.exec(fimG) || [])[1];
+          // 6.56 (Stefany 14/11 11:14, caso Luiz 812ZG: Itaú ag 6501 "não foi encontrada"): C6 recusou a AGÊNCIA → refaz sozinho com agência 0001 (mesmo banco e conta), uma vez
+          if (!nro && /ag[eê]ncia\s*'?[\d-]*'?\s*n[aã]o (foi )?encontrada/i.test(fimG) && /c6/i.test(location.search) && !o.ag0001) { const f6 = o.ficha || {};
+            poeAO(o.hash, { estado: 'nova', ag0001: 1, acolheu: o.acolheu || Date.now(), bancoStefany: 'C6', contaFix: { banco: f6.banco || '', agencia: '0001', conta: f6.conta || '', tipo_conta: f6.tipo_conta || 'corrente' } });
+            try { diario(o.nomeReal || o.nome || '', 'C6 recusou a agência → refaz com agência 0001 (6.56)'); } catch (e) {} return; }
           if (!nro) throw new Error('não gravou: ' + fimG.replace(/^\d\d:\d\d /, '').slice(0, 160));
           poeAO(o.hash, { estado: 'gravada', proposta: nro });
           const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText));
