@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.65';
+  const VERSAO = '6.66';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -564,7 +564,7 @@
           const dados = { proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal };
           // 6.65 (14/11 12:15: o C6 ficava até 20 min preso esperando o link e a fila do C6 crescia): tenta o link no quadro por ~90 s;
           // não saiu → solta a aba (próximo cliente) e o link é buscado pela LISTA de Propostas (aba ?p=propostas), até 25 min.
-          for (let i = 0; !link && i < 4; i++) {
+          for (let i = 0; !link && i < (/[?&]p=c6\b/i.test(location.search) ? 0 : 4); i++) {   // 6.66 (Stefany 14/11 12:28: "no C6 o link nunca sai na hora… nem fica esperando"): C6 grava e segue direto; link pela lista
             if ((link = linkDaLista())) break;
             const mm = MD(); if (!mm) break;
             const b = [...mm.querySelectorAll('button,a')].find(x => /consultar link|tentar de novo/i.test(x.innerText)); if (b) b.click();
