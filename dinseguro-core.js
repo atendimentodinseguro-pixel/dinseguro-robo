@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.60';
+  const VERSAO = '6.61';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -5362,7 +5362,10 @@
   async function dadosPessoais(f) {
     setv('documento', so(f.cpf));
     // 5.71 (caso Maria Sandra C6 980035912, 12/11 19:49: gravou MASCULINO — a ficha veio sem sexo e o campo ficou no padrão)
-    try { const e = el('sexo'); if (e) { const sx = (f.sexo || '').trim().toUpperCase(); const fem = /^F/.test(sx) ? true : /^M/.test(sx) ? false : /A$/i.test((f.nome || '').trim().split(/\s+/)[0] || '');
+    try { const e = el('sexo'); if (e) { const sx = (f.sexo || '').trim().toUpperCase(); const pn0 = ((f.nome || '').trim().split(/\s+/)[0] || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+      // 6.61 (caso Elide C6 980056169, 14/11 11:48: gravou MASCULINO): nome feminino que não termina em A (Elide, Neide, Ivone, Raquel, Beatriz…)
+      const FEM_N = /^(ELIDE|NEIDE|CLEIDE|ZULEIDE|IVONE|YVONE|RAQUEL|ISABEL|IZABEL|BEATRIZ|RUTH|RUTE|LOURDES|LURDES|IRENE|ESTER|ESTHER|INES|INEZ|NADIR|MARLI|MARLY|MARILENE|DIRCE|ALICE|BERENICE|EUNICE|CLARICE|DENISE|ELISE|LUCIENE|DAIANE|ELIANE|JOSIANE|VIVIANE|SIMONE|IVETE|IVETTE|ODETE|BERNADETE|CLAUDETE|ROSIMEIRE|ROSEMEIRE|ROSEMARY|ROSE|DULCE|EDITE|EDITH|JUDITE|JUDITH|NOEMI|NOEMIA|MIRIAM|MIRIAN|CARMEN|KAREN|ELLEN|HELEN|SUELI|SUELY|NEUSA|DEISE|CRISTIANE|LILIAN|ILZE|GLEICE|JOICE|JOYCE|ROSANGELA|SOLANGE|ANGELE|IRACI|NAIR|ZILDA|MARGARETE|MARGARETH|ELIZABETH|ELISABETE|IZABELE|RAQUELE|ISAURA|ARACI|JACI|JUCILENE|MARLENE|DARLENE|ARLETE|ANETE|JANETE|NILCE|NICE|CELI|NELI|NELY|SHIRLEY|SIRLEI|SIRLENE|LUCI|LUCY|IRANI|ELENI|ELENICE|GRACE|GISELE|GISELLE|MICHELE|MICHELLE|RAFAELE|ADRIANE|LUCIMARE)$/;
+      const fem = /^F/.test(sx) ? true : /^M/.test(sx) ? false : (/A$/.test(pn0) && !/^(LUCA|JOSHUA|NIKITA|BATISTA|ISAIA)$/.test(pn0)) || FEM_N.test(pn0) || /(EIDE|ILDE|IANE|ETE|ENE|ICE|ELLE|ELY|ELI|ILENE|IANA|ISE)$/.test(pn0) && !/^(JORGE|IRINEU|JOSE|ANDRE|FELIPE|HENRIQUE|DUQUE|ARISTIDE|FELICE|GENE)$/.test(pn0);
       const opt = [...e.options].find(o => fem ? /fem/i.test(o.text) : /masc/i.test(o.text));
       if (opt && e.value !== opt.value) { if ($ && $(e).selectpicker) { $(e).selectpicker('val', opt.value); $(e).trigger('change'); } else { e.value = opt.value; e.dispatchEvent(new Event('change', { bubbles: true })); } }
       if (opt) log('Sexo: ' + opt.text + (sx ? '' : ' (pelo primeiro nome — a ficha veio sem sexo)')); } } catch (e) {}
