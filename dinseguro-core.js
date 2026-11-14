@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.30';
+  const VERSAO = '6.31';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -553,6 +553,16 @@
     const APIW = (() => { try { return ((typeof unsafeWindow !== 'undefined') ? unsafeWindow : window).top; } catch (e) { return null; } })();
     try { if (APIW && !APIW.__dinsApiHook) { APIW.__dinsApiHook = 1; const f0 = APIW.fetch; APIW.__dinsFetch0 = f0;
       APIW.fetch = function (u, o) { try { const url = String((u && u.url) || u); if (/\/msg4c$/.test(url) && o && typeof o.body === 'string' && /"wsType":"messages"/.test(o.body)) APIW.__dinsMsgReq = { u: url, o: { method: o.method || 'POST', headers: o.headers, body: o.body, credentials: o.credentials }, t: Date.now() }; } catch (e) {} try { const url2 = String((u && u.url) || u); if (/\/sync\/(customers|ticketsAndContacts4c)$/.test(url2) && o) (APIW.__dinsSyncReq = APIW.__dinsSyncReq || {})[url2.split('/').pop()] = { u: url2, o: { method: o.method || 'POST', headers: o.headers, body: typeof o.body === 'string' ? o.body : '', credentials: o.credentials }, t: Date.now() }; } catch (e) {}   /* 6.16: guarda o pedido da lista de clientes (para a varredura buscar no servidor) */ return f0.apply(this, arguments); }; } } catch (e) {}
+    // 6.31 (Stefany 14/11 08:41, caso Helena 4NARM: "pediu CPF de novo… ele não está lendo sem abrir o chat, no novo formato"):
+    // o CPF estava na VARIÁVEL CPF do contato no servidor (sessão anterior) e o robô pediu de novo. Antes de qualquer pedido de CPF,
+    // lê a variável pelo servidor; se tiver CPF válido, NÃO pede e cria a ordem de consulta.
+    async function cpfDoServidor(h) { try { const js = await apiLer(h, 1); if (!js) return '';
+        const vv = Object.assign({}, ((js.customer || {}).variables) || {}, ((((js.result || {}).state) || {}).variables) || {});
+        const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
+    function ordemDoCpfServidor(h, nome, cs, origem) { try { const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
+        O[h] = { hash: h, nome: nome || '', cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
+        try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
+        return true; } catch (e) { return false; } }
     async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
       const b = JSON.parse(L.o.body); b.showLoading = false; b.message.customerId = id; b.message.start = 0; b.message.end = n || 20;
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
@@ -1267,6 +1277,7 @@
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = [...document.querySelectorAll('.entries [class*="entries-li"].left')].map(e => e.innerText || '').join('\n').slice(-30000);   // 5.35: só mensagens do CLIENTE (o bot tem 0800/números que pareciam CPF — caso Douglas)
           if (/(^|\D)\d{3}\.?\d{3}\.?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(tx0)) { passos.push('cliente já mandou o CPF — NÃO pedi de novo'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
+        if (o.acao === 'pedir_cpf' && !o.msgFeita) { const cs = await cpfDoServidor(o.hash); if (cs) { passos.push('CPF já está no servidor (variável CPF) — NÃO pedi; ordem de consulta criada'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); ordemDoCpfServidor(o.hash, o.nome, cs, 'pedido de CPF'); } }   // 6.31
         // 5.38: toque de retomada só sai se a ÚLTIMA mensagem da conversa for nossa (cliente não falou depois)
         if (o.soSeNossaUltima && !o.msgFeita) { try { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 2).slice(-1)[0];
           let recente = false; { const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh) { let h = +mh[1] % 12; if (/PM/i.test(mh[3])) h += 12; const d = new Date(); d.setHours(h, +mh[2], 0, 0); const dif = Date.now() - d.getTime(); recente = dif >= 0 && dif < 2 * 3600000; } }
@@ -2823,6 +2834,7 @@
         { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 6).slice(-1)[0];
           const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
             if (dif >= 0 && dif < 50 * M && toque.q !== 'lembrete' && toque.q !== 'janela') { const o = ESP(), y = o[alvo.hash]; if (y) { const q = y.toques.find(k => k.q === toque.q && !k.feito); if (q) q.prox = d.getTime() + 60 * M; gravaESP(o); } return; } } }
+        if (alvo.tipo === 'cpf') { const cs = await cpfDoServidor(alvo.hash); if (cs) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); ordemDoCpfServidor(alvo.hash, alvo.nome, cs, 'follow-up de CPF'); return; } }   // 6.31
         // 4.70 (caso Nilva): conversa já encerrada (desfecho) ou cliente que já mandou CPF não recebe cobrança de CPF
         // 5.52: sessão fechada pelo BOT por falta de interação NÃO é desfecho — a janela de 24 h continua e o follow-up sai (casos J4REV/QOZFC/6RKWW)
         if ((() => { const p = document.body.innerText; const i = p.indexOf('Última sessão'); if (i < 0) return false; const j = p.indexOf('Informações de contato', i); if (!(j > 0 && !/Em atendimento|support_agent/.test(p.slice(i, j)))) return false;
