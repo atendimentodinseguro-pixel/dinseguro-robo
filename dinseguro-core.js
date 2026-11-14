@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.75';
+  const VERSAO = '6.76';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2443,7 +2443,7 @@
       // 4.84 (Stefany 11/11 21:59, caso Rubi: clicou "Aposentado / Pensão" às 21:09 e parou no meio do bot, sem simulação → o robô dizia
       // "no bot (autoatendimento)" e ninguém via). Agora vale também SEM simulação: entrou no bot, parou, nunca mandou CPF, ninguém atendeu.
       // Fica de fora quem disse ao bot que não é do INSS (não sou aposentado, CLT, servidor…).
-      const naoInss = ms.some(m => m.lado === 'cli' && /n[ãa]o sou|\bclt\b|carteira assinada|servidor|forças armadas|bolsa fam/i.test(m.txt || m.raw || ''));
+      const naoInss = ms.some(m => m.lado === 'cli' && /n[ãa]o sou|\bclt\b|carteira assinada|forças armadas|bolsa fam/i.test(m.txt || m.raw || ''));   // 6.76 (caso Maria Lúcia PFBWN 13:02: marcou 'Servidor Público' e não respondeu se é do INSS — ficou 51 min sem ninguém): 'servidor' sozinho não exclui; só o 'Não sou'
       if (!temCpf && ultCli && (escolha || !naoInss)) {
         const humano = ms.slice(iCli + 1).some(m => m.lado === 'nos' && !m.bot && !/^\s*(play_arrow|Enviado por [^\n]*$)/.test(m.raw || '') && (m.txt || '').length > 3);
         if (!humano) semCpfT = ultCli.t || 0;
