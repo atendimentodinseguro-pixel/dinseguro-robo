@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.50';
+  const VERSAO = '6.51';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1829,6 +1829,16 @@
         (x.estado === 'ativa' || (['pausada', 'humano'].includes(x.estado) && x.link)) && x.toques.some(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || q.tipo === 'manha')) &&
         (x.estado !== 'ativa' || dentroDoHorario(agora))); } catch (e) { return false; } }
     function temEsperaVencida() { try { const agora = Date.now(); return Object.values(GM_getValue('espera', {}) || {}).some(x => x && !x.parado && !protegido(x.hash) && (x.toques || []).some(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora))); } catch (e) { return false; } }
+    // 6.51 (14/11 10:38: toques da manhã de Givanilson/Ribeiro/Vera pararam com "chat aberto não é o do cliente"): o telefone que vale é o do
+    // SERVIDOR. Painel = servidor → confere (e corrige o telefone da régua, que podia estar errado). Painel ≠ servidor → painel atrasado: destrava e confere de novo.
+    async function foneConfere(h, foneRegua) { try {
+        const so = v => String(v || '').replace(/\D/g, ''); const igual = (a, b) => a && b && (a === b || a.slice(-10) === b.slice(-10));
+        let fS = ''; try { const js = await apiLer(h, 1); fS = so(js && js.customer && js.customer.WHATSAPP_CURATED_NUM); } catch (e) {}
+        const ref = fS || so(foneRegua); if (!ref) return true;
+        let p = so(foneDoContato()); if (!p) return true;
+        if (!igual(p, ref)) { await destravarTela(h); p = so(foneDoContato()); }
+        if (igual(p, ref)) { if (fS && !igual(so(foneRegua), fS)) { const r = RG(); if (r[h]) { r[h].fone = fS; gravaRG(r); } const o = ESP(); if (o[h]) { o[h].fone = fS; gravaESP(o); } } return true; }
+        return false; } catch (e) { return false; } }
     function registrarSemLink(hash) {
       if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
@@ -2445,7 +2455,7 @@
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         const ok = await (async () => { for (let i = 0; i < 40; i++) { if (window.top.location.hash === alvoHash && document.querySelector('.entries')) return true; await new Promise(s => setTimeout(s, 300)); } return false; })();
         if (!ok) throw new Error('não abriu o chat');
-        if (alvo.fone) { const p = foneDoContato(); if (p && p !== alvo.fone) throw new Error('chat aberto não é o do cliente (' + p + ')'); }
+        if (!(await foneConfere(alvo.hash, alvo.fone))) throw new Error('chat aberto não é o do cliente (' + foneDoContato() + ')');   // 6.51: confere pelo telefone do SERVIDOR
         // 4.03 — prova de que é o chat certo: tela PARADA neste chat (telaPronta) + telefone do painel igual ao do cliente.
         // (4.02 exigia o link visível, mas conversa longa recolhe as mensagens antigas e o link some da tela — caso Estefania 16:07.)
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
@@ -2741,7 +2751,7 @@
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
-        const foneTela = foneDoContato(); if (alvo.fone && foneTela !== alvo.fone) throw new Error('telefone do chat não confere');
+        if (!(await foneConfere(alvo.hash, alvo.fone))) throw new Error('telefone do chat não confere');   // 6.51
         // 4.51: chat travado com Rômulo/Stefany → libera (Stefany 12:30: "você já tem a liberdade de liberar o chat") e segue.
         if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(window.top.document.body.innerText + '\n' + document.body.innerText)) {
           const ok = await liberarChat();
