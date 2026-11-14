@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.83';
+  const VERSAO = '6.84';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1607,7 +1607,7 @@
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
-            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nao_localizado', t: Date.now() }));
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now() }));   // 6.84 (caso Tania 14:05: ia como 'nao_localizado' e levava a tag 07 no lugar da 03)
           } else if (o.acao === 'especie_fora') {   // 5.15: /07 + 07 - Nao Identificado + fechar (DESFECHOS.especie_fora)
             const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → espécie não consignável: /07 + 07 + fechar (automático 5.15).';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'especie_fora', t: Date.now(), nota }));
