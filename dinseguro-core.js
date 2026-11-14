@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.01';
+  const VERSAO = '7.02';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -3807,6 +3807,12 @@
           if (/^\s*\{"button":"\s*Encerrar agora\s*"/i.test(tx)) { let iT = -1; for (let i = iC - 1; i >= 0; i--) { if (ms[i].FROM !== 'me' && !/^\s*\{"button"/.test(String(typeof ms[i].MESSAGE === 'string' ? ms[i].MESSAGE : JSON.stringify(ms[i].MESSAGE || '')))) { iT = i; break; } }
             if (iT < 0 || ms.slice(iT + 1, iC).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue; }   // 6.97 (caso Cristiane 18:15): 'Encerrar agora' depois de já termos respondido o que ela escreveu = encerrou, não é vermelho
           if (/^\s*(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]o\w*|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i.test(tx.replace(/\{"button"[^}]*\}/g, ''))) continue;   // só agradeceu/confirmou (6.91: + combinado, certo, entendi… — caso Édina 'Combinado')
+          // 7.02 (Stefany 20:02, Nilson 0ZMD0 / Simone 5I9HL: chegaram só com o anúncio, sem texto, e ficaram horas sem nada — o 7.00 só vale para conversa nova no quadro):
+          // última mensagem do cliente = anúncio sem texto, sem CPF no cadastro, ninguém respondeu → pede o CPF pela fila (uma vez a cada 12 h).
+          try { const semTexto = !String(typeof c.MESSAGE === 'string' ? c.MESSAGE : '').replace(/\{"button"[^}]*\}/g, '').trim() || /desejo mais informa/i.test(tx);
+            const cv7 = String(((((j.result || {}).state || {}).variables || {}).CPF) || '').replace(/\D/g, ''); const PC7 = GM_getValue('pedir_cpf_feito', {}) || {};
+            if (semTexto && ((c.RENDERING_INFO || {}).referralInfo || /desejo mais informa/i.test(tx)) && cv7.length !== 11 && !(PC7[h] > Date.now() - 12 * 3600000) && !((GM_getValue('auto_ordens', {}) || {})[h] || {}).cpf) {
+              const F7 = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F7.some(o => o.hash === h)) { const nm7 = ((j.customer.FIRST_NAME || '') + '').trim(); window.dinsFilaVigia({ hash: h, acao: 'pedir_cpf', quem: 'robo', nome: '', nota: 'chegou pelo anúncio sem texto e ninguém respondeu → pedido de CPF (check-up 7.02)' }); PC7[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC7); diario(nm7, 'anúncio sem texto, sem resposta → pediu o CPF (7.02)'); continue; } } } catch (e) {}
           const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); res.push({ h, nome, min: Math.round(min), tx: tx.replace(/\{"button":"([^"]*)".*/, '[$1]').slice(0, 60) });
           const r = RG(); const x = r[h] || (r[h] = { hash: h, nome, estado: 'alerta', toques: [], hist: [], criadoT: Date.now() });
           if (!['alerta', 'erro'].includes(x.estado) || !/check-up/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = 'check-up 24 h: cliente escreveu "' + tx.replace(/\{"button":"([^"]*)".*/, '[$1]').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + Math.round(min) + ' min e ninguém respondeu'; x.reler = 1; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' ' + x.motivo); }
