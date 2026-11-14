@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.68';
+  const VERSAO = '6.69';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1996,7 +1996,22 @@
               // o CPF da variável do contato NÃO cria ordem sozinho — só o CPF que o cliente acabou de escrever.
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
-                GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; } } } } } } catch (e) {}
+                GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; }
+              // 6.69 (Stefany 14/11 12:37 "pode seguir se auto-regenerando"; casos Luiz, Virgilaine, Milton, Odila, Consuelo): cliente VOLTOU pelo anúncio
+              // ("desejo mais informações"), sem resposta humana depois, com CPF no cadastro → sem proposta ativa: boas-vindas + consulta + simulação no máximo;
+              // com proposta ativa na lista: vai para o vigia reenviar simulação + link da proposta (regra da Stefany 11:51).
+              { let iA = -1; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM !== 'me' && /desejo mais informa/i.test(txt(m))) { iA = i; break; } }
+                const cv = String(((((j.result || {}).state || {}).variables || {}).CPF) || '').replace(/\D/g, '');
+                if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (+nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
+                  const E9 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cv); const ativa = E9.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')));
+                  const nome9 = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); const pn9 = (nome9.split(/\s+/)[0] || '').replace(/[^A-Za-zÀ-ÿ]/g, ''); const pnOk = /^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(pn9) ? pn9 : '';
+                  API_ADIA[id] = Date.now() + 30 * 60000;
+                  if (ativa) { diario(nome9, '🔴 voltou pelo anúncio e tem PROPOSTA ATIVA na lista → vigia: reenviar simulação + link (6.69)'); return false; }
+                  const O9 = GM_getValue('auto_ordens', {}) || {}; const hh9 = new Date().getHours(); const sd9 = hh9 < 12 ? 'Bom dia' : hh9 < 18 ? 'Boa tarde' : 'Boa noite';
+                  O9[id] = { hash: id, nome: nome9, cpf: cv, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), acolheu: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.69: voltou pelo anúncio, CPF no cadastro)'] };
+                  GM_setValue('auto_ordens', O9);
+                  try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); F.push({ hash: id, acao: 'fase_msg', quem: 'robo', nome: nome9, linha: sd9 + (pnOk ? ', ' + pnOk : '') + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nJá estou consultando aqui a melhor condição atualizada para você, em poucos minutos te mando.\n\n🔒 A Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.', atalhos: [], nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.69] voltou pelo anúncio ("desejo mais informações"), CPF no cadastro, sem proposta ativa → boas-vindas + consulta + simulação no máximo.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } catch (e) {}
+                  diario(nome9, 'voltou pelo anúncio com CPF no cadastro → boas-vindas + consulta (6.69)'); return false; } } } } } } } catch (e) {}
       // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 6 * 3600000) { const j = await apiLer(id, 1);   /* 6.20 (Stefany 15:10: robô recarregado relia tudo na tela): vale até 6 h, não só 10 min */
         const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
