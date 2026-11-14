@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.78';
+  const VERSAO = '6.79';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3763,7 +3763,10 @@
           const c = ms[iC]; const tC = new Date(c.CREATION_TIME).getTime() || +c.CREATION_TIME || 0; const min = (Date.now() - tC) / 60000; if (!(min >= 15 && min < 23 * 60)) continue;
           if (ms.slice(iC + 1).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue;
           const tx = String(typeof c.MESSAGE === 'string' ? c.MESSAGE : JSON.stringify(c.MESSAGE || '')); const tags = (j.customer.tags || []).join('|');
-          if (/n[ãa]o sou|bolsa fam/i.test(tx) || /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) continue;   // não é INSS / já teve desfecho
+          const txAll = ms.filter(m => m.FROM !== 'me').map(m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''))).join(' | ');
+          if (/n[ãa]o sou|bolsa fam/i.test(txAll) || /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) continue;   // não é INSS / já teve desfecho (6.79: em qualquer mensagem dele, não só a última)
+          { const hum = ms.filter(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot'); const uh = hum[hum.length - 1]; if (uh && /r[oô]mulo/i.test(uh.FROM_NAME) && !/\[Dinseguro\]/.test(String(uh.MESSAGE || ''))) continue; }   // 6.79: conversa do Rômulo — não tocar
+          if (/^\s*\{"button":"\s*(Encerrar agora|Sim|Não)\s*"/i.test(tx) && (Date.now() - tC) > 6 * 3600000) continue;   // 6.79: só clicou botão e já faz 6 h+
           if (/^\s*(ok|obrigad[oa]|blz|beleza|t[áa] bom|👍|🙏)\W*$/i.test(tx.replace(/\{"button"[^}]*\}/g, ''))) continue;   // só agradeceu
           const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); res.push({ h, nome, min: Math.round(min), tx: tx.replace(/\{"button":"([^"]*)".*/, '[$1]').slice(0, 60) });
           const r = RG(); const x = r[h] || (r[h] = { hash: h, nome, estado: 'alerta', toques: [], hist: [], criadoT: Date.now() });
