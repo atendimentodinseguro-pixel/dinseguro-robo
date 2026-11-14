@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.92';
+  const VERSAO = '6.93';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -5529,7 +5529,7 @@
       log('Conta do Histórico Bancário (salva no sistema).', 'ok');
       // 6.89 (caso Carlos DUT9O 16:31: Qualibank recusou "Banco da conta bancária não permitido" — o Histórico trouxe a Caixa aleatória 104/3880,
       // e a troca para agência 0001 (4.62) só valia para a conta montada pelo robô). Vale também para a conta que vem do Histórico.
-      try { if (pagina === 'qualibank') { const bq = document.querySelector('[name="banco"]'), aq = document.querySelector('[name="agencia"]');
+      try { if (pagina === 'qualibank') { const bq = document.getElementById('banco') || document.querySelector('[name="banco"]'), aq = document.getElementById('agencia') || document.querySelector('[name="agencia"]');   /* 6.93: os campos têm id, não name */
         if (bq && aq && /^104\b/.test(String(bq.value || '')) && String(aq.value || '').replace(/\D/g, '') === '3880') { aq.value = '0001'; aq.dispatchEvent(new Event('input', { bubbles: true })); aq.dispatchEvent(new Event('change', { bubbles: true })); log('Qualibank + Caixa 3880 do Histórico: agência 0001 (6.89).'); } } } catch (e) {}
     } else {
       const m = el('integrationsv2-bank-history-modal'); if (m && $) $(m).modal('hide');
