@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.48';
+  const VERSAO = '6.49';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -96,6 +96,10 @@
   // Decide banco destino pelas regras combinadas
   // Tabela do claude/REGRAS-BANCOS.md, atualizada em 07/11/2026.
   // ⚠️ O BMG saiu em 05/11: tudo que ia para ele vai para a FACTA.
+  // 6.49 (Stefany 14/11 09:49 "não faz uma anotação do que viu… parece perdido"): DIÁRIO DO ROBÔ — o que ele leu, decidiu e fez, com hora.
+  // Aparece no quadro ("📝 O que o robô fez") e em __R.dinsDiario().
+  function diario(nome, txt) { try { const D = GM_getValue('diario', []) || []; const ult = D[D.length - 1]; const linha = { t: Date.now(), nome: String(nome || '').slice(0, 24), txt: String(txt || '').slice(0, 140) };
+      if (ult && ult.nome === linha.nome && ult.txt === linha.txt && linha.t - ult.t < 10 * 60000) return; D.push(linha); GM_setValue('diario', D.slice(-60)); } catch (e) {} }
   // 6.44 (Stefany 14/11 09:47: "vamos deixar o Daycoval pra gente consertar depois. Pode fazer no C6"): Daycoval desligado → C6
   function decidirBanco(f) { const r = decidirBanco0(f);
     try { if (r && r.banco === 'DAYCOVAL' && GM_getValue('daycoval_off', 0) && !/DAYCOVAL/i.test(String(f.banco_ordem_stefany || ''))) return { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }; } catch (e) {}
@@ -306,7 +310,7 @@
   // Qualquer coisa fora do padrão → estado 'erro' com o motivo, e o vigia faz à mão.
   if (window.top === window && /multicorban\.com|newcorban\.com\.br/.test(location.host)) {
     const AO = () => GM_getValue('auto_ordens', {}) || {};
-    const poeAO = (h, mud) => { const O = AO(); if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
+    const poeAO = (h, mud) => { const O = AO(); if (!O[h]) return; Object.assign(O[h], mud); try { const nm = O[h].nomeReal || O[h].nome; const E = { consultando: 'consultando o CPF no Multicorban', ficha_ok: 'consultou: ' + (O[h].resumo || '') + ' → vai digitar no ' + (O[h].banco || ''), digitando: 'digitando no ' + (O[h].banco || ''), gravada: 'proposta gravada ' + (O[h].banco || '') + (O[h].liberado ? ' R$ ' + O[h].liberado : ''), link: 'link da proposta pronto → vai mandar simulação + link', erro: 'PAROU: ' + String(mud.erro || '').slice(0, 90), desfecho: 'sem margem/LOAS → mensagem de retorno' }[mud.estado]; if (E) diario(nm, E); } catch (e) {} (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
     const zz = ms => new Promise(r => setTimeout(r, ms));
     const botaoRobo = t => [...document.querySelectorAll('button[data-a]')].find(b => b.dataset.a === t);
     const logRobo = () => [...document.querySelectorAll('div')].filter(d => /^\d\d:\d\d /.test(d.innerText || '') && d.children.length === 0).map(d => d.innerText);
@@ -1279,6 +1283,8 @@
         JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
         // 4.83 (Stefany 11/11 21:58, caso Fernando: "depois que ele responde, ele fica pendente… já fechou, já resolveu, e não coloca como resolvido"):
         // ordem terminada com sucesso → sai da fila "Esperando atendimento" e o quadro deixa de pedir "responder agora".
+        if (/^(ok|erro)$/.test(st)) { try { const nmD = ((GM_getValue('regua', {}) || {})[o.hash] || {}).nome || o.nome || o.hash.slice(0, 5); const AC = { sim_link: 'mandou simulação + link', fase_msg: 'mandou mensagem', pedir_cpf: 'pediu o CPF', loas_com: 'LOAS: retorno + fechou', loas_sem: 'LOAS: retorno + fechou', sem_margem: 'sem margem: retorno + fechou' }[o.acao] || o.acao;
+          diario(nmD, st === 'ok' ? AC + ' ✓' + (passos.some(p => /fechad/i.test(p)) ? ' (conversa fechada)' : '') : 'NÃO conseguiu (' + AC + '): ' + String((extra || {}).erro || '').slice(0, 80)); } catch (e) {} }
         if (st === 'ok' && o.hash && !/pular|nada/i.test(String(o.acao))) { try {
           const RS = JSON.parse(localStorage.getItem('dins_resolvidos') || '{}'); RS[o.hash] = Date.now(); localStorage.setItem('dins_resolvidos', JSON.stringify(RS));
           const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const it = fl.find(f => f.id === o.hash);
@@ -1625,6 +1631,7 @@
     // 4.84: entradas do quadro guardadas com chave que não é o hash (caso Rubi em "103") → passam para a chave certa
     setTimeout(() => { try { const r = GM_getValue('regua', {}) || {}; let m = 0; for (const k of Object.keys(r)) { const x = r[k]; if (x && x.hash && x.hash !== k && /^[A-Z0-9]{16,}$/i.test(x.hash) && !/^[A-Z0-9]{16,}$/i.test(k)) { if (!r[x.hash]) r[x.hash] = x; else r[x.hash].reler = 1; delete r[k]; m++; } } if (m) { GM_setValue('regua', r); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(r))); } catch (e) {} } } catch (e) {} }, 5000);
     window.dinsAutoVer = () => GM_getValue('auto_ordens', {});
+    window.dinsDiario = (n = 30) => (GM_getValue('diario', []) || []).slice(-n).map(d => new Date(d.t).toTimeString().slice(0, 5) + ' ' + d.nome + ' — ' + d.txt);   // 6.49
     window.dinsDaycovalOff = on => { if (on !== undefined) GM_setValue('daycoval_off', on ? 1 : 0); return GM_getValue('daycoval_off', 0); };   // 6.44
     // 4.24 — AVERBE JA automático no Autorizador do C6, SÓ para quem a Stefany/vigia colocar na lista (Stefany 11/11 08:17:
     // "pode ser que o cliente está no AVERBE JA mas ainda não desbloqueou… não é todos").
@@ -1898,7 +1905,9 @@
         const uc = +j.customer.lastUserMessageTimeStamp || 0;
         CLS_CTX = { id, L, tags: tela, vencida: uc ? Date.now() - uc > 24 * H : false,
           nome: ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).replace(/\bnull\b/g, '').trim(), fone: String(j.customer.WHATSAPP_CURATED_NUM || '') };
+        const antesE = x0 ? (x0.estado + '|' + x0.motivo) : '';
         try { posLeitura(id); } finally { CLS_CTX = null; }
+        try { const x1 = RG()[id]; if (x1 && (x1.estado + '|' + x1.motivo) !== antesE && /^(alerta|encerrado|humano)$/.test(x1.estado)) diario(x1.nome, (x1.estado === 'alerta' ? '🔴 ' : '') + String(x1.motivo || '').slice(0, 110)); } catch (e) {}
         const r = RG(); if (r[id]) { r[id].apiTags = apiT; r[id].lidoT = Date.now(); r[id].lidoSrv = Date.now(); delete r[id].reler; gravaRG(r); }
         SRV_PLACAR.lidas++; return true;
       } catch (e) { CLS_CTX = null; SRV_PLACAR.motivos.erro = (SRV_PLACAR.motivos.erro || 0) + 1; return false; } }
@@ -1927,7 +1936,7 @@
               // o CPF da variável do contato NÃO cria ordem sozinho — só o CPF que o cliente acabou de escrever.
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
-                GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; return false; } } } } } } catch (e) {}
+                GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; } } } } } } catch (e) {}
       // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 6 * 3600000) { const j = await apiLer(id, 1);   /* 6.20 (Stefany 15:10: robô recarregado relia tudo na tela): vale até 6 h, não só 10 min */
         const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
@@ -2402,7 +2411,7 @@
         if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; }   // 6.48: o mais atrasado primeiro (antes: o primeiro da lista)
       }
       if (!alvo) return;
-      const reg = (st, fim) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; const q = x.toques.find(k => k.tipo === toque.tipo);
+      const reg = (st, fim) => { if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome, 'toque do link ' + toque.tipo + ': ' + st); const r2 = RG(), x = r2[alvo.hash]; if (!x) return; const q = x.toques.find(k => k.tipo === toque.tipo);
         if (fim) { q.feito = Date.now(); } q.st = st; x.hist.push(hhmm(Date.now()) + ' ' + toque.tipo + ': ' + st); gravaRG(r2); desenharRegua(); };
       const estado = (est, motivo) => { const r2 = RG(), x = r2[alvo.hash]; x.estado = est; x.motivo = motivo; x.hist.push(hhmm(Date.now()) + ' ' + est + ': ' + motivo); gravaRG(r2); desenharRegua(); };
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
@@ -2953,7 +2962,7 @@
       for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
-      const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); };
+      const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome || y.nome, 'follow-up ' + toque.q + ': ' + st); };
       if (/^08h/.test(toque.q) && agora - toque.quando > 3 * H) { marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
       if (!navPega('espera')) return;
       espRodando = true;
@@ -3093,7 +3102,9 @@
       const cab = `<div data-min="1" style="cursor:pointer;font-weight:700">📋 ${({tudo:'[ROBO] ',atendimento:'[ATENDIMENTO] ',followup:'[FOLLOW-UP] ',varredura:'[VARREDURA] ',vigia:'[VIGIA] '})[meuPapel()]}Acompanhamento dos clientes — janela 24h (${lista.length})${(() => { try { const m = JSON.parse(localStorage.getItem('dins_abas_paradas') || '[]'); return m.length ? ' <span style="color:#fca5a5">⚠ janela parada: ' + m.join(', ') + '</span>' : ''; } catch (e) { return ''; } })()}${nAlerta ? ' <span style="color:#f87171">⚠ ' + nAlerta + '</span>' : ''}</div>` +
         (esperando.length ? `<div style="margin:3px 0;padding:3px 6px;border-radius:6px;background:#7f1d1d;color:#fff;font-weight:700">⏱ ${esperando.length} sem resposta há mais de 10 min — maior: ${esperando[0].min} min (${String(esperando[0].x.nome || esperando[0].x.hash.slice(0, 5)).replace(/</g, '')})</div>` : '') +
         `<div style="color:#94a3b8;font-size:11px">${BL.map(([k, n]) => n.split(' ')[0] + ' ' + (grupos[k] || []).length).join('  ')}` +
-        ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>`;
+        ` <button data-tabela="1" style="margin-left:6px;padding:2px 8px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">📊 Tabela</button></div>` +
+        (() => { try { const D = (GM_getValue('diario', []) || []).slice(-6).reverse(); if (!D.length) return ''; const hm = t => new Date(t).toTimeString().slice(0, 5);
+          return '<div style="margin-top:4px;padding:3px 6px;border-radius:6px;background:#0f172a;font-size:11px;line-height:1.35"><b>📝 O que o robô fez</b>' + D.map(d => '<div>' + hm(d.t) + ' <b>' + String(d.nome).replace(/</g, '&lt;') + '</b> — ' + String(d.txt).replace(/</g, '&lt;') + '</div>').join('') + '</div>'; } catch (e) { return ''; } })();
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const situacao = (x, k) => {
