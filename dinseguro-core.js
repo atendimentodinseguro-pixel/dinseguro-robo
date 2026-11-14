@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.44';
+  const VERSAO = '6.45';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1804,6 +1804,12 @@
       for (const k in sigPorHash) if (k !== hash && sigPorHash[k] === sg) return false;
       sigPorHash[hash] = sg; return true;
     }
+    // 6.45 (14/11, casos Tania/Joel "tela não parou no chat"): o Botmaker às vezes troca o endereço e deixa o painel no cliente anterior.
+    // Destrava: clica na conversa na lista; se não der, vai para a lista e volta; espera o painel conferir.
+    async function destravarTela(h) { try {
+        const li = document.getElementById(h); const ci = li && (li.querySelector('.customer-item') || li); if (ci) { ci.click(); for (let i = 0; i < 6 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500)); }
+        if (!telaPronta(h)) { window.top.location.hash = '#/chats'; await new Promise(r => setTimeout(r, 2500)); window.top.location.hash = '#/chats/' + h; await new Promise(r => setTimeout(r, 6500)); for (let i = 0; i < 6 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500)); }
+      } catch (e) {} return telaPronta(h); }
     function registrarSemLink(hash) {
       if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
@@ -2420,6 +2426,7 @@
         // 4.03 — prova de que é o chat certo: tela PARADA neste chat (telaPronta) + telefone do painel igual ao do cliente.
         // (4.02 exigia o link visível, mas conversa longa recolhe as mensagens antigas e o link some da tela — caso Estefania 16:07.)
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('tela ainda não mostra este chat — tento de novo');
         const foneTela = foneDoContato();
         if (alvo.fone ? (!foneTela || foneTela !== alvo.fone) : (alvo.link && !document.querySelector('.entries').innerText.includes(alvo.link.slice(0, 35)))) throw new Error('não consegui confirmar que este é o chat do cliente — não mando');
@@ -2595,6 +2602,7 @@
         if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('não abriu o chat');
         if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) { marca({ parado: 1, st: 'chat com outro atendente — parei' }); return; }
         const nossas = [...document.querySelectorAll('.entries [class*="entries-li"].right')].map(e => e.innerText);
@@ -2706,6 +2714,7 @@
         if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
         const foneTela = foneDoContato(); if (alvo.fone && foneTela !== alvo.fone) throw new Error('telefone do chat não confere');
         // 4.51: chat travado com Rômulo/Stefany → libera (Stefany 12:30: "você já tem a liberdade de liberar o chat") e segue.
@@ -2939,6 +2948,7 @@
         if (!(await esperaChatLivre(alvo.hash))) throw new Error('a conversa está aberta em outra aba — tento de novo depois');   // 5.64
         if (window.top.location.hash !== alvoHash) { window.top.location.hash = alvoHash; await new Promise(s => setTimeout(s, 4500)); }
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
+        if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('tela não parou no chat');
         if (janelaVencidaAgora()) { marcaQ({ feito: Date.now() }, 'janela de 24 h vencida — fica para a varredura'); const o = ESP(); if (o[alvo.hash]) { o[alvo.hash].parado = 1; gravaESP(o); } return; }
         const tagsChat = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
