@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.70';
+  const VERSAO = '6.71';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1133,7 +1133,7 @@
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
-        .replace(/[*_]/g, '').includes(trecho.trim().slice(0, 30));
+        .replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(trecho.replace(/\s+/g, ' ').trim().slice(0, 30));
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
       // 5.94 (Stefany 13/11 10:16): balão com "!" vermelho = NÃO foi enviado ao cliente. ✓ = saiu; ✓✓ cinza = chegou; ✓✓ azul = viu.
       // Espera o tique aparecer (até 25 s); sem tique → erro para o vigia reenviar (o "não duplicar" impede o robô de mandar de novo sozinho).
@@ -1166,14 +1166,16 @@
       const jaTem = () => { const url = (String(texto).match(/https?:\/\/\S+/) || [])[0]; const k = url ? url.replace(/[*_\s]/g, '') : texto.replace(/[*_\s]/g, '').slice(0, 45);   /* 6.25 (caso Jeferson 16:18): mensagem com link compara pelo LINK — o /parabens começa sempre igual e o link novo era barrado como DUPLICADO */ return [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k)); };
       // 6.68 (caso Odila 80WW2 12:31: reenvio pedido da proposta ATIVA bloqueado como duplicado): ordem com forcar/reenvio passa
       let odF = null; try { odF = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
-      if (!(odF && (odF.forcar || odF.reenvio)) && jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
+      const passaDup = !!(odF && (odF.forcar || odF.reenvio) && !odF.reenvioUsado);   // 6.71: o reenvio passa pela trava UMA vez só (caso Odila: 4 mensagens iguais)
+      if (!passaDup && jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
       ta.focus(); setNativo(ta, texto); await esp(800 + Math.floor(Math.random() * 4000));
-      if (!(odF && (odF.forcar || odF.reenvio)) && jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }   // 6.70: reenvio pedido passa também aqui
+      if (!passaDup && jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }   // 6.70: reenvio pedido passa também aqui
       if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || (vigiaTrava() && !rodando)) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
       clicar(await ate(() => document.querySelector('button.send-button-component')));
+      if (passaDup) { try { const o7 = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (o7) { o7.reenvioUsado = 1; localStorage.setItem('dins_ordem', JSON.stringify(o7)); } } catch (e) {} }
       await esp(4000);
       const chegou = document.querySelector('.entries').innerText.slice(-4000)
-        .replace(/[*_]/g, '').includes(texto.replace(/[*_]/g, '').slice(0, 30));
+        .replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(texto.replace(/[*_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30));   // 6.71 (caso Odila 12:44: quebra de linha no começo → 'não apareceu' → mandou 4x)
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
       // 5.94 (Stefany 13/11 10:16): balão com "!" vermelho = NÃO foi enviado ao cliente. ✓ = saiu; ✓✓ cinza = chegou; ✓✓ azul = viu.
       // Espera o tique aparecer (até 25 s); sem tique → erro para o vigia reenviar (o "não duplicar" impede o robô de mandar de novo sozinho).
@@ -1590,8 +1592,8 @@
           const aceiteBn = oL.aceite && oL.bancoConta;
           const linha = aceiteBn
             ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
-            : '*' + nm + ', Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
-          const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm + ','], ['Cola link', oL.link]];
+            : '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
+          const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm ? nm + ',' : ''], ['Cola link', oL.link]];
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : 'simulação 1/2 + /parabens') + ' (automático).';
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
