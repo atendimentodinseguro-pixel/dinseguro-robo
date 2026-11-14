@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.37';
+  const VERSAO = '6.38';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -558,11 +558,14 @@
     // lê a variável pelo servidor; se tiver CPF válido, NÃO pede e cria a ordem de consulta.
     // 6.34 (caso Jeniffer 13/11 18:23 e 14/11 08:49): cliente que JÁ FEZ proposta (pago, na esteira ou com tag 01 D) e escreve de novo
     // ("tá tudo certo pro dia 17?") NÃO é consulta nova — nunca mandar "Recebi o seu CPF" para ele; vai para o vigia (vermelho).
-    function jaFezProposta(x) { try { if (!x) return false; const h = x.hash;
-        if ((GM_getValue('pos_pago', {}) || {})[h]) return true;
+    let JFP_CACHE = { t: 0, pos: {}, cpfs: new Set() };   // 6.38: lê esteira/pós-pago no máximo a cada 60 s (antes lia a cada cliente da lista — pesava a aba)
+    function jfpDados() { if (Date.now() - JFP_CACHE.t > 60000) { const E = GM_getValue('esteira', {}) || {}; const cpfs = new Set(); for (const k in E) { const c = String((E[k] || {}).cpf || '').replace(/\D/g, ''); if (c) cpfs.add(c); }
+        JFP_CACHE = { t: Date.now(), pos: GM_getValue('pos_pago', {}) || {}, cpfs }; } return JFP_CACHE; }
+    function jaFezProposta(x) { try { if (!x) return false; const h = x.hash; const D = jfpDados();
+        if (D.pos[h]) return true;
         if ((x.tags01 || []).some(t => /^01 D/i.test(t)) || /01 D|FechouNegocio/i.test(x.apiTags || '') || x.ja01D) return true;   // 6.35: no servidor a 01 D se chama InssFechouNegocio
         const cpf = String(x.cpfVar || x.cpfSem || '').replace(/\D/g, ''); const nome = String(x.nome || '').toUpperCase().split(/\s+/)[0];
-        const E = GM_getValue('esteira', {}) || {}; for (const k in E) { const e = E[k] || {}; if (cpf && String(e.cpf || '').replace(/\D/g, '') === cpf) return true; }
+        if (cpf && D.cpfs.has(cpf)) return true;
         if (/dia \d{1,2}|cr[eé]dito|cai(r|u)? na conta|pagamento|parcela|contrato|j[aá] (fiz|assinei)|quando (cai|vai cair)/i.test(x.ultCliTxt || '')) return true;
         return false; } catch (e) { return false; } }
     function cpfDigitoOk(c) { c = String(c || '').replace(/\D/g, ''); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false;
