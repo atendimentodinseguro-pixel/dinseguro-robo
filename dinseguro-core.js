@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.69';
+  const VERSAO = '6.70';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1168,7 +1168,7 @@
       let odF = null; try { odF = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
       if (!(odF && (odF.forcar || odF.reenvio)) && jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
       ta.focus(); setNativo(ta, texto); await esp(800 + Math.floor(Math.random() * 4000));
-      if (jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }
+      if (!(odF && (odF.forcar || odF.reenvio)) && jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }   // 6.70: reenvio pedido passa também aqui
       if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || (vigiaTrava() && !rodando)) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
       clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
