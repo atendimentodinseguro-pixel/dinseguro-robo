@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.54';
+  const VERSAO = '6.55';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -427,6 +427,7 @@
           if (mot === 'SEM_MARGEM' && mg != null && mg < 25) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
           else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';
+          else if (mot === 'REPRESENTANTE') acao = window.dinsAcaoDaRecusa(ficha.recusa) || 'representante';   // 6.55: tag 03 + flow, sozinho
           else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
           else if (!mot) {
@@ -898,8 +899,9 @@
                         texto: 'Oi! 😊 Aqui é da Dinseguro.\n\nConsultei o seu benefício e, infelizmente, ele é de um tipo que o INSS não libera para empréstimo consignado. Por isso, neste momento não conseguimos fazer uma proposta para você. 😔\n\nAgradecemos muito o seu contato e ficamos à disposição!' },
     sem_cpf:          { atalho: '/n23', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
     com_margem:       { atalho: null,   tags: ['01 A - Inss Com Margem - SEM 87 E 88'], fechar: false },
-    representante:    { atalho: '/inss13', tags: ['03 A - Loas Com Rep Com Margem'], fechar: true },
-    representante_sm: { atalho: '/inss13', tags: ['03 B - Loas Com Rep Sem Margem'], fechar: true },
+    // 6.55 (Stefany 14/11 10:55, caso Marcos Aurelio): representante legal → TAG 03 A/03 B PRIMEIRO + flow "Inicio do atendimento" (o despacho é automático). Sem /inss13.
+    representante:    { fluxo: 'Inicio do atendimento', tags: ['03 A - Loas Com Rep Com Margem'], fechar: false, tagsAntes: true },
+    representante_sm: { fluxo: 'Inicio do atendimento', tags: ['03 B - Loas Com Rep Sem Margem'], fechar: false, tagsAntes: true },
     pensao:           { atalho: null,   tags: ['07 - Nao Identificado'], fechar: true,
                         texto: 'Infelizmente não atendemos benefício com pensão alimentícia. Agradecemos o seu contato!' },
     // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
@@ -1556,7 +1558,7 @@
         const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
-          if (o.acao === 'nao_localizado') {   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
+          if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nao_localizado', t: Date.now() }));
           } else if (o.acao === 'especie_fora') {   // 5.15: /07 + 07 - Nao Identificado + fechar (DESFECHOS.especie_fora)
             const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → espécie não consignável: /07 + 07 + fechar (automático 5.15).';
@@ -5071,7 +5073,7 @@
         if (LOAS.includes(espF))             f.recusa = 'LOAS|02 I (ou 02 A se margem ≥ R$ 400)|/n30 pela regra do LOAS e FECHAR a conversa';
         else if (espF && !ESPECIES_OK.includes(espF)) f.recusa = 'ESPECIE_FORA|07|/07 — espécie ' + espF + ' não é atendida, e FECHAR a conversa';
         else if (!negativo(f.pensao))        f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
-        else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|/inss13 — não fazemos proposta com representante legal';
+        else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|tag + flow Inicio do atendimento — não fazemos proposta com representante legal';
         else if (margem < 25)                f.recusa = 'SEM_MARGEM|01 I|/n30';   // 5.16 (Stefany 12/11 11:25): mínimo R$ 25
         else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|acima de 76 anos: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
         else if (idadeF >= 74)               f.recusa = 'IDADE_PERGUNTAR|—|74 a 76 anos: perguntar à Stefany ANTES de simular, digitar ou gastar consulta';
