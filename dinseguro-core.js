@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.64';
+  const VERSAO = '6.65';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -300,6 +300,13 @@
     setInterval(() => { try { if (!/[?&]p=propostas/.test(location.search) || document.querySelector('.modal.show')) return;
       const AO = GM_getValue('auto_ordens', {}) || {}; if (!Object.values(AO).some(o => o && o.estado === 'gravada' && Date.now() - (+o.t || 0) < 3 * 3600000)) return;
       const b = document.getElementById('esteira_refresh'); if (b) b.click(); setTimeout(lerEsteira, 8000); } catch (e) {} }, 60000);
+    // 6.65: ordens 'gravada' com aguardaLista → acha o link na lista (GM 'esteira', por CPF, depois do Gravar) e passa para 'link' (o Botmaker manda simulação + link)
+    setInterval(() => { try { if (!/[?&]p=propostas/.test(location.search)) return; const O = GM_getValue('auto_ordens', {}) || {}; const E = GM_getValue('esteira', {}) || {}; let mud = false;
+      for (const h in O) { const x = O[h]; if (!x || x.estado !== 'gravada' || !x.aguardaLista) continue; const c = String(x.cpf || '').replace(/\D/g, '');
+        const r = Object.values(E).filter(y => y && y.link && y.cpf === c && /web\.c6consig|\/\//.test(y.link) && (+y.t || 0) > (+x.tGrav || 0) - 60000 && /cadastrad|pendente|assinatura/i.test((y.status || '') + ' ' + (y.statusBanco || ''))).sort((a, b) => b.t - a.t)[0];
+        if (r) { x.estado = 'link'; x.link = r.link; delete x.aguardaLista; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' link (lista de propostas)'); mud = true; try { diario(x.nomeReal || x.nome || '', 'link pronto (lista de propostas) → vai mandar simulação + link'); } catch (e) {} }
+        else if (Date.now() - (+x.tGrav || 0) > 25 * 60000) { x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 25 min → vigia: Autorizador (AND) / nuvem verde'; delete x.aguardaLista; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+      if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 20000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
 
@@ -326,7 +333,7 @@
       if (ocupadoAuto || Date.now() - CARREGOU_NC < 2 * 60000) return;
       if (Date.now() - (ultDigitT || 0) < 5 * 60000) return;
       const O9 = GM_getValue('auto_ordens', {}) || {}; const vals = Object.values(O9).filter(Boolean);
-      if (vals.some(o => ['digitando', 'pronto', 'gravando', 'gravada'].includes(o.estado) && Date.now() - (+o.t || 0) < 25 * 60000 && (o.aba || location.search) === location.search)) return;
+      if (vals.some(o => ['digitando', 'pronto', 'gravando', 'gravada'].includes(o.estado) && !o.aguardaLista && Date.now() - (+o.t || 0) < 25 * 60000 && (o.aba || location.search) === location.search)) return;
       const pg = (location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || ''; const esperando = vals.some(o => o.estado === 'ficha_ok' && String(o.banco || '').toLowerCase().replace('presenca', 'presencabank') === pg.toLowerCase() && Date.now() - (+o.t || 0) > 3 * 60000);
       if (esperando || Date.now() - CARREGOU_NC > 20 * 60000) { try { console.log('[Dinseguro] 6.58: aba do banco parada → atualizando'); } catch (e) {} location.reload(); }
     } catch (e) {} }, 60000);
@@ -343,7 +350,7 @@
       const O = AO(); let m = false; const hh = new Date().toTimeString().slice(0, 5);
       for (const h in O) { const x = O[h]; if (!x || String(x.banco || '').toLowerCase().replace('presenca', 'presencabank') !== pg || Date.now() - (+x.t || 0) > 6 * 3600000) continue;
         if (['digitando', 'pronto'].includes(x.estado)) { x.estado = 'ficha_ok'; (x.hist = x.hist || []).push(hh + ' digitação interrompida (aba recarregada) → de novo'); m = true; }
-        else if (x.estado === 'gravando' || (x.estado === 'gravada' && !x.link)) { x.estado = 'erro'; x.erro = 'aba do banco recarregou no meio do ' + (x.estado === 'gravando' ? 'Gravar' : 'link (Nº ' + (x.proposta || '?') + ')') + ' → vigia: conferir na lista de propostas antes de refazer'; (x.hist = x.hist || []).push(hh + ' ' + x.erro); m = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+        else if (x.estado === 'gravando' || (x.estado === 'gravada' && !x.link && !x.aguardaLista)) { x.estado = 'erro'; x.erro = 'aba do banco recarregou no meio do ' + (x.estado === 'gravando' ? 'Gravar' : 'link (Nº ' + (x.proposta || '?') + ')') + ' → vigia: conferir na lista de propostas antes de refazer'; (x.hist = x.hist || []).push(hh + ' ' + x.erro); m = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
       if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 1500);
     if (/multicorban\.com/.test(location.host)) setTimeout(() => { try { const O = AO(); let m = false; for (const h in O) { const x = O[h]; if (x && x.estado === 'consultando' && Date.now() - (x.tMc || x.t || 0) > 2 * 60000) { x.estado = 'nova'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' consulta interrompida (aba recarregada) → de novo'); m = true; } } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 4000);
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
@@ -550,20 +557,22 @@
           // 5.93: segunda forma de achar o link — a lista de Propostas (aba ?p=propostas grava em GM 'esteira' por CPF)
           const linkDaLista = () => { try { const E = GM_getValue('esteira', {}) || {}; const c = String(o.cpf || '').replace(/\D/g, '');
             const r = Object.values(E).filter(x => x && x.link && x.cpf === c && (+x.t || 0) > tGrav && /cadastrad|pendente|assinatura/i.test((x.status || '') + ' ' + (x.statusBanco || ''))).sort((a, b) => b.t - a.t)[0]; return r ? r.link : ''; } catch (e) { return ''; } };
-          for (let i = 0; !link && i < 40; i++) {   // C6 demora de 1 a 8 min: tenta de 30 em 30 s, até ~20 min (5.93: e confere a lista de Propostas)
-            if ((link = linkDaLista())) break;
-            const mm = MD(); if (!mm) throw new Error('o quadro "Proposta gerada" fechou antes do link (Nº ' + nro + ')');
-            const b = [...mm.querySelectorAll('button,a')].find(x => /consultar link|tentar de novo/i.test(x.innerText)); if (b) b.click();
-            for (let k = 0; k < 10 && !(link = LK()); k++) await zz(2000);
-            if (!link) await zz(10000);
-          }
-          if (!link) throw new Error('gravada Nº ' + nro + ', mas o link não saiu em 20 min (nem no quadro nem na lista de Propostas) → vigia: nuvem verde em ?p=propostas');
           // 5.25 (caso Fabiano 12/11 12:00: saiu "Josias" no chat do Fabiano — a ficha_atual já era de outro cliente): usa a ficha DESTA ordem
           const f4 = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
           const bc = String(f4.banco || '').replace(/\D/g, '').padStart(3, '0');
           const aleat = bc === '104' && /3880/.test(String(f4.agencia || ''));
-          poeAO(o.hash, { estado: 'link', link, proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal });
+          const dados = { proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal };
+          // 6.65 (14/11 12:15: o C6 ficava até 20 min preso esperando o link e a fila do C6 crescia): tenta o link no quadro por ~90 s;
+          // não saiu → solta a aba (próximo cliente) e o link é buscado pela LISTA de Propostas (aba ?p=propostas), até 25 min.
+          for (let i = 0; !link && i < 4; i++) {
+            if ((link = linkDaLista())) break;
+            const mm = MD(); if (!mm) break;
+            const b = [...mm.querySelectorAll('button,a')].find(x => /consultar link|tentar de novo/i.test(x.innerText)); if (b) b.click();
+            for (let k = 0; k < 10 && !(link = LK()); k++) await zz(2000);
+          }
           try { const fc = [...(MD() || document).querySelectorAll('button')].find(x => /^Fechar$/i.test(x.innerText.trim())); if (fc) fc.click(); } catch (e) {}
+          if (link) poeAO(o.hash, Object.assign({ estado: 'link', link }, dados));
+          else { poeAO(o.hash, Object.assign({ estado: 'gravada', aguardaLista: 1, tGrav }, dados)); try { diario(dados.nomeReal || o.nome || '', 'gravada Nº ' + nro + ' — link vem pela lista de propostas (C6 livre para o próximo)'); } catch (e) {} }
           setTimeout(() => { location.href = location.origin + '/?p=' + pag; }, 3000);   // tela limpa para o próximo cliente
         }
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
