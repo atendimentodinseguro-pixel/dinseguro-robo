@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.00';
+  const VERSAO = '7.01';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1425,6 +1425,11 @@
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
         let mud = false;
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
+        // 7.01 (caso Francisca/Pra Iris K94HN 20:03: a ordem de simulação + link sumiu no meio — a simulação saiu e o link não; ficou 'link_enviado' para sempre):
+        // 'link_enviado' há 6 min+, sem ordem em andamento para ele e sem status ok/erro dele depois do envio → volta como erro para o vigia conferir o que saiu.
+        { let oA = null; try { oA = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
+          for (const k in O) { const x = O[k]; if (x.estado !== 'link_enviado' || Date.now() - (+x.tEnv || 0) < 6 * 60000 || Date.now() - (+x.tEnv || 0) > 6 * 3600000) continue; if (oA && oA.hash === x.hash) continue; if (st && st.hash === x.hash && st.acao === 'sim_link' && st.t > (x.tEnv || 0)) continue;
+            x.estado = 'erro'; x.erro = 'simulação + link interrompida (a ordem sumiu no meio) → vigia: conferir na conversa se o LINK saiu (7.01)'; mud = true; try { diario(x.nomeReal || x.nome || '', '🔴 ' + x.erro); } catch (e) {} } }
         for (const k in O) { const x = O[k]; if (x.estado === 'link_enviado' && st && st.hash === x.hash && st.acao === 'sim_link' && ['ok', 'erro'].includes(st.st) && st.t > (x.tEnv || 0)) { x.estado = st.st === 'ok' ? 'feito' : 'erro'; if (st.st !== 'ok') x.erro = 'envio do link parou: ' + (st.erro || '') + ' (proposta ' + (x.proposta || '') + ' gravada)'; mud = true; } }
         // 4.79 (Stefany 11/11 18:56 "pode fazer"): ESTEIRA → MENSAGEM sozinha, e "desbloqueei" → lista do AVERBE JA.
         try {
