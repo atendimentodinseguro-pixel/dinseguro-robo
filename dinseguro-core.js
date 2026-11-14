@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.67';
+  const VERSAO = '6.68';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1164,7 +1164,9 @@
       // 4.70 (caso Nilva 15:43: o mesmo follow-up saiu 2x — dois Chromes com o robô): se o mesmo texto já está entre as
       // últimas mensagens NOSSAS da conversa, não manda de novo.
       const jaTem = () => { const url = (String(texto).match(/https?:\/\/\S+/) || [])[0]; const k = url ? url.replace(/[*_\s]/g, '') : texto.replace(/[*_\s]/g, '').slice(0, 45);   /* 6.25 (caso Jeferson 16:18): mensagem com link compara pelo LINK — o /parabens começa sempre igual e o link novo era barrado como DUPLICADO */ return [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k)); };
-      if (jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
+      // 6.68 (caso Odila 80WW2 12:31: reenvio pedido da proposta ATIVA bloqueado como duplicado): ordem com forcar/reenvio passa
+      let odF = null; try { odF = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
+      if (!(odF && (odF.forcar || odF.reenvio)) && jaTem()) throw new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo');
       ta.focus(); setNativo(ta, texto); await esp(800 + Math.floor(Math.random() * 4000));
       if (jaTem()) { setNativo(ta, ''); throw new Error('DUPLICADO: outra aba mandou a mesma mensagem agora — não mandei'); }
       if (window.top.location.hash !== hash0 || nomeDoContato() !== nome0 || (vigiaTrava() && !rodando)) { setNativo(ta, ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }
@@ -1591,7 +1593,7 @@
             : '*' + nm + ', Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
           const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm + ','], ['Cola link', oL.link]];
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : 'simulação 1/2 + /parabens') + ' (automático).';
-          localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota }));
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
         const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
