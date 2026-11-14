@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.74';
+  const VERSAO = '6.75';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1214,6 +1214,8 @@
       await fecharMenus(); return tirou;
     }
     async function addTag(nome) {
+      // 6.75 (caso Édina ADVUR 13:01: reenvio para cliente 01 D ganhou 01 A): quem já tem 01 D não recebe 01 A (PADRAO-TAGS-01)
+      try { if (/^01 A/i.test(String(nome)) && /\b01 D\b|Fechou ?Neg/i.test(document.querySelector('.tags, [class*="tag"]') ? [...document.querySelectorAll('[class*="tag"]')].map(e => e.innerText).join('|') : '')) return '01 A não (já tem 01 D)'; } catch (e) {}
       const r = await addTag0(nome);
       try { const t = String(nome); let tirou = [];
         if (/^01 A/i.test(t) || /^01 (I|k)/i.test(t) || /^0[237]/.test(t)) tirou = tirou.concat(await tirarTag(/^01 C\b/i));
