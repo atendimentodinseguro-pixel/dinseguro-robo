@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.94';
+  const VERSAO = '6.95';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -2470,7 +2470,7 @@
       // 4.84 (Stefany 11/11 21:59, caso Rubi: clicou "Aposentado / Pensão" às 21:09 e parou no meio do bot, sem simulação → o robô dizia
       // "no bot (autoatendimento)" e ninguém via). Agora vale também SEM simulação: entrou no bot, parou, nunca mandou CPF, ninguém atendeu.
       // Fica de fora quem disse ao bot que não é do INSS (não sou aposentado, CLT, servidor…).
-      const naoInss = ms.some(m => m.lado === 'cli' && /n[ãa]o sou|\bclt\b|carteira assinada|forças armadas|bolsa fam/i.test(m.txt || m.raw || ''));   // 6.76 (caso Maria Lúcia PFBWN 13:02: marcou 'Servidor Público' e não respondeu se é do INSS — ficou 51 min sem ninguém): 'servidor' sozinho não exclui; só o 'Não sou'
+      const naoInss = ms.some(m => m.lado === 'cli' && /n[ãa]o sou|n[ãa]o (tenho|recebo) (nenhum )?benef|n[ãa]o (sou|estou) aposentad|\bclt\b|carteira assinada|forças armadas|bolsa fam/i.test(m.txt || m.raw || ''));   // 6.76 (caso Maria Lúcia PFBWN 13:02: marcou 'Servidor Público' e não respondeu se é do INSS — ficou 51 min sem ninguém): 'servidor' sozinho não exclui; só o 'Não sou'
       if (!temCpf && ultCli && (escolha || !naoInss)) {
         const humano = ms.slice(iCli + 1).some(m => m.lado === 'nos' && !m.bot && !/^\s*(play_arrow|Enviado por [^\n]*$)/.test(m.raw || '') && (m.txt || '').length > 3);
         if (!humano) semCpfT = ultCli.t || 0;
@@ -2979,7 +2979,7 @@
         const ehLink = x.link && !x.semLink;
         if (ehLink && !(['pausada', 'esgotada'].includes(x.estado) && x.ultLado === 'nos')) continue;
         if (/n[ãa]o (tenho|quero) interesse|n[ãa]o quero|n[ãa]o preciso|pare de|parar de mandar|sair da lista|desist|n[ãa]o me (mande|chame)|bloque/i.test(x.ultCliTxt || '')) continue;   // recusa: não insiste
-        if (/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) { if (x.estado !== 'encerrado') { x.estado = 'encerrado'; x.motivo = 'não é do INSS (disse ao bot: ' + String(x.ultCliTxt).slice(0, 25) + ')'; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.81: ' + x.motivo); m = true; } continue; }   // 5.52 / 5.81: sai do azul
+        if (/n[ãa]o sou|n[ãa]o (tenho|recebo) (nenhum )?benef|n[ãa]o (sou|estou) aposentad|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '')) { if (x.estado !== 'encerrado') { x.estado = 'encerrado'; x.motivo = 'não é do INSS (disse ao bot: ' + String(x.ultCliTxt).slice(0, 25) + ')'; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.81: ' + x.motivo); m = true; } continue; }   // 5.52 / 5.81: sai do azul
         if (/^\s*(bolt\s*)?encerrar( agora)?\s*$/i.test(x.ultCliTxt || '')) { if (x.estado !== 'encerrado') { x.estado = 'encerrado'; x.motivo = 'cliente encerrou no bot'; (x.hist = x.hist || []).push(hhmm(agora) + ' 5.81: cliente clicou Encerrar no bot — sem follow-up'); m = true; } continue; }
         const t0 = +x.ultT || 0; if (!t0 || agora - t0 > 23 * H) continue;
         const tipoR = ehLink ? 'link' : ehCpf ? 'cpf' : 'duvida';
