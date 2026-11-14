@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.31';
+  const VERSAO = '6.32';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -556,6 +556,9 @@
     // 6.31 (Stefany 14/11 08:41, caso Helena 4NARM: "pediu CPF de novo… ele não está lendo sem abrir o chat, no novo formato"):
     // o CPF estava na VARIÁVEL CPF do contato no servidor (sessão anterior) e o robô pediu de novo. Antes de qualquer pedido de CPF,
     // lê a variável pelo servidor; se tiver CPF válido, NÃO pede e cria a ordem de consulta.
+    function cpfDigitoOk(c) { c = String(c || '').replace(/\D/g, ''); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false;
+      const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += +c[i] * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+      return dv(9) === +c[9] && dv(10) === +c[10]; }   // 6.32: dígitos do CPF (não confunde com telefone)
     async function cpfDoServidor(h) { try { const js = await apiLer(h, 1); if (!js) return '';
         const vv = Object.assign({}, ((js.customer || {}).variables) || {}, ((((js.result || {}).state) || {}).variables) || {});
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
@@ -1836,6 +1839,23 @@
         const soBotao = !uc || /^\s*\{"button"/.test(ucTxt);   // cliente só clicou em botão do bot (nada escrito, nenhum CPF)
         const passouHumano = u && /atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir|logo voc[êe] ser[áa] atendid/i.test(String(u.MESSAGE || ''));
         if (u && u.FROM === 'me' && u.FROM_NAME === 'Bot' && ut && Date.now() - ut < 6 * 60000 && soBotao && !passouHumano) { API_ADIA[id] = Date.now() + 2 * 60000; API_PLACAR.bot = (API_PLACAR.bot || 0) + 1; return false; } } else API_PLACAR.falhas++; } } catch (e) {}
+      // 6.32 (Stefany 14/11 08:46 "Sim" — robô lendo pelo servidor, sem abrir a conversa): CPF mandado pelo cliente (texto) ou já gravado na
+      // variável CPF do contato, sem resposta humana depois → cria a ordem de consulta direto do servidor, sem abrir a tela.
+      try { if (!protegido(id) && !['F20QOEL8YYLQN2S6SR47','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','3JRR7X56WSMO5SZEHW3K','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
+        if (!(AO0 && (AO0.cpf && Date.now() - (+AO0.t || 0) < 23 * 3600000))) { const j = await apiLer(id, 30);
+          if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
+            const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
+            const tags = (j.customer.tags || []).join('|');
+            if (!/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )/i.test(tags)) {
+              let cs = '', origem = '';
+              for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM === 'me') continue;
+                const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
+              if (!cs) { const ult = nm[nm.length - 1]; const ultCli = [...nm].reverse().find(m => m.FROM !== 'me');
+                const esperando = ult && ult.FROM !== 'me' || (ult && ult.FROM_NAME === 'Bot' && /Estou analisando|atendente humano|Assim que concluir/i.test(txt(ult)));
+                if (esperando && ultCli && Date.now() - Date.parse(ultCli.CREATION_TIME || 0) < 23 * 3600000) { const cv = await cpfDoServidor(id); if (cv && cpfDigitoOk(cv)) { cs = cv; origem = 'variável CPF do contato'; } } }
+              if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
+                O[id] = { hash: id, nome, cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32: ' + origem + ', sem abrir a conversa)'] };
+                GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; return false; } } } } } } catch (e) {}
       // 6.01: conversa lida há menos de 10 min e SEM mensagem nova no servidor → não abre a tela (não puxa as outras abas)
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && Date.now() - x0.lidoT < 6 * 3600000) { const j = await apiLer(id, 1);   /* 6.20 (Stefany 15:10: robô recarregado relia tudo na tela): vale até 6 h, não só 10 min */
         const lm = j && Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); if (j) API_PLACAR.lidas++; else API_PLACAR.falhas++;
