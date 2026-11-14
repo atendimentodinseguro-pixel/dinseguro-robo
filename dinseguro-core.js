@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.73';
+  const VERSAO = '6.74';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -102,7 +102,10 @@
       if (ult && ult.nome === linha.nome && ult.txt === linha.txt && linha.t - ult.t < 10 * 60000) return; D.push(linha); GM_setValue('diario', D.slice(-60)); } catch (e) {} }
   // 6.44 (Stefany 14/11 09:47: "vamos deixar o Daycoval pra gente consertar depois. Pode fazer no C6"): Daycoval desligado → C6
   function decidirBanco(f) { const r = decidirBanco0(f);
-    try { if (r && r.banco === 'DAYCOVAL' && GM_getValue('daycoval_off', 0) && !/DAYCOVAL/i.test(String(f.banco_ordem_stefany || ''))) return { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }; } catch (e) {}
+    try { if (r && /DAYCOVAL|QUERO/i.test(r.banco) && GM_getValue('daycoval_off', 0) && !/DAYCOVAL|QUERO/i.test(String(f.banco_ordem_stefany || ''))) {
+      // 6.74 (caso Simone C6 980056818, 14/11 12:40: invalidez esp 32, 46 anos → "Reprovado Política Interna 66"): invalidez 40–52 NÃO vai para o C6
+      const esp9 = String(f.especie || '').padStart(2, '0'); if (['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };
+      return { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }; } } catch (e) {}
     return r; }
   function decidirBanco0(f) {
     { const bo = String(f.banco_ordem_stefany || '').toUpperCase().trim(); if (/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)$/.test(bo)) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 6.27
