@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.72';
+  const VERSAO = '6.73';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2014,8 +2014,9 @@
                   const nome9 = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); const pn9 = (nome9.split(/\s+/)[0] || '').replace(/[^A-Za-zÀ-ÿ]/g, ''); const pnOk = /^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(pn9) ? pn9 : '';
                   API_ADIA[id] = Date.now() + 30 * 60000;
                   if (ativa) { diario(nome9, '🔴 voltou pelo anúncio e tem PROPOSTA ATIVA na lista → vigia: reenviar simulação + link (6.69)'); return false; }
+                  if (outroV) { diario(nome9, '🔴 voltou pelo anúncio; última escolha foi "Outro valor" → vigia pergunta o valor (6.72)'); return false; }
                   const O9 = GM_getValue('auto_ordens', {}) || {}; const hh9 = new Date().getHours(); const sd9 = hh9 < 12 ? 'Bom dia' : hh9 < 18 ? 'Boa tarde' : 'Boa noite';
-                  O9[id] = { hash: id, nome: nome9, cpf: cv, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), acolheu: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.69: voltou pelo anúncio, CPF no cadastro)'] };
+                  O9[id] = { hash: id, nome: nome9, cpf: cv, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), acolheu: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.69: voltou pelo anúncio, CPF no cadastro' + (vEsc ? ', valor escolhido R$ ' + vEsc : '') + ')'] };
                   GM_setValue('auto_ordens', O9);
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); F.push({ hash: id, acao: 'fase_msg', quem: 'robo', nome: nome9, linha: sd9 + (pnOk ? ', ' + pnOk : '') + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nJá estou consultando aqui a melhor condição atualizada para você, em poucos minutos te mando.\n\n🔒 A Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.', atalhos: [], nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.69] voltou pelo anúncio ("desejo mais informações"), CPF no cadastro, sem proposta ativa → boas-vindas + consulta + simulação no máximo.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } catch (e) {}
                   diario(nome9, 'voltou pelo anúncio com CPF no cadastro → boas-vindas + consulta (6.69)'); return false; } } } } } } } catch (e) {}
