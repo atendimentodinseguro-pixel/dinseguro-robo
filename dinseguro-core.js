@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.34';
+  const VERSAO = '6.35';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -560,7 +560,7 @@
     // ("tá tudo certo pro dia 17?") NÃO é consulta nova — nunca mandar "Recebi o seu CPF" para ele; vai para o vigia (vermelho).
     function jaFezProposta(x) { try { if (!x) return false; const h = x.hash;
         if ((GM_getValue('pos_pago', {}) || {})[h]) return true;
-        if ((x.tags01 || []).some(t => /^01 D/i.test(t)) || /01 D/.test(x.apiTags || '')) return true;
+        if ((x.tags01 || []).some(t => /^01 D/i.test(t)) || /01 D|FechouNegocio/i.test(x.apiTags || '') || x.ja01D) return true;   // 6.35: no servidor a 01 D se chama InssFechouNegocio
         const cpf = String(x.cpfVar || x.cpfSem || '').replace(/\D/g, ''); const nome = String(x.nome || '').toUpperCase().split(/\s+/)[0];
         const E = GM_getValue('esteira', {}) || {}; for (const k in E) { const e = E[k] || {}; if (cpf && String(e.cpf || '').replace(/\D/g, '') === cpf) return true; }
         if (/dia \d{1,2}|cr[eé]dito|cai(r|u)? na conta|pagamento|parcela|contrato|j[aá] (fiz|assinei)|quando (cai|vai cair)/i.test(x.ultCliTxt || '')) return true;
@@ -1397,7 +1397,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
             return; } } catch (e) {}
           for (const k in RGv) { const x = RGv[k];
-            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k)) continue;
+            if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k) || jaFezProposta(x)) continue;   // 6.35: 01 D/pago nunca recebe pedido de CPF
             // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
             // Sinais: ordem automática para este chat (qualquer estado, 23 h), CPF no mapa CPF→chat, ou CPF/consulta registrados na régua.
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) continue;
@@ -1487,7 +1487,7 @@
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
             const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
             if (!handoff && !menu && !voltou) continue;
-            if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida || x.cpfVar) continue;   // 5.82: cpfVar = CPF do painel
+            if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida || x.cpfVar || jaFezProposta(x)) continue;   // 5.82: cpfVar = CPF do painel · 6.35: 01 D/pago → vigia
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && (AOx.cpf || agora5 - (+AOx.t || 0) < 23 * 3600000)) continue; }   // 5.76: já temos o CPF dele (ordem antiga) → nunca pedir de novo
             // 5.78 (Stefany 21:13: "analisar o histórico completo… até achar pelo menos o CPF"): antes de pedir CPF, a conversa INTEIRA tem que ter sido lida
             // (sessões anteriores abertas) nas últimas 6 h. Se não foi, marca para a VARREDURA reler o histórico todo e só depois decide.
@@ -1726,7 +1726,13 @@
       const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
       const hAtual = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || '';
       if (hum && protegido(hAtual)) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — caso que a Stefany pediu para não interferir' };
-      if (tem(/^01 D/i)) return { estado: 'acompanhando', motivo: 'fechou negócio (01 D) — acompanhar o banco' };
+      // 6.35 (Stefany 14/11 08:53, caso Jeniffer: "Ela tem a tag 01 D. Esses casos ele passa para você"): cliente que já fechou (01 D) e
+      // escreveu de novo (não só "ok/obrigado") → VERMELHO para o vigia responder; o robô não manda nada automático.
+      if (tem(/^01 D/i)) { let Ld = null; try { Ld = lados(); } catch (e) {}
+        const OKd = /^\s*(ok+|okay|obrigad[oa]s?|obg|obgd|brigad|combinado|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️a-z]*$/i;
+        if (Ld && Ld.ult && Ld.ult.lado === 'cli' && !OKd.test(Ld.ult.txt || '') && !(+Ld.ult.t && Date.now() - Ld.ult.t > 24 * 3600000))
+          return { estado: 'alerta', motivo: 'cliente que JÁ FECHOU (01 D) escreveu "' + String(Ld.ult.txt || '').slice(0, 50) + '" → vigia responde (robô não manda nada)', ja01D: 1, ultCliT: (Ld.ultCli && Ld.ultCli.t) || 0, ultCliTxt: ((Ld.ultCli && Ld.ultCli.txt) || '').slice(0, 120), ultT: Ld.ult.t || 0, ultLado: 'cli', comQuem: Ld.comQuem };
+        return { estado: 'acompanhando', motivo: 'fechou negócio (01 D) — acompanhar o banco' }; }
       // 5.37 (Stefany 12/11, caso Menezes: 07 às 15:26, clicou "Verificar opções" 15:27 e ninguém viu): tag de retorno dado NÃO encerra
       // se o cliente escreveu DEPOIS e o bot não respondeu → vermelho para o vigia.
       { let L0 = null; try { L0 = lados(); } catch (e) {}
@@ -1855,7 +1861,7 @@
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
             const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
             const tags = (j.customer.tags || []).join('|');
-            if (!/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )/i.test(tags)) {
+            if (!/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )|FechouNegocio/i.test(tags)) {
               let cs = '', origem = '';
               for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM === 'me') continue;
                 const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
