@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.56';
+  const VERSAO = '6.57';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1001,7 +1001,9 @@
       if (!(await esperaChatLivre(hash.replace(/^#\/chats\//, '')))) throw new Error('a conversa está aberta em outra aba (vigia ou outro robô) — não mandei nada');   // 5.64
       const antes = foneDoPainel() + '|' + nomeDoPainel();
       if (window.top.location.hash !== alvo) { window.top.location.hash = alvo; await esp(4000); }
-      const ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 15000);
+      let ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 30000);
+      // 6.57 (14/11 11:25, casos Luiz 812ZG e Nelson E65EK: conversa pesada não abriu em 15 s): vai-e-volta do endereço e espera mais 40 s
+      if (!ok) { window.top.location.hash = '#/chats'; await esp(3000); window.top.location.hash = alvo; ok = await ate(() => window.top.location.hash === alvo && document.querySelector('.entries'), 40000); }
       if (!ok) throw new Error('não consegui abrir o chat ' + hash);
       try { await confereChat(hash.replace(/^#\/chats\//, '')); }
       catch (e) { // painel preso no chat anterior → recarrega o chat uma vez e confere de novo
