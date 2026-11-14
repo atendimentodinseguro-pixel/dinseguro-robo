@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.62';
+  const VERSAO = '6.63';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1335,7 +1335,7 @@
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
-        const chaveDesf = o.hash + '|' + o.acao + (o.acao === 'sim_link' ? '|' + (((o.trocas || []).find(t => /link/i.test(t[0])) || [])[1] || o.t || '') : '');   // 6.01 (Michele/Marilza 13/11): proposta REFEITA tem outro link → não é repetição
+        const chaveDesf = o.hash + '|' + o.acao + (o.acao === 'sim_link' ? '|' + (((o.trocas || []).find(t => /link/i.test(t[0])) || [])[1] || o.t || '') : '') + (o.acao === 'fase_msg' ? '|' + [...String(o.linha || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 1000003, 7) : '');   // 6.63 (14/11 12:10, Consuelo/Eduardo: a 2ª mensagem do vigia no mesmo dia era tida como repetida e NÃO saía) — fase_msg só é repetida se o TEXTO for o mesmo   // 6.01 (Michele/Marilza 13/11): proposta REFEITA tem outro link → não é repetição
         const feitos = GM_getValue('desf_msg_feita', {}) || {};
         if (!o.msgFeita && !o.forcar && feitos[chaveDesf] && Date.now() - feitos[chaveDesf] < 12 * 3600000) { passos.push('msg já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); }
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
