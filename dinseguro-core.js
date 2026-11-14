@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.46';
+  const VERSAO = '6.47';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -977,8 +977,9 @@
       if (!soDig(q.fone) && !q.nome) { try { const od = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (od && od.hash === hash) { if (od.fone) q.fone = od.fone; if (od.nome) q.nome = od.nome; } } catch (e) {} }
       let fEsp = soDig(q.fone);
       // 6.46 (14/11 10:07, caso Fabiano: o quadro chamava o chat de "Uana" e o envio do link parou): sem telefone na régua → pega telefone e nome no SERVIDOR
-      if (!fEsp) { try { const js = await apiLer(hash, 1); if (js && js.customer) { fEsp = soDig(js.customer.WHATSAPP_CURATED_NUM || ''); const nmS = ((js.customer.FIRST_NAME || '') + ' ' + (js.customer.LAST_NAME || '')).replace(/\bnull\b/g, '').trim(); if (nmS) q.nome = nmS;
-          const r9 = RG(); if (r9[hash]) { if (fEsp) r9[hash].fone = fEsp; if (nmS && r9[hash].nome !== nmS) r9[hash].nome = nmS; gravaRG(r9); } } } catch (e) {} }
+      // 6.47: o telefone do SERVIDOR vale mais que o da régua (a régua podia ter o telefone de outro cliente — painel atrasado, erro 105; caso Fabiano 8383 × 2533)
+      { try { const js = await apiLer(hash, 1); const fS = js && js.customer ? soDig(js.customer.WHATSAPP_CURATED_NUM || '') : ''; if (fS) { fEsp = fS; const nmS = ((js.customer.FIRST_NAME || '') + ' ' + (js.customer.LAST_NAME || '')).replace(/\bnull\b/g, '').trim(); if (nmS) q.nome = nmS;
+          const r9 = RG(); if (r9[hash]) { if (fEsp && r9[hash].fone !== fEsp) r9[hash].fone = fEsp; if (nmS && r9[hash].nome !== nmS) r9[hash].nome = nmS; gravaRG(r9); } } } catch (e) {} }
       // 5.27 (caso Teresa 12/11: "Informações de contato" recolhido → painel sem Nome/Home): abre a seção antes de conferir
       if (!foneDoPainel() && !nomeDoPainel()) { try { const sec = [...document.querySelectorAll('div,span,h3,h4,button')].filter(e => e.offsetParent && e.children.length <= 3).find(e => /^\s*Informa[çc][õo]es de contato\s*$/i.test(e.innerText || '')); if (sec) { sec.click(); await esp(1500); } } catch (e) {} }
       const ok = await ate(() => { const f = soDig(foneDoPainel()); if (fEsp) return f && (f === fEsp || f.slice(-10) === fEsp.slice(-10));
