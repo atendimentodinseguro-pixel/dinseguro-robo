@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.47';
+  const VERSAO = '6.48';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1814,6 +1814,13 @@
         const li = document.getElementById(h); const ci = li && (li.querySelector('.customer-item') || li); if (ci) { ci.click(); for (let i = 0; i < 6 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500)); }
         if (!telaPronta(h)) { window.top.location.hash = '#/chats'; await new Promise(r => setTimeout(r, 2500)); window.top.location.hash = '#/chats/' + h; await new Promise(r => setTimeout(r, 6500)); for (let i = 0; i < 6 && !telaPronta(h); i++) await new Promise(r => setTimeout(r, 1500)); }
       } catch (e) {} return telaPronta(h); }
+    // 6.48 (Stefany 14/11 10:24 "vamos fazer essas prioridades"): ORDEM DE PRIORIDADE do robô na tela do Botmaker
+    //   1º envio de proposta/desfecho (dins_ordem) · 2º toque do LINK (10 min / 60 min / manhã) · 3º pós-pagamento e fases da esteira
+    //   · 4º follow-up de CPF/simulação (espera) · 5º leitura de conversas (quase sempre pelo servidor, sem tela). Em cada fila, o mais atrasado primeiro.
+    function temToqueLinkVencido() { try { const agora = Date.now(); return Object.values(GM_getValue('regua', {}) || {}).some(x => x && x.toques && !protegido(x.hash) &&
+        (x.estado === 'ativa' || (['pausada', 'humano'].includes(x.estado) && x.link)) && x.toques.some(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || q.tipo === 'manha')) &&
+        (x.estado !== 'ativa' || dentroDoHorario(agora))); } catch (e) { return false; } }
+    function temEsperaVencida() { try { const agora = Date.now(); return Object.values(GM_getValue('espera', {}) || {}).some(x => x && !x.parado && !protegido(x.hash) && (x.toques || []).some(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora))); } catch (e) { return false; } }
     function registrarSemLink(hash) {
       if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
@@ -2392,7 +2399,7 @@
         const manhaTambem = ['pausada', 'humano'].includes(x.estado) && x.link;
         if (x.estado !== 'ativa' && !manhaTambem) continue;
         const q = x.toques.find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || q.tipo === 'manha'));
-        if (q) { alvo = x; toque = q; break; }
+        if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; }   // 6.48: o mais atrasado primeiro (antes: o primeiro da lista)
       }
       if (!alvo) return;
       const reg = (st, fim) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; const q = x.toques.find(k => k.tipo === toque.tipo);
@@ -2574,6 +2581,7 @@
     async function olharPos() {
       if (vigiaTrava()) return;   // 4.54
       if (posRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (espRodando || temToqueLinkVencido()) return;   // 6.48: pós-pagamento depois do toque do link
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       // 4.55 (Waldirene 12:54: /W40 não saiu em 5 min): a varredura de janela vencida marcava "varrendo" o tempo todo e o pós-pagamento
       // nunca tinha vez. Cliente pago vem antes da varredura — a trava de navegação (navPega) já evita as duas ao mesmo tempo.
@@ -2691,7 +2699,8 @@
     let faseRodando = false;
     async function olharFases() {
       if (vigiaTrava()) return;   // 4.54
-      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;   // 4.55: fase da esteira também vem antes da varredura
+      if (faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (espRodando || posRodando || temToqueLinkVencido()) return;   // 6.48: fases da esteira depois do toque do link   // 4.55: fase da esteira também vem antes da varredura
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
@@ -2932,6 +2941,7 @@
       if ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa')) return;
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return;
       const agora = Date.now(); if (!dentroDoHorario(agora)) return;
+      if (!fupRodando && temToqueLinkVencido()) return;   // 6.48: toque do link vem antes
       let alvo = null, toque = null;
       // 5.38 (caso Rubi: toques 1h e 08h saíram 08:53 e 08:54): vários vencidos → só o MAIS RECENTE sai (os anteriores ficam 'pulado');
       // e nunca dois toques com menos de 1 h entre eles.
@@ -2940,7 +2950,7 @@
           const ultEnv = Math.max(0, ...(x.toques || []).filter(k => /^enviado/.test(k.st || '')).map(k => +k.feito || 0));
           const prox = (x.toques || []).find(k => !k.feito && k.quando <= agora); if (prox && ultEnv && agora - ultEnv < 60 * M && !(prox.prox > agora)) { prox.prox = ultEnv + 60 * M; m0 = true; } }
         if (m0) gravaESP(o0); }
-      for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q) { alvo = x; toque = q; break; } }
+      for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
       const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); };
