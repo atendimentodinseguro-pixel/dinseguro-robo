@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.38';
+  const VERSAO = '6.39';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -4200,7 +4200,7 @@
       await escolher(s[2], new RegExp('^' + (f.prazo || '108') + '$'));
       await digitar(p.querySelector('input[formcontrolname=valorParcela]'), cent(f.parcela));
       p.querySelectorAll('button')[0].click();   // ⟳ simular
-      const res = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && m[1] !== '0,00' && m; }, 40000);
+      const res = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && m[1] !== '0,00' && m; }, 40000);
       await semErro('Simulação');
       if (!res) throw new Error('Simulação não retornou valor');
       f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].replace(/border_color.*/, '').trim();
@@ -4223,7 +4223,7 @@
           if (!seta) throw new Error('Não achei a seta da linha da tabela ' + certa);
           seta.click(); await sleep(2500);
           await fecharAlertas();
-          const novo = await esperar(() => { const m = tx(p).match(/Valor ClienteR\$ ?([\d.,]+).{0,200}?Tabela ?(\d{4,}[^]{3,40}?) ?(?:Seguro|Editar)/); return m && casaTab(m[2].replace(/border_color.*/, ''), certa) && m; }, 30000);
+          const novo = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && casaTab(m[2].replace(/border_color.*/, ''), certa) && m; }, 30000);
           if (!novo) throw new Error('Troquei a tabela mas o painel não confirmou a ' + certa);
           f._liberado_daycoval = novo[1]; f._tabela_daycoval = novo[2].replace(/border_color.*/, '').trim();
           log('Tabela trocada: ' + f._tabela_daycoval + ' · novo liberado R$ ' + novo[1], 'ok');
