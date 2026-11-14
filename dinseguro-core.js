@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.80';
+  const VERSAO = '6.81';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -457,7 +457,7 @@
           if (mot === 'SEM_MARGEM' && mg != null && mg < 25) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
           else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';
-          else if (mot === 'REPRESENTANTE') acao = window.dinsAcaoDaRecusa(ficha.recusa) || 'representante';   // 6.55: tag 03 + flow, sozinho
+          else if (mot === 'REPRESENTANTE') acao = /03 B/.test(String(ficha.recusa || '')) ? 'representante_sm' : 'representante';   // 6.81: dinsAcaoDaRecusa não existe na aba do Multicorban (caso Tania 13:42)   // 6.55: tag 03 + flow, sozinho
           else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
           else if (!mot) {
