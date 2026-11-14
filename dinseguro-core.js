@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.88';
+  const VERSAO = '6.89';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -5519,6 +5519,10 @@
       const mh = el('integrationsv2-bank-history-modal');
       if (mh && mh.classList.contains('show') && $) { $(mh).modal('hide'); await sleep(500); }
       log('Conta do Histórico Bancário (salva no sistema).', 'ok');
+      // 6.89 (caso Carlos DUT9O 16:31: Qualibank recusou "Banco da conta bancária não permitido" — o Histórico trouxe a Caixa aleatória 104/3880,
+      // e a troca para agência 0001 (4.62) só valia para a conta montada pelo robô). Vale também para a conta que vem do Histórico.
+      try { if (pagina === 'qualibank') { const bq = document.querySelector('[name="banco"]'), aq = document.querySelector('[name="agencia"]');
+        if (bq && aq && /^104\b/.test(String(bq.value || '')) && String(aq.value || '').replace(/\D/g, '') === '3880') { aq.value = '0001'; aq.dispatchEvent(new Event('input', { bubbles: true })); aq.dispatchEvent(new Event('change', { bubbles: true })); log('Qualibank + Caixa 3880 do Histórico: agência 0001 (6.89).'); } } } catch (e) {}
     } else {
       const m = el('integrationsv2-bank-history-modal'); if (m && $) $(m).modal('hide');
       await sleep(500);
