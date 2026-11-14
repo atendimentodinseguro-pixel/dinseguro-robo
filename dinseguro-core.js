@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.77';
+  const VERSAO = '6.78';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -3751,6 +3751,29 @@
       window.top.location.reload();
     } catch (e) {} }, 60000);
     // 5.58: reler à mão — __R.dinsReler('HASH') ou __R.dinsReler('azul') (todos do azul/pausada/esgotada das últimas 48 h)
+    // 6.78 (Stefany 14/11 13:03: "ele tem que fazer um check-up de todo mundo da janela de 24 horas"; casos Maria Lúcia, Helena de Cássia, Jadel, Sofia):
+    // a cada 15 min, lê PELO SERVIDOR todas as conversas da janela de 24 h; cliente com a última mensagem dele sem resposta humana há 15 min+ →
+    // vermelho no quadro ("check-up") + releitura, para o robô agir ou o vigia ver. Não toca em protegidos (NÃO MEXER / Rômulo).
+    let checkupRodando = false; window.dinsCheckupRes = [];
+    async function checkup24h() { if (checkupRodando) return; checkupRodando = true; const res = [];
+      try { const ag = Date.now(); const ids = new Set(Object.values(RG()).filter(x => x && x.hash && ag - Math.max(+x.ultCliT || 0, +x.lidoT || 0, +x.linkT || 0, +x.criadoT || 0) < 24 * 3600000).map(x => x.hash));
+        document.querySelectorAll('[id]').forEach(e => { if (/^[A-Z0-9]{20}$/.test(e.id)) ids.add(e.id); });
+        for (const h of ids) { if (protegido(h) || h === 'F20QOEL8YYLQN2S6SR47') continue; let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
+          const ms = j.newMessages || []; let iC = -1; for (let i = ms.length - 1; i >= 0; i--) { if (ms[i].FROM !== 'me') { iC = i; break; } } if (iC < 0) continue;
+          const c = ms[iC]; const tC = new Date(c.CREATION_TIME).getTime() || +c.CREATION_TIME || 0; const min = (Date.now() - tC) / 60000; if (!(min >= 15 && min < 23 * 60)) continue;
+          if (ms.slice(iC + 1).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue;
+          const tx = String(typeof c.MESSAGE === 'string' ? c.MESSAGE : JSON.stringify(c.MESSAGE || '')); const tags = (j.customer.tags || []).join('|');
+          if (/n[ãa]o sou|bolsa fam/i.test(tx) || /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) continue;   // não é INSS / já teve desfecho
+          if (/^\s*(ok|obrigad[oa]|blz|beleza|t[áa] bom|👍|🙏)\W*$/i.test(tx.replace(/\{"button"[^}]*\}/g, ''))) continue;   // só agradeceu
+          const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); res.push({ h, nome, min: Math.round(min), tx: tx.replace(/\{"button":"([^"]*)".*/, '[$1]').slice(0, 60) });
+          const r = RG(); const x = r[h] || (r[h] = { hash: h, nome, estado: 'alerta', toques: [], hist: [], criadoT: Date.now() });
+          if (!['alerta', 'erro'].includes(x.estado) || !/check-up/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = 'check-up 24 h: cliente escreveu "' + tx.replace(/\{"button":"([^"]*)".*/, '[$1]').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + Math.round(min) + ' min e ninguém respondeu'; x.reler = 1; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' ' + x.motivo); }
+          gravaRG(r); }
+        window.dinsCheckupRes = res; if (res.length) diario('check-up', res.length + ' conversa(s) da janela de 24 h sem resposta → vermelho: ' + res.slice(0, 4).map(o => o.nome.split(' ')[0] + ' ' + o.min + 'min').join(', '));
+      } catch (e) {} finally { checkupRodando = false; try { desenharRegua(); } catch (e) {} } }
+    window.dinsCheckup = checkup24h;
+    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; checkup24h(); } catch (e) {} }, 15 * 60000);
+    setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) checkup24h(); } catch (e) {} }, 3 * 60000);
     window.dinsReler = h => { const r = RG(); let n = 0; for (const k in r) { const x = r[k]; if (!x) continue;
         if (h === 'azul' ? (['acompanhando', 'pausada', 'esgotada', 'encerrado'].includes(x.estado) && Date.now() - Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0) < 48 * 3600000) : k === h) { x.reler = 1; n++; } }
       gravaRG(r); return n; };
