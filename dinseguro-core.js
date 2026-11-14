@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.49';
+  const VERSAO = '6.50';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1782,6 +1782,7 @@
         const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
         return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
       }
+      if (L && L.encerrouSozinho && !L.cpfSemRespT) return Object.assign({ estado: 'encerrado', motivo: 'cliente encerrou sozinho no bot ("Encerrar agora") — sem pergunta para responder' }, ex);   // 6.50
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
       if (L && L.semCpfT && (L.escolha || (L.ult && L.ult.lado === 'nos')) && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
@@ -2360,7 +2361,9 @@
         const humano = ms.slice(iCli + 1).some(m => m.lado === 'nos' && !m.bot && !/^\s*(play_arrow|Enviado por [^\n]*$)/.test(m.raw || '') && (m.txt || '').length > 3);
         if (!humano) semCpfT = ultCli.t || 0;
       }
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha, semCpfT };
+      // 6.50 (14/11, caso Jorge Santos: clicou "Encerrar agora" no bot às 20:29 e ficou 14 h no vermelho "pedir o CPF"): encerrou sozinho, sem ter perguntado nada
+      const encerrouSozinho = !!(ultCli && /^\s*encerrar( agora| o atendimento)?\s*$/i.test(ultCli.txt || '') && !ms.some(m => m.lado === 'cli' && m !== ultCli && /\?|quero|preciso|quanto|como fa|qual|d[úu]vida|ajuda/i.test(m.txt || '')) && !depois.some(m => m.lado === 'nos' && !m.bot));
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha, semCpfT: encerrouSozinho ? 0 : semCpfT, encerrouSozinho };
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
