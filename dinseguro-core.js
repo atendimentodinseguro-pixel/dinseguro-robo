@@ -38,7 +38,10 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.91';
+  const VERSAO = '6.92';
+  // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
+  // Marca a página como não traduzível em todos os sites que o robô opera.
+  try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1197,7 +1200,7 @@
       let cx = rot, mais = null;
       for (let k = 0; k < 5 && cx && !mais; k++) {
         cx = cx.parentElement;
-        mais = cx && [...cx.querySelectorAll('*')].find(x => x.children.length === 0 && /add_circle/.test(txt(x)));
+        mais = cx && [...cx.querySelectorAll('*')].find(x => x.children.length === 0 && /add_circle|adicionar_c[íi]rculo/.test(txt(x)));
       }
       return mais;
     }
@@ -4422,10 +4425,10 @@
       await escolher(s[2], new RegExp('^' + (f.prazo || '108') + '$'));
       await digitar(p.querySelector('input[formcontrolname=valorParcela]'), cent(f.parcela));
       p.querySelectorAll('button')[0].click();   // ⟳ simular
-      const res = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && m[1] !== '0,00' && m; }, 40000);
+      const res = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|cor_da_borda|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && m[1] !== '0,00' && m; }, 40000);
       await semErro('Simulação');
       if (!res) throw new Error('Simulação não retornou valor');
-      f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].replace(/border_color.*/, '').trim();
+      f._liberado_daycoval = res[1]; f._tabela_daycoval = res[2].replace(/(border_color|cor_da_borda).*/, '').trim();
       log(`Simulado: R$ ${res[1]} · ${f.prazo || 108}x R$ ${f.parcela} · ${f._tabela_daycoval}`, 'ok');
 
       // 3.48 — ⚠️ A SIMULAÇÃO VEM NA TABELA ERRADA por padrão. Foi o erro do Luiz Carlos (06/11) e o da
@@ -4436,7 +4439,7 @@
           const i = t.toUpperCase().indexOf(alvo.toUpperCase()); if (i < 0) return false; const resto = t.slice(i + alvo.length); return !/^\s*(ESP|15K)/i.test(resto); };
         if (!casaTab(f._tabela_daycoval, certa)) {
           log('Tabela veio ' + f._tabela_daycoval + ' — o certo para este caso é a ' + certa + '. Trocando…');
-          await clicar(/^(border_color\s*)?Editar Tabela$/i, p);  // 3.73: o botão traz o nome do ícone (border_color) no texto
+          await clicar(/^((border_color|cor_da_borda)\s*)?Editar Tabela$/i, p);  // 3.73: o botão traz o nome do ícone (border_color) no texto
           const modal = await esperar(() => [...document.querySelectorAll('div.modal-dialog, .cdk-overlay-pane')].filter(vis).find(m => /Taxa/i.test(tx(m))), 15000);
           if (!modal) throw new Error('A janela "Editar Tabela" não abriu para trocar para a ' + certa);
           const td = await esperar(() => [...modal.querySelectorAll('td')].filter(vis).find(x => /^\d+$/.test(certa) ? tx(x) === certa : casaTab(tx(x), certa)), 10000);
@@ -4445,9 +4448,9 @@
           if (!seta) throw new Error('Não achei a seta da linha da tabela ' + certa);
           seta.click(); await sleep(2500);
           await fecharAlertas();
-          const novo = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && casaTab(m[2].replace(/border_color.*/, ''), certa) && m; }, 30000);
+          const novo = await esperar(() => { const m = tx(p).match(/Valor Cliente\s*R\$ ?([\d.,]+)[^]{0,300}?Tabela\s*(\d{4,}[^]{3,90}?)\s*(?:border_color|cor_da_borda|Seguro|Editar)/);   /* 6.39 (Eduardo 14/11): nome de tabela longo (772027 INSS AUMENTO TCKT A PARTIR 1898) passava de 40 letras e a leitura falhava */ return m && casaTab(m[2].replace(/(border_color|cor_da_borda).*/, ''), certa) && m; }, 30000);
           if (!novo) throw new Error('Troquei a tabela mas o painel não confirmou a ' + certa);
-          f._liberado_daycoval = novo[1]; f._tabela_daycoval = novo[2].replace(/border_color.*/, '').trim();
+          f._liberado_daycoval = novo[1]; f._tabela_daycoval = novo[2].replace(/(border_color|cor_da_borda).*/, '').trim();
           log('Tabela trocada: ' + f._tabela_daycoval + ' · novo liberado R$ ' + novo[1], 'ok');
         } else log('Tabela conferida: ' + certa + ' ✓');
       }
