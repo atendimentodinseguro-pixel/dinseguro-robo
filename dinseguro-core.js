@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.98';
+  const VERSAO = '6.99';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1094,6 +1094,7 @@
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
     async function respostaRapida(atalho, editar, semRegua, prefixo, trocas, midia) {
       const hashRR0 = window.top.location.hash;   // 4.60
+      if (!midia && /^\/(dsg25|anuencia|anuencia2)$/i.test(String(atalho).trim())) midia = true;   // 6.99 (casos Dulce/Sonia 19:59: o vídeo /dsg25 não saiu — 'caixa de mensagem não encontrada'): vídeo/imagem sempre como mídia
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
@@ -1119,6 +1120,10 @@
       }
       const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
       if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
+      { /* 6.99 (Stefany 20:01: Dulce e Sonia receberam o passo a passo repetido): a mesma resposta rápida que já está entre as últimas 8 mensagens nossas não sai de novo */
+        const v0 = semAcento(String(document.querySelector('textarea').value || '')).replace(/\s+/g, ' ').trim().slice(0, 60);
+        const ult = [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-8).map(e => semAcento(e.innerText || '').replace(/\s+/g, ' '));
+        if (v0.length > 30 && ult.some(t => t.includes(v0))) { setNativo(document.querySelector('textarea'), ''); return atalho + ' (já estava no chat — não repeti)'; } }
       // 4.57: atalho que começa com vírgula (/102 ", sua opinião…") recebe o primeiro nome na frente
       if (prefixo && /^\s*,/.test(document.querySelector('textarea').value)) { const t3 = document.querySelector('textarea'); t3.focus(); setNativo(t3, prefixo + t3.value.trimStart()); await esp(600); }
       if (editar) {
