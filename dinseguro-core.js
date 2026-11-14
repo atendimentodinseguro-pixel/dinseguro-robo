@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.87';
+  const VERSAO = '6.88';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1995,6 +1995,9 @@
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
             const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
             const tags = (j.customer.tags || []).join('|');
+            // 6.88 (caso Cristiane WZVUX 15:16: cliente do empréstimo CLT, já recebeu o link da plataforma, escreveu uma dúvida → o robô mandou
+            // "Recebi o seu CPF e já estou consultando" e abriu consulta INSS). Conversa CLT nunca vira ordem de consulta INSS: vai ao vigia.
+            if (/CLT_FILA|(^|\|)04 /i.test(tags) || nm.slice(-25).some(m => m.FROM === 'me' && /empr[ée]stimo CLT/i.test(txt(m)))) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; }
             // 6.77 (Stefany 13:03 "check-up de todo mundo da janela"; casos Sofia, Helena de Cássia, Virgilaine): cliente que JÁ FECHOU (01 D) e tem margem (01 J)
             // voltando pelo anúncio também é atendido pelo 6.69 (nova consulta) — mas o CPF digitado por ele NÃO cria ordem sozinho (regra 6.34/6.35).
             const fechou = /(^|\|)01 D|FechouNegocio/i.test(tags) && !/(^|\|)(01 I|01 k|02 |03 |05 |06 |07 )|01k_SEM/i.test(tags);
