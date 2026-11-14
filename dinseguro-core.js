@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.53';
+  const VERSAO = '6.54';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2502,6 +2502,8 @@
         reg('enviado ' + hhmm(Date.now()) + (atrasado ? ' (atrasado)' : ''), true);
         { const r3 = RG(), x3 = r3[alvo.hash]; const q = x3 && x3.toques.find(k => k.tipo === toque.tipo); if (q) q.enviadoT = Date.now();
           if (toque.tipo === '10') { const q6 = x3.toques.find(k => k.tipo === '60'); if (q6 && !q6.feito) q6.quando = Date.now() + 60 * M; }
+          // 6.54 (caso Vera/Marinez 14/11: retomada + toque forçado deixava 2-3 toques na mesma meia hora): saiu um toque → outro pendente nos próximos 40 min é pulado
+          if (x3) x3.toques.forEach(k => { if (k !== q && !k.feito && (+k.quando || 0) < Date.now() + 40 * M) { k.feito = Date.now(); k.st = 'pulado (outro toque acabou de sair — 6.54)'; } });
           gravaRG(r3); desenharRegua(); }
         if (toque.tipo === 'manha') estado('esgotada', 'três toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP');
         log && log('Régua: ' + toque.tipo + ' enviado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
