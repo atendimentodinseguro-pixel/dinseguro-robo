@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.51';
+  const VERSAO = '6.52';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -584,7 +584,7 @@
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
     function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
         O[h] = { hash: h, nome: nome || '', cpf: cs, tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
-        try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
+        try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
     async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
       const b = JSON.parse(L.o.body); b.showLoading = false; b.message.customerId = id; b.message.start = 0; b.message.end = n || 20;
@@ -1422,9 +1422,9 @@
             // Sinais: ordem automática para este chat (qualquer estado, 23 h), CPF no mapa CPF→chat, ou CPF/consulta registrados na régua.
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) continue;
               const ZC = GM_getValue('zap_por_cpf', {}) || {}; if (Object.values(ZC).some(v => v === k || (v && (v.hash === k || v.h === k)))) continue;
-              if (x.cpf || x.temCpf || x.cpfT || x.cpfSemRespT || x.cpfVar) continue; }
+              if (x.cpf || x.temCpf || x.cpfT || x.cpfSemRespT || (x.cpfVar && x.cpfVarSrv)) continue; }
             // 5.80 (caso Helder VQJR7 21:15: clicou "Encerrar agora" no bot e recebeu pedido de CPF): cliente que encerrou sozinho não recebe pedido
-            if (/encerrar( agora| o atendimento| atendimento)?\b|n[ãa]o (tenho|quero) interesse|n[ãa]o preciso|s[óo] (estava|tava) olhando|Se no futuro precisar de cr[ée]dito/i.test((x.ultCliTxt || '') + ' ' + (x.motivo || '') + ' ' + ((x.hist || []).slice(-3).join(' '))) || /Se no futuro precisar de cr[ée]dito/i.test(x.ultBotTxt || x.ultTxt || '')) continue;
+            if (/n[ãa]o (tenho|quero) interesse|n[ãa]o preciso|s[óo] (estava|tava) olhando/i.test((x.ultCliTxt || '') + ' ' + (x.motivo || '') + ' ' + ((x.hist || []).slice(-3).join(' '))) || /Se no futuro precisar de cr[ée]dito/i.test(x.ultBotTxt || x.ultTxt || '')) continue;
             { const AOy = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOy && AOy.cpf) continue; }   // 5.80: CPF já conhecido (ordem antiga)
             const idade = Date.now() - x.semCpfT; if (idade > 23 * 3600000) continue;
             if (!(idade <= 45 * 60000 || (hh >= 8 && hh < 21))) continue;
@@ -1507,7 +1507,7 @@
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
             const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
             if (!handoff && !menu && !voltou) continue;
-            if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida || x.cpfVar || jaFezProposta(x)) continue;   // 5.82: cpfVar = CPF do painel · 6.35: 01 D/pago → vigia
+            if (x.temCpf || x.cpfSem || x.cpfSemRespT || x.vencida || (x.cpfVar && x.cpfVarSrv) || jaFezProposta(x)) continue;   // 5.82: cpfVar = CPF do painel · 6.35: 01 D/pago → vigia
             { const AOx = (GM_getValue('auto_ordens', {}) || {})[k]; if (AOx && (AOx.cpf || agora5 - (+AOx.t || 0) < 23 * 3600000)) continue; }   // 5.76: já temos o CPF dele (ordem antiga) → nunca pedir de novo
             // 5.78 (Stefany 21:13: "analisar o histórico completo… até achar pelo menos o CPF"): antes de pedir CPF, a conversa INTEIRA tem que ter sido lida
             // (sessões anteriores abertas) nas últimas 6 h. Se não foi, marca para a VARREDURA reler o histórico todo e só depois decide.
@@ -1782,7 +1782,6 @@
         const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
         return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
       }
-      if (L && L.encerrouSozinho && !L.cpfSemRespT) return Object.assign({ estado: 'encerrado', motivo: 'cliente encerrou sozinho no bot ("Encerrar agora") — sem pergunta para responder' }, ex);   // 6.50
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
       if (L && L.semCpfT && (L.escolha || (L.ult && L.ult.lado === 'nos')) && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
@@ -1839,6 +1838,13 @@
         if (!igual(p, ref)) { await destravarTela(h); p = so(foneDoContato()); }
         if (igual(p, ref)) { if (fS && !igual(so(foneRegua), fS)) { const r = RG(); if (r[h]) { r[h].fone = fS; gravaRG(r); } const o = ESP(); if (o[h]) { o[h].fone = fS; gravaESP(o); } } return true; }
         return false; } catch (e) { return false; } }
+    // 6.52: diagnóstico — por que o robô NÃO pede o CPF a este cliente?
+    window.dinsPorQueNaoPedeCpf = h => { const x = RG()[h]; if (!x) return ['sem registro no quadro']; const r = []; const PC = GM_getValue('pedir_cpf_feito', {}) || {};
+      if (x.estado !== 'alerta') r.push('estado ' + x.estado); if (!/parou sem CPF/.test(x.motivo || '')) r.push('motivo: ' + x.motivo); if (PC[h]) r.push('já pediu em ' + new Date(PC[h]).toLocaleString('pt-BR'));
+      if (!x.semCpfT) r.push('sem semCpfT'); if ((GM_getValue('nao_mexer', {}) || {})[h]) r.push('não mexer'); if (protegido(h)) r.push('protegido'); if (jaFezProposta(x)) r.push('já fez proposta');
+      const AOx = (GM_getValue('auto_ordens', {}) || {})[h]; if (AOx && Date.now() - (+AOx.t || 0) < 23 * 3600000) r.push('tem ordem (' + AOx.estado + ')');
+      if (x.cpf || x.temCpf || x.cpfT || x.cpfSemRespT || (x.cpfVar && x.cpfVarSrv)) r.push('já tem CPF');
+      if (x.semCpfT && Date.now() - x.semCpfT > 23 * 3600000) r.push('passou de 23 h'); return r.length ? r : ['nada impede — deve sair na próxima volta']; };
     function registrarSemLink(hash) {
       if (!telaPronta(hash)) return false;
       const r = RG(); if (r[hash] && r[hash].estado !== 'fechada') return false;
@@ -2373,7 +2379,7 @@
       }
       // 6.50 (14/11, caso Jorge Santos: clicou "Encerrar agora" no bot às 20:29 e ficou 14 h no vermelho "pedir o CPF"): encerrou sozinho, sem ter perguntado nada
       const encerrouSozinho = !!(ultCli && /^\s*encerrar( agora| o atendimento)?\s*$/i.test(ultCli.txt || '') && !ms.some(m => m.lado === 'cli' && m !== ultCli && /\?|quero|preciso|quanto|como fa|qual|d[úu]vida|ajuda/i.test(m.txt || '')) && !depois.some(m => m.lado === 'nos' && !m.bot));
-      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha, semCpfT: encerrouSozinho ? 0 : semCpfT, encerrouSozinho };
+      return { ult, ultCli, contornoT: contorno ? (contorno.t || Date.now()) : 0, contornoInfo, temCpf, comQuem, handoffT, nossaAntes, cpfSemRespT, cpfSem, escolha, semCpfT, encerrouSozinho };   // 6.52 (Stefany 10:42: quem encerrou no bot sem CPF recebe o pedido de CPF)
     }
     function clienteRespondeu() {
       try { const L = lados(); if (L && L.ult) return L.ult.lado === 'cli'; } catch (e) {}
@@ -3098,7 +3104,7 @@
           // 5.37 (casos João Paulo 14:58 / Ramon 16:04): CPF do cliente sem resposta vira consulta em QUALQUER estado da régua
           // (alerta, pausada, acompanhando, ativa, cancelada), não só 'alerta' sem link. Fora: humano agora, NÃO MEXER.
           // 5.82: cliente esperando (alerta, última dele), SEM proposta e com CPF no painel → consulta sozinho, sem pedir o CPF
-          if (!x.cpfSem && x.cpfVar && x.estado === 'alerta' && x.ultLado === 'cli' && !(x.link && !x.semLink) && +x.ultCliT && agora - x.ultCliT < 6 * H && !protegido(x.hash) && !x.comQuem && !O[x.hash] && !jaFezProposta(x)) {
+          if (!x.cpfSem && x.cpfVar && x.cpfVarSrv && x.estado === 'alerta' && x.ultLado === 'cli' && !(x.link && !x.semLink) && +x.ultCliT && agora - x.ultCliT < 6 * H && !protegido(x.hash) && !x.comQuem && !O[x.hash] && !jaFezProposta(x)) {
             O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfVar, tipo: 'cpf', cpfT: +x.ultCliT, valorBot: (x.escolha && x.escolha.valor) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF do painel — 5.82)'] }; mudouO = true; continue; }
           if (!x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H || x.estado === 'humano' || protegido(x.hash) || x.comQuem) continue;
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
