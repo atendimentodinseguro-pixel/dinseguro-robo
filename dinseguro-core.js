@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.35';
+  const VERSAO = '6.36';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1897,6 +1897,7 @@
           HX[id] = Date.now(); for (const k in HX) if (Date.now() - HX[k] > 24 * H) delete HX[k]; GM_setValue('hist_expandido', HX); try { const rq = RG(); if (rq[id] && rq[id].relerHist) { delete rq[id].relerHist; gravaRG(rq); } } catch (e) {}
         } } catch (e) {}
       try { detectarLink(); } catch (e) {}
+      try { await compararServidor(id); } catch (e) {}   // 6.36: comparação tela × servidor (só anota)
       // 5.82 (Stefany 21:13–21:16, caso Ester: o CPF estava no campo CPF das VARIÁVEIS do contato e numa NOTA de 28/10, e o robô pediu de novo)
       try { const T9 = document.body.innerText; let cv = '';
         const iv = T9.search(/Vari[áa]veis/); if (iv >= 0) { const mm = T9.slice(iv, iv + 4000).match(/\nCPF\s*\n+\s*(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)/); if (mm) cv = mm[1].replace(/\D/g, ''); }
@@ -2166,6 +2167,33 @@
     // do bot (que aparecem depois do ✓) com resposta do cliente. No DOM: .entries-li.left = cliente, .right = nós/bot;
     // o 1º balão do grupo (first-from) com "Enviado pelo credsegurobank" = bot. Hora de cada balão pela data da sessão.
     const CONTORNO_RE = /20260804-P5gmFiMS|Simula[çc][ãa]o 10 a 18 mil/i;
+    // 6.36 (Stefany 14/11 08:58 "sim" — etapa 1 da leitura pelo servidor): monta a mesma lista de mensagens que a tela, a partir do servidor.
+    function msgTextoSrv(m) { const v = m.MESSAGE; if (typeof v === 'string') { try { const o = JSON.parse(v); if (o && o.button) return String(o.button); } catch (e) {} return v; }
+      if (v && typeof v === 'object') return String(v.button || v.text || v.caption || v.title || JSON.stringify(v)); return ''; }
+    function ladosServidor(j) { try { if (!j || !Array.isArray(j.newMessages)) return null;
+        const nm = [...j.newMessages].sort((a, b) => Date.parse(a.CREATION_TIME || 0) - Date.parse(b.CREATION_TIME || 0));
+        const ms = nm.map(m => { const raw = msgTextoSrv(m); const lado = m.FROM === 'me' ? 'nos' : 'cli';
+          return { lado, bot: lado === 'nos' && (m.FROM_NAME === 'Bot' || TEMPLATE_PESSOA.test(raw)), txt: raw.replace(/\*/g, '').replace(/\s+/g, ' ').trim(), t: Date.parse(m.CREATION_TIME || '') || 0, raw: raw.replace(/\*/g, '') }; })
+          .filter(m => (m.raw || '').trim().length || m.lado === 'cli');
+        return ladosDe(ms); } catch (e) { return null; } }
+    // Comparação tela × servidor (não muda nada no atendimento — só anota as diferenças para a gente conferir antes de trocar)
+    async function compararServidor(id) { try { const L1 = lados(); const j = await apiLer(id, 60); const L2 = ladosServidor(j); if (!L1 || !L2) return;
+        const dif = []; const mm = (a, b) => Math.abs((+a || 0) - (+b || 0)) <= 3 * 60000;
+        if ((L1.ult || {}).lado !== (L2.ult || {}).lado) dif.push('ultLado tela=' + (L1.ult || {}).lado + ' srv=' + (L2.ult || {}).lado);
+        if (!mm((L1.ultCli || {}).t, (L2.ultCli || {}).t)) dif.push('ultCliT tela=' + hhmm((L1.ultCli || {}).t || 0) + ' srv=' + hhmm((L2.ultCli || {}).t || 0));
+        if (!!L1.temCpf !== !!L2.temCpf) dif.push('temCpf tela=' + !!L1.temCpf + ' srv=' + !!L2.temCpf);
+        if (!!L1.cpfSemRespT !== !!L2.cpfSemRespT) dif.push('cpfSemResp tela=' + !!L1.cpfSemRespT + ' srv=' + !!L2.cpfSemRespT);
+        if ((L1.comQuem || '') !== (L2.comQuem || '')) dif.push('comQuem tela=' + (L1.comQuem || '-') + ' srv=' + (L2.comQuem || '-'));
+        if (!!L1.handoffT !== !!L2.handoffT) dif.push('handoff tela=' + !!L1.handoffT + ' srv=' + !!L2.handoffT);
+        if (!!L1.semCpfT !== !!L2.semCpfT) dif.push('semCpf tela=' + !!L1.semCpfT + ' srv=' + !!L2.semCpfT);
+        if (((L1.escolha || {}).valor || 0) !== ((L2.escolha || {}).valor || 0)) dif.push('escolha tela=' + ((L1.escolha || {}).valor || 0) + ' srv=' + ((L2.escolha || {}).valor || 0));
+        if (!!L1.contornoT !== !!L2.contornoT) dif.push('contorno tela=' + !!L1.contornoT + ' srv=' + !!L2.contornoT);
+        const C = GM_getValue('cmp_servidor', { n: 0, iguais: 0, lista: [] }); C.n++; if (!dif.length) C.iguais++;
+        else { C.lista.push({ id, nome: ((j.customer || {}).FIRST_NAME || ''), t: Date.now(), dif }); if (C.lista.length > 150) C.lista = C.lista.slice(-150); }
+        GM_setValue('cmp_servidor', C); } catch (e) {} }
+    window.dinsCmpVer = () => GM_getValue('cmp_servidor', { n: 0, iguais: 0, lista: [] });
+    window.dinsCmpZerar = () => { GM_setValue('cmp_servidor', { n: 0, iguais: 0, lista: [] }); return true; };
+    window.dinsLadosServidor = async id => ladosServidor(await apiLer(id, 60));
     function lados() {
       const els = [...document.querySelectorAll('[class*="entries-li"]')]; if (!els.length) return null;
       let dia = null, grpBot = false; const ms = [];
@@ -2185,6 +2213,10 @@
         ms.push({ lado, bot: lado === 'nos' && (TEMPLATE_PESSOA.test(txt) || (grpBot && !/^\s*(Enviado por (?!o)|\[Dinseguro\])/m.test(txt))), txt: txt.replace(/\b(bolt|done_all|check|info_outline|security)\b/g, ' ').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/g, ' ').replace(/\s+/g, ' ').trim(), t, raw: txt });
       }
       for (let i = ms.length - 2; i >= 0; i--) if (!ms[i].t) ms[i].t = ms[i + 1].t;   // balão sem hora: hora do próximo do grupo
+      return ladosDe(ms);
+    }
+    // 6.36: a análise da conversa (quem falou por último, CPF, handoff, escolha de valor…) separada da leitura — serve para a tela e para o SERVIDOR
+    function ladosDe(ms) {
       if (!ms.length) return null;
       const ult = ms[ms.length - 1], ultCli = [...ms].reverse().find(m => m.lado === 'cli');
       const iCli = ultCli ? ms.lastIndexOf(ultCli) : -1;
