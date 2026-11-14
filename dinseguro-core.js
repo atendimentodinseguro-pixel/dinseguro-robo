@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.85';
+  const VERSAO = '6.86';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -2022,6 +2022,11 @@
               // com proposta ativa na lista: vai para o vigia reenviar simulação + link da proposta (regra da Stefany 11:51).
               { let iA = -1; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM !== 'me' && /desejo mais informa/i.test(txt(m))) { iA = i; break; } }
                 const cv = String(((((j.result || {}).state || {}).variables || {}).CPF) || '').replace(/\D/g, '');
+                // 6.86 (caso Marcia Quintanilha HJ481 14:18: voltou pelo anúncio SEM CPF no cadastro e ficou 20 min sem ninguém): pede o CPF sozinho
+                if (iA >= 0 && cv.length !== 11 && Date.now() - (+nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (+nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
+                  const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
+                  try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
+                  API_ADIA[id] = Date.now() + 30 * 60000; diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'voltou pelo anúncio sem CPF → pedido do CPF (6.86)'); return false; }
                 if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (+nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
                   const E9 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cv); const ativa = E9.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')));
                   const nome9 = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); const pn9 = (nome9.split(/\s+/)[0] || '').replace(/[^A-Za-zÀ-ÿ]/g, ''); const pnOk = /^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(pn9) ? pn9 : '';
