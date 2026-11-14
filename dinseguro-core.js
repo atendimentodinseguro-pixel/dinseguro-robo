@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.93';
+  const VERSAO = '6.94';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -2005,7 +2005,10 @@
             const tags = (j.customer.tags || []).join('|');
             // 6.88 (caso Cristiane WZVUX 15:16: cliente do empréstimo CLT, já recebeu o link da plataforma, escreveu uma dúvida → o robô mandou
             // "Recebi o seu CPF e já estou consultando" e abriu consulta INSS). Conversa CLT nunca vira ordem de consulta INSS: vai ao vigia.
-            if (/CLT_FILA|(^|\|)04 /i.test(tags) || nm.slice(-25).some(m => m.FROM === 'me' && /empr[ée]stimo CLT/i.test(txt(m)))) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; }
+            { /* 6.94 (caso Katia OVVIY 15:59: tinha tag CLT antiga mas mandou o CPF no fluxo do INSS) — vale o fluxo MAIS RECENTE do bot, não a tag antiga */
+              const iClt = nm.map((m, i) => (m.FROM === 'me' && /empr[ée]stimo CLT|carteira assinada|est[áa] empregad/i.test(txt(m))) ? i : -1).reduce((a, b) => Math.max(a, b), -1);
+              const iInss = nm.map((m, i) => (m.FROM === 'me' && /INSS|benef[íi]cio|Meu INSS|aposentad|pensionist|consignado no seu/i.test(txt(m)) && !/empr[ée]stimo CLT/i.test(txt(m))) ? i : -1).reduce((a, b) => Math.max(a, b), -1);
+              if (iClt >= 0 && iClt > iInss) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; } }
             // 6.77 (Stefany 13:03 "check-up de todo mundo da janela"; casos Sofia, Helena de Cássia, Virgilaine): cliente que JÁ FECHOU (01 D) e tem margem (01 J)
             // voltando pelo anúncio também é atendido pelo 6.69 (nova consulta) — mas o CPF digitado por ele NÃO cria ordem sozinho (regra 6.34/6.35).
             const fechou = /(^|\|)01 D|FechouNegocio/i.test(tags) && !/(^|\|)(01 I|01 k|02 |03 |05 |06 |07 )|01k_SEM/i.test(tags);
