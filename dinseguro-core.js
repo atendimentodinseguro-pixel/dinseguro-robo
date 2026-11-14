@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.97';
+  const VERSAO = '6.98';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1319,7 +1319,7 @@
     const vigiaTrava = () => Date.now() < (+localStorage.getItem('dins_vigia_trava') || 0);
     // 6.62 (14/11 12:03: a fila de mensagens do vigia morava na página e se perdia a cada recarga — correção da Consuelo nunca saiu):
     // fila PERSISTENTE do vigia em localStorage 'dins_fila_vigia' (lista de ordens). Caixa livre → a primeira vira a ordem. __R.dinsFilaVigia(ordem) põe na fila.
-    window.dinsFilaVigia = o => { try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (o) { o.quem = o.quem || 'vigia'; F.push(o); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } return F.map(x => (x.hash || '').slice(0, 5) + ' ' + x.acao); } catch (e) { return []; } };
+    window.dinsFilaVigia = o => { try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (o) { o.quem = o.quem || 'vigia'; /* 6.98 (casos Verinha 16:37, Ellis 15:40, Pra Iris 18:54: pedir_cpf do vigia SEM texto 'saía ✓' e não mandava nada) */ if (o.acao === 'pedir_cpf' && !o.texto) { const hh = new Date().getHours(); o.texto = (hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite') + (o.nome ? ', ' + o.nome : '') + '! Tudo bem? 😊 Aqui é da Dinseguro.\n\nVi que você começou o seu atendimento com a gente. Para eu consultar a melhor condição para você, me manda por favor o número do seu CPF (só os números). Em poucos minutos eu te retorno com a simulação! 🙏'; } F.push(o); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } return F.map(x => (x.hash || '').slice(0, 5) + ' ' + x.acao); } catch (e) { return []; } };
     async function olharOrdem() {
       if (rodando) return;
       try { if (!localStorage.getItem('dins_ordem')) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (F.length) { const o1 = F.shift(); o1.t = Date.now(); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); localStorage.setItem('dins_ordem', JSON.stringify(o1)); try { diario(o1.nome || (o1.hash || '').slice(0, 5), 'fila do vigia: ' + o1.acao); } catch (e) {} } } } catch (e) {}
@@ -1354,6 +1354,7 @@
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } await confereChat(o.hash); };   // 5.03: confere o cliente antes de CADA envio
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         if (/undefined/.test(String(o.linha || '') + JSON.stringify(o.trocas || []))) throw new Error('mensagem com "undefined" — não envio (6.90)');   // 6.90
+        if (o.acao === 'pedir_cpf' && !o.texto && !o.msgFeita) throw new Error('pedido de CPF sem texto — não marquei como feito (6.98)');
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
