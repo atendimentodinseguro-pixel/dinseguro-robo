@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.61';
+  const VERSAO = '6.62';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1296,8 +1296,12 @@
     // laço: a cada 3s procura uma ordem nova
     let rodando = false, ultima = '';
     const vigiaTrava = () => Date.now() < (+localStorage.getItem('dins_vigia_trava') || 0);
+    // 6.62 (14/11 12:03: a fila de mensagens do vigia morava na página e se perdia a cada recarga — correção da Consuelo nunca saiu):
+    // fila PERSISTENTE do vigia em localStorage 'dins_fila_vigia' (lista de ordens). Caixa livre → a primeira vira a ordem. __R.dinsFilaVigia(ordem) põe na fila.
+    window.dinsFilaVigia = o => { try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (o) { o.quem = o.quem || 'vigia'; F.push(o); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } return F.map(x => (x.hash || '').slice(0, 5) + ' ' + x.acao); } catch (e) { return []; } };
     async function olharOrdem() {
       if (rodando) return;
+      try { if (!localStorage.getItem('dins_ordem')) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (F.length) { const o1 = F.shift(); o1.t = Date.now(); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); localStorage.setItem('dins_ordem', JSON.stringify(o1)); try { diario(o1.nome || (o1.hash || '').slice(0, 5), 'fila do vigia: ' + o1.acao); } catch (e) {} } } } catch (e) {}
       { let o0 = null; try { o0 = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {} if (o0 && o0.quem && o0.quem !== 'vigia' && vigiaTrava()) return; }   // 4.54
       let o; try { o = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) { return; }
       if (!o || !o.hash || !o.acao) return;
