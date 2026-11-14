@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '6.39';
+  const VERSAO = '6.40';
   // carimbo para saber, de fora do robô, qual versão está realmente rodando em cada aba
   try {
     const m = JSON.parse(localStorage.getItem('dins_versao') || '{}');
@@ -1032,7 +1032,7 @@
     // template. O robô NUNCA tenta escrever em conversa vencida: para antes, fecha a janela de template se ela abriu, e a
     // conversa fica para a VARREDURA (follow-up pelo outro número + fechar).
     const fecharTemplate = () => { const b = [...document.querySelectorAll('button')].filter(vis).find(x => /^Descartar$/i.test(txt(x)) && /Enviar Template do WhatsApp/i.test(((x.closest('[role=dialog]') || {}).innerText) || '')); if (b) { clicar(b); return true; } return false; };
-    const janelaVencidaAgora = () => { const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
+    const janelaVencidaAgora = () => { if (CLS_CTX) return !!CLS_CTX.vencida; const ta = document.querySelector('textarea'); const ph = (ta && (ta.placeholder || ta.getAttribute('placeholder'))) || ''; return /janela de 24 horas est[áa] finalizada|reabri-la usando um Template|conversa foi encerrada 24 horas ap[óo]s/i.test(ph); };
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
     async function respostaRapida(atalho, editar, semRegua, prefixo, trocas, midia) {
       const hashRR0 = window.top.location.hash;   // 4.60
@@ -1670,12 +1670,13 @@
       'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
       'Se tiver qualquer dificuldade, me chama aqui que eu te ajudo 🤝';
 
-    function nomeDoContato() {
+    let CLS_CTX = null;   // 6.40: leitura pelo SERVIDOR em curso → as funções de leitura usam isto em vez da tela
+    function nomeDoContato() { if (CLS_CTX) return CLS_CTX.nome || '';
       const T = document.body.innerText; const i = T.indexOf('Informações de contato');
       const m = i >= 0 ? T.slice(i, i + 300).match(/Nome\s*\n\s*([^\n]{2,40})/) : null;
       return m ? m[1].trim() : '';
     }
-    function foneDoContato() { return (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ''; }
+    function foneDoContato() { if (CLS_CTX) return CLS_CTX.fone || ''; return (document.body.innerText.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || [])[1] || ''; }
 
     // quem acabou de mandar uma mensagem com link (o próprio robô) registra na hora; o detector cobre o resto
     function agendarSeTiverLink() {
@@ -1721,13 +1722,14 @@
     // ele tem que estar lá e tem que estar mensurado… a gente fez as tentativas que cabia para ele").
     // Sem link: entra como 'acompanhando' com a situação lida da conversa (tags, quem falou por último, atendente).
     // 5.50: guarda também as tags de situação (01 A/C/D/I/J/k, 02, 03, 07) para a auditoria de tags
-    function classificar() { const c = classificar0(); try { c.tags01 = [...document.querySelectorAll('.MuiChip-label')].map(e => (e.textContent || '').trim()).filter(t => /^0\d/.test(t)); } catch (e) {} return c; }
+    function classificar() { const c = classificar0(); if (CLS_CTX) { c.tags01 = (CLS_CTX.tags || []).filter(t => /^0\d/.test(t)); return c; } try { c.tags01 = [...document.querySelectorAll('.MuiChip-label')].map(e => (e.textContent || '').trim()).filter(t => /^0\d/.test(t)); } catch (e) {} return c; }
     function classificar0() {
-      const T = document.body.innerText;
-      const tags = [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
+      const T = CLS_CTX ? '' : document.body.innerText;
+      const tags = CLS_CTX ? (CLS_CTX.tags || []) : [...document.querySelectorAll('.MuiChip-label')].map(c => c.textContent.trim());
       const tem = re => tags.some(t => re.test(t));
       const hum = /Chat em atendimento com ([^\n]+)/.exec(T);
-      const hAtual = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || '';
+      const hAtual = CLS_CTX ? CLS_CTX.id : ((window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || '');
+      if (CLS_CTX && protegido(hAtual)) return { estado: 'humano', motivo: 'caso que a Stefany pediu para não interferir' };
       if (hum && protegido(hAtual)) return { estado: 'humano', motivo: 'com ' + hum[1].trim() + ' — caso que a Stefany pediu para não interferir' };
       // 6.35 (Stefany 14/11 08:53, caso Jeniffer: "Ela tem a tag 01 D. Esses casos ele passa para você"): cliente que já fechou (01 D) e
       // escreveu de novo (não só "ok/obrigado") → VERMELHO para o vigia responder; o robô não manda nada automático.
@@ -1748,7 +1750,7 @@
       if (tem(/^03 /i)) return { estado: 'encerrado', motivo: 'representante legal — retorno dado' };
       if (tem(/^07 /i)) return { estado: 'encerrado', motivo: 'não identificado / espécie fora — retorno dado' };
       // 4.97: última sessão só com o "Anúncio ou link de referência" (cliente veio do anúncio) e NENHUMA mensagem depois → bot não respondeu
-      try { const E = (document.querySelector('.entries') || {}).innerText || ''; const k = E.lastIndexOf('Sessão '); const ult = k >= 0 ? E.slice(k) : E;
+      try { const E = CLS_CTX ? '' : ((document.querySelector('.entries') || {}).innerText || ''); const k = E.lastIndexOf('Sessão '); const ult = k >= 0 ? E.slice(k) : E;
         if (/An[úu]ncio ou link de refer[êe]ncia/i.test(ult) && !/Enviado (pelo|por)/i.test(ult) && !/\b\d{2}:\d{2}\s*(AM|PM)\b/.test(ult.replace(/Sess[ãa]o[^\n]*\n[^\n]*\n?/, '')))
           return { estado: 'alerta', motivo: 'veio do anúncio e o bot não respondeu → flow Inicio do atendimento (robô)', anuncioSemBot: 1 };
       } catch (e) {}
@@ -1775,7 +1777,7 @@
       if (tem(/^01 A/i) && L && L.ult.lado === 'nos' && !PROMESSA.test(L.ult.raw)) return Object.assign({ estado: 'acompanhando', motivo: '01 A sem link — nossa mensagem é a última, aguardando o cliente' }, ex);
       if (tem(/^01 A/i)) return Object.assign({ estado: 'alerta', motivo: 'com margem (01 A) e sem link de proposta enviado' }, ex);
       if (tem(/^01 C/i)) return Object.assign({ estado: 'acompanhando', motivo: 'pedimos o CPF — cliente não mandou' }, ex);
-      const fim = (document.querySelector('.entries') || {}).innerText || '';
+      const fim = CLS_CTX ? '' : ((document.querySelector('.entries') || {}).innerText || '');
       // 5.53 (Stefany 17:51, caso Alma Ferida): o bot encerrou a sessão por falta de interação e ninguém falou depois → sai do "aguardando" (⚪);
       // se tiver follow-up agendado, continua no 🟢 até a janela fechar; depois das 24 h é da varredura.
       if (L && L.ult && L.ult.lado === 'nos' && /encerrado por falta de intera[çc][ãa]o/i.test(L.ult.raw || L.ult.txt || '')) return Object.assign({ estado: 'encerrado', motivo: 'sessão encerrada pelo bot por falta de interação' }, ex);
@@ -1788,7 +1790,7 @@
     let telaH = '', telaDesde = 0; const sigPorHash = {};
     const sigDaTela = () => { const e = document.querySelector('.entries'); return e ? e.innerText.slice(-400) : ''; };
     setInterval(() => { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1] || ''; if (h !== telaH) { telaH = h; telaDesde = Date.now(); } }, 500);
-    function telaPronta(hash) {
+    function telaPronta(hash) { if (CLS_CTX) return CLS_CTX.id === hash;
       if (!hash || hash !== telaH || Date.now() - telaDesde < 6000) return false;
       const sg = sigDaTela(); if (!sg) return false;
       for (const k in sigPorHash) if (k !== hash && sigPorHash[k] === sg) return false;
@@ -1847,6 +1849,34 @@
     const navSolta = quem => { try { const n = JSON.parse(localStorage.getItem('dins_nav') || 'null'); if (n && n.quem === quem) localStorage.removeItem('dins_nav'); } catch (e) {} };
     async function mapearUm(id) { if (!navPega('mapa')) return false; try { return await mapearUm0(id); } finally { navSolta('mapa'); } }
     window.__dinsMapear0 = id => mapearUm0(id);   // 4.90: a varredura chama para quem chegou na fila no meio dela
+    // 6.40 (Stefany 14/11 09:51 "hoje é o dia de consertar… quero que ele voe"): LEITURA PELO SERVIDOR — o robô entende a conversa pelo
+    // servidor do Botmaker (mensagens de todas as sessões + etiquetas) e NÃO abre a tela. A tela só abre para AGIR (mandar, etiquetar, fechar)
+    // ou quando aparece algo que o servidor não explica (etiqueta desconhecida, link de proposta novo).
+    const TAG_SRV = { InssFechouNegocio: '01 D - Inss Fechou Negocio - SEM 87 e 88', InssComMargem: '01 A - Inss Com Margem - SEM 87 E 88',
+      InssNaoInformouCPF: '01 C - Inss Nao Informou CPF - SEM 87 e 88', '01J_Tem_Margem_Rodar_Disparo': '01 J Tem Margem Rodar Disparo',
+      '01k_SEM_Margem_Nao_Rodar_Whats': '01 k SEM Margem Nao Rodar Whats', NaoIdentificado: '07 - Nao Identificado', SEM_MARGEM_2026: '01 I - INSS Sem margem 2026' };
+    const TAG_IGNORA = /^(Fila_|Inativadade_|Inatividade_|INSS_FILA|LOAS_FILA|CLT_FILA|TAG_META|NEW_Conversao|Google_Sheets|Mutar_e|fluxo_nao|Automatica_|Verificar_Depois|Nao_Informou_Nada|Q1\d_|Sem_Biometria|SEM_MARGE_AUMENTO|AUTONOMO|Servidor_Publico|Loas_Ja_Fez|INSS_FILA_AUMENTO)/i;
+    const SRV_PLACAR = { lidas: 0, tela: 0, motivos: {} };
+    window.dinsSrvPlacar = () => SRV_PLACAR;
+    async function mapearServidor(id) { try {
+        const j = await apiLer(id, 60); if (!j || !j.customer || !Array.isArray(j.newMessages)) { SRV_PLACAR.motivos.semLeitura = (SRV_PLACAR.motivos.semLeitura || 0) + 1; return false; }
+        const x0 = RG()[id]; const tagsSrv = (j.customer.tags || []); const apiT = tagsSrv.slice().sort().join('|');
+        const tela = []; let desconhecida = '';
+        for (const t of tagsSrv) { if (TAG_SRV[t]) tela.push(TAG_SRV[t]); else if (!TAG_IGNORA.test(t)) desconhecida = t; }
+        if (x0 && Array.isArray(x0.tags01) && x0.apiTags === apiT) { for (const t of x0.tags01) if (!tela.includes(t)) tela.push(t); desconhecida = ''; }
+        const nao = m => { SRV_PLACAR.tela++; SRV_PLACAR.motivos[m] = (SRV_PLACAR.motivos[m] || 0) + 1; return false; };
+        if (desconhecida) return nao('etiqueta ' + desconhecida);
+        const LK = /https?:\/\/[^\s*)]+/ig; const fora = /chat\.whatsapp|wa\.me|fb\.me|g\.co|instagram\.com|facebook\.com|youtu|google\.com|botmaker/i;
+        const linkNovo = j.newMessages.some(m => m.FROM === 'me' && m.FROM_NAME !== 'Bot' && (msgTextoSrv(m).match(LK) || []).some(u => !fora.test(u) && !(x0 && x0.link && (x0.link.includes(u) || u.includes(x0.link)))));
+        if (linkNovo) return nao('link novo');
+        const L = ladosServidor(j); if (!L) return nao('sem mensagens');
+        const uc = +j.customer.lastUserMessageTimeStamp || 0;
+        CLS_CTX = { id, L, tags: tela, vencida: uc ? Date.now() - uc > 24 * H : false,
+          nome: ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).replace(/\bnull\b/g, '').trim(), fone: String(j.customer.WHATSAPP_CURATED_NUM || '') };
+        try { posLeitura(id); } finally { CLS_CTX = null; }
+        const r = RG(); if (r[id]) { r[id].apiTags = apiT; r[id].lidoT = Date.now(); r[id].lidoSrv = Date.now(); delete r[id].reler; gravaRG(r); }
+        SRV_PLACAR.lidas++; return true;
+      } catch (e) { CLS_CTX = null; SRV_PLACAR.motivos.erro = (SRV_PLACAR.motivos.erro || 0) + 1; return false; } }
     async function mapearUm0(id) {
       if (vigiaTrava()) return false;   // 4.54
       if (vigiaTrabalhando()) return false;
@@ -1882,6 +1912,8 @@
       try { const x0 = RG()[id]; if (x0 && !x0.reler && !x0.relerHist && +x0.lidoT > 0 && x0.apiTags && /^(alerta|erro)$/.test(x0.estado || '')) { const j = await apiLer(id, 1);
         if (j) { API_PLACAR.lidas++; const lm = Date.parse(j.customer.LAST_MESSAGE_CREATION_TIME || ''); const tg = (j.customer.tags || []).slice().sort().join('|');
           if (lm && lm < +x0.lidoT && tg === x0.apiTags) { const r = RG(); if (r[id]) { r[id].lidoT = Date.now(); gravaRG(r); } API_PLACAR.puladas++; API_PLACAR.vermelhos = (API_PLACAR.vermelhos || 0) + 1; return true; } } else API_PLACAR.falhas++; } } catch (e) {}
+      // 6.40: primeiro tenta entender pelo SERVIDOR (sem abrir a tela); só abre se o servidor não explicar
+      if (!(RG()[id] || {}).relerHist && await mapearServidor(id)) return true;
       localStorage.setItem('dins_mapeando', Date.now());
       window.top.location.hash = '#/chats/' + id; await new Promise(s => setTimeout(s, 7000));
       for (let i = 0; i < 6 && !telaPronta(id); i++) await new Promise(s => setTimeout(s, 1500));
@@ -1910,6 +1942,10 @@
       // 5.30 (caso Josias 12/11, erro 56): escolha de valor registrada em NOTA de dias antes ("ESCOLHA DE VALOR DO CLIENTE: … escolheu R$ 20.000,00", "pediu R$ 20.000")
       try { const tN = document.body.innerText || ''; const m = [...tN.matchAll(/ESCOLHA DE VALOR DO CLIENTE:[^\n]*?escolheu (?:R\$ ?)?([\d.]+,\d{2})/g)].pop() || [...tN.matchAll(/\bpediu R\$ ?([\d.]+(?:,\d{2})?)/g)].pop();
         if (m) { const v = parseFloat(m[1].replace(/\./g, '').replace(',', '.')); if (v >= 500) { const VN = GM_getValue('valor_nota', {}) || {}; VN[id] = { v, t: Date.now() }; GM_setValue('valor_nota', VN); } } } catch (e) {}
+      return posLeitura(id);
+    }
+    // 6.40: o que se faz depois de ler a conversa (tela OU servidor) — classificar, atualizar o quadro, registrar
+    function posLeitura(id) {
       const x = RG()[id];
       // 4.89: estava 'fechada' mas a conversa voltou para a lista → reabre com a situação de agora
       if (x && x.estado === 'fechada') { try { const c = classificar(); const r0 = RG();
@@ -1918,7 +1954,7 @@
         if (fT && !((+c.ultCliT || 0) > fT)) { if (r0[id]) { r0[id].lidoT = Date.now(); delete r0[id].reler; gravaRG(r0); } return true; }
         if (r0[id]) { r0[id].estado = c.estado; r0[id].motivo = c.motivo; ['vencida','ultCliT','ultT','ultLado','botParado','contornoT','temCpf','comQuem','handoffT','contornoInfo','cpfSemRespT','cpfSem','escolha','semCpfT','ultCliTxt','tags01'].forEach(k => { if (k in c) r0[id][k] = c[k]; }); r0[id].lidoT = Date.now(); (r0[id].hist = r0[id].hist || []).push(hhmm(Date.now()) + ' voltou para a lista: ' + c.motivo); gravaRG(r0); } } catch (e) {} return true; }
       if (x) {
-        const m = /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
+        const m = CLS_CTX ? null : /Chat em atendimento com ([^\n]+)/.exec(document.body.innerText); if (m && x.estado !== 'humano' && protegido(id)) window.dinsReguaHumano(id, m[1].trim());
         if (x.semLink || x.estado === 'alerta') { try { reclassificar(id); } catch (e) {} }   // 5.14
         // 5.62 (casos Elisete/Alexandre/Maristelcio): conversa COM link relida → atualiza quem falou por último e quando (sem isso o follow-up 'link' nunca nascia)
         else if (x.link && ['pausada', 'esgotada', 'acompanhando', 'ativa'].includes(x.estado)) { try { const c = classificar(); const r1 = RG(), y = r1[id]; if (y) {
@@ -2200,7 +2236,7 @@
     window.dinsCmpVer = () => GM_getValue('cmp_servidor', { n: 0, iguais: 0, lista: [] });
     window.dinsCmpZerar = () => { GM_setValue('cmp_servidor', { n: 0, iguais: 0, lista: [] }); return true; };
     window.dinsLadosServidor = async id => ladosServidor(await apiLer(id, 60));
-    function lados() {
+    function lados() { if (CLS_CTX) return CLS_CTX.L;
       const els = [...document.querySelectorAll('[class*="entries-li"]')]; if (!els.length) return null;
       let dia = null, grpBot = false; const ms = [];
       for (const el of els) {
