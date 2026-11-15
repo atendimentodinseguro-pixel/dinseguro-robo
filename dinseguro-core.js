@@ -12,7 +12,8 @@
   // freada pelo Chrome (1 vez por minuto); 2) junção de GM_setValue entre abas: cada aba grava só o que ELA mudou desde a leitura.
   const { setTimeout, setInterval, clearTimeout, clearInterval } = (() => {
     const N = { setTimeout: window.setTimeout.bind(window), setInterval: window.setInterval.bind(window), clearTimeout: window.clearTimeout.bind(window), clearInterval: window.clearInterval.bind(window) };
-    if (location.host !== 'go.botmaker.com' || !/moduleForward\/chats/.test(location.pathname)) return N;
+    // 7.14 (15/11 12:25: Daycoval/New Corban/Multicorban em aba de fundo andavam 1 passo por minuto — Chrome freia timers de aba escondida): temporizador por Worker em TODOS os sites do robô (menos WhatsApp e a casca do Botmaker)
+    if (location.host === 'web.whatsapp.com' || (location.host === 'go.botmaker.com' && !/moduleForward\/chats/.test(location.pathname))) return N;
     try {
       const w = new Worker(URL.createObjectURL(new Blob(['const m=new Map();onmessage=e=>{const d=e.data;if(d.c){clearTimeout(m.get(d.id));clearInterval(m.get(d.id));m.delete(d.id);return;}if(d.r)m.set(d.id,setInterval(()=>postMessage(d.id),d.ms));else m.set(d.id,setTimeout(()=>{m.delete(d.id);postMessage(d.id);},d.ms));};'], { type: 'text/javascript' })));
       const cb = new Map(); let n = 1, morto = false;
@@ -43,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.13';
+  const VERSAO = '7.14';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
