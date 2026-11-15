@@ -43,7 +43,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.07';
+  const VERSAO = '7.08';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -113,8 +113,16 @@
     try { if (r && /DAYCOVAL|QUERO/i.test(r.banco) && GM_getValue('daycoval_off', 0) && !/DAYCOVAL|QUERO/i.test(String(f.banco_ordem_stefany || ''))) {
       // 6.74 (caso Simone C6 980056818, 14/11 12:40: invalidez esp 32, 46 anos → "Reprovado Política Interna 66"): invalidez 40–52 NÃO vai para o C6
       const esp9 = String(f.especie || '').padStart(2, '0'); if (['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };
-      return { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }; } } catch (e) {}
+      return c6Off(f, { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }); } } catch (e) {}
+    return c6Off(f, r); }
+  // 7.08 (Stefany 15/11 10:15: "O C6 está travando [VALIDAR COMISSAO]… os clientes que couberem no critério de outro banco, a gente pode fazer"):
+  // GM 'c6_off' = 1 → o que ia para o C6 vai para a FACTA; invalidez abaixo de 60 anos → vigia decide. Ligar/desligar: __R.dinsC6Off(1/0).
+  function c6Off(f, r) { try { if (r && r.banco === 'C6' && GM_getValue('c6_off', 0) && String(f.banco_ordem_stefany || '').toUpperCase().trim() !== 'C6') {
+      const esp9 = String(f.especie || '').padStart(2, '0'); const id9 = +String(f.idade || '').replace(/\D/g, '') || 0;
+      if (['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9) && id9 < 60) return { banco: 'VIGIA', motivo: 'C6 travado (VALIDAR COMISSAO) e invalidez abaixo de 60 → vigia decide o banco' };
+      return { banco: 'FACTA', motivo: 'C6 travado em VALIDAR COMISSAO (Stefany 15/11) → FACTA' }; } } catch (e) {}
     return r; }
+  try { const fC6 = on => { GM_setValue('c6_off', on ? 1 : 0); return 'c6_off=' + (on ? 1 : 0); }; window.dinsC6Off = fC6; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsC6Off = fC6; } catch (e) {}
   function decidirBanco0(f) {
     { const bo = String(f.banco_ordem_stefany || '').toUpperCase().trim(); if (/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)$/.test(bo)) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 6.27
     const idade = parseInt(f.idade) || 0;
