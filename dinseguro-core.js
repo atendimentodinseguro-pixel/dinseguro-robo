@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.05';
+  const VERSAO = '7.06';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1613,7 +1613,7 @@
         // assim que chega o CPF, antes do resultado, uma mensagem pessoal curta: recebi, estou consultando, segurança, já volto.
         { const oA = Object.values(O).find(x => x.tipo === 'cpf' && !x.acolheu && ['nova', 'consultando', 'ficha_ok', 'digitando'].includes(x.estado) && Date.now() - (+x.t || 0) < 15 * 60000 && !x.valorVigia);
           if (oA) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
-            const nmA = nomeCli(oA); const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
+            const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; /* 7.06 (Stefany 15/11 07:39, caso Nick Salim = Monique): CPF recebido e ainda não consultado → sem nome do WhatsApp; o nome exato só nas próximas mensagens (nomeReal da consulta) */ const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
             const dA = new Date(), ddA = String(dA.getDate()).padStart(2, '0') + '/' + String(dA.getMonth() + 1).padStart(2, '0');
             const linhaA = sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oA.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaA, atalhos: [], nome: oA.nome || '', fone: oA.fone || '', nota: ddA + ' ' + hhmm(Date.now()) + ' [robô 5.96] CPF recebido → mensagem de acolhimento (consultando).' }));
