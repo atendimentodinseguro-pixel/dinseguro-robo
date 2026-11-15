@@ -3,6 +3,11 @@
 
 (function () {
   'use strict';
+  // 7.07 (15/11 10:01: o Botmaker passou a proibir 'unsafe-eval' no CSP → o carregador não consegue mais rodar a cópia baixada).
+  // Este arquivo também entra pelo @require do carregador 3.13 (sem eval). Se o eval funciona e esta cópia NÃO veio pelo eval,
+  // sai: o carregador roda a cópia mais nova. Se o eval está bloqueado (Botmaker), esta cópia do @require é a que roda.
+  try { if (typeof __dinsViaEvalLocal === 'undefined') { new Function('return 1')(); return; } } catch (e) {}
+  try { window.__dinsCoreRodou = Date.now(); } catch (e) {}
   // 5.64 (Stefany 12/11 19:18: "um robô por aba") — 1) temporizadores por Worker no Botmaker: aba que não está na frente não fica
   // freada pelo Chrome (1 vez por minuto); 2) junção de GM_setValue entre abas: cada aba grava só o que ELA mudou desde a leitura.
   const { setTimeout, setInterval, clearTimeout, clearInterval } = (() => {
@@ -38,7 +43,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.06';
+  const VERSAO = '7.07';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}

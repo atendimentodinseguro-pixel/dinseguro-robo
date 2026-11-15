@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.12
+// @version      3.13
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -19,6 +19,7 @@
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
+// @require      https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js
 // @connect      raw.githubusercontent.com
 // @connect      api.github.com
 // ==/UserScript==
@@ -140,7 +141,8 @@
 
   const rodar = (codigo, origem) => {
     try {
-      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', codigo)(
+      if (window.__dinsCoreRodou) { console.log('[Dinseguro] robô já rodando pela cópia do @require (eval bloqueado neste site)'); return; }
+      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', 'var __dinsViaEvalLocal = 1;\n' + codigo)(   // 3.13: avisa o core que veio pelo eval
         GM_getValue, GM_setValue, GM_notification, GM_setClipboard,
         typeof unsafeWindow !== 'undefined' ? unsafeWindow : window);
       console.log('[Dinseguro] robô carregado (' + origem + ')');
