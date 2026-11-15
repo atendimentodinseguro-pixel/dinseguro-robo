@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.02';
+  const VERSAO = '7.03';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1370,7 +1370,7 @@
         // 5.12 (caso Marcelo 72ND): última trava do pedido de CPF — o chat já tem um CPF escrito pelo cliente → não pede, não põe 01 C.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const tx0 = [...document.querySelectorAll('.entries [class*="entries-li"].left')].map(e => e.innerText || '').join('\n').slice(-30000);   // 5.35: só mensagens do CLIENTE (o bot tem 0800/números que pareciam CPF — caso Douglas)
           const mC = tx0.match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/g); const cJa = (mC || []).map(x => x.replace(/\D/g, '')).filter(x => x.length === 11 && cpfDigitoOk(x)).pop();
-          if (cJa) { passos.push('cliente já mandou o CPF — NÃO pedi de novo; ordem de consulta criada (6.96)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); try { ordemDoCpfServidor(o.hash, o.nome, cJa, 'CPF já mandado no chat (pedido de CPF)'); } catch (e) {} } } catch (e) {} }   // 6.96 (caso Verinha NCN2Z 16:37: o pedido 'saiu ✓' mas não pediu nem consultou)
+          if (cJa) { let criou = false; try { criou = !!ordemDoCpfServidor(o.hash, o.nome, cJa, 'CPF já mandado no chat (pedido de CPF)'); } catch (e) {} if (criou) { passos.push('cliente já mandou o CPF — NÃO pedi de novo; ordem de consulta criada (6.96)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } else passos.push('CPF antigo no chat, mas a consulta não abriu → peço o CPF (7.03)'); } } catch (e) {} }   // 7.03 (caso Nilson 0ZMD0 21:09: 'pediu o CPF ✓' sem mandar nada nem consultar)   // 6.96 (caso Verinha NCN2Z 16:37: o pedido 'saiu ✓' mas não pediu nem consultou)
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { const cs = await cpfDoServidor(o.hash); if (cs) { passos.push('CPF já está no servidor (variável CPF) — NÃO pedi; ordem de consulta criada'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); ordemDoCpfServidor(o.hash, o.nome, cs, 'pedido de CPF'); } }   // 6.31
         // 5.38: toque de retomada só sai se a ÚLTIMA mensagem da conversa for nossa (cliente não falou depois)
         if (o.soSeNossaUltima && !o.msgFeita) { try { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 2).slice(-1)[0];
