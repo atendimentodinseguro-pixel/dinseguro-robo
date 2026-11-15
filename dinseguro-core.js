@@ -43,7 +43,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.11';
+  const VERSAO = '7.12';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -5544,10 +5544,19 @@
     if (cid && !cid.value && !cid.options) { if (f.cidade) { setv(cidId, f.cidade.toUpperCase()); log('Cidade: ' + f.cidade, 'ok'); } }
     else if (cid && !cid.value) {
       const est = el('estado');
+      // 7.12 (15/11, Monique/Aldenora: CEP 00000 → estado e cidade vazios → "Não apareceu confirmação" e a ordem parava):
+      // estado vazio → UF da ficha ou a UF do benefício; cidade não achada → capital dessa UF (endereço aleatório permitido)
+      const CAP = { AC: 'RIO BRANCO', AL: 'MACEIO', AP: 'MACAPA', AM: 'MANAUS', BA: 'SALVADOR', CE: 'FORTALEZA', DF: 'BRASILIA', ES: 'VITORIA', GO: 'GOIANIA', MA: 'SAO LUIS', MT: 'CUIABA', MS: 'CAMPO GRANDE', MG: 'BELO HORIZONTE', PA: 'BELEM', PB: 'JOAO PESSOA', PR: 'CURITIBA', PE: 'RECIFE', PI: 'TERESINA', RJ: 'RIO DE JANEIRO', RN: 'NATAL', RS: 'PORTO ALEGRE', RO: 'PORTO VELHO', RR: 'BOA VISTA', SC: 'FLORIANOPOLIS', SP: 'SAO PAULO', SE: 'ARACAJU', TO: 'PALMAS' };
+      let ufX = '';
+      try { if (est && !est.value && est.options) { const unb = el('uf_nb'); ufX = String(f.uf || (unb && unb.options && (unb.options[unb.selectedIndex] || {}).text) || '').trim().toUpperCase().slice(0, 2);
+          const oE = [...est.options].find(o => o.text.trim().toUpperCase().startsWith(ufX + ' ') || o.value.toUpperCase() === ufX); if (oE) { est.value = oE.value; log('Estado (sem CEP): ' + oE.text, 'ok'); } }
+        else if (est && est.options) ufX = ((est.options[est.selectedIndex] || {}).text || '').trim().toUpperCase().slice(0, 2); } catch (e) {}
       if ($ && est) { $(est).selectpicker && $(est).selectpicker('val', est.value); $(est).trigger('change'); }
       await esperar(() => cid.options.length > 5, 15000, 500);
+      const sa = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
       const alvo = (f.cidade || '').trim().toUpperCase();
-      const opt = [...cid.options].find(o => o.text.trim().toUpperCase() === alvo);
+      let opt = [...cid.options].find(o => o.text.trim().toUpperCase() === alvo);
+      if (!opt && CAP[ufX]) { opt = [...cid.options].find(o => sa(o.text) === CAP[ufX]); if (opt) log('Cidade da ficha não achada → capital ' + opt.text + ' (endereço aleatório)', 'aviso'); }
       if (opt) { if ($ && $(cid).selectpicker) $(cid).selectpicker('val', opt.value); else cid.value = opt.value; $ && $(cid).trigger('change'); log('Cidade: ' + opt.text, 'ok'); }
       else log('Cidade não preenchida' + (alvo ? ' (' + alvo + ' não achada)' : '') + '. Escolha na tela.', 'erro');
     }
