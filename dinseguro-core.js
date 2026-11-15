@@ -38,7 +38,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.04';
+  const VERSAO = '7.05';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -395,7 +395,11 @@
         // 4.20d: um benefício só → o Multicorban já abre o detalhe; vários → lista com "Consultar" em cada linha
         const temDetalhe = () => /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText);
         if (temDetalhe()) {
-          if (!/Situa[çc][ãa]o\s*\n?\s*ATIVO\b/.test(document.body.innerText)) throw new Error('benefício não está ATIVO');
+          if (!/Situa[çc][ãa]o\s*\n?\s*ATIVO\b/.test(document.body.innerText)) {   // 7.05 (Maninho 14/11 21:50: esp 31 SUSPENSO → robô parou e deixou o cliente esperando)
+            const esp1 = ((document.body.innerText.match(/Descri[çc][ãa]o da Esp[ée]cie\s*\n?\s*(\d{1,2})\s*-/) || [])[1] || '').padStart(2, '0');
+            if (esp1 !== '00' && !ESPECIES_OK.includes(esp1) && !['87', '88'].includes(esp1)) { poeAO(o.hash, { estado: 'desfecho', acao: 'especie_fora', resumo: 'único benefício: espécie ' + esp1 + ' (não consignável) e não ATIVO' }); return; }
+            throw new Error('benefício não está ATIVO — 🔴 vigia responde o cliente (ele recebeu "já estou consultando")');
+          }
         } else {
           // 5.02 (Stefany 12/11 09:56, caso Paola): REGRA DOS VÁRIOS BENEFÍCIOS (erro 72 + B1–B8 de 07/11):
           //  • ler TODAS as linhas; só ATIVO conta (cessado não);
