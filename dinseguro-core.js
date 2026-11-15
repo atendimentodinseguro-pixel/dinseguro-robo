@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.15';
+  const VERSAO = '7.16';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1685,6 +1685,7 @@
     //  4) Cada toque sai UMA vez (registro com hora). Quadro "📋 Régua pós-link" no canto direito.
     //  5) Espelho em localStorage.dins_regua para o vigia conferir na rodada.
     const RG = () => GM_getValue('regua', {});
+    const CACHE_GM = {}; const gmCache = (k, d, ms = 3000) => { const c = CACHE_GM[k]; if (c && Date.now() - c.t < ms) return c.v; const v = GM_getValue(k, d); CACHE_GM[k] = { t: Date.now(), v }; return v; };
     const ABA_ID = Math.random().toString(36).slice(2, 10);   // 4.19: identifica esta aba na trava dos toques
     // 4.17b — GRAVAÇÃO SEM PERDA (Stefany 19:24 "pode fazer"): duas partes do robô liam o quadro, esperavam e gravavam por cima,
     // e uma apagava o que a outra tinha feito (André voltou como "01 A sem link" depois de reavaliado às 18:57).
@@ -1699,12 +1700,16 @@
         if (del[k] && (+(x && x.criadoT) || 0) < del[k]) continue;   // apagado depois de criado → não volta
         out[k] = x;
       }
-      GM_setValue('regua', out); try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(out))); } catch (e) {}
+      // 7.16: régua tinha 440 KB (histórico de 300+ linhas por cliente) → cada leitura/gravação travava a aba. Histórico: últimas 20 linhas
+      // (finalizados há 3+ dias: 5); toques de finalizado há 3+ dias saem (não servem mais).
+      try { const ag = Date.now(); for (const k in out) { const x = out[k]; if (!x || typeof x !== 'object') continue; const fim = /^(fechada|cancelada|esgotada|concluída|encerrado)$/.test(x.estado || '') && ag - (+x.linkT || +x.criadoT || 0) > 3 * 86400000;
+        const lim = fim ? 5 : 20; if (Array.isArray(x.hist) && x.hist.length > lim) x.hist = x.hist.slice(-lim); if (fim && Array.isArray(x.toques) && x.toques.length && x.toques.every(q => q.feito)) x.toques = []; } } catch (e) {}
+      GM_setValue('regua', out); try { CACHE_GM.regua = { t: Date.now(), v: out }; } catch (e) {} try { localStorage.setItem('dins_regua', JSON.stringify(Object.values(out))); } catch (e) {}
     };
     // 4.18 — fase da esteira do banco (lida pela aba do New Corban em ?p=propostas)
     const faseEsteira = x => {
       if (!x || !x.link) return null;
-      const E = GM_getValue('esteira', {}) || {}; const e = E['L:' + x.link]; if (!e) return null;
+      const E = gmCache('esteira', {}) || {}; const e = E['L:' + x.link]; if (!e) return null;   // 7.16: cache
       const t = (e.real + ' ' + e.statusBanco + ' ' + e.status).toUpperCase();
       let fase = 'andamento', acao = '';
       if (/PAG[OA]\b|INTEGRAD|FINALIZAD|CONCRETIZ/.test(t)) { fase = 'pago'; }
@@ -1992,8 +1997,10 @@
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
     const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^⚫/, /^romulo\b/i, /^jair\b/i];   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
-    const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (GM_getValue('nao_interferir', []) || []).includes(h) || (GM_getValue('nao_mexer', {}) || {})[h]) return true;
-      const x = (GM_getValue('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
+    // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
+    // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
+    const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
+      const x = (gmCache('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
       const it = (JSON.parse(localStorage.getItem('dins_fila') || '[]') || []).find(f => f && (f.id === h || f.hash === h)); return !!(it && nomeProtegido(it.nome)); } catch (e) { return false; } };
     window.dinsProtegido = h => protegido(h);
     window.dinsNaoInterferir = (h, on = true) => { const L = GM_getValue('nao_interferir', []) || []; const i = L.indexOf(h); if (on && i < 0) L.push(h); if (!on && i >= 0) L.splice(i, 1); GM_setValue('nao_interferir', L); return L; };
