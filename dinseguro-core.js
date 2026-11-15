@@ -43,7 +43,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.09';
+  const VERSAO = '7.10';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -120,6 +120,7 @@
   function c6Off(f, r) { try { if (r && r.banco === 'C6' && GM_getValue('c6_off', 0) && String(f.banco_ordem_stefany || '').toUpperCase().trim() !== 'C6') {
       const esp9 = String(f.especie || '').padStart(2, '0'); const id9 = +String(f.idade || '').replace(/\D/g, '') || 0;
       // 7.09 (Stefany 15/11 10:41: "tem que ver quem cabe na FACTA, critério operacional"): FACTA só a partir de 60 anos (até 59 → Quero Mais)
+      if (id9 < 60 && !GM_getValue('daycoval_off', 0)) return { banco: 'DAYCOVAL', motivo: 'C6 travado (VALIDAR COMISSAO) e ' + id9 + ' anos → Daycoval/Quero Mais (FACTA só 60+)' };
       if (id9 < 60) return { banco: 'VIGIA', motivo: 'C6 travado (VALIDAR COMISSAO) e ' + id9 + ' anos: FACTA só a partir de 60 (até 59 é Quero Mais) → vigia decide / espera o C6' };
       return { banco: 'FACTA', motivo: 'C6 travado em VALIDAR COMISSAO (Stefany 15/11) e 60+ → FACTA' }; } } catch (e) {}
     return r; }
