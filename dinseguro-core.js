@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.16';
+  const VERSAO = '7.17';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1819,7 +1819,13 @@
     window.dinsLinkEnviado = function (hash, fone, linkT, link, nome) {
       const r = RG(); const t = linkT || Date.now();
       const ant = r[hash];
-      r[hash] = { hash, criadoT: Date.now(), fone: fone || (ant && ant.fone) || '', nome: nome || (ant && ant.nome) || '', link: link || '', linkT: t,
+      // 7.17 (15/11 13:39–13:44, Jadiel/Vera/Francisca): régua do MESMO envio (registrada sem o link) era recriada quando o detector achava o link
+      // na tela → perdia o nome corrigido e o toque de 10 já enviado, e o de 60 saía logo em seguida. Mesmo envio (±5 min) → só completa o link.
+      if (ant && ant.linkT && Math.abs(ant.linkT - t) < 5 * M && !/^(fechada|cancelada|esgotada|concluída|encerrado)$/.test(ant.estado || '')) {
+        if (link && !ant.link) { ant.link = link; delete ant.semLink; (ant.hist = ant.hist || []).push(hhmm(Date.now()) + ' link completado (7.17)'); gravaRG(r); try { desenharRegua(); } catch (e) {} }
+        return;
+      }
+      r[hash] = { hash, criadoT: Date.now(), fone: fone || (ant && ant.fone) || '', nome: (ant && ant.nome) || nome || '', link: link || '', linkT: t,
         estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.tipo === '60' ? t + 70 * M : x.dt(t), feito: 0, st: '' })),
         tent: 0, hist: [hhmm(Date.now()) + ' régua criada (link ' + hhmm(t) + ')'] };
       gravaRG(r); desenharRegua();
