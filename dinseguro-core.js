@@ -43,7 +43,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.12';
+  const VERSAO = '7.13';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -5513,7 +5513,7 @@
     try { const e = el('sexo'); if (e) { const sx = (f.sexo || '').trim().toUpperCase(); const pn0 = ((f.nome || '').trim().split(/\s+/)[0] || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
       // 6.61 (caso Elide C6 980056169, 14/11 11:48: gravou MASCULINO): nome feminino que não termina em A (Elide, Neide, Ivone, Raquel, Beatriz…)
       const FEM_N = /^(ELIDE|NEIDE|CLEIDE|ZULEIDE|IVONE|YVONE|RAQUEL|ISABEL|IZABEL|BEATRIZ|RUTH|RUTE|LOURDES|LURDES|IRENE|ESTER|ESTHER|INES|INEZ|NADIR|MARLI|MARLY|MARILENE|DIRCE|ALICE|BERENICE|EUNICE|CLARICE|DENISE|ELISE|LUCIENE|DAIANE|ELIANE|JOSIANE|VIVIANE|SIMONE|IVETE|IVETTE|ODETE|BERNADETE|CLAUDETE|ROSIMEIRE|ROSEMEIRE|ROSEMARY|ROSE|DULCE|EDITE|EDITH|JUDITE|JUDITH|NOEMI|NOEMIA|MIRIAM|MIRIAN|CARMEN|KAREN|ELLEN|HELEN|SUELI|SUELY|NEUSA|DEISE|CRISTIANE|LILIAN|ILZE|GLEICE|JOICE|JOYCE|ROSANGELA|SOLANGE|ANGELE|IRACI|NAIR|ZILDA|MARGARETE|MARGARETH|ELIZABETH|ELISABETE|IZABELE|RAQUELE|ISAURA|ARACI|JACI|JUCILENE|MARLENE|DARLENE|ARLETE|ANETE|JANETE|NILCE|NICE|CELI|NELI|NELY|SHIRLEY|SIRLEI|SIRLENE|LUCI|LUCY|IRANI|ELENI|ELENICE|GRACE|GISELE|GISELLE|MICHELE|MICHELLE|RAFAELE|ADRIANE|LUCIMARE)$/;
-      const fem = /^F/.test(sx) ? true : /^M/.test(sx) ? false : (/A$/.test(pn0) && !/^(LUCA|JOSHUA|NIKITA|BATISTA|ISAIA)$/.test(pn0)) || FEM_N.test(pn0) || /(EIDE|ILDE|IANE|ETE|ENE|ICE|ELLE|ELY|ELI|ILENE|IANA|ISE)$/.test(pn0) && !/^(JORGE|IRINEU|JOSE|ANDRE|FELIPE|HENRIQUE|DUQUE|ARISTIDE|FELICE|GENE)$/.test(pn0);
+      const fem = /^F/.test(sx) ? true : /^M/.test(sx) ? false : (/A$/.test(pn0) && !/^(LUCA|JOSHUA|NIKITA|BATISTA|ISAIA)$/.test(pn0)) || FEM_N.test(pn0) || /(EIDE|ILDE|IANE|ETE|ENE|ICE|ELLE|ELY|ELI|ILENE|IANA|ISE|NIQUE|LINE|INE|ELE|OLE|ILE|ELLY)$/.test(pn0) && !/^(JORGE|IRINEU|JOSE|ANDRE|FELIPE|HENRIQUE|ENRIQUE|DUQUE|ARISTIDE|FELICE|GENE|CAINE|DOMINIQUE)$/.test(pn0);   // 7.12: Monique (15/11) saía MASCULINO
       const opt = [...e.options].find(o => fem ? /fem/i.test(o.text) : /masc/i.test(o.text));
       if (opt && e.value !== opt.value) { if ($ && $(e).selectpicker) { $(e).selectpicker('val', opt.value); $(e).trigger('change'); } else { e.value = opt.value; e.dispatchEvent(new Event('change', { bubbles: true })); } }
       if (opt) log('Sexo: ' + opt.text + (sx ? '' : ' (pelo primeiro nome — a ficha veio sem sexo)')); } } catch (e) {}
