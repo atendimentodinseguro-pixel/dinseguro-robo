@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.18';
+  const VERSAO = '7.19';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -330,7 +330,11 @@
       for (const h in O) { const x = O[h]; if (!x || !x.aguardaLista || !(x.estado === 'gravada' || (x.estado === 'erro' && Date.now() - (+x.tGrav || 0) < 90 * 60000))) continue; const c = String(x.cpf || '').replace(/\D/g, '');   /* 6.83 (caso Dulce 980057188: link saiu 27 min depois) — depois do aviso de 10 min continua procurando até 90 min */
         const r = Object.values(E).filter(y => y && y.link && y.cpf === c && /web\.c6consig|\/\//.test(y.link) && (+y.t || 0) > (+x.tGrav || 0) - 60000 && /cadastrad|pendente|assinatura/i.test((y.status || '') + ' ' + (y.statusBanco || ''))).sort((a, b) => b.t - a.t)[0];
         if (r) { x.estado = 'link'; x.link = r.link; delete x.aguardaLista; delete x.erro; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' link (lista de propostas)'); mud = true; try { diario(x.nomeReal || x.nome || '', 'link pronto (lista de propostas) → vai mandar simulação + link'); } catch (e) {} }
-        else if (x.estado === 'gravada' && Date.now() - (+x.tGrav || 0) > 10 * 60000) { /* 6.67 (Stefany 14/11 12:30: "se em 10 minutos o link não aparecer, pode chamar") */ x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 10 min → vigia: Autorizador (AND) / nuvem verde (o robô continua procurando)'; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
+        else if (!x.nuvemT || Date.now() - x.nuvemT > 2 * 60000) {   /* 7.19 (15/11, Katia/Emilia: link só apareceu depois da nuvem verde) — sem link há 2+ min → nuvem verde (consultarProposta, sem reCAPTCHA) a cada 2 min */
+          if (Date.now() - (+x.tGrav || 0) > 2 * 60000) { try { const row = [...document.querySelectorAll('tr')].find(tr => [...tr.querySelectorAll('[onclick]')].some(e => /copyString\('[\d.\-]+'\)/.test(e.getAttribute('onclick') || '') && (e.getAttribute('onclick') || '').replace(/\D/g, '') === c));
+            const oc = row && [...row.querySelectorAll('[onclick]')].map(e => e.getAttribute('onclick') || '').find(t => /consultarProposta\('\d+'\)/.test(t)); const id = oc && (oc.match(/consultarProposta\('(\d+)'\)/) || [])[1];
+            const W = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window); if (id && typeof W.consultarProposta === 'function') { x.nuvemT = Date.now(); mud = true; W.confirm = () => true; W.consultarProposta(id); setTimeout(() => { try { lerEsteira(); } catch (e) {} }, 8000); } } catch (e) {} }
+          if (x.estado === 'gravada' && Date.now() - (+x.tGrav || 0) > 10 * 60000) { /* 6.67 (Stefany 14/11 12:30: "se em 10 minutos o link não aparecer, pode chamar") */ x.estado = 'erro'; x.erro = 'gravada Nº ' + (x.proposta || '?') + ', mas o link não apareceu na lista em 10 min → vigia: Autorizador (AND) / nuvem verde (o robô continua procurando)'; mud = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } } }
       if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 20000);
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
