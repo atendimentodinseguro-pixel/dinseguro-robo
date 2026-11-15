@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.19';
+  const VERSAO = '7.20';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1254,6 +1254,7 @@
       const r = await addTag0(nome);
       try { const t = String(nome); let tirou = [];
         if (/^01 A/i.test(t) || /^01 (I|k)/i.test(t) || /^0[237]/.test(t)) tirou = tirou.concat(await tirarTag(/^01 C\b/i));
+        if (/^01 (I|k)/i.test(t) || /^0[237]/.test(t) || /Acima De 80/i.test(t)) tirou = tirou.concat(await tirarTag(/^01 A\b/i));   // 7.20 (Stefany 15/11 17:55, caso Dhlionas): sem possibilidade → tira a 01 A (com margem)
         if (/^01 D/i.test(t)) tirou = tirou.concat(await tirarTag(/^01 [AC]\b/i));
         if (tirou.length) return r + ' (tirei: ' + tirou.join(', ') + ')'; } catch (e) {}
       return r;
@@ -2269,6 +2270,15 @@
     window.dinsReguaAgora = (hash, tipo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q) return false; q.feito = 0; q.st = ''; q.tent = 0; q.prox = 0; q.quando = Date.now(); if (x.estado === 'esgotada') { x.estado = 'ativa'; x.motivo = ''; } x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' colocado em dia'); gravaRG(r); desenharRegua(); return true; };
     // pular um toque que não deve sair (ex.: já foi feito à mão) — dinsReguaPular('HASH', '10'|'60'|'manha', 'motivo')
     window.dinsReguaPular = (hash, tipo, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; const q = x.toques.find(k => k.tipo === tipo); if (!q || q.feito) return false; q.feito = Date.now(); q.st = 'pulado (' + (motivo || 'manual') + ')'; x.hist.push(hhmm(Date.now()) + ' ' + tipo + ' pulado: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); return true; };
+    // 7.20 (Stefany 15/11 17:55, caso Allyne: "não pode esquecer de cliente… arrumar um método que vai estar sempre te avisando"):
+    // ordem automática parada (erro / com_margem) de hoje → em 10 min vira ALERTA vermelho no quadro + linha 🔴 no diário (o vigia lê a cada ronda).
+    setInterval(() => { try { if (!faz('varredura') && !faz('atendimento')) return; const O = GM_getValue('auto_ordens', {}) || {}; const ag = Date.now(); let mud = false; const r = RG(); let mr = false;
+      for (const k in O) { const x = O[k]; if (!x) continue;
+        if (!['erro', 'com_margem'].includes(x.estado) || ag - (+x.t || +x.cpfT || 0) > 6 * 3600000) { if (x.paradoT) { delete x.paradoT; delete x.paradoAvisado; mud = true; } continue; }
+        if (!x.paradoT) { x.paradoT = ag; mud = true; continue; }
+        if (!x.paradoAvisado && ag - x.paradoT > 10 * 60000) { x.paradoAvisado = ag; mud = true; const mot = '🔴 ROBÔ PAROU há 10+ min com cliente esperando: ' + String(x.erro || x.resumo || '').slice(0, 90); diario(x.nomeReal || x.nome || '', mot);
+          if (r[k] && !/^(fechada|cancelada|encerrado|concluída)$/.test(r[k].estado || '')) { r[k].estado = 'alerta'; r[k].motivo = mot; (r[k].hist = r[k].hist || []).push(hhmm(ag) + ' ' + mot); mr = true; } } }
+      if (mud) GM_setValue('auto_ordens', O); if (mr) { gravaRG(r); try { desenharRegua(); } catch (e) {} } } catch (e) {} }, 60000);
 
     // 4.13 — "precisa de alguém junto" à mão (decisão da Stefany etc.): dinsReguaJunto('HASH', 'motivo') / dinsReguaSoltar('HASH')
     window.dinsReguaJunto = (hash, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; x.junto = motivo || 'decisão da Stefany'; x.hist.push(hhmm(Date.now()) + ' junto: ' + x.junto); gravaRG(r); desenharRegua(); return true; };
