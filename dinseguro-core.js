@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.14';
+  const VERSAO = '7.15';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1770,7 +1770,7 @@
     // tá muito errado, não pode repetir."). Nome SÓ se for nome de verdade: primeiro o nome real das notas ([IA]/[robô] Nome…,
     // que vem da consulta) e, sem nota, o nome do contato apenas se parecer nome de pessoa (sem número, @, emoji, "Até R$"…,
     // palavra com inicial maiúscula de 3 a 12 letras). Na dúvida, cumprimenta SEM nome.
-    const NAO_NOME = /^(dinseguro|seu|sua|oi|ola|olá|bom|boa|ate|até|consulte|novo|cliente|empresa|cred|credito|crédito|whats|usuario|usuário|sr|sra|dona|seguro)$/i;
+    const NAO_NOME = /^(dinseguro|seu|sua|oi|ola|olá|bom|boa|ate|até|consulte|novo|cliente|empresa|cred|credito|crédito|whats|usuario|usuário|sr|sra|dona|seguro|faço|faco|pra|pro|deus|jesus|amor|vida|mae|mãe|pai|filho|filha|tia|tio|vovo|vovó|eu|meu|minha|so|só|sou|nao|não|feliz|gratidao|gratidão|paz|fe|fé)$/i;
     function nomeSeguro(nomeContato, semNotas) {
       if (!semNotas) try {
         const ent = (document.querySelector('.entries') || {}).innerText || '';
@@ -1779,10 +1779,18 @@
       } catch (e) {}
       const n = String(nomeContato || '').trim();
       if (!n || /[\d@_#$%&*+=|<>\/\\]|R\$|https?:/i.test(n) || /[^\p{L}\s'.-]/u.test(n)) return '';
+      if (/\.\.|…/.test(n) || n.split(/\s+/).length > 3) return '';   // 7.15 (15/11 12:47: "Bom dia, Faço!" — contato "Faço Parte Do Universo.." é frase, não nome)
       const p = n.split(/\s+/)[0];
       if (!/^[A-ZÁ-Ú][a-zá-úç]{2,11}$/.test(p) || NAO_NOME.test(p)) return '';
       if (/^(.{2})\1$/i.test(p) || /(.)\1\1/i.test(p)) return '';   // apelido tipo Zaza, Lulu
       return p;
+    }
+    // 7.15: toques/follow-ups usam primeiro o NOME REAL da consulta (AO.nomeReal / régua), depois o nome seguro do contato
+    function nomeDoAlvo(alvo) {
+      try { const h = alvo && alvo.hash; const ao = h ? ((GM_getValue('auto_ordens', {}) || {})[h] || {}) : {}; const rg = h ? (RG()[h] || {}) : {};
+        const nr = (alvo && alvo.nomeReal) || ao.nomeReal || rg.nomeReal || '';
+        const p = String(nr).trim().split(/\s+/)[0] || ''; if (p.length >= 2) return p[0].toUpperCase() + p.slice(1).toLowerCase(); } catch (e) {}
+      return nomeSeguro(alvo && alvo.nome);
     }
     const MSG_MANHA = nome => `Bom dia${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
       'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
@@ -2636,7 +2644,7 @@
           if (mh && ul && !ul.classList.contains('left')) { let hh = +mh[1] % 12; if (/PM/i.test(mh[3])) hh += 12; const d = new Date(); d.setHours(hh, +mh[2], 0, 0); const dif = Date.now() - d.getTime();
             if (dif >= 0 && dif < 50 * M && toque.tipo !== 'manha' && d.getTime() > (+alvo.linkT || 0) + 3 * M) { const r6 = RG();   /* 6.53 (caso Eduardo: o próprio LINK era a nossa última mensagem e adiava o toque de 10 min em 1 h — 'recebeu o link e não teve continuação') */ const q6 = r6[alvo.hash] && r6[alvo.hash].toques.find(k => k.tipo === toque.tipo); if (q6) { q6.prox = d.getTime() + 60 * M; gravaRG(r6); } return; } } }
         let enviado;
-        if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeSeguro(alvo.nome)));
+        if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeDoAlvo(alvo)));
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
         const atrasado = Date.now() - toque.quando > 5 * M;
         reg('enviado ' + hhmm(Date.now()) + (atrasado ? ' (atrasado)' : ''), true);
@@ -2796,13 +2804,13 @@
         } else if (passo === 'p102') {
           // 4.57 (Gerson 11/11): /102 e /103 já mandadas à mão → não repetir
           if (nossas.some(t => /estrela guia/i.test(t)) && nossas.some(t => /inspirado a contribuir/i.test(t))) { marca({ p102: Date.now(), estado: 'concluída', st: '/102 e /103 já estavam no chat' }); return; }
-          const pn = (nomeSeguro(alvo.nome) || '').split(' ')[0];
+          const pn = (nomeDoAlvo(alvo) || '').split(' ')[0];
           await respostaRapida('/102', false, true, pn || ''); await new Promise(s => setTimeout(s, 2500));
           if (window.top.location.hash !== alvoHash) throw new Error('trocou de chat entre a /102 e a /103');
           await respostaRapida('/103', false, true); marca({ p102: Date.now(), estado: 'concluída', st: '/102 e /103 enviadas' });
         } else if (passo === 'video') {
           if (clienteRespondeu()) { marca({ videoPerg: Date.now(), st: 'cliente já falou — fica com o vigia' }); return; }
-          const n = nomeSeguro(alvo.nome);
+          const n = nomeDoAlvo(alvo);
           await mensagemLivre((n ? n + ', c' : 'C') + 'onseguiu finalizar a chamada de vídeo pelo link? 😊 Se aparecer qualquer dificuldade (câmera, microfone ou para entrar), me fala aqui que eu te ajudo na hora.');
           marca({ videoPerg: Date.now(), st: 'perguntado' });
         }
@@ -2910,7 +2918,7 @@
         const ent = (document.querySelector('.entries') || {}).innerText || '';
         if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
         if (fe.fase === 'falta anuência' && /anu[eê]ncia/i.test(ent.slice(-3000))) { marca({ faseFeita: fe.fase }, 'anuência já tinha sido mandada'); return; }
-        const nome = nomeSeguro(alvo.nome);
+        const nome = nomeDoAlvo(alvo);
         await mensagemLivre(LINHA_FASE[fe.fase](nome));
         await new Promise(s => setTimeout(s, 2500));
         for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
@@ -3014,7 +3022,7 @@
         if (lembrar) {   // 5.56 (caso Douglas "te retorno amanhã pela tarde"): lembrete na hora que ele disse, criado pela régua
           if (o[k] && o[k].tipo === 'lembrete' && o[k].base === String(x.ultCliTxt || '').slice(0, 60)) continue;
           const qd = horaDita(x.ultCliTxt); if (qd && qd > agora && (!(+x.ultCliT) || qd < x.ultCliT + 23.5 * H)) {
-            o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: 'lembrete', base: String(x.ultCliTxt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: qd, feito: 0 }], origem: 'régua 5.56' }; m = true;
+            o[k] = { hash: k, nome: nomeDoAlvo(Object.assign({ hash: k }, x)), tipo: 'lembrete', base: String(x.ultCliTxt || '').slice(0, 60), t0: agora, toques: [{ q: 'lembrete', quando: qd, feito: 0 }], origem: 'régua 5.56' }; m = true;
             try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.56: cliente disse "' + String(x.ultCliTxt).slice(0, 40) + '" → lembrete ' + new Date(qd).toLocaleString('pt-BR').slice(0, 17)); } catch (e) {} }
           continue; }
         // 5.57 (Stefany 18:00, caso Alexandre): com link, cliente conversou e parou (pausada/esgotada, última nossa) → sequência completa 'link'
@@ -3028,7 +3036,7 @@
         { const hh = (ESP_H()[k] || {})[tipoR]; if (hh && agora - hh < 36 * H) continue; }
         if (tipoR === 'duvida' && localStorage.getItem('dins_f3_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera DÚVIDA pela régua (última nossa ' + hhmm(t0) + ')' }); continue; }
         if (localStorage.getItem('dins_f2_teste') !== '0') { logF2({ h: k, nome: x.nome || '', o: 'espera CPF pela régua (pedido ' + hhmm(t0) + ')' }); continue; }
-        o[k] = { hash: k, nome: nomeSeguro(x.nomeReal || x.nome), tipo: tipoR, t0, temCpf: !!x.temCpf, toques: novaSequencia(tipoR, t0, +x.ultCliT || 0), origem: 'régua 5.47' }; m = true;
+        o[k] = { hash: k, nome: nomeDoAlvo(Object.assign({ hash: k }, x)), tipo: tipoR, t0, temCpf: !!x.temCpf, toques: novaSequencia(tipoR, t0, +x.ultCliT || 0), origem: 'régua 5.47' }; m = true;
         try { (x.hist = x.hist || []).push(hhmm(agora) + ' 5.47: espera de ' + (tipoR === 'cpf' ? 'CPF' : 'dúvida') + ' registrada pela régua (nossa última ' + hhmm(t0) + ')'); } catch (e) {}
       }
       if (m) { gravaESP(o); gravaRG(RGx); }
@@ -3154,7 +3162,7 @@
               const fimE = ((document.querySelector('.entries') || {}).innerText || '').slice(-2500); return !/encerrado por falta de intera[çc][ãa]o/i.test(fimE); })() || (alvo.tipo === 'cpf' && L && (L.temCpf || L.cpfSemRespT))) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); marcaHistESP(alvo.hash, alvo.tipo); return; }
         if (alvo.tipo === 'lembrete' && L && L.ult && L.ult.lado === 'cli' && !DEPOIS.test(L.ult.txt || '')) { const o = ESP(); delete o[alvo.hash]; gravaESP(o); return; }   // falou outra coisa depois: é atendimento
         const r = RG(); const temLink = r[alvo.hash] && r[alvo.hash].link && !r[alvo.hash].semLink;
-        const n = nomeSeguro(alvo.nome);
+        const n = nomeDoAlvo(alvo);
         // 4.60: o nome do chat aberto tem que ser o do registro (Josias ≠ Lu Andrade)
         { const nt = (nomeDoContato() || '').trim().toLowerCase(), na = (alvo.nome || '').trim().toLowerCase();
           if (na && nt && nt.split(' ')[0] !== na.split(' ')[0]) throw new Error('nome do chat (' + nt + ') não é o do registro (' + na + ')'); }
