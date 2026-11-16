@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.30';
+  const VERSAO = '7.31';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1063,6 +1063,13 @@
       const ok = await ate(() => { const f = soDig(foneDoPainel()); if (fEsp) return f && (f === fEsp || f.slice(-10) === fEsp.slice(-10));
         const n = nomeDoPainel(); return n && q.nome && n.trim().toLowerCase() === String(q.nome).trim().toLowerCase(); }, 15000);
       if (!ok) throw new Error('não confirmei que o chat aberto é o do cliente (painel: ' + (nomeDoPainel() || '?') + ') — NÃO mandei nada');
+      // 7.31 (Stefany 16/11 16:33, caso Rosa × Vilma: o painel já era do cliente certo, mas as MENSAGENS na tela eram de outro chat → o 'sem margem'
+      // da Vilma saiu na conversa da Rosa). Confere também as últimas mensagens do cliente: a do servidor tem que estar na tela.
+      try { const js2 = await apiLer(hash, 5); const ms2 = ((js2 && js2.newMessages) || []).filter(m => m.FROM !== 'me' && Date.now() - (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) < 3 * 3600000).map(m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').replace(/\s+/g, ' ').trim()).filter(t => t.length >= 2);
+        if (ms2.length) { const alvoT = ms2[ms2.length - 1].slice(0, 25);
+          const naTela = () => { const en = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => !e.classList.contains('right')).slice(-12).map(e => (e.innerText || '').replace(/\s+/g, ' ')).join(' | '); return en.includes(alvoT); };
+          const ok3 = await ate(naTela, 15000);
+          if (!ok3) throw new Error('a tela mostra mensagens de OUTRO chat (não achei a última do cliente: "' + alvoT.slice(0, 20) + '") — NÃO mandei nada'); } } catch (e) { if (/OUTRO chat/.test(String(e.message || e))) throw e; }
     }
     async function abrir(hash) {
       const alvo = '#/chats/' + hash.replace(/^#\/chats\//, '');
