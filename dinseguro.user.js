@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.28
+// @version      3.29
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -55,7 +55,7 @@
     // 3.28 (Stefany 16/11 12:41): o envio mora no módulo dinseguro-wa.js do GitHub (abre a conversa pelo + "Nova conversa",
     // sem recarregar o WhatsApp). O carregador baixa a versão mais nova a cada abertura do WhatsApp; se o site não deixar
     // rodar o código baixado, usa a cópia embutida abaixo (mesmo código, versão WA 1.0).
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.28', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.29', t: Date.now() })); } catch (e) {}
     const UW = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const embutido = () => {
       // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.0
