@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.31';
+  const VERSAO = '7.32';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1781,7 +1781,7 @@
     window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
     // vigia mandou o desbloqueio/anuência → marca a fase como feita (sai do vermelho até a esteira mudar): dinsFaseFeita('HASH')
-    window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
+    window.dinsFaseFeita = h => { const r = RG(), x = r[h]; const fe = faseEsteira(x); if (!x || !fe) return false; x.faseFeita = fe.fase; x.faseFeitaT = Date.now(); x.faseToq = 0; x.hist.push(hhmm(Date.now()) + ' feito: ' + fe.fase); gravaRG(r); desenharRegua(); return true; }; window.dinsEsteiraVer = () => GM_getValue('esteira', {});
     // compatibilidade: quem ainda chama FUPS/gravaFups
     const FUPS = () => [];
     const gravaFups = () => {};
@@ -2973,12 +2973,74 @@
         await mensagemLivre(LINHA_FASE[fe.fase](nome));
         await new Promise(s => setTimeout(s, 2500));
         for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
-        marca({ faseFeita: fe.fase }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
+        marca({ faseFeita: fe.fase, faseFeitaT: Date.now(), faseToq: 0 }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
         log && log('Esteira: ' + fe.fase + ' mandado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ' ERRO: ' + e.message); }
       finally { faseRodando = false; navSolta('fase'); }
     }
     setInterval(() => { if (faz('followup')) olharFases(); }, 90000);
+
+    // ================================================================ 7.32 — PRIORIDADE MÁXIMA: QUEM JÁ ASSINOU (Stefany 16/11 16:39)
+    // "A galera que é prioridade da prioridade são os que já assinaram e estão dentro do prazo para pagar… criar fluxos de
+    //  sequência de follow-ups com esses caras, para entender cada parte, se ele fez, se está precisando de ajuda."
+    // Depois que o robô (ou o vigia) mandou o passo a passo do DESBLOQUEIO ou da ANUÊNCIA, e a esteira continua na mesma fase
+    // e o cliente não respondeu: toque 1 em 30 min, toque 2 em 2 h, toque 3 no dia seguinte às 09:00, toque 4 no dia seguinte às 15:00.
+    // Cliente respondeu → para (vira vermelho para o vigia). Só 8h–21h e com a janela de 24 h aberta. Ver: dinsPrioridadeVer().
+    const TOQUES_FASE = {
+      'falta desbloquear': [
+        n => `${n ? n + ', c' : 'C'}onseguiu fazer o desbloqueio do benefício? 😊 Se travou em alguma parte, me manda um print da tela que eu te guio passo a passo.`,
+        n => `${n ? n + ', p' : 'P'}assando para ver como ficou o desbloqueio 🙏 Ele é o último passo do seu lado: com o benefício desbloqueado, o banco já consegue finalizar e o dinheiro cai na sua conta. Precisa de ajuda?`,
+        n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta está aprovada e só falta o desbloqueio do benefício no Meu INSS para o dinheiro ir para a sua conta. Quer fazer agora comigo? Eu te acompanho por aqui, passo a passo.`,
+        n => `${n ? n + ', o' : 'O'} seu dinheiro está esperando só o desbloqueio do benefício 💰 Se ficou alguma dúvida ou o aplicativo deu algum erro, me fala aqui ou me diz um horário bom que eu te ajudo.`
+      ],
+      'falta anuência': [
+        n => `${n ? n + ', c' : 'C'}onseguiu fazer a confirmação no Meu INSS? 😊 Quando aparecer como feito, me manda um print aqui. Se travar, eu te ajudo.`,
+        n => `${n ? n + ', f' : 'F'}alta só essa confirmação no Meu INSS para o banco liberar o seu dinheiro 🙏 Conseguiu fazer? Se precisar, te explico de novo.`,
+        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Só falta a confirmação no Meu INSS para o seu dinheiro ser liberado. Quer fazer agora comigo? Eu te acompanho por aqui.`,
+        n => `${n ? n + ', a' : 'A'} sua proposta está pronta, só esperando a confirmação no Meu INSS 💰 Se deu algum erro, me manda um print que eu resolvo com você.`
+      ]
+    };
+    const quandoToque = (t0, n) => { const d0 = new Date(t0); if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 2 * 3600000;
+      const amanha = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1); if (amanha.getDay() === 6) amanha.setDate(amanha.getDate() + 2); if (amanha.getDay() === 0) amanha.setDate(amanha.getDate() + 1);
+      if (n === 2) { amanha.setHours(9, 0, 0, 0); return amanha.getTime(); } if (n === 3) { amanha.setHours(15, 0, 0, 0); return amanha.getTime(); } return Infinity; };
+    window.dinsPrioridadeVer = () => Object.values(RG()).filter(x => x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita]).map(x => { const fe = faseEsteira(x); return { nome: x.nomeReal || x.nome, hash: x.hash, fase: x.faseFeita, agora: fe ? fe.fase : '?', real: fe ? fe.real : '', toques: x.faseToq || 0, prox: x.faseFeitaT ? new Date(quandoToque(x.faseFeitaT, x.faseToq || 0)).toLocaleString('pt-BR').slice(0, 17) : '—' }; });
+    let prioRodando = false;
+    async function olharPrioridade() {
+      if (vigiaTrava() || prioRodando || faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
+      const hh = new Date().getHours(); if (hh < 8 || hh >= 21 || [0, 6].includes(new Date().getDay())) return;
+      const ta0 = document.querySelector('textarea'); if (ta0 && ta0.value.trim()) return;
+      const r = RG(); let alvo = null, fe = null;
+      for (const x of Object.values(r)) {
+        if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === 'F20QOEL8YYLQN2S6SR47') continue;
+        if (['cancelada', 'concluída'].includes(x.estado)) continue;
+        const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
+        const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
+        alvo = x; fe = f; break;
+      }
+      if (!alvo) return;
+      const chave = alvo.hash + '|prio|' + (alvo.faseToq || 0); const L = GM_getValue('fup_lock', {}) || {};
+      if (L[chave] && Date.now() - L[chave].t < 90000 && L[chave].aba !== ABA_ID) return;
+      L[chave] = { aba: ABA_ID, t: Date.now() }; GM_setValue('fup_lock', L);
+      await new Promise(s => setTimeout(s, 1500 + Math.random() * 1500));
+      const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
+      if (!navPega('fase')) return;
+      prioRodando = true;
+      const marca = (mud, hist) => { const r2 = RG(), x = r2[alvo.hash]; if (!x) return; Object.assign(x, mud); x.hist.push(hhmm(Date.now()) + ' ' + hist); gravaRG(r2); desenharRegua(); };
+      try {
+        if (!(await esperaChatLivre(alvo.hash))) return;
+        await abrir(alvo.hash);   // abre e confere telefone + mensagens na tela (7.31)
+        if (janelaVencidaAgora()) { marca({ faseToq: 9 }, 'prioridade (' + fe.fase + '): janela de 24 h vencida — vigia/varredura'); return; }
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(window.top.document.body.innerText + '\n' + document.body.innerText)) { if (!(await liberarChat())) { marca({ faseToq: 9 }, 'prioridade: chat com humano e não liberou — vigia'); return; } }
+        if (clienteRespondeu()) { marca({ faseToq: 9 }, 'prioridade (' + fe.fase + '): cliente respondeu — fica para o vigia'); return; }
+        const n = alvo.faseToq || 0;
+        await mensagemLivre(TOQUES_FASE[fe.fase][n](nomeDoAlvo(alvo)));
+        marca({ faseToq: n + 1 }, 'prioridade: toque ' + (n + 1) + ' de ' + TOQUES_FASE[fe.fase].length + ' (' + fe.fase + ')');
+        try { diario(alvo.nomeReal || alvo.nome || alvo.hash.slice(0, 5), '⭐ assinado — toque ' + (n + 1) + ' do ' + (fe.fase === 'falta desbloquear' ? 'desbloqueio' : 'Meu INSS (anuência)')); } catch (e) {}
+      } catch (e) { marca({}, 'prioridade ERRO: ' + String(e.message || e).slice(0, 120)); }
+      finally { prioRodando = false; navSolta('fase'); }
+    }
+    setInterval(() => { if (faz('followup')) olharPrioridade(); }, 60000);
 
     // ================================================================ 4.47 — FOLLOW-UPS SEM LINK E LEMBRETES (Stefany 11/11 11:36, autorizado)
     //  1) Pedimos o CPF e o cliente sumiu → toque 1 h depois e outro às 08:00.
