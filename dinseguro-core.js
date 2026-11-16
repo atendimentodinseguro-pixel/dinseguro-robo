@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.47';
+  const VERSAO = '7.48';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1862,7 +1862,8 @@
     window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite, extra) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
       O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; if (extra && typeof extra === 'object') Object.assign(O[h], extra); GM_setValue('auto_ordens', O); return true; };   // 5.70: extra = { valorVigia, fone, … }
     // 6.90 (caso Dulce): para MUDAR uma ordem que já existe (estado, banco, reenvio…) sem apagar valor/parcela/link/ficha — o dinsAutoCpf recria do zero.
-    window.dinsAutoMudar = (h, mud) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h] || !mud || typeof mud !== 'object') return false; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(hhmm(Date.now()) + ' vigia mudou: ' + Object.keys(mud).join(',')); GM_setValue('auto_ordens', O); return true; };
+    window.dinsAutoMudar = (h, mud) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h] || !mud || typeof mud !== 'object') return false; Object.assign(O[h], mud);
+      if (mud.link) { try { const R0 = GM_getValue('regua', {}) || {}; if (R0[h] && R0[h].link !== mud.link) { R0[h].link = mud.link; R0[h].faseFeita = ''; R0[h].faseTent = 0; (R0[h].hist = R0[h].hist || []).push(hhmm(Date.now()) + ' link novo do vigia → a esteira passa a seguir este (7.48)'); GM_setValue('regua', R0); } } catch (e) {} }   /* 7.48 (caso Fernanda: link FACTA novo e a régua seguia o link do C6 → pago não aparecia) */ (O[h].hist = O[h].hist || []).push(hhmm(Date.now()) + ' vigia mudou: ' + Object.keys(mud).join(',')); GM_setValue('auto_ordens', O); return true; };
     window.dinsNaoMexer = (h, on = true) => { const N = GM_getValue('nao_mexer', {}) || {}; if (on) N[h] = Date.now(); else delete N[h]; GM_setValue('nao_mexer', N); return Object.keys(N); };   // 4.79: o robô não manda nada automático nesse chat
     window.dinsPedirCpfPular = h => { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; PC[h] = Date.now(); GM_setValue('pedir_cpf_feito', PC); return true; };   // 4.78: não pedir CPF automático para esse chat
     window.dinsAutoApagar = h => { const O = GM_getValue('auto_ordens', {}) || {}; delete O[h]; GM_setValue('auto_ordens', O); return true; };
@@ -2980,9 +2981,11 @@
     // horário 8h–21h, vigia livre, chat certo (tela parada + telefone), sem humano, cliente não falou por último, trava entre abas.
     const LINHA_FASE = {
       'falta desbloquear': n => `${n ? n + ', b' : 'B'}oa notícia! 🎉 O banco aprovou a sua proposta. Agora falta só um passo: desbloquear o seu benefício para empréstimo no Meu INSS. Te mando o passo a passo aqui embaixo 👇`,
-      'falta anuência': n => `${n ? n + ', o' : 'O'} desbloqueio deu certo! 🙌 Agora falta só confirmar a contratação no Meu INSS (a anuência). Te mando o passo a passo aqui embaixo 👇`
+      'falta anuência': n => `${n ? n + ', o' : 'O'} desbloqueio deu certo! 🙌 Agora falta só confirmar a contratação no Meu INSS (a anuência). Te mando o passo a passo aqui embaixo 👇`,
+      // 7.48 (Stefany 16/11 19:01/19:23, caso Fernanda: "verifica no painel se já fez o pagamento… avisar… não quero ficar te lembrando"): esteira PAGO → avisa + /22N e abre o pós-venda
+      'pago': n => `${n ? n + ', n' : 'N'}otícia boa! 🎉 O seu empréstimo já foi PAGO pelo banco e o valor já foi enviado para a sua conta. Confere aí e me avisa quando cair, tá? 😊`
     };
-    const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'] };
+    const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'], 'pago': ['/22N'] };
     // 4.51 — libera "Chat em atendimento com Fulano": ⋮ → "Liberar chat bloqueado por …". Procura em todos os documentos (o menu abre em overlay).
     async function liberarChat() {
       const docs = () => [window.top.document, document, ...[...window.top.document.querySelectorAll('iframe')].map(f => { try { return f.contentDocument; } catch (e) { return null; } }).filter(Boolean)];
@@ -3040,6 +3043,7 @@
         // protegido ou "com humano". Só o chat de teste fica de fora.
         if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || x.hash === 'F20QOEL8YYLQN2S6SR47') continue;
         const f = faseEsteira(x); if (!f || !ATALHOS_FASE[f.fase] || x.faseFeita === f.fase) continue;
+        if (f.fase === 'pago') { try { const P0 = (GM_getValue('pos_pago', {}) || {})[x.hash]; if (P0 && P0.t22) continue; } catch (e) {} }   // 7.48: já avisado do pago (vigia/robô)
         if ((x.faseTent || 0) >= 3) continue;
         alvo = x; fe = f; break;
       }
@@ -3066,7 +3070,7 @@
           if (!ok) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ': chat travado com humano e não consegui liberar — vigia'); return; }
           marca({}, 'fase ' + fe.fase + ': chat liberado para mandar');
         }
-        if (clienteRespondeu()) { marca({ faseTent: 3 }, 'fase ' + fe.fase + ': cliente falou por último — fica para o vigia'); return; }
+        if (clienteRespondeu() && !/^\s*(ok+|okay|aguardo|aguardando|t[áa]|t[áa] bom|blz|beleza|certo|obrigad[oa]|grat[oa]|👍|🙏|agora (é )?s[óo] aguardar)[\s.!]*$/i.test(((([...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => !e.classList.contains('right')).pop() || {}).innerText) || '').replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/gi, '').replace(/\b(bolt|done_all|check|done)\b/g, '').trim())) { marca({ faseTent: 3 }, 'fase ' + fe.fase + ': cliente falou por último — fica para o vigia'); return; }   // 7.48: 'ok/aguardo' não segura a fase
         const ent = (document.querySelector('.entries') || {}).innerText || '';
         if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
         if (fe.fase === 'falta anuência' && /anu[eê]ncia/i.test(ent.slice(-3000))) { marca({ faseFeita: fe.fase }, 'anuência já tinha sido mandada'); return; }
@@ -3075,6 +3079,7 @@
         await new Promise(s => setTimeout(s, 2500));
         for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
         marca({ faseFeita: fe.fase, faseFeitaT: Date.now(), faseToq: 0 }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
+        if (fe.fase === 'pago') { try { window.dinsPago(alvo.hash, nome); } catch (e) {} }   // 7.48: abre o pós-venda (extra → /W40 → /102 /103)
         log && log('Esteira: ' + fe.fase + ' mandado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) { marca({ faseTent: (alvo.faseTent || 0) + 1 }, 'fase ' + fe.fase + ' ERRO: ' + e.message); }
       finally { faseRodando = false; navSolta('fase'); }
