@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.29';
+  const VERSAO = '7.30';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1436,6 +1436,7 @@
         if (!o.tagsFeitas) { for (const t of tags) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); }
         if (o.nota && !o.notaFeita && !(o.pularSe && passos.some(x => /já tinha saído/.test(x)))) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
         if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
+        else if (d.fluxo) { await esp(8000); try { passos.push('o flow não fechou → ' + await fecharConversa()); limparFiltro(); } catch (e) { passos.push('fechada pelo flow'); } }   // 7.30 (Stefany 16/11 16:25: marcou 07, mandou a mensagem e não fechou — ela fechou à mão)
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
         try { if (window.dinsEsperaTirar && !['sim_link', 'fase_msg', 'pedir_cpf', 'anuncio_sem_bot', 'so_tag'].includes(o.acao)) window.dinsEsperaTirar(o.hash); } catch (e) {}   // 5.81 (Stefany 21:36, azuis sem follow-up: o pedido de CPF/mensagem do robô apagava a própria espera e bloqueava 36 h) · 4.70 (caso Nilva 15:43): desfecho cancela também o follow-up de CPF/simulação
