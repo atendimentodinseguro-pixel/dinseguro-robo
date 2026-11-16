@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.49';
+  const VERSAO = '7.50';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1182,7 +1182,12 @@
         if (!foi) throw new Error('a mídia ' + atalho + ' não apareceu no chat');
         return atalho + ' (mídia)';
       }
-      const cheio = await ate(() => document.querySelector('textarea').value.length > 40, 10000);
+      let cheio = await ate(() => document.querySelector('textarea').value.length > 40, 6000);
+      // 7.50 (Marilza/Andreia 16/11 19:58: /W40, /102, /103, /inss6 'Sem atalho' na tabela → o clique na linha não enchia a caixa).
+      // Tenta de novo clicando na CÉLULA da mensagem (e no texto dentro dela) com eventos de mouse completos.
+      if (!cheio) { try { const alvos = [linhaF.querySelector('td:last-child span, td:last-child div, td:last-child'), linhaF.querySelector('td:nth-child(2)'), ...linhaF.querySelectorAll('span,div')].filter(Boolean);
+          for (const el of alvos) { for (const ty of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(ty, { bubbles: true, cancelable: true, view: window })); await esp(1500); if (document.querySelector('textarea').value.length > 40) { cheio = true; break; } } } catch (e) {} }
+      if (!cheio) cheio = await ate(() => document.querySelector('textarea').value.length > 40, 4000);
       if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
       { /* 6.99 (Stefany 20:01: Dulce e Sonia receberam o passo a passo repetido): a mesma resposta rápida que já está entre as últimas 8 mensagens nossas não sai de novo */
         const v0 = semAcento(String(document.querySelector('textarea').value || '')).replace(/\s+/g, ' ').trim().slice(0, 60);
