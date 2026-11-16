@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.27
+// @version      3.28
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -52,93 +52,166 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.27', t: Date.now() })); } catch (e) {}
-    const esp = ms => new Promise(r => setTimeout(r, ms));
-    const dig = s => String(s || '').replace(/\D/g, '');
-    const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
-    const primeiroNome = n => { const p = String(n || '').replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/)[0] || ''; return p.length >= 3 ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
-    const texto = (caso, nome) => {
-      const pn = primeiroNome(nome);
-      const ola = pn ? ('Oi, ' + pn + '! Tudo bem?') : 'Oi! Tudo bem?';
-      const seg = 'Pode ficar tranquilo(a): não cobramos nada antecipado e nada é feito sem a sua confirmação.';
-      const fim = 'Qualquer dúvida, me chama que eu te ajudo.';
-      if (caso === 'link') return [ola, 'Passando para falar da sua proposta, que continua disponível e é rápido de concluir.', seg, 'Quer que eu reenvie o link para você finalizar?', fim].join('\n\n');
-      if (caso === 'atendimento') return [ola, 'Estou retomando o seu atendimento, que ficou parado porque o WhatsApp encerra a conversa depois de 24 horas.', seg, 'Posso seguir de onde a gente parou?', fim].join('\n\n');
-      return [ola, 'Passando para falar da sua simulação, que ficou pendente só do seu CPF para eu conferir o valor liberado certinho.', seg, 'Se ainda tiver interesse, é só me mandar o número do seu CPF ou do seu benefício que eu confiro para você na hora.', fim].join('\n\n');
-    };
-    const fila = () => { try { return GM_getValue('wa_fila', []) || []; } catch (e) { return []; } };
-    const salva = f => { try { GM_setValue('wa_fila', f); } catch (e) {} };
-    const horario = () => { const d = new Date(); return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < 17; };
-    const marca = (it, mud) => { const f = fila(); const i = f.findIndex(x => x.hash === it.hash && x.criado === it.criado); if (i >= 0) { Object.assign(f[i], mud); salva(f); } };
-    let ocupado = false;
-    const tick = async () => {
-      if (ocupado || !horario()) return;
-      const pend = fila().filter(x => x.estado === 'pendente' && x.fone);
-      if (!pend.length) return;
-      const prox = +GM_getValue('wa_prox', 0) || 0;
-      if (prox - Date.now() > 86400000) return;                            // pausado à mão (dinsWaPausar)
-      const hora = new Date(); const mh = 'wa_hora_' + hora.toDateString() + '_' + hora.getHours();
-      if ((+GM_getValue(mh, 0) || 0) >= 10) return;                       // no máximo 10 por hora
-      const alvo = pend[0];
-      // 3.8: o WhatsApp Web troca o endereço "send?phone=…" por "/" assim que abre a conversa — então a prova de que a
-      // conversa aberta é a do cliente é a marca "abrindo este cliente" (desta aba) + a conversa aberta na tela.
-      const abrindo = (() => { try { return JSON.parse(sessionStorage.getItem('dins_wa_abrindo') || 'null'); } catch (e) { return null; } })();
-      // 3.12 (Stefany 13/11 15:36: "de 15 em 15 minutos… o combinado era 4 a 6"): abrir a conversa recarrega o WhatsApp Web (1–2 min) e isso
-      // somava à pausa. Agora a próxima conversa é aberta JÁ durante a pausa, e a mensagem sai quando a pausa acaba.
-      // 3.27 (Stefany 16/11 12:39 "fica só abrindo conversa e não envia"): o WhatsApp Business demora mais de 3 min para carregar
-      // ("Suas mensagens estão sendo baixadas") e a marca "abrindo" vencia no meio da carga → abria de novo → recarregava sem fim.
-      // Enquanto o WhatsApp ainda carrega, NÃO abre nada: só mantém a marca viva e espera.
-      const appPronto = !!document.querySelector('#pane-side, #side, #main, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
-      if (!appPronto) { if (abrindo && abrindo.hash === alvo.hash) sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() })); return; }
-      if (!abrindo || abrindo.hash !== alvo.hash || Date.now() - abrindo.t > 3 * 60000) {
-        if (Date.now() < prox && prox - Date.now() > 3 * 60000) return;   // ainda falta muito: abre a conversa só nos 3 últimos minutos da pausa
-        sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() }));
-        location.href = 'https://web.whatsapp.com/send?phone=' + (alvo.foneAlt || dig(alvo.fone)); return;
+    // 3.28 (Stefany 16/11 12:41): o envio mora no módulo dinseguro-wa.js do GitHub (abre a conversa pelo + "Nova conversa",
+    // sem recarregar o WhatsApp). O carregador baixa a versão mais nova a cada abertura do WhatsApp; se o site não deixar
+    // rodar o código baixado, usa a cópia embutida abaixo (mesmo código, versão WA 1.0).
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.28', t: Date.now() })); } catch (e) {}
+    const UW = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    const embutido = () => {
+      // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.0
+      // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
+      //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
+      //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
+      //  Agora: o WhatsApp fica aberto; a conversa abre pelo botão "Nova conversa" (+) → digita 55+DDD+número → clica no resultado.
+      //  Só se o + não achar o número é que tenta UMA vez pelo endereço (send?phone=), o jeito antigo.
+      //  Regras mantidas: seg–sex 8h–17h · uma por vez · 4 a 6 min entre envios · no máximo 10 por hora · confere o número
+      //  do cabeçalho · não manda para quem já tem mensagem nossa sem resposta nos últimos 7 dias · texto com as quebras de linha.
+      const esp = ms => new Promise(r => setTimeout(r, ms));
+      const dig = s => String(s || '').replace(/\D/g, '');
+      const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
+      const primeiroNome = n => { const p = String(n || '').replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/)[0] || ''; return p.length >= 3 ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
+      const texto = (caso, nome) => {
+        const pn = primeiroNome(nome);
+        const ola = pn ? ('Oi, ' + pn + '! Tudo bem?') : 'Oi! Tudo bem?';
+        const seg = 'Pode ficar tranquilo(a): não cobramos nada antecipado e nada é feito sem a sua confirmação.';
+        const fim = 'Qualquer dúvida, me chama que eu te ajudo.';
+        if (caso === 'link') return [ola, 'Passando para falar da sua proposta, que continua disponível e é rápido de concluir.', seg, 'Quer que eu reenvie o link para você finalizar?', fim].join('\n\n');
+        if (caso === 'atendimento') return [ola, 'Estou retomando o seu atendimento, que ficou parado porque o WhatsApp encerra a conversa depois de 24 horas.', seg, 'Posso seguir de onde a gente parou?', fim].join('\n\n');
+        return [ola, 'Passando para falar da sua simulação, que ficou pendente só do seu CPF para eu conferir o valor liberado certinho.', seg, 'Se ainda tiver interesse, é só me mandar o número do seu CPF ou do seu benefício que eu confiro para você na hora.', fim].join('\n\n');
+      };
+      const fila = () => { try { return GM_getValue('wa_fila', []) || []; } catch (e) { return []; } };
+      const salva = f => { try { GM_setValue('wa_fila', f); } catch (e) {} };
+      const horario = () => { const d = new Date(); return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < 17; };
+      const marca = (it, mud) => { const f = fila(); const i = f.findIndex(x => x.hash === it.hash && x.criado === it.criado); if (i >= 0) { Object.assign(f[i], mud); salva(f); } };
+      const vis = e => { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      const appPronto = () => !!document.querySelector('#pane-side, #side, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
+      const caixaMsg = () => document.querySelector('#main footer [contenteditable="true"]');
+      const numeroCab = () => { const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); return tel ? chave(tel[0]) : ''; };
+      const clicar = el => { const alvo = el.closest('[role="button"], [role="listitem"], [role="row"], button, [tabindex]') || el; ['mousedown', 'mouseup', 'click'].forEach(t => alvo.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))); };
+      const log = (...a) => { try { console.log('[Dinseguro WA]', ...a); localStorage.setItem('dins_wa_log', JSON.stringify({ t: new Date().toLocaleTimeString('pt-BR'), m: a.join(' ') })); } catch (e) {} };
+
+      // escreve num campo de busca (input comum ou caixa editável do WhatsApp)
+      async function escrever(campo, valor) {
+        campo.focus(); await esp(300);
+        if (campo.tagName === 'INPUT' || campo.tagName === 'TEXTAREA') {
+          const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(campo), 'value').set; set.call(campo, ''); campo.dispatchEvent(new Event('input', { bubbles: true }));
+          set.call(campo, valor); campo.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          document.execCommand('selectAll', false, null); document.execCommand('delete', false, null);
+          document.execCommand('insertText', false, valor);
+        }
       }
-      if (Date.now() < prox) { if (document.querySelector('#main footer [contenteditable="true"]')) sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() })); return; }   // 3.12: conversa já aberta, espera a pausa acabar
-      ocupado = true;
-      try {
-        let cx = null; for (let i = 0; i < 90 && !cx; i++) { cx = document.querySelector('#main footer [contenteditable="true"]'); if (!cx) { if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) break; await esp(1000); } }
-        // 3.11 (Stefany 10:06, caso Carlos Henrique: "todos já estão conversando no WhatsApp… não deveria dar erro"): o número
-        // é bom — o WhatsApp é que demorou. Antes de dar erro, tenta de novo (2ª vez) e, para celular 55+DDD+9+8, também sem o 9.
-        if (!cx) { sessionStorage.removeItem('dins_wa_abrindo'); const tent = (alvo.tentAbrir || 0) + 1; const semNove = /^55\d{2}9\d{8}$/.test(dig(alvo.fone)) && tent === 2;
-          if (tent < 3) { marca(alvo, { tentAbrir: tent, foneAlt: semNove ? dig(alvo.fone).replace(/^(55\d{2})9/, '$1') : '' }); GM_setValue('wa_prox', Date.now() + 30000); return; }
-          marca(alvo, { estado: 'erro', motivo: 'a conversa não abriu em 3 tentativas (com e sem o 9) — conferir o número' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
-        sessionStorage.removeItem('dins_wa_abrindo');
-        const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); const cab = tel ? chave(tel[0]) : '', al = chave(alvo.foneAlt || alvo.fone);   // só um número de telefone do cabeçalho (não a data do "visto por último")
-        // o cabeçalho às vezes mostra o NOME salvo e não o número: aí vale o número da URL, que é o do cliente
-        if (cab && cab !== al) { marca(alvo, { estado: 'erro', motivo: 'número do cabeçalho não confere' }); return; }
-        // 3.9 — quem já tem mensagem nossa sem resposta (outra campanha, envio de antes) NÃO recebe outra (caso Silvia 11/11).
-        await esp(2500);
-        const linhas = [...document.querySelectorAll('#main [role="row"]')].filter(r => r.innerText.trim() && !/protegidas com a criptografia/i.test(r.innerText));
-        const ehNossa = r => !!r.querySelector('[data-icon*="tail-out"],[data-icon*="msg-dblcheck"],[data-icon*="msg-check"],[data-icon*="msg-time"]');
-        // 3.10: só conta mensagem nossa RECENTE (últimos 7 dias). Mensagem de um mês atrás não impede o reenvio (caso Antônio, link de 08/10).
-        const dataDe = r => { const e = r && r.querySelector('[data-pre-plain-text]'); const m = e && /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(e.getAttribute('data-pre-plain-text') || ''); return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0; };
-        const ult = linhas[linhas.length - 1];
-        if (ult && ehNossa(ult)) { const dt = dataDe(ult); const dias = dt ? (Date.now() - dt) / 86400000 : 0;
-          if (!dt || dias < 7) { marca(alvo, { estado: 'pulado', motivo: 'já tem mensagem nossa sem resposta no WhatsApp' + (dt ? ' (há ' + Math.floor(dias) + ' dia(s))' : '') }); GM_setValue('wa_prox', Date.now() + 30000); return; } }
-        if ((cx.innerText || '').trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa já tinha texto (rascunho)' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
-        // 3.9 — o texto entra COLADO (evento de colar), que é o que mantém as quebras de linha; o insertText juntava tudo
-        // ("Oi! Tudo bem?Passando…"). Se as quebras não vierem, não envia.
-        const msg = texto(alvo.caso, alvo.nome);
-        cx.focus(); await esp(400);
-        try { const dt = new DataTransfer(); dt.setData('text/plain', msg); cx.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } catch (e) {}
-        await esp(1500);
-        if (!cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'o texto não entrou na caixa' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
-        const quebras = cx.querySelectorAll('p, br').length > 2 || (cx.innerText.match(/\n/g) || []).length >= 4;
-        if (!quebras) { marca(alvo, { estado: 'erro', motivo: 'o texto entrou sem as quebras de linha — NÃO enviado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
-        const bt = document.querySelector('#main footer button[aria-label="Enviar"]') || ((document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]') || {}).closest || (() => null)).call(document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]'), 'button');
-        if (!bt) { marca(alvo, { estado: 'erro', motivo: 'botão de enviar não encontrado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
-        bt.click(); await esp(3000);
-        if (cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa continuou cheia depois de enviar' }); return; }
-        marca(alvo, { estado: 'enviado', quando: Date.now() });
-        GM_setValue(mh, (+GM_getValue(mh, 0) || 0) + 1);
-        GM_setValue('wa_prox', Date.now() + (4 + Math.random() * 2) * 60000);   // próxima entre 4 e 6 min
-        try { localStorage.setItem('dins_wa_ultimo', JSON.stringify({ nome: alvo.nome, caso: alvo.caso, hora: new Date().toLocaleTimeString('pt-BR').slice(0, 5) })); } catch (e) {}
-      } catch (e) { marca(alvo, { estado: 'erro', motivo: String(e.message || e) }); }
-      finally { ocupado = false; }
+
+      // abre a conversa pelo botão "Nova conversa" (+) sem recarregar o WhatsApp
+      async function abrirPeloMais(numero) {
+        const k = chave(numero);
+        if (caixaMsg() && numeroCab() === k) return 'já aberta';
+        try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (e) {}
+        await esp(500);
+        const botao = [...document.querySelectorAll('[aria-label="Nova conversa"], [title="Nova conversa"], [aria-label="New chat"], [data-icon="new-chat-outline"], [data-icon="new-chat"], [data-icon*="new-chat"]')].find(vis);
+        if (!botao) return 'sem botão +';
+        clicar(botao); await esp(1500);
+        let campo = null;
+        for (let i = 0; i < 10 && !campo; i++) {
+          campo = [...document.querySelectorAll('input[type="text"], input:not([type]), div[contenteditable="true"][role="textbox"], div[contenteditable="true"][data-tab]')]
+            .filter(vis).find(e => !e.closest('#main') && /pesquis|search|nome ou n[úu]mero/i.test((e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('placeholder') || '') + ' ' + (e.getAttribute('title') || '') + ' ' + ((e.parentElement && e.parentElement.innerText) || '')));
+          if (!campo) await esp(500);
+        }
+        if (!campo) return 'sem campo de busca';
+        await escrever(campo, dig(numero));
+        // o resultado do número (contato salvo ou "não está nos seus contatos") — confere os 8 últimos dígitos
+        let item = null;
+        for (let i = 0; i < 20 && !item; i++) {
+          await esp(700);
+          if (/nenhum resultado|no results|n[ãa]o encontrad/i.test(((campo.closest('[role="dialog"], span, div') || document.body).innerText || '').slice(0, 2000)) && i > 8) break;
+          item = [...document.querySelectorAll('[role="listitem"], [role="button"], [role="row"], div[tabindex="-1"], div[tabindex="0"]')]
+            .filter(vis).filter(e => !e.closest('#main') && !e.contains(campo))
+            .find(e => { const t = e.innerText || ''; return t.length < 200 && chave(t.match(/\+?\d[\d\s().-]{7,}\d/g)?.map(dig).join('') || '') === k; });
+        }
+        if (!item) return 'número não apareceu na busca';
+        clicar(item);
+        for (let i = 0; i < 20; i++) { await esp(700); if (caixaMsg() && (numeroCab() === k || !numeroCab())) return 'ok'; }
+        return 'a conversa não abriu depois do clique';
+      }
+
+      let ocupado = false;
+      const tick = async () => {
+        if (ocupado || !horario() || !appPronto()) return;   // WhatsApp ainda carregando: só espera (nunca recarrega)
+        const pend = fila().filter(x => x.estado === 'pendente' && x.fone);
+        if (!pend.length) return;
+        const prox = +GM_getValue('wa_prox', 0) || 0;
+        if (prox - Date.now() > 86400000) return;                            // pausado à mão (dinsWaPausar)
+        if (Date.now() < prox) return;                                       // 4 a 6 min entre envios
+        const hora = new Date(); const mh = 'wa_hora_' + hora.toDateString() + '_' + hora.getHours();
+        if ((+GM_getValue(mh, 0) || 0) >= 10) return;                       // no máximo 10 por hora
+        const alvo = pend[0];
+        const numero = alvo.foneAlt || dig(alvo.fone);
+        ocupado = true;
+        try {
+          // conversa aberta pelo endereço (jeito antigo, só como reserva) já está na tela?
+          const abrindo = (() => { try { return JSON.parse(sessionStorage.getItem('dins_wa_abrindo') || 'null'); } catch (e) { return null; } })();
+          let r = (abrindo && abrindo.hash === alvo.hash && caixaMsg()) ? 'aberta pelo endereço' : await abrirPeloMais(numero);
+          log(alvo.nome || alvo.hash.slice(0, 5), '→', r);
+          if (!/ok|já aberta|aberta pelo endereço/.test(r)) {
+            if (/inv[aá]lido|não está no WhatsApp|isn.t on WhatsApp/i.test(document.body.innerText)) { marca(alvo, { estado: 'erro', motivo: 'número não está no WhatsApp' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+            const tent = (alvo.tentAbrir || 0) + 1;
+            const semNove = /^55\d{2}9\d{8}$/.test(dig(alvo.fone)) && tent === 1 && /não apareceu/.test(r);
+            if (semNove) { marca(alvo, { tentAbrir: tent, foneAlt: dig(alvo.fone).replace(/^(55\d{2})9/, '$1') }); GM_setValue('wa_prox', Date.now() + 20000); return; }
+            if (tent <= 2 && !(abrindo && abrindo.hash === alvo.hash)) {   // reserva: UMA vez pelo endereço
+              marca(alvo, { tentAbrir: tent });
+              sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() }));
+              location.href = 'https://web.whatsapp.com/send?phone=' + dig(alvo.fone); return;
+            }
+            sessionStorage.removeItem('dins_wa_abrindo');
+            marca(alvo, { estado: 'erro', motivo: 'a conversa não abriu (' + r + ') — conferir o número' }); GM_setValue('wa_prox', Date.now() + 60000); return;
+          }
+          sessionStorage.removeItem('dins_wa_abrindo');
+          const cx = caixaMsg();
+          const cab = numeroCab(), al = chave(numero);
+          if (cab && cab !== al && cab !== chave(alvo.fone)) { marca(alvo, { estado: 'erro', motivo: 'número do cabeçalho não confere' }); GM_setValue('wa_prox', Date.now() + 30000); return; }
+          // quem já tem mensagem nossa sem resposta (últimos 7 dias) NÃO recebe outra
+          await esp(2500);
+          const linhas = [...document.querySelectorAll('#main [role="row"]')].filter(x => x.innerText.trim() && !/protegidas com a criptografia/i.test(x.innerText));
+          const ehNossa = x => !!x.querySelector('[data-icon*="tail-out"],[data-icon*="msg-dblcheck"],[data-icon*="msg-check"],[data-icon*="msg-time"]');
+          const dataDe = x => { const e = x && x.querySelector('[data-pre-plain-text]'); const m = e && /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(e.getAttribute('data-pre-plain-text') || ''); return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0; };
+          const ult = linhas[linhas.length - 1];
+          if (ult && ehNossa(ult)) { const dt = dataDe(ult); const dias = dt ? (Date.now() - dt) / 86400000 : 0;
+            if (!dt || dias < 7) { marca(alvo, { estado: 'pulado', motivo: 'já tem mensagem nossa sem resposta no WhatsApp' + (dt ? ' (há ' + Math.floor(dias) + ' dia(s))' : '') }); GM_setValue('wa_prox', Date.now() + 20000); return; } }
+          if ((cx.innerText || '').trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa já tinha texto (rascunho)' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+          const msg = texto(alvo.caso, alvo.nome);
+          cx.focus(); await esp(400);
+          try { const dt = new DataTransfer(); dt.setData('text/plain', msg); cx.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } catch (e) {}
+          await esp(1500);
+          if (!cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'o texto não entrou na caixa' }); GM_setValue('wa_prox', Date.now() + 60000); return; }
+          const quebras = cx.querySelectorAll('p, br').length > 2 || (cx.innerText.match(/\n/g) || []).length >= 4;
+          if (!quebras) { marca(alvo, { estado: 'erro', motivo: 'o texto entrou sem as quebras de linha — NÃO enviado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
+          const ic = document.querySelector('#main footer [data-icon="send"], #main footer [data-icon="wds-ic-send-filled"]');
+          const bt = document.querySelector('#main footer button[aria-label="Enviar"]') || (ic && ic.closest('button, [role="button"]'));
+          if (!bt) { marca(alvo, { estado: 'erro', motivo: 'botão de enviar não encontrado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
+          bt.click(); await esp(3000);
+          if (cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa continuou cheia depois de enviar' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
+          marca(alvo, { estado: 'enviado', quando: Date.now() });
+          GM_setValue(mh, (+GM_getValue(mh, 0) || 0) + 1);
+          GM_setValue('wa_prox', Date.now() + (4 + Math.random() * 2) * 60000);   // próxima entre 4 e 6 min
+          try { localStorage.setItem('dins_wa_ultimo', JSON.stringify({ nome: alvo.nome, caso: alvo.caso, hora: new Date().toLocaleTimeString('pt-BR').slice(0, 5) })); } catch (e) {}
+        } catch (e) { marca(alvo, { estado: 'erro', motivo: String(e.message || e) }); }
+        finally { ocupado = false; }
+      };
+      setInterval(tick, 15000); setTimeout(tick, 12000);
+      try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsWaAbrirTeste = abrirPeloMais; } catch (e) {}   // teste à mão: só abre, não envia
+
     };
-    setInterval(tick, 15000); setTimeout(tick, 12000);
+    const pegarWa = url => new Promise(res => { try { GM_xmlhttpRequest({ method: 'GET', url, nocache: true, timeout: 15000, headers: { 'Cache-Control': 'no-cache' }, onload: r => res(r.status === 200 ? r.responseText : ''), onerror: () => res(''), ontimeout: () => res('') }); } catch (e) { res(''); } });
+    const WAURL = ref => 'https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/' + ref + '/dinseguro-wa.js';
+    (async () => {
+      let codigo = '';
+      try { let sha = ''; try { sha = JSON.parse(await pegarWa('https://api.github.com/repos/atendimentodinseguro-pixel/dinseguro-robo/commits/main')).sha || ''; } catch (e) {}
+        codigo = sha ? await pegarWa(WAURL(sha)) : ''; if (!codigo) codigo = await pegarWa(WAURL('main') + '?t=' + Date.now()); } catch (e) {}
+      if (codigo && /Dinseguro — envio da varredura/.test(codigo)) { GM_setValue('wa_cache', codigo); } else codigo = GM_getValue('wa_cache', '');
+      if (codigo) { try { new Function('GM_getValue', 'GM_setValue', 'unsafeWindow', codigo)(GM_getValue, GM_setValue, UW); console.log('[Dinseguro] WhatsApp: módulo do GitHub', (codigo.match(/Versão WA: ([\d.]+)/) || [])[1]); try { localStorage.setItem('dins_wa_modulo', 'github ' + ((codigo.match(/Versão WA: ([\d.]+)/) || [])[1] || '')); } catch (e) {} return; } catch (e) { console.warn('[Dinseguro] WhatsApp: não deu para rodar o módulo baixado — uso a cópia embutida', e); } }
+      try { localStorage.setItem('dins_wa_modulo', 'embutido 1.0'); } catch (e) {}
+      embutido();
+    })();
     return;   // no WhatsApp Web o robô principal não roda (não precisa)
   }
   const REPO = 'atendimentodinseguro-pixel/dinseguro-robo';
