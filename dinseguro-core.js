@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.35';
+  const VERSAO = '7.36';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1046,7 +1046,14 @@
     const foneDoPainel = () => { const t = document.body.innerText || ''; return (t.match(/(?:Home|Lar)\s*\n\s*(\d{10,13})/) || t.match(/Telefone do WhatsApp\s*\n\s*\+?(\d{10,13})/) || [])[1] || ''; };
     const nomeDoPainel = () => { const t = document.body.innerText || ''; return ((t.match(/\bNome\s*\n\s*([^\n]+)/) || t.match(/\n\s*([^\n]{2,60}?)\s*\n+\s*(?:edit\s*\n+\s*)?[ÚU]ltima sess[ãa]o/) || [])[1] || '').trim(); };
     const soDig = v => String(v || '').replace(/\D/g, '');
+    // 7.36 (Stefany 16/11 16:54, casos Rosa×Vilma e Anauri×Eduardo: o 'sem margem' saiu na conversa errada): o componente que desenha as
+    // mensagens na tela guarda o id do cliente (props.customer._id_). Antes de mandar, esse id tem que ser o do chat da ordem.
+    function idDaTela() { try { const e = document.querySelector('.entries'); if (!e) return null; const k = Object.keys(e).find(x => x.startsWith('__reactFiber')); let f = k && e[k];
+      for (let i = 0; i < 15 && f; i++) { const p = f.memoizedProps; const c = p && p.customer; if (c && typeof c === 'object' && (c._id_ || (c.templateMappings || {}).customerId)) return String(c._id_ || c.templateMappings.customerId); f = f.return; } } catch (e) {} return null; }
+    try { window.dinsIdDaTela = idDaTela; } catch (e) {}
     async function confereChat(hash) {
+      { const okId = await ate(() => { const t = idDaTela(); return t === null || t === hash; }, 20000);
+        if (!okId) throw new Error('a tela mostra as mensagens de OUTRO cliente (' + String(idDaTela() || '?').slice(0, 5) + ' ≠ ' + String(hash).slice(0, 5) + ') — NÃO mandei nada'); }
       const q = Object.assign({}, (GM_getValue('regua', {}) || {})[hash] || {});
       // 5.22 (caso Teresa 12/11: régua sem telefone nem nome → 'painel: ?'): completa com o nome da fila ou da lista de conversas
       if (!soDig(q.fone) && !q.nome) { try { const it = JSON.parse(localStorage.getItem('dins_fila') || '[]').find(f => f.id === hash); if (it && it.nome) q.nome = it.nome;
@@ -1138,6 +1145,7 @@
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
+      { const hT = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iT = idDaTela(); if (hT && iT && iT !== hT) throw new Error('a tela mostra as mensagens de OUTRO cliente (' + iT.slice(0, 5) + ' ≠ ' + hT.slice(0, 5) + ') — NÃO mandei nada'); }   // 7.36
       const porNome = !/^\//.test(atalho);
       ta.focus(); setNativo(ta, porNome ? '/' + atalho : atalho);
       await esp(2500);
@@ -1212,6 +1220,7 @@
     async function mensagemLivre(texto) {
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
+      { const hT = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iT = idDaTela(); if (hT && iT && iT !== hT) throw new Error('a tela mostra as mensagens de OUTRO cliente (' + iT.slice(0, 5) + ' ≠ ' + hT.slice(0, 5) + ') — NÃO mandei nada'); }   // 7.36
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
       // 4.60 (13:22: "Josias, tudo bem?" saiu no chat da Lu): confere que a tela NÃO mudou de chat entre digitar e enviar,
       // e que o vigia não pegou a tela nesse meio-tempo.
