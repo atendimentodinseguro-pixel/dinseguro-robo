@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.25';
+  const VERSAO = '7.26';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -133,7 +133,7 @@
     return r; }
   try { const fC6 = on => { GM_setValue('c6_off', on ? 1 : 0); return 'c6_off=' + (on ? 1 : 0); }; window.dinsC6Off = fC6; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsC6Off = fC6; } catch (e) {}
   function decidirBanco0(f) {
-    { const bo = String(f.banco_ordem_stefany || '').toUpperCase().trim(); if (/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)$/.test(bo)) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 6.27
+    { const bo = (String(f.banco_ordem_stefany || '').toUpperCase().trim().match(/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)\b/) || [])[1]; if (bo) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 7.26 (Rosa 16/11): "FACTA 90 DIAS" também vale   // 6.27
     const idade = parseInt(f.idade) || 0;
     const esp = String(f.especie || '').padStart(2, '0');
     const parcela = num(f.parcela);
@@ -199,7 +199,7 @@
     const dest = String(f.banco_destino || '').toUpperCase(), aqui = String(tela || '').toUpperCase();
     if (!dest || !aqui || dest === aqui) return '';
     if ((RESERVA[dest] || []).includes(aqui)) return '';
-    if (String(f.banco_ordem_stefany || '').toUpperCase() === aqui) return '';
+    if (String(f.banco_ordem_stefany || '').toUpperCase().trim().split(/\s+/)[0] === aqui) return '';
     // 4.44 (Stefany 11:11: "Ordem Stefany saiu, não existe mais"): quem NÃO é invalidez segue a hierarquia sozinho —
     // C6 → FACTA → QUALIBANK — quando o banco anterior reprova/não serve (caso Jairo: C6 "Reprovado Política Interna 66").
     const CADEIA = ['C6', 'FACTA', 'QUALIBANK'];
@@ -513,7 +513,7 @@
             // 5.99 (Stefany 13/11 11:11, caso Michele: mandou a conta certa) — conta informada pelo cliente/vigia: extra.contaFix = { banco, agencia, conta, tipo_conta }
             if (o.contaFix && typeof o.contaFix === 'object') { const put2 = (k, v) => { if (!v) return; ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
               put2('banco', o.contaFix.banco); put2('agencia', o.contaFix.agencia); put2('conta', o.contaFix.conta); put2('tipo_conta', o.contaFix.tipo_conta); put2('conta_origem', 'informada pelo cliente no chat (vigia)'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
-            if (o.bancoStefany) { const put3 = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; }; put3('banco_ordem_stefany', String(o.bancoStefany).toUpperCase()); put3('banco_destino', String(o.bancoStefany).toUpperCase()); ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 6.27: banco mandado pela Stefany (extra.bancoStefany)
+            if (o.bancoStefany) { const put3 = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; }; const bS = String(o.bancoStefany).toUpperCase().trim(); put3('banco_ordem_stefany', bS); put3('banco_destino', bS.split(/\s+/)[0]); if (/90\s*DIAS|CAR[EÊ]NCIA/.test(bS)) put3('prazo_ordem_stefany', 'CARENCIA 90 DIAS');   /* 7.26 (Rosa 16/11): 'FACTA 90 DIAS' → banco FACTA + carência */ ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 6.27: banco mandado pela Stefany (extra.bancoStefany)
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             const f3 = GM_getValue('ficha_atual', null);
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
