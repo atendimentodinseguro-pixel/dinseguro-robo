@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.21';
+  const VERSAO = '7.22';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -3590,6 +3590,7 @@
     window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome, true); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
+    window.dinsWaReativar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && x.estado === 'arquivado' && /tirado à mão/.test(x.motivo || '')) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; delete x.tentAbrir; delete x.foneAlt; n++; } }); GM_setValue('wa_fila', f); return n; };   // 7.22: desfaz o dinsWaTirar
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
     window.dinsVarreContinua = on => { if (on !== undefined) GM_setValue('varre_continua', !!+on); return GM_getValue('varre_continua', false) ? 'contínua (20 em 20 min, 8h–16h)' : 'horários fixos (8/10/12/14/16h)'; };   // 7.21
     try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreContinua = window.dinsVarreContinua; } catch (e) {}
