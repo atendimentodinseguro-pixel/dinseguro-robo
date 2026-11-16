@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.34';
+  const VERSAO = '7.35';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -3018,7 +3018,7 @@
       const ta0 = document.querySelector('textarea'); if (ta0 && ta0.value.trim()) return;
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
-        if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === 'F20QOEL8YYLQN2S6SR47') continue;
+        if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === 'F20QOEL8YYLQN2S6SR47' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
         const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
