@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.43';
+  const VERSAO = '7.44';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -5921,7 +5921,9 @@
   async function gravarELink(f) {
     { const t = prazoProibido(f, (el('prazo') || {}).value); if (t) throw new Error(t); }
     // 4.12 — liberado abaixo do valor que o cliente pediu NÃO grava
-    { const ped = num(f.valor), lib = num(f._liberado); if (ped > 0 && lib > 0 && lib < ped) throw new Error(`⛔ Liberado R$ ${brl(lib)} abaixo do pedido R$ ${brl(ped)}: aumente a parcela (o cliente pediu ${brl(ped)} → tem que ser ${brl(ped)} ou mais).`); }
+    { const ped = num(f.valor), lib = num(f._liberado); if (ped > 0 && lib > 0 && lib < ped) throw new Error(`⛔ Liberado R$ ${brl(lib)} abaixo do pedido R$ ${brl(ped)}: aumente a parcela (o cliente pediu ${brl(ped)} → tem que ser ${brl(ped)} ou mais).`);
+      // 7.44: liberado MUITO acima do pedido (Alessandro: pediu 5.000, saiu 8.079,74) também não grava.
+      if (ped > 0 && lib > ped * 1.15) throw new Error(`⛔ Liberado R$ ${brl(lib)} muito acima do pedido R$ ${brl(ped)} (7.44): a parcela está errada. Corrija a parcela e digite de novo.`); }
     // 6.01 (Stefany 13/11 11:50): no C6, cliente com 2 propostas em andamento → a 3ª é REPROVADA sozinha. Não grava: o vigia pede à Stefany quais cancelar.
     if (pagina === 'c6' && !window.__dinsC6TerceiraOk) { try { const cpfL = String(f.cpf || '').replace(/\D/g, '').replace(/^0+/, ''); const E = GM_getValue('esteira', {}) || {}; const vistos = new Set();
       const ativas = Object.keys(E).filter(k => k.startsWith('C:')).map(k => E[k]).filter(r => r && String(r.cpf || '').replace(/^0+/, '') === cpfL && /C6/i.test(r.banco || '') && Date.now() - (+r.t || 0) < 3 * 24 * 3600000 && !/cancel|reprov|pag[oa]\b|integrad|finaliz|recusad/i.test((r.status || '') + ' ' + (r.statusBanco || '') + ' ' + (r.real || ''))).filter(r => { const k = r.link || r.status + r.nome; if (vistos.has(k)) return false; vistos.add(k); return true; });
@@ -5979,6 +5981,8 @@
       if (a === 'Digitar') {
         const f = textoParaFicha(ta.value);
         { const g = GM_getValue('ficha_atual'); if (g && g.aleatoria_ok && so(g.cpf) === so(f.cpf)) f.aleatoria_ok = 1; }   // 5.20: a marca da aleatória não passa pelo texto da ficha
+        // 7.44 (caso Fernanda/Alessandro 16/11 18:06): o vigia mudou o valor para 5.000 mas a parcela velha (183,20) ficou → saiu proposta de 8 mil. Valor manda: parcela fora do valor é recalculada.
+        { const ped = num(f.valor), par = num(f.parcela); if (ped > 0) { const pNec = Math.ceil(ped * 648.39 / 28400 * 1.003 * 100) / 100; if (!par || par > pNec * 1.15) { log(`Parcela ${f.parcela || '(vazia)'} não bate com o valor R$ ${brl(ped)} → parcela R$ ${brl(pNec)} (7.44).`, 'erro'); f.parcela = brl(pNec); ta.value = fichaParaTexto(f); } } }
         if (!so(f.cpf) || !so(f.beneficio) || !num(f.parcela)) return log('Ficha precisa de cpf, beneficio e parcela.', 'erro');
         if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
