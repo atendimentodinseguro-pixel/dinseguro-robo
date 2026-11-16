@@ -1,4 +1,4 @@
-// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.3
+// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.4
 // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
 //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
 //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -8,7 +8,14 @@
 //  do cabeçalho · não manda para quem já tem mensagem nossa sem resposta nos últimos 7 dias · texto com as quebras de linha.
 // 1.3 (Stefany 16/11 15:35 "uma mensagem a cada 15 minutos"): a aba do WhatsApp fica em segundo plano e o Chrome freia os
 // temporizadores (1 por minuto) → cada espera de 0,7 s virava 1 min. Agora as esperas usam um Worker, que o Chrome não freia.
-const ESP_W = (() => { try { const w = new Worker(URL.createObjectURL(new Blob(['onmessage=e=>setTimeout(()=>postMessage(e.data.id),e.data.ms)'], { type: 'text/javascript' }))); const cb = new Map(); let n = 0; w.onmessage = e => { const f = cb.get(e.data); cb.delete(e.data); if (f) f(); }; return ms => new Promise(r => { const id = ++n; cb.set(id, r); w.postMessage({ id, ms }); }); } catch (e) { return null; } })();
+// 1.4: o WhatsApp bloqueia Worker por CSP (o 1.3 travou o laço inteiro às 15:43). Agora testa o Worker com um "ping";
+// se não responder em 1,5 s, usa setTimeout normal (como no 1.2).
+let ESP_W = null;
+try { const w = new Worker(URL.createObjectURL(new Blob(['onmessage=e=>setTimeout(()=>postMessage(e.data.id),e.data.ms)'], { type: 'text/javascript' }))); const cb = new Map(); let n = 0;
+  w.onmessage = e => { const f = cb.get(e.data); cb.delete(e.data); if (f) f(); };
+  const viaW = ms => new Promise(r => { const id = ++n; cb.set(id, r); w.postMessage({ id, ms }); });
+  Promise.race([viaW(10).then(() => 1), new Promise(r => setTimeout(() => r(0), 1500))]).then(ok => { if (ok) ESP_W = viaW; });
+} catch (e) {}
 const esp = ms => ESP_W ? ESP_W(ms) : new Promise(r => setTimeout(r, ms));
 const dig = s => String(s || '').replace(/\D/g, '');
 const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
