@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.26';
+  const VERSAO = '7.27';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1728,7 +1728,7 @@
       else if (/CANCEL|REPROV|RECUS|NEGAD/.test(t)) { fase = 'recusada'; acao = 'banco recusou/cancelou → ver com a Stefany'; }
       else if (/ENVIO DOC|AGUARD\w* DOC|PEND\w* (DE )?DOC/.test(t)) { fase = 'falta documento'; acao = 'pedir o documento (linha pessoal + /CLT1)'; }   // 4.79
       else if (/ANUENCIA|ANUÊNCIA/.test(t)) { fase = 'falta anuência'; acao = 'mandar linha pessoal + /anuencia + /anuencia2'; }
-      else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA/.test(t)) { fase = 'falta desbloquear'; acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
+      else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA|PROPOSTA ASSINADA/.test(t)) { fase = 'falta desbloquear';   /* 7.27 (Stefany 16/11 16:04): 'Proposta Assinada' já pede o desbloqueio */ acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '' };
     };
