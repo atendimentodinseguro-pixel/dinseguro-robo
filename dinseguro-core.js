@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.28';
+  const VERSAO = '7.29';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -653,7 +653,7 @@
     async function cpfDoServidor(h) { try { const js = await apiLer(h, 1); if (!js) return '';
         const vv = Object.assign({}, ((js.customer || {}).variables) || {}, ((((js.result || {}).state) || {}).variables) || {});
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
-    function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
+    function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
         O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; r9[h].cpfSrv = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
@@ -674,7 +674,9 @@
     const meuPapel = () => { const p = sessionStorage.getItem('dins_papel') || 'tudo'; return PAPEIS.includes(p) ? p : 'tudo'; };
     const abasVivas = () => { const o = {}; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue;
       try { const v = JSON.parse(window.localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000) o[k.slice(9)] = v; else if (Date.now() - (+v.t || 0) > 3600000) window.localStorage.removeItem(k); } catch (e) {} } return o; };
-    const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
+    const consultaViva = () => { try { return Date.now() - (+GM_getValue('mc_vivo', 0) || 0) < 10 * 60000; } catch (e) { return true; } };   // 7.29
+    window.dinsConsultaViva = consultaViva;
+    const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; if (r === 'atendimento' && !consultaViva()) return false;   /* 7.29: sem Multicorban neste navegador não atende (não abre ordem) */ const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
       const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
     // 5.84 (Stefany 13/11 08:57: "não vi a iniciação com as 4 janelas"): o papel ficava só na aba e sumia quando o Chrome fechava.
@@ -2104,6 +2106,7 @@
               if (fechou && cs) { const E8 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cs); const at8 = E8.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')) && Date.now() - (+y.t || 0) < 30 * 24 * 3600000);
                 if (at8) cs = ''; }
               if (cs && outroV) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 mandou o CPF mas clicou "Outro valor" sem dizer qual → vigia pergunta o valor (6.72)'); API_ADIA[id] = Date.now() + 30 * 60000; return false; }
+              if (cs && Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) { API_ADIA[id] = Date.now() + 10 * 60000; return false; }   // 7.29: sem Multicorban aqui → deixa para o navegador do atendimento
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32' + (vEsc ? ', valor escolhido no bot R$ ' + vEsc : '') + ': ' + origem + ', sem abrir a conversa)'] };
                 GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; }
@@ -2117,6 +2120,7 @@
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
                   API_ADIA[id] = Date.now() + 30 * 60000; diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'voltou pelo anúncio sem CPF → pedido do CPF (6.86)'); return false; }
+                if (iA >= 0 && cv.length === 11 && Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) { API_ADIA[id] = Date.now() + 10 * 60000; return false; }   // 7.29
                 if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
                   const E9 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cv); const ativa = E9.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')));
                   const nome9 = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(); const pn9 = (nome9.split(/\s+/)[0] || '').replace(/[^A-Za-zÀ-ÿ]/g, ''); const pnOk = /^[A-ZÀ-Ý][a-zà-ÿ]{2,}$/.test(pn9) ? pn9 : '';
@@ -5064,6 +5068,9 @@
 
   // ================================================================== MULTICORBAN
   if (location.host === 'app.multicorban.com') {
+    // 7.29 (Stefany 16/11 16:24, casos José Maria, Jurandir, Marcos, Sandro, Ivan): sinal de vida do Multicorban NESTE navegador.
+    // O Chrome da varredura (outro navegador, sem Multicorban) abria ordem e mandava "já estou consultando" — a ordem ficava presa lá.
+    try { GM_setValue('mc_vivo', Date.now()); setInterval(() => { try { GM_setValue('mc_vivo', Date.now()); } catch (e) {} }, 20000); } catch (e) {}
     if (!/\/search\//.test(location.pathname)) return;   // só na tela de consulta (não no login)
     const p = painel('Ficha do cliente');
     p.querySelector('#dins-corpo').innerHTML =
