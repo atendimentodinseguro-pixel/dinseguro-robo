@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.40';
+  const VERSAO = '7.41';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -3113,6 +3113,7 @@
       const ta0 = document.querySelector('textarea'); if (ta0 && ta0.value.trim()) return;
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
+        if (x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita] && !x.faseFeitaT && !protegido(x.hash)) { x.faseFeitaT = Date.now() - 3 * 3600000; x.faseToq = 2; r[x.hash] = x; gravaRG(r); }   // 7.41: assinados de antes da 7.32 entram nos toques do dia seguinte (9h e 15h)
         if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === 'F20QOEL8YYLQN2S6SR47' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
