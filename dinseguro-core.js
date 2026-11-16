@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.39';
+  const VERSAO = '7.40';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1650,6 +1650,23 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, linha: linhaQ, atalhos: ['INSS6A - Manual quitação antecipada INSS|midia'], nota: ddq + ' ' + hhmm(agora5) + ' [robô 5.79] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → linha de quitação antecipada + PDF INSS6A.' }));
             return;
           }
+          // 7.40 (Stefany 16/11 17:22, caso Fernanda: o vigia disse "não cai no mesmo dia" — ERRADO): "o valor cai no mesmo dia; o prazo de liberação é 60 minutos
+          // depois que ele finalizar a assinatura digital pela biometria facial". Cliente com proposta pergunta quando cai → resposta certa. 1 vez a cada 20 h.
+          { const PRZ = /(cai|cair|caia|deposit\w*|libera\w*|entra|recebo|receber)[^?\n]{0,40}(mesmo dia|hoje|quando|quanto tempo|demora)|quanto tempo (demora|leva|para cair|pra cair)|quando (o dinheiro |o valor )?(cai|entra)|demora (pra|para) cair/i;
+            const PR = GM_getValue('prazo_resp', {}) || {};
+            for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !x.link || x.semLink || !PRZ.test(x.ultCliTxt || '')) continue;
+              if (PR[k] && agora5 - PR[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
+              let fe = null; try { fe = window.dinsFaseEsteira(k); } catch (e) {}
+              const nm = nomeCli(x);
+              const texto = fe && /desbloquear|anu[eê]ncia/.test(fe.fase)
+                ? 'Cai rapidinho' + (nm ? ', ' + nm : '') + '! 😊 Falta só ' + (fe.fase === 'falta desbloquear' ? 'o desbloqueio do benefício no Meu INSS' : 'a confirmação no Meu INSS') + ' (te mandei o passo a passo aqui). Feito isso, o banco libera e o dinheiro cai na sua conta. Se travar em alguma parte, me manda um print que eu te ajudo agora.'
+                : 'Cai no mesmo dia' + (nm ? ', ' + nm : '') + '! 😊 Depois que você finalizar a assinatura com a selfie de segurança (biometria facial), em até 60 minutos o valor já está na sua conta. Se precisar de ajuda para finalizar, me fala aqui.';
+              PR[k] = agora5; GM_setValue('prazo_resp', PR);
+              if (teste) continue;
+              const dd9 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, texto, nota: dd9 + ' ' + hhmm(agora5) + ' [robô 7.40] cliente perguntou quando cai → prazo de liberação (até 60 min depois da assinatura).' }));
+              diario(nm || k.slice(0, 5), 'perguntou quando o dinheiro cai → respondi o prazo (7.40)');
+              return; } }
           // 7.37 (Stefany 16/11 17:30, casos Jairo e Andreia: "desisti" respondido com "tudo bem" — ERRADO): "a gente tem que sempre entender por quê,
           // com o objetivo de contornar a objeção e gerar venda". Cliente disse que desistiu / não quer → pergunta o motivo + segurança + consulta grátis. 1 vez a cada 20 h.
           { const DESI = /(?<![\wÀ-ÿ])(desisti|desisto|n[ãa]o quero mais|n[ãa]o tenho (mais )?interesse|deixa (pra|para) l[áa]|n[ãa]o vou querer|n[ãa]o quero n[ãa]o|n[ãa]o quero)(?![\wÀ-ÿ])/i;
