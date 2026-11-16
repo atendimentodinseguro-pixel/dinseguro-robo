@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.31
+// @version      3.32
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -55,10 +55,10 @@
     // 3.28 (Stefany 16/11 12:41): o envio mora no módulo dinseguro-wa.js do GitHub (abre a conversa pelo + "Nova conversa",
     // sem recarregar o WhatsApp). O carregador baixa a versão mais nova a cada abertura do WhatsApp; se o site não deixar
     // rodar o código baixado, usa a cópia embutida abaixo (mesmo código, versão WA 1.0).
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.31', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.32', t: Date.now() })); } catch (e) {}
     const UW = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const embutido = () => {
-      // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.2
+      // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.3
       // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
       //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
       //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -66,7 +66,10 @@
       //  Só se o + não achar o número é que tenta UMA vez pelo endereço (send?phone=), o jeito antigo.
       //  Regras mantidas: seg–sex 8h–17h · uma por vez · 4 a 6 min entre envios · no máximo 10 por hora · confere o número
       //  do cabeçalho · não manda para quem já tem mensagem nossa sem resposta nos últimos 7 dias · texto com as quebras de linha.
-      const esp = ms => new Promise(r => setTimeout(r, ms));
+      // 1.3 (Stefany 16/11 15:35 "uma mensagem a cada 15 minutos"): a aba do WhatsApp fica em segundo plano e o Chrome freia os
+      // temporizadores (1 por minuto) → cada espera de 0,7 s virava 1 min. Agora as esperas usam um Worker, que o Chrome não freia.
+      const ESP_W = (() => { try { const w = new Worker(URL.createObjectURL(new Blob(['onmessage=e=>setTimeout(()=>postMessage(e.data.id),e.data.ms)'], { type: 'text/javascript' }))); const cb = new Map(); let n = 0; w.onmessage = e => { const f = cb.get(e.data); cb.delete(e.data); if (f) f(); }; return ms => new Promise(r => { const id = ++n; cb.set(id, r); w.postMessage({ id, ms }); }); } catch (e) { return null; } })();
+      const esp = ms => ESP_W ? ESP_W(ms) : new Promise(r => setTimeout(r, ms));
       const dig = s => String(s || '').replace(/\D/g, '');
       const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
       const primeiroNome = n => { const p = String(n || '').replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/)[0] || ''; return p.length >= 3 ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
@@ -203,7 +206,7 @@
         } catch (e) { marca(alvo, { estado: 'erro', motivo: String(e.message || e) }); }
         finally { ocupado = false; }
       };
-      setInterval(tick, 15000); setTimeout(tick, 12000);
+      (async () => { await esp(12000); for (;;) { try { await tick(); } catch (e) {} await esp(15000); } })();   // 1.3: laço pelo Worker (sem freio de aba em segundo plano)
       try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsWaAbrirTeste = abrirPeloMais; } catch (e) {}   // teste à mão: só abre, não envia
 
     };
@@ -215,7 +218,7 @@
         codigo = sha ? await pegarWa(WAURL(sha)) : ''; if (!codigo) codigo = await pegarWa(WAURL('main') + '?t=' + Date.now()); } catch (e) {}
       if (codigo && /Dinseguro — envio da varredura/.test(codigo)) { GM_setValue('wa_cache', codigo); } else codigo = GM_getValue('wa_cache', '');
       if (codigo) { try { new Function('GM_getValue', 'GM_setValue', 'unsafeWindow', codigo)(GM_getValue, GM_setValue, UW); console.log('[Dinseguro] WhatsApp: módulo do GitHub', (codigo.match(/Versão WA: ([\d.]+)/) || [])[1]); try { localStorage.setItem('dins_wa_modulo', 'github ' + ((codigo.match(/Versão WA: ([\d.]+)/) || [])[1] || '')); } catch (e) {} return; } catch (e) { console.warn('[Dinseguro] WhatsApp: não deu para rodar o módulo baixado — uso a cópia embutida', e); } }
-      try { localStorage.setItem('dins_wa_modulo', 'embutido 1.2'); } catch (e) {}
+      try { localStorage.setItem('dins_wa_modulo', 'embutido 1.3'); } catch (e) {}
       embutido();
     })();
     return;   // no WhatsApp Web o robô principal não roda (não precisa)
