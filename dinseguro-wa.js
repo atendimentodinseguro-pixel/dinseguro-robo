@@ -1,4 +1,4 @@
-// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.0
+// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.1
 // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
 //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
 //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -27,7 +27,8 @@ const vis = e => { if (!e) return false; const r = e.getBoundingClientRect(); re
 const appPronto = () => !!document.querySelector('#pane-side, #side, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
 const caixaMsg = () => document.querySelector('#main footer [contenteditable="true"]');
 const numeroCab = () => { const h = document.querySelector('#main header'); const tel = ((h && h.innerText) || '').match(/\+?\d[\d\s().-]{9,}\d/); return tel ? chave(tel[0]) : ''; };
-const clicar = el => { const alvo = el.closest('[role="button"], [role="listitem"], [role="row"], button, [tabindex]') || el; ['mousedown', 'mouseup', 'click'].forEach(t => alvo.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))); };
+// 1.1 (teste 16/11 12:57): no Tampermonkey o 'view: window' quebra o MouseEvent; e o resultado clicável é o [role=button] de dentro
+const clicar = el => { const alvo = el.closest('[role="button"], button') || el; ['mousedown', 'mouseup', 'click'].forEach(t => alvo.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true }))); };
 const log = (...a) => { try { console.log('[Dinseguro WA]', ...a); localStorage.setItem('dins_wa_log', JSON.stringify({ t: new Date().toLocaleTimeString('pt-BR'), m: a.join(' ') })); } catch (e) {} };
 
 // escreve num campo de busca (input comum ou caixa editável do WhatsApp)
@@ -53,8 +54,9 @@ async function abrirPeloMais(numero) {
   clicar(botao); await esp(1500);
   let campo = null;
   for (let i = 0; i < 10 && !campo; i++) {
-    campo = [...document.querySelectorAll('input[type="text"], input:not([type]), div[contenteditable="true"][role="textbox"], div[contenteditable="true"][data-tab]')]
-      .filter(vis).find(e => !e.closest('#main') && /pesquis|search|nome ou n[úu]mero/i.test((e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('placeholder') || '') + ' ' + (e.getAttribute('title') || '') + ' ' + ((e.parentElement && e.parentElement.innerText) || '')));
+    // 1.1: o campo da "Nova conversa" é o input "Pesquisar nome, número ou @nomedeusuário" (o outro é a busca da lista de conversas)
+    campo = [...document.querySelectorAll('input, div[contenteditable="true"][role="textbox"]')].filter(vis)
+      .find(e => !e.closest('#main') && /n[úu]mero|number/i.test((e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('placeholder') || '')));
     if (!campo) await esp(500);
   }
   if (!campo) return 'sem campo de busca';
@@ -63,10 +65,9 @@ async function abrirPeloMais(numero) {
   let item = null;
   for (let i = 0; i < 20 && !item; i++) {
     await esp(700);
-    if (/nenhum resultado|no results|n[ãa]o encontrad/i.test(((campo.closest('[role="dialog"], span, div') || document.body).innerText || '').slice(0, 2000)) && i > 8) break;
-    item = [...document.querySelectorAll('[role="listitem"], [role="button"], [role="row"], div[tabindex="-1"], div[tabindex="0"]')]
-      .filter(vis).filter(e => !e.closest('#main') && !e.contains(campo))
-      .find(e => { const t = e.innerText || ''; return t.length < 200 && chave(t.match(/\+?\d[\d\s().-]{7,}\d/g)?.map(dig).join('') || '') === k; });
+    if (i > 8 && /nenhum resultado|no results/i.test(document.body.innerText.slice(0, 4000))) break;
+    item = [...document.querySelectorAll('[role="button"], [role="listitem"], [role="option"]')].filter(vis)
+      .find(e => !e.closest('#main') && !e.contains(campo) && String(e.innerText || '').length < 80 && dig(e.innerText).length >= 10 && dig(e.innerText).endsWith(k));
   }
   if (!item) return 'número não apareceu na busca';
   clicar(item);
