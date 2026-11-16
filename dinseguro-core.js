@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.20';
+  const VERSAO = '7.21';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -3591,6 +3591,8 @@
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
+    window.dinsVarreContinua = on => { if (on !== undefined) GM_setValue('varre_continua', !!+on); return GM_getValue('varre_continua', false) ? 'contínua (20 em 20 min, 8h–16h)' : 'horários fixos (8/10/12/14/16h)'; };   // 7.21
+    try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreContinua = window.dinsVarreContinua; } catch (e) {}
     window.dinsVarreLigada = on => { if (on !== undefined) GM_setValue('varredura_ligada', !!on); return GM_getValue('varredura_ligada', true); };   // 6.09: desliga a varredura neste perfil do Chrome (ela passa para o perfil 'varredura')
     try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreLigada = window.dinsVarreLigada; } catch (e) {}
     window.dinsVarreOK = () => { const p = GM_getValue('varre_plano', null); if (!p) return false; p.aprovado = Date.now(); GM_setValue('varre_plano', p); GM_setValue('varre_ok_dia', new Date().toDateString()); return true; };
@@ -4266,9 +4268,13 @@
     setInterval(() => {
       if (!faz('varredura')) return;   // 5.64 papel da aba
       const d = new Date();
-      if (!HORAS_VARREDURA.includes(d.getHours())) return;
+      // 7.21 (Stefany 16/11 11:52: "tem uma pendência grande, ele pode sentar o aço… sem intervalo… dentro do horário programado"):
+      // modo contínuo — em vez de só 8h/10h/12h/14h/16h, roda de 20 em 20 min das 8h às 16h59 (dia útil). O envio pelo
+      // WhatsApp continua com a cadência de sempre (4 a 6 min entre mensagens, no máximo 10 por hora). Liga/desliga: dinsVarreContinua(1/0).
+      const continua = !!GM_getValue('varre_continua', false);
+      if (continua ? (d.getHours() < 8 || d.getHours() > HORA_FIM) : !HORAS_VARREDURA.includes(d.getHours())) return;
       if (d.getDay() === 0 || d.getDay() === 6) return;          // sábado e domingo, não
-      const marca = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + '-' + d.getHours();
+      const marca = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + '-' + d.getHours() + (continua ? '-' + Math.floor(d.getMinutes() / 20) : '');
       if (GM_getValue('varredura_ultima_hora', '') === marca) return;
       // 4.71: se o robô está ocupado (fechando conversa, toque, desfecho), espera a próxima volta — antes a hora era marcada
       // como feita e a rodada daquela hora se perdia.
