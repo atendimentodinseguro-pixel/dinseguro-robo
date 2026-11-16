@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.37';
+  const VERSAO = '7.39';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -3180,7 +3180,7 @@
       if (SIG_NOSSO_FUP.test(raw)) return;               // 4.61: cobrança/follow-up nosso não abre espera nova
       const r = RG(); const temLink = r[hash] && r[hash].link && !r[hash].semLink;
       let tipo = '';
-      if (SIG_DOC.test(raw)) tipo = 'doc';
+      if (SIG_DOC.test(raw) && !/deu (tudo )?certo|parab[ée]ns|j[áa] recebemos|recebi (a|o|sua|seu)|n[ãa]o precisa mandar/i.test(raw)) tipo = 'doc';   // 7.38 (caso Vilson 17:09: 'deu tudo certo com a foto do documento' abria cobrança de documento)
       else if (!temLink && SIG_SIM.test(raw)) tipo = 'simulacao';
       else if (!temLink && SIG_CPF.test(raw)) tipo = 'cpf';
       if (!tipo) return;
@@ -5683,11 +5683,26 @@
       await sleep(800);
     }
     el('btn_simular').click();
-    const linhas = await esperar(() => {
+    let linhas = await esperar(() => {
       const r = [...document.querySelectorAll('table tbody tr')].filter(x => x.offsetParent && /1,85\s*%/.test(x.innerText)
         && !x.classList.contains('bg-light') && !x.classList.contains('iv2-offer-refused') && !/n[ãa]o dispon[íi]vel|n[ãa]o pode|extrapola/i.test(x.innerText));
       return r.length ? r : null;
     }, 30000, 700);
+    // 7.37 (Stefany 16/11 14:19: "caso eu demore, vocês podem fazer a liberação das tabelas"; caso Rosa: só havia tabelas com cadeado 🔒 e o robô parou).
+    // Nenhuma tabela liberada → libera a que serve (cadeado → "Criar e ativar") e simula de novo. Nunca ILETRADO; carência só se pedida.
+    if (!linhas && !window.__dinsLiberouTab) { try {
+      const quer = /car[êe]ncia|90\s*dias/i.test(String(f.carencia || '') + ' ' + String(f.prazo_ordem_stefany || '') + ' ' + String(f.banco_ordem_stefany || ''));
+      const tranc = [...document.querySelectorAll('table tbody tr')].filter(x => x.offsetParent && /1,8[05]\s*%/.test(x.innerText) && !/ILETRADO/i.test(x.innerText)
+        && (/90\s*DIAS|\(\+?\s*90d|car[êe]ncia/i.test(x.innerText) === quer) && (pagina !== 'c6' || /inval/i.test(x.innerText) === invalidez));
+      const tr = tranc.find(x => x.querySelector('[class*="lock"], [data-icon*="lock"]') || /🔒/.test(x.innerText)) || null;
+      const cad = tr && (tr.querySelector('[class*="lock"], [data-icon*="lock"]') || [...tr.querySelectorAll('i,svg,span')].find(e => /🔒/.test(e.textContent || '')));
+      if (cad) { window.__dinsLiberouTab = 1; (cad.closest('a,button,span,td') || cad).click(); await sleep(1500);
+        const bt = await esperar(() => [...document.querySelectorAll('button')].find(b => b.offsetParent && /criar e ativar|^\s*ativar/i.test(b.innerText || '')), 8000, 400);
+        if (bt) { bt.click(); log('Tabela com cadeado liberada: ' + tr.innerText.replace(/\s+/g, ' ').slice(0, 70) + ' (7.37)', 'ok'); await sleep(2500);
+          el('btn_simular').click();
+          linhas = await esperar(() => { const r = [...document.querySelectorAll('table tbody tr')].filter(x => x.offsetParent && /1,85\s*%/.test(x.innerText)
+            && !x.classList.contains('bg-light') && !x.classList.contains('iv2-offer-refused') && !/n[ãa]o dispon[íi]vel|n[ãa]o pode|extrapola/i.test(x.innerText)); return r.length ? r : null; }, 30000, 700); } }
+    } catch (e) {} finally { setTimeout(() => { window.__dinsLiberouTab = 0; }, 60000); } }
     if (!linhas) throw new Error('Nenhuma tabela 1,85% disponível. Confira a simulação na tela.');
     let cand = linhas.filter(x => /inval/i.test(x.innerText) === invalidez);
     if (!cand.length && pagina !== 'c6') cand = linhas;            // FACTA não separa invalidez
