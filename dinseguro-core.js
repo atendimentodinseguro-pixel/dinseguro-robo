@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.32';
+  const VERSAO = '7.33';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1792,7 +1792,8 @@
     const TOQUES = [
       { tipo: '10', rotulo: '10 min — Conseguiu acessar?', dt: t => t + 10 * M },
       { tipo: '60', rotulo: '60 min — /132', dt: t => t + 60 * M },
-      { tipo: 'manha', rotulo: 'último toque 08:00', dt: t => manhaSeguinte(t) },
+      { tipo: 'manha', rotulo: 'toque 08:00', dt: t => manhaSeguinte(t) },
+      { tipo: 'tarde', rotulo: 'último toque 14:00 (7.32)', dt: t => manhaSeguinte(t) + 6 * H },   // 7.32 (Stefany 16/11 16:40: quem aceitou e não assinou tem muita intenção de compra)
     ];
     // 4.31 (Stefany 11/11 09:02, foto: "Bom dia, Alexsandrapereira292!" — "Ele chamou o cliente pelo nome de usuário. Isso aí
     // tá muito errado, não pode repetir."). Nome SÓ se for nome de verdade: primeiro o nome real das notas ([IA]/[robô] Nome…,
@@ -1820,6 +1821,7 @@
         const p = String(nr).trim().split(/\s+/)[0] || ''; if (p.length >= 2) return p[0].toUpperCase() + p.slice(1).toLowerCase(); } catch (e) {}
       return nomeSeguro(alvo && alvo.nome);
     }
+    const MSG_TARDE = nome => `${nome ? nome + ', p' : 'P'}assando rapidinho 😊 A sua proposta continua pronta, com as condições que você viu. Falta só abrir o link e fazer a selfie de segurança para o dinheiro ir para a sua conta. Se tiver qualquer dúvida ou dificuldade, me chama aqui que eu te ajudo agora.`;   // 7.32
     const MSG_MANHA = nome => `Bom dia${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
       'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
       'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
@@ -2630,7 +2632,7 @@
       const estado = (est, motivo) => { const r2 = RG(), x = r2[alvo.hash]; x.estado = est; x.motivo = motivo; x.hist.push(hhmm(Date.now()) + ' ' + est + ': ' + motivo); gravaRG(r2); desenharRegua(); };
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
-      if (toque.tipo === 'manha' && !dentroDoHorario(agora)) return;
+      if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
@@ -2692,6 +2694,7 @@
             if (dif >= 0 && dif < 50 * M && toque.tipo !== 'manha' && d.getTime() > (+alvo.linkT || 0) + 3 * M) { const r6 = RG();   /* 6.53 (caso Eduardo: o próprio LINK era a nossa última mensagem e adiava o toque de 10 min em 1 h — 'recebeu o link e não teve continuação') */ const q6 = r6[alvo.hash] && r6[alvo.hash].toques.find(k => k.tipo === toque.tipo); if (q6) { q6.prox = d.getTime() + 60 * M; gravaRG(r6); } return; } } }
         let enviado;
         if (toque.tipo === 'manha') enviado = await mensagemLivre(MSG_MANHA(nomeDoAlvo(alvo)));
+        else if (toque.tipo === 'tarde') enviado = await mensagemLivre(MSG_TARDE(nomeDoAlvo(alvo)));   // 7.32
         else enviado = await respostaRapida(toque.tipo === '10' ? GM_getValue('atalho_conseguiu', '/bot2') : '/132', false, true);
         const atrasado = Date.now() - toque.quando > 5 * M;
         reg('enviado ' + hhmm(Date.now()) + (atrasado ? ' (atrasado)' : ''), true);
@@ -2700,7 +2703,7 @@
           // 6.54 (caso Vera/Marinez 14/11: retomada + toque forçado deixava 2-3 toques na mesma meia hora): saiu um toque → outro pendente nos próximos 40 min é pulado
           if (x3) x3.toques.forEach(k => { if (k !== q && !k.feito && (+k.quando || 0) < Date.now() + 40 * M) { k.feito = Date.now(); k.st = 'pulado (outro toque acabou de sair — 6.54)'; } });
           gravaRG(r3); desenharRegua(); }
-        if (toque.tipo === 'manha') estado('esgotada', 'três toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP');
+        if (toque.tipo === 'tarde' || (toque.tipo === 'manha' && !(alvo.toques || []).some(k => k.tipo === 'tarde'))) estado('esgotada', 'toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP');   // 7.32: o último agora é o das 14:00
         log && log('Régua: ' + toque.tipo + ' enviado para ' + (alvo.nome || alvo.hash) + '.', 'ok');
       } catch (e) {
         const r2 = RG(), x = r2[alvo.hash]; const q = x.toques.find(k => k.tipo === toque.tipo);
