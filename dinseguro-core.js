@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.27';
+  const VERSAO = '7.28';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -597,7 +597,8 @@
           const f4 = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
           const bc = String(f4.banco || '').replace(/\D/g, '').padStart(3, '0');
           const aleat = bc === '104' && /3880/.test(String(f4.agencia || ''));
-          const dados = { proposta: nro, liberado: (tab && tab[3]) || m[1], parcela: (tab && tab[2]) || f4.parcela || '', prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal };
+          const okV = v => /\d,\d{2}$/.test(String(v || ''));   // 7.28 (Rosa 16/11 15:55: saiu 'R$ 4' — a linha 'Tabela:' do log vem cortada)
+          const dados = { proposta: nro, liberado: okV(m[1]) ? m[1] : ((tab && okV(tab[3])) ? tab[3] : m[1]), parcela: (tab && okV(tab[2])) ? tab[2] : (f4.parcela || ''), prazo: (tab && tab[1]) || f4.prazo || '108', bancoConta: aleat ? '' : (NOME_BANCO[bc] || ''), nomeReal: f4.nome || o.nomeReal };
           // 6.65 (14/11 12:15: o C6 ficava até 20 min preso esperando o link e a fila do C6 crescia): tenta o link no quadro por ~90 s;
           // não saiu → solta a aba (próximo cliente) e o link é buscado pela LISTA de Propostas (aba ?p=propostas), até 25 min.
           for (let i = 0; !link && i < (/[?&]p=c6\b/i.test(location.search) ? 0 : 4); i++) {   // 6.66 (Stefany 14/11 12:28: "no C6 o link nunca sai na hora… nem fica esperando"): C6 grava e segue direto; link pela lista
