@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.41';
+  const VERSAO = '7.42';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1481,7 +1481,7 @@
         else { grava('erro', { erro: e.message }); localStorage.removeItem('dins_ordem'); log && log('Desfecho PAROU: ' + e.message, 'erro'); }
       } finally { rodando = false; }
     }
-    setInterval(() => { if (faz('atendimento')) olharOrdem(); }, 3000);
+    setInterval(() => { if (faz('atendimento')) olharOrdem(); else if (faz('varredura')) { try { const od = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (od && od.quem === 'varredura') olharOrdem(); } catch (e) {} } }, 3000);   // 7.42: no navegador da varredura (sem Multicorban, 7.29) as ordens da própria varredura (fecha) ficavam presas
     // 7.37 (16/11: a aba da varredura ficou parada 16:33–17:06 com uma ordem 'fecha' presa) — ordem parada há mais de 12 min sem andamento sai da fila.
     setInterval(() => { try { const od = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (!od || !od.t || Date.now() - od.t < 12 * 60000) return;
       const st = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); if (st && st.hash === od.hash && st.st === 'rodando' && Date.now() - (+st.t || 0) < 5 * 60000) return;
