@@ -2780,7 +2780,7 @@
         if (nossas.some(t => SIG_VIDEO.test(t)) && !(x && x.tVideo)) window.dinsVideo(hash, nomeSeguro(nomeDoContato()));
       } catch (e) {}
     }, 20000);
-    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47'];
+    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3', '3JRR7X56WSMO5SZEHW3K', 'TYK97LS0A0LUTJ89N3WG', '44PQVTU6SYGBY2WM8E1V', '0KSYJ'];   // 7.23: mesmos chats que não se mexem (João Carlos, Carmen, Lu, Marcelo, teste, Josias, Marilza do Rômulo)
     const detPos = { h: '' };
     let posRodando = false;
     async function olharPos() {
@@ -2798,6 +2798,7 @@
       let alvo = null, passo = '';
       for (const x of Object.values(POS())) {
         if (x.parado) continue;
+        if (NAO_MEXER_POS.some(h => String(x.hash || '').startsWith(h))) continue;   // 7.23
         // 4.35b (Stefany 10:01): cliente CONFIRMOU que recebeu → ANTES da /W40 o vigia vê se ele tem mais valor para liberar
         // (Multicorban) e oferece ("esse valor te ajuda? podemos liberar na mesma conta?"). O robô espera a marca do vigia:
         // dinsPosExtra('HASH', true) = ofereceu → /W40 quando ele responder à oferta (ou 30 min) · dinsPosExtra('HASH', false) = não tem valor → /W40 já.
