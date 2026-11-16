@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.23';
+  const VERSAO = '7.24';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1133,8 +1133,12 @@
             .filter(vis).find(x => x.children.length < 8 && semAcento(txt(x)) === semAcento(atalho)), 10000)
         : await ate(() => [...document.querySelectorAll('tr,li,div')]
             .filter(vis).find(x => x.children.length < 8 && new RegExp('^\\' + atalho + '\\b').test(txt(x))), 10000);
-      if (!linha) throw new Error('resposta rápida ' + atalho + ' não apareceu');
-      clicar(linha);
+      // 7.24 (Jeferson 16/11 12:28): a /W40 apareceu como "Sem atalho" na tabela (o atalho sumiu no Botmaker) → se a busca mostrou
+      // UMA linha só na tabela de respostas rápidas, é ela.
+      let linhaF = linha;
+      if (!linhaF) { const trs = [...document.querySelectorAll('tr')].filter(vis).filter(x => !/^\s*Atalho\s+Mensagem/i.test(txt(x)) && txt(x).length > 30); if (trs.length === 1) linhaF = trs[0]; }
+      if (!linhaF) throw new Error('resposta rápida ' + atalho + ' não apareceu');
+      clicar(linhaF);
       // 4.79: resposta rápida de VÍDEO/arquivo (/dsg25, /anuencia2…) não enche a caixa de texto → espera a prévia e confere pelo nº de mensagens
       if (midia) {
         await esp(3500);
