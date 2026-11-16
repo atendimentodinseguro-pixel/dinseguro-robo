@@ -19,7 +19,7 @@
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
-// @require      https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js
+// @require      https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?v=7.25
 // @connect      raw.githubusercontent.com
 // @connect      api.github.com
 // ==/UserScript==
