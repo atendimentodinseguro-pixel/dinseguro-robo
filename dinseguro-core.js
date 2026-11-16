@@ -44,7 +44,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.22';
+  const VERSAO = '7.23';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -2821,7 +2821,10 @@
         for (let i = 0; i < 10 && !telaPronta(alvo.hash); i++) await new Promise(s => setTimeout(s, 1500));
         if (!telaPronta(alvo.hash)) await destravarTela(alvo.hash);   // 6.45
         if (!telaPronta(alvo.hash)) throw new Error('não abriu o chat');
-        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) { marca({ parado: 1, st: 'chat com outro atendente — parei' }); return; }
+        // 7.23 (Stefany 16/11 12:25, caso Jeferson: "mesmo que tiver no atendimento… você pode fazer aqueles follow-up… de pós-recebimento"):
+        // chat com outro atendente NÃO para mais o pós-pagamento — libera o chat (⋮ → Liberar chat bloqueado) e segue.
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) { try { await liberarChat(); await new Promise(s => setTimeout(s, 2000)); } catch (e) {} }
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(document.body.innerText)) throw new Error('chat com outro atendente e não consegui liberar — tento de novo depois');
         const nossas = [...document.querySelectorAll('.entries [class*="entries-li"].right')].map(e => e.innerText);
         // 4.37: só manda pós-pagamento se a /22N estiver MESMO neste chat (trava contra registro errado)
         if ((passo === 'w40' || passo === 'p102') && !nossas.some(t => SIG_22N.test(t))) { marca({ parado: 1, st: 'a /22N não está neste chat — registro errado, parei' }); return; }
