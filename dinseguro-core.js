@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.45';
+  const VERSAO = '7.46';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -4780,6 +4780,7 @@
       if (cep && !so(cep.value)) {
         if (!f.cep) { const CEPUF = { SP: '01001000', RJ: '20010000', MG: '30110000', PR: '80010000', RS: '90010000', SC: '88010000', BA: '40010000', PE: '50010000', CE: '60010000', GO: '74003010', DF: '70040010', ES: '29010000', PA: '66010000', AM: '69005000', MA: '65010000', PB: '58010000', RN: '59010000', AL: '57020000', SE: '49010000', PI: '64000000', MT: '78005000', MS: '79002000', RO: '76801000', TO: '77001002', AC: '69900000', AP: '68900000', RR: '69301000' };
           if (!String(f.uf || '').trim() || !/^[A-Z]{2}$/i.test(String(f.uf).trim())) f.uf = ufDoDDD(f.telefone) || 'SP'; if (/^CEP$/i.test(String(f.cidade || '').trim())) f.cidade = '';   /* 6.22 */ const uf0 = String(f.uf || '').toUpperCase().trim(); f.cep = CEPUF[uf0] || CEPUF.SP; f.numero = f.numero || '0'; try { log('Sem CEP na ficha → endereço automático da capital (' + (uf0 || 'SP') + '), padrão do endereço aleatório.', 'aviso'); } catch (e) {} }   /* 6.10 */
+        { const c8 = String(f.cep || '').replace(/\D/g, ''); if (c8.length === 7) f.cep = '0' + c8; }   // 7.46 (Andreia 16/11 19:03: CEP 04387-140 chegou sem o zero → '43871-40' → 'Cep inválido' no Daycoval)
         await digitar(cep, f.cep);
         const lupa = caixa(/^CEP$/, sr).querySelector('mat-icon, button, [class*=search]'); if (lupa) lupa.click();
         await esperar(() => (entrada(/^Endere[çc]o$/, sr) || {}).value, 10000);
