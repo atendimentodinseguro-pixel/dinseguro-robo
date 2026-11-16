@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.33';
+  const VERSAO = '7.34';
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1614,7 +1614,10 @@
             if (DR[k] && agora5 - DR[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
             const nm = nomeCli(x); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
             const comProp = x.link && !x.semLink;
-            const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp ? '\n\nSó um aviso importante para você não perder: a condição da sua proposta está garantida para hoje. Amanhã o banco pode mudar a taxa e o valor pode ficar menor — aí eu refaço a simulação e, se nada tiver mudado, seguimos com o mesmo valor. Se conseguir, o ideal é finalizar ainda hoje pelo link 🙏' : '') + '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : 'Me diz um horário certinho que fica bom para você, que eu te chamo exatamente nesse horário. 🤝');
+            const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp
+              ? (temHora ? '\n\nFica combinado então: vou deixar o seu link ativo para você concluir nesse horário, e nessa hora eu te chamo aqui para te ajudar a finalizar. 🤝'
+                         : '\n\nMe diz um horário certinho que fica bom para você concluir, que eu deixo o seu link ativo até lá e te chamo exatamente nesse horário para finalizarmos juntos. 🤝')
+              : '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : 'Me diz um horário certinho que fica bom para você, que eu te chamo exatamente nesse horário. 🤝'));   // 7.34 (Stefany 16/11 16:41: sempre firmar um horário e deixar o link ativo até lá — caso Fernanda)
             DR[k] = agora5; GM_setValue('depois_resp', DR);
             if (teste) continue;
             const dd7 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
