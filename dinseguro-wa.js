@@ -1,4 +1,4 @@
-// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.1
+// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.2
 // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
 //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
 //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -75,6 +75,11 @@ async function abrirPeloMais(numero) {
   return 'a conversa não abriu depois do clique';
 }
 
+// 1.2 (16/11 13:04): uma cópia antiga do envio (rodarWA, do core velho guardado no Tampermonkey) continua rodando no WhatsApp e
+// recarrega a página para send?phone=… a cada minuto. Ela para sozinha quando o contador dela ('wa_feitas_ANO-MES-DIA-HORA')
+// passa de 10 → este módulo deixa esse contador sempre cheio (o nosso contador é outro: 'wa_hora_…').
+const calaAntigo = () => { try { const d = new Date(); for (let h = 0; h < 24; h++) GM_setValue('wa_feitas_' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + '-' + h, 99); } catch (e) {} };
+calaAntigo(); setInterval(calaAntigo, 10 * 60000);
 let ocupado = false;
 const tick = async () => {
   if (ocupado || !horario() || !appPronto()) return;   // WhatsApp ainda carregando: só espera (nunca recarrega)
