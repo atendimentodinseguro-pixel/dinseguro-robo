@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.26
+// @version      3.27
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -52,7 +52,7 @@
   // (web.whatsapp.com/send?phone=…) e confere os 8 últimos dígitos do cabeçalho antes de escrever.
   // Fila: GM 'wa_fila' (quem põe é a varredura do Botmaker). Depois de enviado, o Botmaker fecha a conversa vencida.
   if (location.host === 'web.whatsapp.com') {
-    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.12', t: Date.now() })); } catch (e) {}
+    try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.27', t: Date.now() })); } catch (e) {}
     const esp = ms => new Promise(r => setTimeout(r, ms));
     const dig = s => String(s || '').replace(/\D/g, '');
     const chave = v => { const n = dig(v); return n.length >= 8 ? n.slice(-8) : ''; };
@@ -85,6 +85,11 @@
       const abrindo = (() => { try { return JSON.parse(sessionStorage.getItem('dins_wa_abrindo') || 'null'); } catch (e) { return null; } })();
       // 3.12 (Stefany 13/11 15:36: "de 15 em 15 minutos… o combinado era 4 a 6"): abrir a conversa recarrega o WhatsApp Web (1–2 min) e isso
       // somava à pausa. Agora a próxima conversa é aberta JÁ durante a pausa, e a mensagem sai quando a pausa acaba.
+      // 3.27 (Stefany 16/11 12:39 "fica só abrindo conversa e não envia"): o WhatsApp Business demora mais de 3 min para carregar
+      // ("Suas mensagens estão sendo baixadas") e a marca "abrindo" vencia no meio da carga → abria de novo → recarregava sem fim.
+      // Enquanto o WhatsApp ainda carrega, NÃO abre nada: só mantém a marca viva e espera.
+      const appPronto = !!document.querySelector('#pane-side, #side, #main, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
+      if (!appPronto) { if (abrindo && abrindo.hash === alvo.hash) sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() })); return; }
       if (!abrindo || abrindo.hash !== alvo.hash || Date.now() - abrindo.t > 3 * 60000) {
         if (Date.now() < prox && prox - Date.now() > 3 * 60000) return;   // ainda falta muito: abre a conversa só nos 3 últimos minutos da pausa
         sessionStorage.setItem('dins_wa_abrindo', JSON.stringify({ hash: alvo.hash, t: Date.now() }));
