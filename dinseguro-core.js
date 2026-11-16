@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.48';
+  const VERSAO = '7.49';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -3028,6 +3028,30 @@
         const r2 = RG(); if (r2[h]) { r2[h].posAnu = Date.now(); r2[h].hist.push(hhmm(Date.now()) + ' /pos_anuencia (cliente mandou print/disse que fez a anuência)'); gravaRG(r2); desenharRegua(); }
       } catch (e) {} finally { posAnuRodando = false; }
     }, 30000);
+    // 7.49 (Stefany 16/11 19:32, Vilson): na fase do DESBLOQUEIO, cliente diz que esqueceu a senha / não consegue entrar no Meu INSS / gov.br
+    //  → robô responde sozinho com a recuperação da senha + o caminho do 135. Uma vez por cliente. Só no chat aberto, vigia livre, 8h–21h.
+    const SENHA_INSS = /senha|gov\.?\s?br|esqueci|n[ãa]o (consigo|consegui|t[oô] conseguindo) (entrar|acessar|abrir|logar)|n[ãa]o lembro|bloquead[oa] (a|minha) conta|n[ãa]o sei (fazer|mexer)/i;
+    let senhaRodando = false;
+    setInterval(async () => {
+      if (!faz('followup')) return;
+      if (senhaRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
+      if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
+      try {
+        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === 'F20QOEL8YYLQN2S6SR47' || !telaPronta(h)) return;
+        const r = RG(), x = r[h]; if (!x || x.faseFeita !== 'falta desbloquear' || x.senhaResp) return;
+        if (!dentroDoHorario(Date.now()) || janelaVencidaAgora()) return;
+        const ta = document.querySelector('textarea'); if (!ta || ta.value.trim() || /atendimento com (?!Dinseguro)/i.test(ta.placeholder || '')) return;
+        const ents = [...document.querySelectorAll('.entries [class*="entries-li"]')];
+        const ult = ents[ents.length - 1]; if (!ult || ult.classList.contains('right')) return;   // a última tem que ser do cliente
+        const txt = ents.slice(-3).filter(e => !e.classList.contains('right')).map(e => e.innerText).join(' ');
+        if (!SENHA_INSS.test(txt)) return;
+        if (ents.slice(-12).some(e => e.classList.contains('right') && /recuperar a senha|ligar no \*?135/i.test(e.innerText))) { x.senhaResp = Date.now(); gravaRG(r); return; }
+        senhaRodando = true;
+        const nm = nomeDoAlvo(x);
+        await mensagemLivre(`${nm ? nm + ', s' : 'S'}em problema, isso acontece muito e é fácil de resolver! 😊\n\n*Para recuperar a senha do Meu INSS (é a senha do gov.br):*\n1️⃣ Abra o aplicativo Meu INSS e toque em *Entrar com gov.br*\n2️⃣ Digite o seu CPF e toque em *Continuar*\n3️⃣ Toque em *Esqueci minha senha*\n4️⃣ Escolha receber o código por SMS ou e-mail e crie uma senha nova\n\n📞 *Ou, se preferir, faça o desbloqueio por telefone:* ligue no *135* (grátis, de segunda a sábado, das 7h às 22h) e peça o *desbloqueio do benefício para empréstimo consignado*.\n\nSe travar em alguma parte, me manda um print da tela que eu te ajudo na hora. 🙏`);
+        const r2 = RG(); if (r2[h]) { r2[h].senhaResp = Date.now(); r2[h].hist.push(hhmm(Date.now()) + ' desbloqueio: cliente com problema de senha → recuperação + 135 (7.49)'); gravaRG(r2); desenharRegua(); }
+      } catch (e) {} finally { senhaRodando = false; }
+    }, 30000);
     window.dinsPosAnuFeita = h => { const r = RG(); if (!r[h]) return false; r[h].posAnu = Date.now(); gravaRG(r); return true; };
     let faseRodando = false;
     async function olharFases() {
@@ -3097,7 +3121,10 @@
         n => `${n ? n + ', c' : 'C'}onseguiu fazer o desbloqueio do benefício? 😊 Se travou em alguma parte, me manda um print da tela que eu te guio passo a passo.`,
         n => `${n ? n + ', p' : 'P'}assando para ver como ficou o desbloqueio 🙏 Ele é o último passo do seu lado: com o benefício desbloqueado, o banco já consegue finalizar e o dinheiro cai na sua conta. Precisa de ajuda?`,
         n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta está aprovada e só falta o desbloqueio do benefício no Meu INSS para o dinheiro ir para a sua conta. Quer fazer agora comigo? Eu te acompanho por aqui, passo a passo.`,
-        n => `${n ? n + ', o' : 'O'} seu dinheiro está esperando só o desbloqueio do benefício 💰 Se ficou alguma dúvida ou o aplicativo deu algum erro, me fala aqui ou me diz um horário bom que eu te ajudo.`
+        n => `${n ? n + ', o' : 'O'} seu dinheiro está esperando só o desbloqueio do benefício 💰 Se ficou alguma dúvida ou o aplicativo deu algum erro, me fala aqui ou me diz um horário bom que eu te ajudo.`,
+        // 7.49 (Stefany 16/11 19:32, caso Vilson "esqueci a senha do Meu INSS": "temos que criar um processo para essa galera") — D+2 e D+3 com o caminho do 135
+        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Se o aplicativo do Meu INSS estiver dando trabalho (senha, gov.br, erro), tem um jeito mais fácil: ligar no *135* (grátis, de segunda a sábado, das 7h às 22h) e pedir o *desbloqueio do benefício para empréstimo consignado*. Leva poucos minutos. Depois me avisa aqui que eu acompanho a liberação 🙏`,
+        n => `${n ? n + ', a' : 'A'} sua proposta continua aprovada e reservada para você 💰 Falta só o desbloqueio do benefício (pelo Meu INSS ou ligando no 135). Me diz o que travou que eu resolvo com você agora, ou um horário bom para eu te ajudar.`
       ],
       'falta anuência': [
         n => `${n ? n + ', c' : 'C'}onseguiu fazer a confirmação no Meu INSS? 😊 Quando aparecer como feito, me manda um print aqui. Se travar, eu te ajudo.`,
@@ -3108,7 +3135,9 @@
     };
     const quandoToque = (t0, n) => { const d0 = new Date(t0); if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 2 * 3600000;
       const amanha = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1); if (amanha.getDay() === 6) amanha.setDate(amanha.getDate() + 2); if (amanha.getDay() === 0) amanha.setDate(amanha.getDate() + 1);
-      if (n === 2) { amanha.setHours(9, 0, 0, 0); return amanha.getTime(); } if (n === 3) { amanha.setHours(15, 0, 0, 0); return amanha.getTime(); } return Infinity; };
+      if (n === 2) { amanha.setHours(9, 0, 0, 0); return amanha.getTime(); } if (n === 3) { amanha.setHours(15, 0, 0, 0); return amanha.getTime(); }
+      if (n === 4 || n === 5) { const dd = new Date(amanha); dd.setDate(dd.getDate() + (n === 4 ? 1 : 2)); if (dd.getDay() === 6) dd.setDate(dd.getDate() + 2); if (dd.getDay() === 0) dd.setDate(dd.getDate() + 1); dd.setHours(10, 0, 0, 0); return dd.getTime(); }   // 7.49: D+2 e D+3 às 10h (só o desbloqueio tem 6 toques)
+      return Infinity; };
     window.dinsPrioridadeVer = () => Object.values(RG()).filter(x => x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita]).map(x => { const fe = faseEsteira(x); return { nome: x.nomeReal || x.nome, hash: x.hash, fase: x.faseFeita, agora: fe ? fe.fase : '?', real: fe ? fe.real : '', toques: x.faseToq || 0, prox: x.faseFeitaT ? new Date(quandoToque(x.faseFeitaT, x.faseToq || 0)).toLocaleString('pt-BR').slice(0, 17) : '—' }; });
     let prioRodando = false;
     async function olharPrioridade() {
