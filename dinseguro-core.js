@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.42';
+  const VERSAO = '7.43';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -4691,8 +4691,11 @@
       // autorização de consulta do benefício (SMS ao cliente), como a Stefany faz
       if (alertas().join() .match(/Consulta dados do benef/i) || botaoTxt(/OK, ENVIAR/)) {
         const env = botaoTxt(/OK, ENVIAR/); if (env) { env.click(); await sleep(2500); await fecharAlertas(); log('SMS de autorização enviado ao cliente.'); }
-        const c2 = achaCard(); if (c2) { c2.click(); await sleep(1500); }
-        if (botaoTxt(/OK, ENVIAR/)) { const cc = botaoTxt(/CANCELAR/); if (cc) cc.click(); await sleep(800); }
+        // 7.43 (Stefany 16/11 17:49: "é só clicar lá em enviar e seguir o baile, não precisa esperar a autorização"; caso Luciene: o robô reabria o card e CANCELAVA a janela)
+        for (let k = 0; k < 3 && !/Produtos Dispon[íi]veis/.test(document.body.innerText); k++) {
+          const env2 = botaoTxt(/OK, ENVIAR/); if (env2) { env2.click(); await sleep(2500); await fecharAlertas(); continue; }
+          const c2 = achaCard(); if (c2) { c2.click(); await sleep(2500); }
+        }
       }
       await esperar(() => /Produtos Dispon[íi]veis/.test(document.body.innerText), 20000);
       let p = document.getElementById('margemconsignado');
