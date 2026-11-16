@@ -47,7 +47,19 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.36';
+  const VERSAO = '7.37';
+  // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
+  // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
+  try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
+    setInterval(async () => { try {
+      const t = await (await fetch('https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?t=' + Date.now(), { cache: 'no-store' })).text();
+      const vr = (t.match(/const VERSAO = '([\d.]+)'/) || [])[1]; if (!vr || vr === VERSAO) return;
+      if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 3) return;
+      try { const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && ['consultando', 'digitando', 'pronto', 'gravando'].includes(o.estado) && Date.now() - (+o.t || 0) < 15 * 60000)) return; } catch (e) {}
+      const ta = document.querySelector('textarea'); if (ta && ta.value && ta.value.trim()) return;
+      if (+localStorage.getItem('dins_vigia_trava') > Date.now() || (/botmaker/.test(location.host) && sessionStorage.getItem('dins_papel') === 'vigia')) return;   // aba do vigia: quem recarrega é o vigia
+      n.push(Date.now()); sessionStorage.setItem('dins_auto_reload', JSON.stringify(n)); console.log('[Dinseguro] versão nova ' + vr + ' (rodando ' + VERSAO + ') → recarregando');
+      TOPW.location.reload(); } catch (e) {} }, 10 * 60000); } } catch (e) {}
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1470,6 +1482,28 @@
       } finally { rodando = false; }
     }
     setInterval(() => { if (faz('atendimento')) olharOrdem(); }, 3000);
+    // 7.37 (16/11: a aba da varredura ficou parada 16:33–17:06 com uma ordem 'fecha' presa) — ordem parada há mais de 12 min sem andamento sai da fila.
+    setInterval(() => { try { const od = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (!od || !od.t || Date.now() - od.t < 12 * 60000) return;
+      const st = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); if (st && st.hash === od.hash && st.st === 'rodando' && Date.now() - (+st.t || 0) < 5 * 60000) return;
+      localStorage.removeItem('dins_ordem'); diario(od.nome || String(od.hash || '').slice(0, 5), '⚠️ ordem "' + od.acao + '" presa há ' + Math.round((Date.now() - od.t) / 60000) + ' min → tirada da fila (7.37)'); } catch (e) {} }, 60000);
+    // 7.37 (16/11: C6 demorou para dar o link → 'a digitação não terminou'; C6 REPROVADA ficava parada até o vigia ver). A cada 2 min:
+    // ordem gravada/erro com proposta → procura na lista de propostas (esteira) pelo CPF: tem link → manda simulação + link; REPROVADA → próximo banco.
+    setInterval(() => { try { if (!faz('atendimento')) return; const O = GM_getValue('auto_ordens', {}) || {}; const E = Object.values(GM_getValue('esteira', {}) || {}); let mud = false;
+      for (const h in O) { const o = O[h]; if (!o || !o.proposta || !o.cpf || !['gravada', 'erro'].includes(o.estado) || Date.now() - (+o.t || 0) > 6 * 3600000) continue;
+        if (o.estado === 'gravada' && Date.now() - (+o.tGrav || +o.t || 0) < 4 * 60000) continue;
+        const c = String(o.cpf).replace(/\D/g, ''); const ev = E.filter(y => y && String(y.cpf || '').replace(/\D/g, '') === c && (+y.t || 0) > (+o.t || 0) - 3600000).sort((a, b) => (+b.t || 0) - (+a.t || 0))[0]; if (!ev) continue;
+        const txt = (ev.real || '') + ' ' + (ev.statusBanco || '') + ' ' + (ev.status || '');
+        if (/REPROV|RECUS|NEGAD|CANCEL/i.test(txt)) { if ((o.fallbacks || 0) >= 2) continue;
+          const f = o.ficha || {}; const esp = String(f.especie || '').padStart(2, '0'); const id = parseInt(f.idade) || 0; const inval = ['32', '92'].includes(esp);
+          const atual = String(o.banco || '').toUpperCase(); let prox = '';
+          if (atual === 'C6') prox = inval && id < 60 ? 'DAYCOVAL' : 'FACTA'; else if (atual === 'FACTA') prox = 'QUALIBANK'; else if (atual === 'DAYCOVAL' && id >= 58) prox = 'QUALIBANK';
+          if (!prox) { o.estado = 'erro'; o.erro = atual + ' ' + (ev.real || 'reprovada') + ' e sem próximo banco automático → vigia (7.37)'; mud = true; continue; }
+          Object.assign(o, { estado: 'nova', bancoStefany: prox, banco: '', proposta: '', link: '', erro: '', ficha: null, fallbacks: (o.fallbacks || 0) + 1 }); (o.hist = o.hist || []).push(hhmm(Date.now()) + ' ' + atual + ' ' + (ev.real || 'reprovada') + ' → refazendo no ' + prox + ' (7.37)'); mud = true;
+          diario(o.nomeReal || o.nome || h.slice(0, 5), atual + ' reprovou → refazendo no ' + prox + ' (7.37)'); continue; }
+        if (ev.link && /pendente|assinatura|cadastrad|aguard/i.test(txt) && o.liberado && (o.parcela || (o.ficha || {}).parcela)) {
+          Object.assign(o, { estado: 'link', link: ev.link, parcela: o.parcela || o.ficha.parcela, prazo: o.prazo || '108', erro: '' }); (o.hist = o.hist || []).push(hhmm(Date.now()) + ' link achado na lista de propostas (7.37)'); mud = true;
+          diario(o.nomeReal || o.nome || h.slice(0, 5), 'link achado na lista de propostas → vai simulação + link (7.37)'); } }
+      if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 120000);
     // 4.24 — desfecho automático do CPF sem margem (ordem do Multicorban em GM auto_ordens, estado 'desfecho').
     // Só com a tela livre: sem dins_ordem na fila, vigia parado há 2 min, nenhum desfecho rodando.
     const LINHA_SEM_MARGEM = n => 'Obrigado por mandar' + (n ? ', ' + n : '') + ' 🙏 Já consultei aqui com calma. No momento o seu benefício está sem margem disponível para um novo empréstimo, então infelizmente não conseguimos fazer uma proposta agora. Fique tranquilo(a): não foi feito nada no seu nome. Te explico abaixo 👇';
@@ -1616,6 +1650,22 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, linha: linhaQ, atalhos: ['INSS6A - Manual quitação antecipada INSS|midia'], nota: ddq + ' ' + hhmm(agora5) + ' [robô 5.79] cliente perguntou "' + String(x.ultCliTxt || '').slice(0, 50) + '" → linha de quitação antecipada + PDF INSS6A.' }));
             return;
           }
+          // 7.37 (Stefany 16/11 17:30, casos Jairo e Andreia: "desisti" respondido com "tudo bem" — ERRADO): "a gente tem que sempre entender por quê,
+          // com o objetivo de contornar a objeção e gerar venda". Cliente disse que desistiu / não quer → pergunta o motivo + segurança + consulta grátis. 1 vez a cada 20 h.
+          { const DESI = /(?<![\wÀ-ÿ])(desisti|desisto|n[ãa]o quero mais|n[ãa]o tenho (mais )?interesse|deixa (pra|para) l[áa]|n[ãa]o vou querer|n[ãa]o quero n[ãa]o|n[ãa]o quero)(?![\wÀ-ÿ])/i;
+            const DS = GM_getValue('desisti_resp', {}) || {};
+            for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !DESI.test(x.ultCliTxt || '')) continue;
+              if (DS[k] && agora5 - DS[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
+              const nm = nomeCli(x); const comProp = x.link && !x.semLink;
+              const texto = (nm ? nm + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que te fez desistir? 🙏 Às vezes é uma dúvida sobre segurança, sobre o valor ou sobre a parcela, e quase sempre dá para ajustar do jeito que fica bom para você.' +
+                (comProp ? '\n\nA sua proposta continua disponível e você só confirma se quiser. ' : '\n\nA consulta é gratuita e sem compromisso: você vê o valor e a parcela e decide com calma. ') +
+                '🔒 A Dinseguro não cobra nada adiantado, nunca pede senha e nada é feito sem a sua confirmação.';
+              DS[k] = agora5; GM_setValue('desisti_resp', DS);
+              if (teste) continue;
+              const dd8 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, texto, nota: dd8 + ' ' + hhmm(agora5) + ' [robô 7.37] cliente disse "' + String(x.ultCliTxt || '').slice(0, 50) + '" → pergunta o motivo (contornar objeção).' }));
+              diario(nm || k.slice(0, 5), 'disse que desistiu → perguntei o motivo (7.37)');
+              return; } }
           // 5.60 (Stefany 18:08, caso Douglas): cliente disse "depois / amanhã / mais tarde" → resposta que leva à ação (condição de hoje, sem apertar demais)
           // + pede um HORÁRIO certo; o lembrete sai na hora que ele disser (régua 5.56). Uma vez a cada 20 h.
           const DR = GM_getValue('depois_resp', {}) || {};
@@ -1678,11 +1728,18 @@
           if (!oL.link || !oL.liberado || !oL.parcela || !oL.prazo || /undefined/.test(String(oL.liberado) + oL.parcela + oL.prazo + oL.link)) { oL.estado = 'erro'; oL.erro = 'simulação + link sem valor/parcela/prazo/link na ordem (6.90) → vigia'; GM_setValue('auto_ordens', O); diario(oL.nome || '', '🔴 simulação + link barrada: faltam dados na ordem (6.90)'); return; }
           const nm = nomeCli(oL); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           const aceiteBn = oL.aceite && oL.bancoConta;
+          // 7.37 (padrão 16/11: simulação com 2 opções — normal jan/2027 e carência 90 dias abril/2027; Daycoval só a normal). O valor da carência é ~94,5% do normal
+          // (medido hoje: C6 7.635,70/8.085,23 · FACTA 4.381,93/4.637,03 · modelo 23.483,45/24.849,95) → vai como 'aprox.'; só é digitado se o cliente escolher a 2.
+          const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+          const duasOp = !aceiteBn && !/DAYCOVAL|QUERO/i.test(String(oL.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(oL.bancoStefany || '')) && numL(oL.liberado) > 0;
+          const v2 = duasOp ? brl(Math.floor(numL(oL.liberado) * 0.945 * 100) / 100) : '';
           const linha = aceiteBn
             ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
-            : '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
+            : (duasOp
+              ? '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *aprox. R$ ' + v2 + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *abril/2027*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'
+              : '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝');
           const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm ? nm + ',' : ''], ['Cola link', oL.link]];
-          const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : 'simulação 1/2 + /parabens') + ' (automático).';
+          const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : duasOp ? 'simulação 2 opções (jan/abril) + /parabens' : 'simulação 1/2 + /parabens') + ' (automático).';
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
@@ -2137,6 +2194,18 @@
               // com proposta ativa na lista: vai para o vigia reenviar simulação + link da proposta (regra da Stefany 11:51).
               { let iA = -1; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM !== 'me' && (/desejo mais informa/i.test(txt(m)) || ((m.RENDERING_INFO || {}).referralInfo && !/\d{3}\.?\d{3}\.?\d{3}/.test(txt(m))))) { iA = i; break; }   /* 7.00 (Stefany 20:02, casos Nilson, Simone Santos Costa, Ellis): mensagem só do anúncio, sem texto, também é 'voltou pelo anúncio' */ }
                 const cv = String(((((j.result || {}).state || {}).variables || {}).CPF) || '').replace(/\D/g, '');
+                // 7.37 (Stefany 16/11 17:30, caso Eder: já tinha proposta C6 pendente de assinatura e recebeu pedido de CPF): voltou pelo anúncio e a régua tem LINK
+                // de proposta → não pede CPF: reenvia o link (se a esteira não diz recusada/paga) ou chama o vigia.
+                if (iA >= 0 && cv.length !== 11) { const xr = RG()[id]; const tA = Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0;
+                  if (xr && xr.link && !xr.semLink && Date.now() - tA < 6 * 3600000) { API_ADIA[id] = Date.now() + 30 * 60000;
+                    let fe = null; try { fe = window.dinsFaseEsteira(id); } catch (e) {}
+                    const VL = GM_getValue('volta_link', {}) || {};
+                    if ((fe && /recusada|pago/.test(fe.fase)) || (VL[id] && Date.now() - VL[id] < 12 * 3600000)) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 voltou pelo anúncio e já teve proposta (' + (fe ? fe.real || fe.fase : '?') + ') → vigia (7.37)'); return false; }
+                    VL[id] = Date.now(); GM_setValue('volta_link', VL);
+                    const hh7 = new Date().getHours(); const sd7 = hh7 < 12 ? 'Bom dia' : hh7 < 18 ? 'Boa tarde' : 'Boa noite'; const nm7 = nomeCli(xr);
+                    const linha7 = sd7 + (nm7 ? ', ' + nm7 : '') + '! 😊 Que bom que você voltou! A sua proposta continua disponível 🎉\n\nÉ só abrir o link abaixo pelo celular, conferir os valores e fazer a selfie de segurança para confirmar 👇\n' + xr.link + '\n\nSe quiser rever o valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo agora. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.';
+                    try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'fase_msg', quem: 'robo', nome: nm7 || '', linha: linha7 }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
+                    diario(nm7 || id.slice(0, 5), 'voltou pelo anúncio e já tinha proposta → reenviei o link (7.37)'); return false; } }
                 // 6.86 (caso Marcia Quintanilha HJ481 14:18: voltou pelo anúncio SEM CPF no cadastro e ficou 20 min sem ninguém): pede o CPF sozinho
                 if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
