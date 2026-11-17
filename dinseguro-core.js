@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.74';
+  const VERSAO = '7.75';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -5661,7 +5661,8 @@
         f.recusa = '';
         if (LOAS.includes(espF))             f.recusa = 'LOAS|02 I (ou 02 A se margem ≥ R$ 400)|/n30 pela regra do LOAS e FECHAR a conversa';
         else if (espF && !ESPECIES_OK.includes(espF)) f.recusa = 'ESPECIE_FORA|07|/07 — espécie ' + espF + ' não é atendida, e FECHAR a conversa';
-        else if (!negativo(f.pensao))        f.recusa = 'PENSAO|07|avisar que não atendemos pensão alimentícia e FECHAR a conversa';
+        // 7.75 (Stefany 17/11 15:01, caso Paulo IOLDH esp 42: "Da onde que tirou que esse cara pensão alimentícia? Não pode ter esse tipo de erro"): o campo "Pensão Alimentícia" do Multicorban NÃO recusa mais — só fica anotado
+        else if (!negativo(f.pensao))        { f.obs_pensao = 'Multicorban marcou "' + f.pensao + '" — não é motivo de recusa (7.75)'; }
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|tag + flow Inicio do atendimento — não fazemos proposta com representante legal';
         else if (margem < 25)                f.recusa = 'SEM_MARGEM|01 I|/n30';   // 5.16 (Stefany 12/11 11:25): mínimo R$ 25
         else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|acima de 76 anos: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
