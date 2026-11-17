@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.86';
+  const VERSAO = '7.87';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -753,9 +753,9 @@
       const O0 = GM_getValue('auto_ordens', {}) || {};
       const poe = (h, mud, txt) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + ' (API 7.86)' + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); if (txt) { try { diario(O[h].nomeReal || O[h].nome, txt); } catch (e) {} } };
       // C6 gravado pela API sem link → GET /proposals/{id}
-      const g = Object.values(O0).find(x => x && x.estado === 'gravada' && x.propNc && x.viaApi && Date.now() - (+x.tGrav || 0) < 25 * 60000 && Date.now() - (+x.apiLinkT || 0) > 45000);
+      const g = Object.values(O0).find(x => x && (x.estado === 'gravada' || (x.estado === 'erro' && /link n[ãa]o apareceu/.test(x.erro || ''))) && x.propNc && x.viaApi && Date.now() - (+x.tGrav || 0) < 90 * 60000 && Date.now() - (+x.apiLinkT || 0) > (Date.now() - (+x.tGrav || 0) < 15 * 60000 ? 45000 : 120000));   // 7.87: C6 manda o link em ~18 min (teste Israel) → procura por 90 min, de 45 em 45 s e depois de 2 em 2 min
       if (g) { ocupApi = true; try { poe(g.hash, { apiLinkT: Date.now() }); const p = await ncReq('GET', '/proposals/' + g.propNc); const br = (((p && p.data) || p || {}).bank_reference) || {};
-          if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link }, 'link do ' + g.banco + ' chegou pela API');
+          if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
       const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
