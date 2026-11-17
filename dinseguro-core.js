@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.52';
+  const VERSAO = '7.53';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2230,6 +2230,10 @@
                     try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'fase_msg', quem: 'robo', nome: nm7 || '', linha: linha7 }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
                     diario(nm7 || id.slice(0, 5), 'voltou pelo anúncio e já tinha proposta → reenviei o link (7.37)'); return false; } }
                 // 6.86 (caso Marcia Quintanilha HJ481 14:18: voltou pelo anúncio SEM CPF no cadastro e ficou 20 min sem ninguém): pede o CPF sozinho
+                // 7.53 (caso Dayse 03KB2 16/11 23:10: respondeu 'Não sou' aposentada/pensionista, o bot disse que não há crédito para autônomo, e mesmo assim o robô pediu o CPF):
+                // quem já disse que não é do INSS (ou o bot já fechou como Autônomo) não recebe pedido de CPF.
+                const naoInss753 = nm.some(m => /^\s*n[ãa]o sou\s*$|n[ãa]o (sou|tenho) (aposentad|pensionist|benef)|n[ãa]o recebo (aposentad|pens|benef)|op[çc][ãa]o de cr[ée]ditos? para aut[ôo]nomo/i.test(txt(m)));
+                if (iA >= 0 && cv.length !== 11 && naoInss753) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; }
                 if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
