@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.53';
+  const VERSAO = '7.54';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -450,7 +450,7 @@
           const infoB = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); return { mat: c.find(t => /^\d{8,11}$/.test(t)) || '', esp: String(+(c.find(t => /^\d{1,2}$/.test(t)) || 0)).padStart(2, '0'), ddb: c.find(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t)) || '', ativo: /\bATIVO\b/.test(tr.innerText), valor: c.find(t => /R\$/.test(t)) || '' }; };
           const ordData = d => d.split('/').reverse().join('');
           const ativosB = linhasB().map(infoB).filter(x => x.ativo);
-          if (!ativosB.length) throw new Error('nenhum benefício ATIVO');
+          if (!ativosB.length) { poeAO(o.hash, { estado: 'desfecho', acao: 'sem_beneficio', resumo: 'nenhum benefício ATIVO no CPF' }); return; }   // 7.54: não para mais — retorno + 07 + fecha
           const porMat = {}; for (const x of ativosB) { const k = x.mat || ('?' + Math.random()); if (!porMat[k] || ordData(x.ddb) > ordData(porMat[k].ddb)) porMat[k] = x; }
           const unicos = Object.values(porMat);
           const consig = unicos.filter(x => ESPECIES_OK.includes(x.esp) && !['87', '88'].includes(x.esp));
@@ -981,6 +981,9 @@
     // 5.26: o atalho /07 NÃO EXISTE no Botmaker (conferido 12/11 11:44) → texto próprio (até a Stefany passar o modelo oficial)
     especie_fora:     { atalho: null,  tags: ['07 - Nao Identificado'], fechar: true,
                         texto: 'Oi! 😊 Aqui é da Dinseguro.\n\nConsultei o seu benefício e, infelizmente, ele é de um tipo que o INSS não libera para empréstimo consignado. Por isso, neste momento não conseguimos fazer uma proposta para você. 😔\n\nAgradecemos muito o seu contato e ficamos à disposição!' },
+    // 7.54 (Stefany 16/11 23:47, caso Dayse: "não taguear, não fechar a conversa com o cliente que não é nosso público"): sem benefício do INSS ativo / não é aposentado nem pensionista
+    sem_beneficio:    { atalho: null,  tags: ['07 - Nao Identificado'], fechar: true,
+                        texto: 'Oi! 😊 Aqui é da Dinseguro.\n\nConferi aqui e não encontrei benefício do INSS ativo para você. O nosso empréstimo é o consignado, descontado direto da aposentadoria ou pensão, por isso neste momento não conseguimos fazer uma proposta.\n\nSe você passar a receber algum benefício do INSS, é só chamar aqui que eu faço a simulação na hora. Obrigado pelo contato! 🤝' },
     sem_cpf:          { atalho: '/n23', tags: ['01 C - Inss Nao Informou CPF - SEM 87 e 88'], fechar: false },
     com_margem:       { atalho: null,   tags: ['01 A - Inss Com Margem - SEM 87 E 88'], fechar: false },
     // 6.55 (Stefany 14/11 10:55, caso Marcos Aurelio): representante legal → TAG 03 A/03 B PRIMEIRO + flow "Inicio do atendimento" (o despacho é automático). Sem /inss13.
@@ -1770,6 +1773,9 @@
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now() }));   // 6.84 (caso Tania 14:05: ia como 'nao_localizado' e levava a tag 07 no lugar da 03)
+          } else if (o.acao === 'sem_beneficio') {   // 7.54: retorno + 07 - Nao Identificado + fechar
+            const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 7.54] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' → não é nosso público: retorno + tag 07 + fechar.';
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'sem_beneficio', t: Date.now(), nota }));
           } else if (o.acao === 'especie_fora') {   // 5.15: /07 + 07 - Nao Identificado + fechar (DESFECHOS.especie_fora)
             const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → espécie não consignável: /07 + 07 + fechar (automático 5.15).';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'especie_fora', t: Date.now(), nota }));
@@ -2233,7 +2239,10 @@
                 // 7.53 (caso Dayse 03KB2 16/11 23:10: respondeu 'Não sou' aposentada/pensionista, o bot disse que não há crédito para autônomo, e mesmo assim o robô pediu o CPF):
                 // quem já disse que não é do INSS (ou o bot já fechou como Autônomo) não recebe pedido de CPF.
                 const naoInss753 = nm.some(m => /^\s*n[ãa]o sou\s*$|n[ãa]o (sou|tenho) (aposentad|pensionist|benef)|n[ãa]o recebo (aposentad|pens|benef)|op[çc][ãa]o de cr[ée]ditos? para aut[ôo]nomo/i.test(txt(m)));
-                if (iA >= 0 && cv.length !== 11 && naoInss753) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; }
+                if (iA >= 0 && cv.length !== 11 && naoInss753) { API_ADIA[id] = Date.now() + 6 * 3600000;
+                  /* 7.54: não é nosso público → tag 07 + fecha (o bot já deu o retorno "não temos opção para autônomo") */
+                  if (!/07 - Nao|NaoIdentificado/i.test(tags)) { try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'fecha', quem: 'robo', tags: ['07 - Nao Identificado'], nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 7.54] disse que não é aposentado/pensionista do INSS → não é nosso público: tag 07 + fechar.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); diario(((j.customer.FIRST_NAME || '') + '').trim() || id.slice(0, 5), 'não é do INSS → tag 07 + fechar (7.54)'); } } catch (e) {} }
+                  return false; }
                 if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
