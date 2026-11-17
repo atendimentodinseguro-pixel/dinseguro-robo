@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.81';
+  const VERSAO = '7.82';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -4261,17 +4261,18 @@
       gravaRG(r); return n; };
     window.dinsRecarregarDepois = () => { if (!varrendo && !localStorage.getItem('dins_varrendo')) { window.top.location.reload(); return 'agora'; } localStorage.setItem('dins_recarregar_depois', '1'); return 'depois da rodada'; };
     // depois que a mensagem SAIU pelo WhatsApp Web → fecha a conversa vencida no Botmaker (regra de 09/11 12:17)
+    // 7.82 (Stefany 17/11 15:56: "ele abre e pula, ele fecha também a conversa para não ficar acumulada"): PULADO (já tinha mensagem nossa sem resposta) também fecha — só os das últimas 24 h
     setInterval(async () => {
       if (!faz('varredura')) return;   // 5.64 papel da aba
       if (varrendo || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrabalhando()) return;
-      const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => y.estado === 'enviado' && y.quem === 'varredura 4.27' && (!y.fechado || (typeof y.fechado === 'string' && /^erro/.test(y.fechado) && (y.fechTent || 0) < 3 && Date.now() - (y.fechT || 0) > 20 * 60000)));   // 4.68: erro ao fechar tenta de novo (até 3x, de 20 em 20 min)
+      const f = GM_getValue('wa_fila', []) || []; const x = f.find(y => (y.estado === 'enviado' || (y.estado === 'pulado' && Date.now() - (y.criado || 0) < 24 * 3600000)) && y.quem === 'varredura 4.27' && (!y.fechado || (typeof y.fechado === 'string' && /^erro/.test(y.fechado) && (y.fechTent || 0) < 3 && Date.now() - (y.fechT || 0) > 20 * 60000)));   // 4.68: erro ao fechar tenta de novo (até 3x, de 20 em 20 min)
       if (!x) return;
       if (!navPega('fecha')) return;
       varrendo = true; marcaVarrendo();
       try {
         if (!await abrirHash(x.hash)) return;
         if (!janelaVencidaAgora()) { x.fechado = 'não (cliente voltou e a janela reabriu — é do vigia)'; }
-        else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota('janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
+        else { const r = await executarOrdemVarredura(x.hash, 'fecha', varreNota(x.estado === 'pulado' ? 'janela vencida; já tinha mensagem nossa sem resposta no WhatsApp (não mandei outra). Conversa encerrada.' : 'janela vencida, follow-up enviado pelo WhatsApp (' + x.caso + '). Conversa encerrada.')); x.fechado = r === 'ok' ? Date.now() : r; }
         const f2 = GM_getValue('wa_fila', []) || []; const i = f2.findIndex(y => y.hash === x.hash && y.criado === x.criado); if (i >= 0) { f2[i].fechado = x.fechado; if (typeof x.fechado === 'string' && /^erro/.test(x.fechado)) { f2[i].fechTent = (f2[i].fechTent || 0) + 1; f2[i].fechT = Date.now(); } GM_setValue('wa_fila', f2); }
       } finally { varrendo = false; navSolta('fecha'); localStorage.removeItem('dins_varrendo'); localStorage.removeItem('dins_varre_pausa'); desenharVarredura(); }
     }, 60000);
