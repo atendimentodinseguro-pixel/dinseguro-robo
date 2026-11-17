@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.71';
+  const VERSAO = '7.72';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -697,9 +697,9 @@
     // versão síncrona para os blocos do intervalo: true = tem extrato não lido OU ainda não deu para conferir (espera a próxima volta)
     const EXTR771 = {};
     function extrSync(o) { if (!o || o.extratoOk) return false; const c = EXTR771[o.hash];
-      if (c && Date.now() - c.t < 3 * 60000) return c.pend ? true : c.has;
+      if (c && Date.now() - c.t < 3 * 60000) return c.pend ? 'wait' : c.has;
       if (!c || !c.pend) { EXTR771[o.hash] = { t: Date.now(), pend: true, has: false }; extratoNaoLido(o).then(h => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: h }; }).catch(() => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: false }; }); }
-      return true; }
+      return 'wait'; }
     window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
     const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
     const API_ADIA = {}; const apiAdiado = id => (API_ADIA[id] || 0) > Date.now();   // 6.06: conversa com o BOT falando agora → não abre a tela por 2 min
@@ -1815,7 +1815,7 @@
             return; } }
         // 7.55: SIMULAÇÃO ANTES DA DIGITAÇÃO — manda só a simulação; 15 min sem resposta → um toque; 30 min sem resposta → digita e manda /parabens
         { const oS = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'simulada');
-          if (oS) { if (extrSync(oS)) { oS.estado = 'com_margem'; oS.resumo = (oS.resumo || '') + ' · ⛔ cliente mandou ARQUIVO (extrato) → vigia confere a margem no extrato ANTES de simular (7.71)'; GM_setValue('auto_ordens', O); diario(oS.nomeReal || oS.nome || '', '⛔ mandou extrato → simulação NÃO enviada; vigia lê o extrato (7.71)'); return; } const dS = new Date(), ddS = String(dS.getDate()).padStart(2, '0') + '/' + String(dS.getMonth() + 1).padStart(2, '0');
+          if (oS) { { const ex771 = extrSync(oS); if (ex771 === 'wait') return; if (ex771) { oS.estado = 'com_margem'; oS.resumo = (oS.resumo || '') + ' · ⛔ cliente mandou ARQUIVO (extrato) → vigia confere a margem no extrato ANTES de simular (7.71)'; GM_setValue('auto_ordens', O); diario(oS.nomeReal || oS.nome || '', '⛔ mandou extrato → simulação NÃO enviada; vigia lê o extrato (7.71)'); return; } } const dS = new Date(), ddS = String(dS.getDate()).padStart(2, '0') + '/' + String(dS.getMonth() + 1).padStart(2, '0');
             if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) { oS.estado = 'erro'; oS.erro = 'simulação sem valor/parcela/prazo (7.55) → vigia'; GM_setValue('auto_ordens', O); return; }
             const linhaS = textoSim755(oS);
             oS.estado = 'sim_enviada'; oS.tSimEnv = Date.now(); (oS.hist = oS.hist || []).push(hhmm(Date.now()) + ' simulação enviada (sem proposta gravada)'); GM_setValue('auto_ordens', O);
@@ -1838,7 +1838,7 @@
           } }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
-          if (extrSync(oL)) { oL.estado = 'com_margem'; oL.resumo = (oL.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oL.nomeReal || oL.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
+          { const ex771L = extrSync(oL); if (ex771L === 'wait') return; if (ex771L) { oL.estado = 'com_margem'; oL.resumo = (oL.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oL.nomeReal || oL.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; } }
           // 6.90 (caso Dulce JZRGM 16:34: ordem com 'R$ undefined' e sem link quase saiu) — sem valor, parcela, prazo ou link a simulação NÃO sai: vira erro pro vigia.
           if (!oL.link || !oL.liberado || !oL.parcela || !oL.prazo || /undefined/.test(String(oL.liberado) + oL.parcela + oL.prazo + oL.link)) { oL.estado = 'erro'; oL.erro = 'simulação + link sem valor/parcela/prazo/link na ordem (6.90) → vigia'; GM_setValue('auto_ordens', O); diario(oL.nome || '', '🔴 simulação + link barrada: faltam dados na ordem (6.90)'); return; }
           const nm = nomeCli(oL); const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
