@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.63';
+  const VERSAO = '7.64';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2285,7 +2285,7 @@
               // 6.72 (caso Silvia R92XG 12:1x: escolheu R$ 10.000,00 no bot): a ordem do servidor leva a ÚLTIMA escolha de valor do cliente (erro 56) —
               // botão/texto com R$ → esse valor; "Outro valor"/"Simular outro valor" depois disso → não digita sozinho (vigia pergunta o valor).
               let vEsc = 0, outroV = false; for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (m.FROM === 'me') continue; const tt = txt(m);
-                if (/outro valor|simular outro/i.test(tt)) { outroV = true; break; } const mv = tt.match(/R\$\s*([\d.]+,\d{2})/); if (mv) { vEsc = parseFloat(mv[1].replace(/\./g, '').replace(',', '.')) || 0; break; } }
+                if (/outro valor|simular outro/i.test(tt)) { outroV = true; break; } const mv = tt.match(/R\$\s*([\d.]+,\d{2})/); if (mv) { vEsc = parseFloat(mv[1].replace(/\./g, '').replace(',', '.')) || 0; break; } /* 7.64 (caso Robson Q54UK): valor DIGITADO sem R$ ("15.000,00", "15000", "15 mil") também é escolha de valor */ const mn = tt.match(/^\s*(\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d{4,6}(?:,\d{2})?)\s*(?:reais)?\s*$/i) || tt.match(/^\s*(\d{1,3})\s*mil(?:\s*reais)?\s*$/i); if (mn) { const vv = /mil/i.test(tt) ? (+mn[1]) * 1000 : (parseFloat(mn[1].replace(/\./g, '').replace(',', '.')) || 0); if (vv >= 1000 && vv <= 200000) { vEsc = vv; break; } } }
               // 6.85 (caso Valdemar RBBCH 13:4x: tinha 01 D antiga, passou pelo bot de novo e digitou o CPF — ninguém consultou): cliente 01 D que digitou o CPF
               // só vira consulta nova se NÃO houver proposta ativa dele na lista (com proposta ativa é pergunta da proposta → vigia, regra 6.34/6.35)
               if (fechou && cs) { const E8 = Object.values(GM_getValue('esteira', {}) || {}).filter(y => y && y.cpf === cs); const at8 = E8.some(y => !/cancel|pago|reprov|recusad|integrad/i.test((y.status || '') + ' ' + (y.statusBanco || '')) && Date.now() - (+y.t || 0) < 30 * 24 * 3600000);
