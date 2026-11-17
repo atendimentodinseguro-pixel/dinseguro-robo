@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.56';
+  const VERSAO = '7.57';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1099,7 +1099,7 @@
       if (!ok) throw new Error('não confirmei que o chat aberto é o do cliente (painel: ' + (nomeDoPainel() || '?') + ') — NÃO mandei nada');
       // 7.31 (Stefany 16/11 16:33, caso Rosa × Vilma: o painel já era do cliente certo, mas as MENSAGENS na tela eram de outro chat → o 'sem margem'
       // da Vilma saiu na conversa da Rosa). Confere também as últimas mensagens do cliente: a do servidor tem que estar na tela.
-      try { const js2 = await apiLer(hash, 5); const ms2 = ((js2 && js2.newMessages) || []).filter(m => m.FROM !== 'me' && Date.now() - (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) < 3 * 3600000).map(m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').trim(); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/\s+/g, ' ').trim(); }).filter(t => t.length >= 2);   // 7.45 (Alison 16/11 18:2x: a última do cliente era clique de botão em JSON '{"button":…}' → nunca achava na tela e o pedido de CPF travava a fila)
+      try { const js2 = await apiLer(hash, 5); const ms2 = ((js2 && js2.newMessages) || []).filter(m => m.FROM !== 'me' && Date.now() - (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) < 3 * 3600000).map(m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').trim(); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/\s+/g, ' ').trim(); }).filter(t => t.length >= 2 && !/^__(file|image|audio|video|sticker|document)__$/i.test(t));   /* 7.57 (Vera ROFS0 17/11 07:04: a última do cliente era o EXTRATO em PDF ('__file__') → nunca achava na tela e o desfecho travava) */   // 7.45 (Alison 16/11 18:2x: a última do cliente era clique de botão em JSON '{"button":…}' → nunca achava na tela e o pedido de CPF travava a fila)
         if (ms2.length) { const alvoT = ms2[ms2.length - 1].slice(0, 25);
           const naTela = () => { const en = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => !e.classList.contains('right')).slice(-12).map(e => (e.innerText || '').replace(/\s+/g, ' ')).join(' | '); return en.includes(alvoT); };
           const ok3 = await ate(naTela, 15000);
