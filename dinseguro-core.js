@@ -564,6 +564,8 @@
     }, 15000);
     // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
     if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
+      // 7.83 (17/11 15:50, aba C6 parada com a janela "Proposta gerada" aberta → ninguemMexendo() = false para sempre): aba livre fecha a janela velha de proposta gerada
+      if (!ocupadoAuto) { try { const mv = [...document.querySelectorAll('.modal.show')].find(x => /Proposta gerada/i.test(x.innerText || '')); if (mv) { const fc = [...mv.querySelectorAll('button')].find(x => /^Fechar$/i.test((x.innerText || '').trim())); if (fc) fc.click(); } } catch (e) {} }
       if (ocupadoAuto || /[?&]p=propostas/.test(location.search) || !ninguemMexendo()) return;
       // 7.83 (Stefany 17/11 16:06 "ele consegue ser mais rápido sem perder a precisão?"): cada aba do New Corban pode ficar FIXA num banco
       // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
