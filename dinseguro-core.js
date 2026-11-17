@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.77';
+  const VERSAO = '7.78';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -6013,6 +6013,8 @@
       if (ck && ck.checked) { ck.click(); await sleep(300); if (ck.checked) { ck.checked = false; ck.dispatchEvent(new Event('change', { bubbles: true })); } }
       if (ck) log(ck.checked ? '⚠️ "Documentos enviados pelo cliente" continua MARCADO — desmarque na tela antes de gravar.' : 'Desmarcado: documentos enviados pelo cliente (nós anexamos).', ck.checked ? 'erro' : 'ok');
     }
+    // 7.78 (17/11 15:21, Sandra 3UQG6 FACTA: "Informe o nome da mãe." → Gravar sem confirmação): o auto-complete novo deixa o nome da mãe vazio → ficha ou NAO INFORMADO
+    try { const nm = el('nome_mae'); if (nm && !String(nm.value || '').trim()) { const v = String(f.mae || '').trim() || 'NAO INFORMADO'; const st = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; st.call(nm, v); ['input', 'change', 'blur'].forEach(ev => nm.dispatchEvent(new Event(ev, { bubbles: true }))); log('Nome da mãe vazio → ' + v + ' (7.78)', 'aviso'); } } catch (e) {}
     log('Dados pessoais preenchidos.', 'ok');
   }
 
@@ -6125,6 +6127,7 @@
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
     fechaModaisNC('antes do Gravar');   // 7.77
+    try { const nm = el('nome_mae'); if (nm && !String(nm.value || '').trim()) { const st = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; st.call(nm, String(f.mae || '').trim() || 'NAO INFORMADO'); ['input', 'change', 'blur'].forEach(ev => nm.dispatchEvent(new Event(ev, { bubbles: true }))); } } catch (e) {}   // 7.78
     el('btn_gravar_proposta').click();
     const modal = await esperar(() => {
       const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText));
