@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.67';
+  const VERSAO = '7.68';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2540,7 +2540,14 @@
       if (ant && (ant.link === ultimo.link || Math.abs(ant.linkT - t) < 3 * M)) return;   // já conhecido
       if (ant && ant.linkT > t) return;                          // é um link mais antigo
       if (Date.now() - t > 26 * H) return;                       // link velho (mais de um dia) não abre régua
-      window.dinsLinkEnviado(hash, foneDoContato(), t, ultimo.link, nomeDoContato());
+      // 7.68 (Stefany 17/11 13:15, caso José Geraldo 2850L): a tela mostrava o link de OUTRO cliente (16/11 17:33) e a régua foi criada
+      // no chat errado → toques "Conseguiu acessar?" e "sua proposta será cancelada" para quem nunca recebeu link.
+      // Antes de criar a régua, confirma PELO SERVIDOR que esse link foi mandado por nós NESTE chat; sem confirmação, não cria.
+      const fone0 = foneDoContato(), nome0 = nomeDoContato(), link0 = ultimo.link;
+      apiLer(hash, 80).then(j => { const ms = (j && j.newMessages) || [];
+        const ok = ms.some(mm => mm.FROM === 'me' && String(typeof mm.MESSAGE === 'string' ? mm.MESSAGE : JSON.stringify(mm.MESSAGE || '')).includes(link0));
+        if (!ok) { diario(nome0 || hash.slice(0, 5), '⛔ link na tela não é deste chat (servidor não confirma) → régua NÃO criada (7.68)'); return; }
+        window.dinsLinkEnviado(hash, fone0, t, link0, nome0); }).catch(() => {});
       // toques que já passaram do horário quando a régua é criada atrasada: só o mais recente vale
       const r2 = RG(), x = r2[hash];
       // 3.97 — o que JÁ FOI FEITO à mão (ou por outro atendente) depois do link conta como feito: não repete.
