@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.80';
+  const VERSAO = '7.81';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -607,7 +607,7 @@
           const antesG = logRobo().length;
           const gv = botaoRobo('Gravar'); if (!gv) throw new Error('botão Gravar não está na tela');
           gv.click();
-          let fimG = null; for (let i = 0; i < 70 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6); }
+          let fimG = null; for (let i = 0; i < 70 && !fimG; i++) { await zz(1500); fimG = logRobo().slice(antesG).find(l => l.trim().length > 6 && !/\(7\.7[78]\)|Janela ".*" fechada|Nome da m[ãa]e vazio/.test(l)); }   // 7.81: avisos da 7.77/7.78 não são o resultado do Gravar (caso Luiz Fernando HPB5L: gravou 980104499 e ficou 'erro')
           if (!fimG) throw new Error('o Gravar não respondeu em 60 s');
           const nro = (/Proposta gravada N[º°o]?\s*([A-Z]{0,4}\d+)/.exec(fimG) || [])[1];
           // 6.56 (Stefany 14/11 11:14, caso Luiz 812ZG: Itaú ag 6501 "não foi encontrada"): C6 recusou a AGÊNCIA → refaz sozinho com agência 0001 (mesmo banco e conta), uma vez
