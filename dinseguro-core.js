@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.66';
+  const VERSAO = '7.67';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1815,6 +1815,8 @@
             const dt = Date.now() - (+x.tSimEnv || 0); const lido = Date.now() - (+x.chkOkT || 0) < 3 * 60000;   // só age com a conversa lida há < 3 min (sem resposta do cliente)
             if (dt > 22 * 3600000 || (dt > 2 * 3600000 && !x.chkOkT)) { x.estado = 'erro'; x.erro = 'simulação enviada às ' + hhmm(x.tSimEnv) + ' e não deu para confirmar a resposta (7.55) → vigia'; GM_setValue('auto_ordens', O); continue; }
             if (!okH || !lido) continue;
+            // 7.67 (Stefany 17/11 12:42): proposta ABAIXO de R$ 5.000 → sem confirmação do cliente NÃO digita nem manda /parabens (segue só os toques; aceite → digita)
+            if (dt >= 30 * 60000) { const v767 = parseFloat(String(x.liberado || '').replace(/\./g, '').replace(',', '.')) || 0; if (v767 > 0 && v767 < 5000) { if (!x.semPar767) { x.semPar767 = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta, mas R$ ' + x.liberado + ' < 5 mil → NÃO digita sem confirmação (7.67)'); GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', 'simulação abaixo de R$ 5 mil sem resposta → não digita sem o cliente confirmar (7.67)'); } continue; } }
             if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
             if (dt >= 15 * 60000 && !x.fupSim) { x.fupSim = Date.now(); GM_setValue('auto_ordens', O); const nmF = nomeCli(x);
