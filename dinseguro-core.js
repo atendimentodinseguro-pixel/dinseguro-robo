@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.64';
+  const VERSAO = '7.65';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -464,6 +464,8 @@
             if (!tr) throw new Error('não achei de novo a linha do benefício ' + mat.slice(-4));
             [...tr.querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
             for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000); };
+          // 7.65 (caso Maria Helena): vigia escolhe o benefício → o.matVigia = matrícula; segue só com ele (cliente com 2 benefícios, digitar um de cada vez)
+          if (o.matVigia) { const mv0 = String(o.matVigia).replace(/\D/g, '').replace(/^0+/, ''); const cv0 = cands.filter(x => x.mat.replace(/^0+/, '') === mv0); if (cv0.length) cands.splice(0, cands.length, ...cv0); }
           if (cands.length > 1) {
             const res = [];
             for (const c of cands) {
