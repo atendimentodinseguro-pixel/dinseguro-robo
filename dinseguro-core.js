@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.61';
+  const VERSAO = '7.62';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1560,7 +1560,7 @@
           if (!cli.length) { y.chkOkT = Date.now(); GM_setValue('auto_ordens', O2); continue; }
           const ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
           const nmR = y.nomeReal || y.nome || '';
-          if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode)\b[^?\d]{0,25}$/i.test(ult))) {
+          if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
           else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
             Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: digitar FACTA 90 DIAS e mandar o link (7.55)' }); diario(nmR, '🔴 escolheu a opção 2 (carência) → vigia digita (7.55)'); }
