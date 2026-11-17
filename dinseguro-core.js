@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.60';
+  const VERSAO = '7.61';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1534,12 +1534,20 @@
     const nomeZapOk = n => { const t = String(n || '').trim(); if (!t || /[^\p{L}\s'.-]/u.test(t) || /\.\.|\d/.test(t)) return ''; const w = t.split(/\s+/).filter(Boolean); return w.length >= 2 && w[0].replace(/[^\p{L}]/gu, '').length >= 3 && w.every(x => x.replace(/[^\p{L}]/gu, '').length >= 2) ? t : ''; };
     const nomeCli = x => primeiroNome((x && x.nomeReal) || nomeZapOk(x && x.nome));
     // 7.55: texto da simulação (padrão 16/11: 2 opções jan/abril; Daycoval/Quero Mais/carência pedida → 1 opção)
+    // 7.61 (Stefany 17/11 10:55): cliente pediu VALOR LIBERADO e tem margem → as duas opções liberam o valor pedido (um pouco acima, como sempre);
+    // a opção com carência fica com a parcela um pouco maior (~ parcela ÷ 0,945). Sem pedido de valor (máximo) → mesma parcela e valor ~5,5% menor.
+    function opcao2_761(o) { const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+      const lib = numL(o.liberado), par = numL(o.parcela); const marg = numL(((String(o.resumo || '').match(/margem R\$ ([\d.,]+)/) || [])[1]) || '0');
+      const pediu = (+o.valorBot || 0) > 0 || (+o.valorVigia || 0) > 0 || numL((o.ficha || {}).valor) > 0;
+      const p2 = Math.ceil(par / 0.945 * 100) / 100;
+      if (pediu && lib > 0 && par > 0 && (!marg || p2 <= marg)) return { v2: brl(lib), p2: brl(p2), pediu: 1 };
+      return { v2: brl(Math.floor(lib * 0.945 * 100) / 100), p2: o.parcela, pediu: 0 }; }
     function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
       const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
       const seg = '\n\n✅ Sem taxas escondidas\n✅ Você pode cancelar de graça em até 7 dias\n⭐ Nota 4,9 no Google e empresa verificada no Reclame Aqui\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.';
       if (!duas) return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*' + seg + '\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
-      const v2 = brl(Math.floor(numL(o.liberado) * 0.945 * 100) / 100);
-      return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *aprox. R$ ' + v2 + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *abril/2027*' + seg + '\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'; }
+      const o2 = opcao2_761(o); const v2 = o2.v2;
+      return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *' + (o2.pediu ? '' : 'aprox. ') + 'R$ ' + v2 + '*\n📆 ' + o.prazo + 'x de *' + (o2.pediu ? 'aprox. ' : '') + 'R$ ' + o2.p2 + '*\n🗓️ 1ª parcela: *abril/2027*' + seg + '\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'; }
     // 7.55: lê pelo servidor se o cliente respondeu à simulação (sem abrir a tela). 1/sim → grava e manda o link já; 2 → vigia (carência);
     // 3/não desejo → pergunta o motivo; qualquer outra coisa (dúvida, outro valor) → vigia responde.
     setInterval(async () => { if (!faz('atendimento')) return; try {
@@ -1822,7 +1830,7 @@
           // (medido hoje: C6 7.635,70/8.085,23 · FACTA 4.381,93/4.637,03 · modelo 23.483,45/24.849,95) → vai como 'aprox.'; só é digitado se o cliente escolher a 2.
           const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
           const duasOp = !aceiteBn && !/DAYCOVAL|QUERO/i.test(String(oL.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(oL.bancoStefany || '')) && numL(oL.liberado) > 0;
-          const v2 = duasOp ? brl(Math.floor(numL(oL.liberado) * 0.945 * 100) / 100) : '';
+          const o2L = duasOp ? opcao2_761(oL) : { v2: '', p2: oL.parcela, pediu: 0 }; const v2 = o2L.v2;   // 7.61
           const linha = oL.simGravar
             ? (oL.aceitouSim
               ? 'Perfeito' + (nm ? ', ' + nm : '') + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
@@ -1830,7 +1838,7 @@
             : aceiteBn
             ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
             : (duasOp
-              ? '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *aprox. R$ ' + v2 + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *abril/2027*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'
+              ? '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *' + (o2L.pediu ? '' : 'aprox. ') + 'R$ ' + v2 + '*\n📆 ' + oL.prazo + 'x de *' + (o2L.pediu ? 'aprox. ' : '') + 'R$ ' + o2L.p2 + '*\n🗓️ 1ª parcela: *abril/2027*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'
               : '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝');
           const trocas = aceiteBn ? [['{NOME}', nm], ['{VALOR}', 'R$ ' + oL.liberado], ['{BANCO}', oL.bancoConta], ['colar link', oL.link], ['cola link', oL.link]] : [['{NOME}', nm ? nm + ',' : ''], ['Cola link', oL.link]];
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 4.75] ' + (oL.nomeReal || oL.nome || '') + ' · ' + (oL.resumo || '') + ' · ' + (oL.banco || 'C6') + ' Nº ' + (oL.proposta || '') + ' R$ ' + oL.liberado + ' ' + oL.prazo + 'x R$ ' + oL.parcela + ' · ' + (aceiteBn ? 'linha + /bn54n' : duasOp ? 'simulação 2 opções (jan/abril) + /parabens' : 'simulação 1/2 + /parabens') + ' (automático).';
