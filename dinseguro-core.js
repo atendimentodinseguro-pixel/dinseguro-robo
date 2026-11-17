@@ -47,13 +47,15 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.78';
+  const VERSAO = '7.79';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
     setInterval(async () => { try {
       const t = await (await fetch('https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?t=' + Date.now(), { cache: 'no-store' })).text();
       const vr = (t.match(/const VERSAO = '([\d.]+)'/) || [])[1]; if (!vr || vr === VERSAO) return;
+      // 7.79 (17/11: a aba [VARREDURA] recarregava a cada versão nova NO MEIO da rodada e a rodada nunca terminava): varrendo → só recarrega quando a rodada acabar
+      if (/botmaker/.test(location.host) && Date.now() - (+sessionStorage.getItem('dins_varrendo') || 0) < 3 * 60000) { localStorage.setItem('dins_recarregar_depois', '1'); return; }
       if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 3) return;
       try { const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && ['consultando', 'digitando', 'pronto', 'gravando'].includes(o.estado) && Date.now() - (+o.t || 0) < 15 * 60000)) return; } catch (e) {}
       const ta = document.querySelector('textarea'); if (ta && ta.value && ta.value.trim()) return;
@@ -4116,7 +4118,7 @@
     //  • FATIAS: a cada 5 conversas abertas, pausa de 2 min (robô do atendimento e vigia trabalham); com cliente esperando a pausa estica;
     //  • CURSOR: a rodada guarda o que já fez (GM varre_cursor); recarregou/travou → retoma sozinha do mesmo ponto até as 17h;
     //  • versão nova do robô só entra entre rodadas: localStorage dins_recarregar_depois='1' → recarrega quando a rodada acabar.
-    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17;
+    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17, WA_LOTE = 10;
     async function varrerJanelaVencida(forcarExecucao, retomar) {
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
@@ -4128,7 +4130,11 @@
       let acabou = false;
       try {
         const hoje = new Date().toDateString();
-        const primeira = cur0 ? !!cur0.primeira : (GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao); cursor.primeira = primeira;
+        // 7.79 (Stefany 17/11 15:24: "ficar analisando as 242 e não mandar ninguém… pega 10, manda"): na aba PRÓPRIA da varredura (papel 'varredura')
+        // não existe mais a 1ª rodada só de lista esperando o botão "Pode executar" (ninguém olha aquele Chrome e o dia passava sem mensagem).
+        const abaPropria = meuPapel() === 'varredura';
+        const primeira = abaPropria ? false : (cur0 ? !!cur0.primeira : (GM_getValue('varre_ok_dia', '') !== hoje && !forcarExecucao)); cursor.primeira = primeira;
+        if (abaPropria && GM_getValue('varre_ok_dia', '') !== hoje) GM_setValue('varre_ok_dia', hoje);
         const itens = await colherHashes(); placar.lista = itens.length; salva();
         const plano = { dia: hoje, t: Date.now(), primeira, itens: [], lista: itens.length };
         // 4.64 (Stefany 14:13: "Varredura ainda usa a numeração antiga"): o painel lia o plano da rodada anterior
@@ -4141,6 +4147,10 @@
           if (NAO_MEXER_HASH.includes(it.id)) continue;
           if (cursor.feitos.includes(it.id)) continue;   // 5.45: já feito antes da recarga
           if (new Date().getHours() >= VARRE_LIMITE_H) { log && log('Varredura: passou das ' + VARRE_LIMITE_H + 'h — o resto fica para a próxima rodada.', 'aviso'); break; }
+          // 7.79 "pega 10, manda": com 10 esperando na fila do WhatsApp (o envio é no máximo 10 por hora) a análise para; a próxima rodada continua de onde a fila parou
+          if (!primeira) { const fW = GM_getValue('wa_fila', []) || [];
+            if (fW.filter(x => x.estado === 'pendente' && x.fone).length >= WA_LOTE) { placar.lote = WA_LOTE; log && log('Varredura: ' + WA_LOTE + ' na fila do WhatsApp — paro de analisar e continuo na próxima rodada.', 'ok'); break; }
+            if (fW.some(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000)) { placar.ja_wa = (placar.ja_wa || 0) + 1; continue; } }   // já está na fila/já recebeu nos últimos 7 dias: não analisa de novo
           if (naFatia >= VARRE_FATIA && !varreSozinha()) {   // 5.45: pausa da fatia — atendimento trabalha (6.11: não quando a varredura tem perfil próprio)
             naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
             while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente(true) && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
