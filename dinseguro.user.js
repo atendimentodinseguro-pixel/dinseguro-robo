@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.34
+// @version      3.35
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -18,10 +18,12 @@
 // @grant        GM_getValue
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
+// @grant        GM_registerMenuCommand
 // @grant        unsafeWindow
 // @require      https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?v=7.25
 // @connect      raw.githubusercontent.com
 // @connect      api.github.com
+// @connect      developers.newcorban.com.br
 // ==/UserScript==
 
 /* Carregador 3.3 — 07/11/2026. Três problemas já resolvidos aqui:
@@ -243,9 +245,12 @@
   const rodar = (codigo, origem) => {
     try {
       if (window.__dinsCoreRodou) { console.log('[Dinseguro] robô já rodando pela cópia do @require (eval bloqueado neste site)'); return; }
-      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', 'var __dinsViaEvalLocal = 1;\n' + codigo)(   // 3.13: avisa o core que veio pelo eval
+      // 3.35 (17/11 20:30): passa também GM_xmlhttpRequest e GM_registerMenuCommand (digitação pela API do New Corban — robô 7.86)
+      new Function('GM_getValue', 'GM_setValue', 'GM_notification', 'GM_setClipboard', 'unsafeWindow', 'GM_xmlhttpRequest', 'GM_registerMenuCommand', 'var __dinsViaEvalLocal = 1;\n' + codigo)(   // 3.13: avisa o core que veio pelo eval
         GM_getValue, GM_setValue, GM_notification, GM_setClipboard,
-        typeof unsafeWindow !== 'undefined' ? unsafeWindow : window);
+        typeof unsafeWindow !== 'undefined' ? unsafeWindow : window,
+        typeof GM_xmlhttpRequest !== 'undefined' ? GM_xmlhttpRequest : undefined,
+        typeof GM_registerMenuCommand !== 'undefined' ? GM_registerMenuCommand : undefined);
       console.log('[Dinseguro] robô carregado (' + origem + ')');
     } catch (e) { console.error('[Dinseguro] erro ao rodar o robô', e); }
   };

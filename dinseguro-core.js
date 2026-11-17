@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.85';
+  const VERSAO = '7.86';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -571,7 +571,7 @@
       // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
       const fixo = String(sessionStorage.getItem('dins_nc_fixo') || '').toLowerCase().split(/[ ,]+/).filter(Boolean);
       const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' };
-      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco]))); if (!o) return;
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
       const pag = pg0[o.banco];
       if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
@@ -654,6 +654,121 @@
       finally { ocupadoAuto = false; ocupadoT = 0; }
     }, 5000);   // 7.83: olha a fila a cada 5 s (antes 15 s)
   }
+
+  // ================================================================== 7.86 DIGITAÇÃO PELA API DO NEW CORBAN
+  // Stefany 17/11 20:22 ("bora, vamos fazer agora"): em vez de preencher a TELA do New Corban (auto-complete, janelas abertas, login caindo),
+  // o robô simula e digita pela API (https://developers.newcorban.com.br/v1). Os dados continuam vindo da FICHA (Multicorban) e o banco
+  // continua sendo escolhido pelas regras (decidirBanco). Liga com o token colado pela Stefany (menu do Tampermonkey → "Dinseguro: token da API").
+  // Falha técnica (rede, 401, 429, 5xx) → apiFalhou = 1 e a ordem volta para a TELA (aba do New Corban), como antes.
+  // Erro do BANCO (recusou, sem oferta, Não Perturbe…) → 'erro' com o motivo, igual à tela.
+  const NCAPI = 'https://developers.newcorban.com.br/v1';
+  const NC_LOGIN = { c6: '02267367688_005279', facta: '94271_STEFANY', qualibank: 'Stefanymonarasouza@gmail.com' };
+  const NC_SELLER = 24549;
+  function dinsApiLigada() { try { return !!GM_getValue('nc_api_token', '') && GM_getValue('nc_api_on', 1) !== 0; } catch (e) { return false; } }
+  try { if (typeof GM_registerMenuCommand === 'function' && window.top === window) {
+    GM_registerMenuCommand('Dinseguro: token da API do New Corban', () => { const t = prompt('Cole aqui o token da API do New Corban (começa com nc_live_). Vazio = desliga a API.', ''); if (t === null) return; const v = String(t).trim(); GM_setValue('nc_api_token', /^nc_live_/.test(v) ? v : ''); GM_setValue('nc_api_on', v ? 1 : 0); alert(v && /^nc_live_/.test(v) ? 'Token salvo. A digitação passa a ser pela API.' : 'API desligada: a digitação volta para a tela.'); });
+    GM_registerMenuCommand('Dinseguro: ligar/desligar a API', () => { const on = GM_getValue('nc_api_on', 1) !== 0; GM_setValue('nc_api_on', on ? 0 : 1); alert('Digitação pela API ' + (on ? 'DESLIGADA (volta para a tela)' : 'LIGADA')); });
+  } } catch (e) {}
+  function ncReq(metodo, caminho, corpo) { return new Promise((res, rej) => { const tk = GM_getValue('nc_api_token', '');
+    if (!tk) return rej(Object.assign(new Error('sem token da API'), { tecnico: 1 }));
+    try { GM_xmlhttpRequest({ method: metodo, url: NCAPI + caminho, timeout: 60000, headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json', Accept: 'application/json' },
+      data: corpo ? JSON.stringify(corpo) : undefined,
+      onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {}
+        if (r.status >= 200 && r.status < 300) return res(j || {});
+        const msg = (j && (j.message || (j.errors && JSON.stringify(j.errors).slice(0, 200)))) || ('HTTP ' + r.status);
+        rej(Object.assign(new Error(msg), { status: r.status, tecnico: r.status === 401 || r.status === 403 || r.status === 429 || r.status >= 500, corpo: j })); },
+      onerror: () => rej(Object.assign(new Error('rede: sem resposta da API'), { tecnico: 1 })), ontimeout: () => rej(Object.assign(new Error('API demorou mais de 60 s'), { tecnico: 1 })) }); }
+    catch (e) { rej(Object.assign(e, { tecnico: 1 })); } }); }
+  const ncD = d => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(String(d || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : (/^\d{4}-\d{2}-\d{2}/.test(String(d || '')) ? String(d).slice(0, 10) : ''); };
+  const ncZz = ms => new Promise(r => setTimeout(r, ms));
+  async function ncEspera(caminho, max) { for (let i = 0; i < (max || 40); i++) { const j = await ncReq('GET', caminho); const d = (j && j.data) || j || {};
+      if (/^(completed|failed)$/.test(d.status || '')) return d; await ncZz(Math.max(2, +((d.retry_after_seconds) || 3)) * 1000); } throw Object.assign(new Error('API não terminou a tempo'), { tecnico: 1 }); }
+  // escolhe a oferta pelas MESMAS regras da tela: 1,85% · sem carência (salvo pedido) · sem ILETRADO · invalidez só p/ 32/92 · C6 na faixa de ticket · a que libera mais
+  function ncEscolhe(banco, f, sims) { const querCar = /car[êe]ncia|90\s*dias/i.test(String(f.carencia || '') + ' ' + String(f.prazo_ordem_stefany || '') + ' ' + String(f.banco_ordem_stefany || ''));
+    const inval = /^(32|92)$/.test(String(+so(f.especie) || ''));
+    let c = (sims || []).filter(s => s && s.status === 'success' && s.eligibility === 'enabled_eligible' && s.offer_token && +s.released_amount > 0);
+    c = c.filter(s => Math.abs(+s.rate - 1.85) < 0.001 || (banco === 'c6' && +s.rate <= 1.85));
+    const temCar = s => /\(\+?\s*\d+\s*d\s*Car\)|car[êe]ncia|\b\d{2,3}\s*DIAS\b/i.test(s.table_name || '');
+    { const x = c.filter(s => temCar(s) === querCar); if (x.length || !querCar) c = x; }
+    { const x = c.filter(s => !/ILETRAD/i.test(s.table_name || '')); if (x.length) c = x; }
+    if (banco === 'c6') { c = c.filter(s => /inval/i.test(s.table_name || '') === inval);
+      c = c.filter(s => { const t = s.table_name || '', v = +s.released_amount; if (/Tkt\s*at[ée]\s*6k/i.test(t)) return v <= 6000; if (/Tkt\s*6k\s*a\s*20k/i.test(t)) return v > 6000 && v <= 20000; if (/Tkt\s*>\s*20k/i.test(t)) return v > 20000; return true; }); }
+    return c.sort((a, b) => +b.released_amount - +a.released_amount)[0] || null; }
+  async function ncSimula(banco, f, parcela) { const cpf = so(f.cpf).padStart(11, '0'), nasc = ncD(f.nascimento);
+    if (!nasc) throw new Error('Falta data de nascimento na ficha');
+    const base = { bank_username: NC_LOGIN[banco], margin_type: 'free', simulation_basis: 'by_installment_amount', installment_amount: +parcela.toFixed(2), term: +(f.prazo || 108) || 108 };
+    let dados;
+    if (banco === 'qualibank') dados = Object.assign(base, { client: { tax_id: cpf, name: String(f.nome || '').slice(0, 49), birth_date: nasc, enrollment: so(f.beneficio).replace(/^0+/, ''), phone: so(f.telefone) || null },
+      table_id: /^(32|92)$/.test(String(+so(f.especie) || '')) ? 566 : 631 });
+    else dados = Object.assign(base, { covenant_group: 'inss', client: { tax_id: cpf, birth_date: nasc, enrollment: so(f.beneficio).replace(/^0+/, ''), income_amount: Math.max(num(f.renda), 1621) } }, banco === 'c6' ? { benefit: { benefit_species: +so(f.especie) || null } } : {});
+    const r = await ncReq('POST', '/integrations/' + banco + '/simulate-margin', dados); const d0 = (r && r.data) || r || {};
+    const id = d0.execution_id || d0.id; if (!id) throw new Error('simulação sem execution_id');
+    const d = await ncEspera('/integrations/executions/' + id, 40);
+    if (d.status !== 'completed' || !d.result) throw new Error('simulação recusada: ' + String((d.error && (d.error.message || JSON.stringify(d.error))) || (d.result && d.result.message) || d.status).slice(0, 160));
+    return d.result; }
+  async function ncDigitaOrdem(o) {
+    const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
+    const pedido = num(f.valor); let parcela = num(f.parcela); const margem = num(f.margem);
+    if (!(parcela > 0)) throw new Error('ficha sem parcela');
+    let res = await ncSimula(banco, f, parcela), of = ncEscolhe(banco, f, res.simulations);
+    // valor pedido é o MÍNIMO (regra 4.12): abaixo → sobe a parcela na proporção (até a margem) e simula de novo, uma vez
+    if (of && pedido > 0 && +of.released_amount < pedido) { const p2 = Math.min(Math.ceil(parcela * pedido / +of.released_amount * 1.003 * 100) / 100, margem > 0 ? margem - 0.01 : 1e9);
+      if (p2 > parcela + 0.009) { parcela = p2; res = await ncSimula(banco, f, parcela); of = ncEscolhe(banco, f, res.simulations); } }
+    if (!of) { const bl = ncEscolhe(banco, f, (res.simulations || []).map(s => s && s.eligibility === 'available_not_enabled' ? Object.assign({}, s, { eligibility: 'enabled_eligible', _bloq: 1 }) : s));
+      if (bl && bl._bloq) throw new Error('API ' + o.banco + ': a tabela que serve (' + bl.table_name + ', R$ ' + brl(+bl.released_amount) + ') NÃO está liberada — liberar em Tabelas e Comissões do New Corban');
+      const mot = (res.simulations || []).map(s => s.rejection_reason).filter(Boolean)[0] || res.message || 'nenhuma tabela liberada que sirva';
+      throw new Error('API ' + o.banco + ': sem oferta — ' + String(mot).slice(0, 140)); }
+    if (pedido > 0 && +of.released_amount < pedido) throw new Error(`⛔ Liberado R$ ${brl(+of.released_amount)} abaixo do pedido R$ ${brl(pedido)} (API ${o.banco})`);
+    const dados = { liberado: brl(+of.released_amount), parcela: brl(+of.installment), prazo: String(of.term || f.prazo || 108), nomeReal: f.nome || o.nomeReal, tabelaApi: of.table_name };
+    // 7.55: quem ainda NÃO aceitou recebe só a SIMULAÇÃO (não grava)
+    if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) return { simulada: 1, dados };
+    // conta: mesma hierarquia da tela (6191-6205): ficha com conta → ficha sem conta (deriva da agência) → aleatória Caixa (quem ainda não aceitou) → para
+    const aleatOk = f.aleatoria_ok || (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim));
+    let bc = bancoOk(f.banco), ag = agOk(f.agencia), cc = so(f.conta), ct, dv;
+    if (bc && cc.length >= 2) { ct = cc.slice(0, -1); dv = cc.slice(-1); }
+    else if (bc && so(f.agencia).length >= 3 && !/^0+$/.test(so(f.agencia))) { ct = ag; dv = ag.slice(-1); }
+    else if (aleatOk) { bc = '104'; ag = '3880'; ct = '111113'; dv = '1'; }
+    else throw new Error('Cliente SEM BANCO: NÃO gravar. Se não houver banco em lugar nenhum, mande o /08 pedindo a conta.');
+    if (banco === 'qualibank' && bc === '104' && ag === '3880') ag = '0001';   // 4.62: o Qualibank recusa a 3880
+    const conta = { account_type: bc === '104' || /poup/i.test(f.tipo_conta || '') ? 'CP' : 'CC', bank_code: bc, agency_number: ag, account_number: String(ct).replace(/^0+(?=\d)/, ''), account_digit: dv };
+    const tel = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (tel.length < 10) throw new Error('Falta telefone (celular) na ficha');
+    const sx = /^F/i.test(String(f.sexo || '')) ? 'FEMININO' : 'MASCULINO';
+    const end = { zip_code: so(f.cep) || null, street: f.endereco || null, number: String(f.numero || 'SN'), neighborhood: f.bairro || null, city: f.cidade || null, state: f.uf || ufDoDDD(tel) || null };
+    const cli = { tax_id: so(f.cpf).padStart(11, '0'), name: String(f.nome || '').slice(0, 49), mother_name: f.mae || 'NAO INFORMADO', birth_date: ncD(f.nascimento), marital_status: 'SOLTEIRO', email: f.email || 'naoinformado@gmail.com', income_amount: Math.max(num(f.renda), 1621) };
+    const ben = { registration_number: so(f.beneficio).replace(/^0+/, ''), benefit_species: +so(f.especie), state: end.state, benefit_dispatch_date: ncD(f.ddb) || null, receive_card: false };
+    const idem = 'dins-' + o.hash + '-' + banco + '-' + of.table_id + '-' + Math.round(+of.installment * 100);
+    let corpo;
+    if (banco === 'qualibank') corpo = { bank_username: NC_LOGIN[banco], idempotency_key: idem, offer_token: of.offer_token, client: Object.assign({ enrollment: ben.registration_number, gender: sx[0] }, cli), address: end, phone: { area_code: tel.slice(0, 2), number: tel.slice(2) }, benefit: { species: ben.benefit_species, state: ben.state, benefit_dispatch_date: ben.benefit_dispatch_date }, bank_account: conta, seller_id: NC_SELLER };
+    else corpo = Object.assign({ bank_username: NC_LOGIN[banco], idempotency_key: idem, offer_token: of.offer_token, simulation_basis: 'by_installment_amount', covenant_group: 'inss', product_id: 1, covenant_id: 7000,
+      client: Object.assign({ gender: banco === 'facta' ? sx[0] : sx }, cli), address: end, phone: { area_code: tel.slice(0, 2), number: tel.slice(2) }, payment: { method: 'bank_account' }, liberation_account: conta, benefit: ben, seller_id: NC_SELLER }, banco === 'c6' ? { payment_benefit: conta } : {});
+    const r = await ncReq('POST', '/integrations/' + banco + '/send-margin', corpo); const d0 = (r && r.data) || r || {};
+    const opId = d0.operation_id; if (!opId) throw new Error('digitação sem operation_id — conferir na lista de propostas antes de refazer');
+    const d = await ncEspera('/integrations/operations/' + opId, 60);
+    if (d.status !== 'completed' || !d.result || /fail|erro/i.test(d.result.flag || '')) throw new Error('não gravou (API ' + o.banco + '): ' + String((d.error && (d.error.message || JSON.stringify(d.error))) || (d.result && d.result.message) || d.status).slice(0, 160));
+    return { dados: Object.assign(dados, { proposta: String(d.bank_external_id || d.result.bank_external_id || ''), propNc: d.proposal_id || null, bancoConta: (bc === '104' && ct === '111113') ? '' : (NOME_BANCO[bc] || '') }), link: d.result.formalization_link || '' }; }
+  // laço: UMA aba (trava em GM) pega ordens 'ficha_ok' de C6/FACTA/QUALIBANK quando a API está ligada; C6 sem link → busca o link na proposta (até 25 min)
+  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg/i.test(location.host)) { const EU = Math.random().toString(36).slice(2, 8); let ocupApi = false;
+    setInterval(async () => { if (ocupApi || !dinsApiLigada()) return;
+      try { const L = GM_getValue('nc_api_dono', null); if (L && L.id !== EU && Date.now() - (+L.t || 0) < 20000) return; GM_setValue('nc_api_dono', { id: EU, t: Date.now() }); } catch (e) { return; }
+      const O0 = GM_getValue('auto_ordens', {}) || {};
+      const poe = (h, mud, txt) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + ' (API 7.86)' + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); if (txt) { try { diario(O[h].nomeReal || O[h].nome, txt); } catch (e) {} } };
+      // C6 gravado pela API sem link → GET /proposals/{id}
+      const g = Object.values(O0).find(x => x && x.estado === 'gravada' && x.propNc && x.viaApi && Date.now() - (+x.tGrav || 0) < 25 * 60000 && Date.now() - (+x.apiLinkT || 0) > 45000);
+      if (g) { ocupApi = true; try { poe(g.hash, { apiLinkT: Date.now() }); const p = await ncReq('GET', '/proposals/' + g.propNc); const br = (((p && p.data) || p || {}).bank_reference) || {};
+          if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link }, 'link do ' + g.banco + ' chegou pela API');
+          else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
+        } catch (e) {} finally { ocupApi = false; } return; }
+      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
+      if (!o) return;
+      ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
+      try { const r = await ncDigitaOrdem(o);
+        if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
+        else if (r.link) poe(o.hash, Object.assign({ estado: 'link', link: r.link }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' R$ ' + r.dados.liberado + ' — link na hora');
+        else poe(o.hash, Object.assign({ estado: 'gravada', aguardaLista: 1, tGrav: Date.now() }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' — link vem em seguida');
+      } catch (e) { const m = String(e.message || e).slice(0, 200);
+        if (e.tecnico) poe(o.hash, { estado: 'ficha_ok', apiFalhou: 1, erroApi: m }, 'API falhou (' + m.slice(0, 60) + ') → digita pela TELA');
+        else poe(o.hash, { estado: 'erro', erro: m }); }
+      finally { ocupApi = false; } }, 4000); }
 
   // ================================================================== BOTMAKER: VIGIA
   // Roda dentro da lista de chats. Não gasta nada: só anota cliente NOVO derivado para atendimento
