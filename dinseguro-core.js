@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.58';
+  const VERSAO = '7.59';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1807,7 +1807,7 @@
             if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
             if (dt >= 15 * 60000 && !x.fupSim) { x.fupSim = Date.now(); GM_setValue('auto_ordens', O); const nmF = nomeCli(x);
-              localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), soSeNossaUltima: 1, nome: x.nome || '',
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), /* 7.59: sem soSeNossaUltima — a trava 'falamos há menos de 2 h' engolia o toque (caso João FAWBI 08:22); a resposta do cliente já é conferida pelo servidor */ nome: x.nome || '',
                 linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder *1* ou *2* que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
               diario(nmF || x.hash.slice(0, 5), '15 min sem resposta à simulação → toque (7.55)'); return; }
           } }
