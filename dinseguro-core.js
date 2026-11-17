@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.54';
+  const VERSAO = '7.55';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -571,7 +571,7 @@
       if (!cpfOk(f) && cpfOk(o.ficha)) { f = o.ficha; GM_setValue('ficha_atual', f); }   // 5.18: usa a ficha guardada na ordem
       if (!cpfOk(f)) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
       ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'digitando' });
-      if (o.tipo === 'cpf' && !o.aceite && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
+      if (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim) && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
         const antes = logRobo().length;
         car.click(); await zz(2500); dig.click();
@@ -584,6 +584,18 @@
         // 4.75 (Stefany 11/11 17:58 "pode fazer 4.75"): CPF → grava sozinho, espera o link e devolve ao Botmaker (simulação + /parabens
         // ou linha + /bn54n). As travas do Gravar continuam (liberado ≥ pedido, telefone do chat, prazo, banco 000). Sem conferência de duplicidade
         // (Stefany: a proposta parada cancela sozinha). Qualquer erro → 'erro' com o motivo, e o vigia segue à mão.
+        // 7.55 (Stefany 17/11 01:16: "a gente está digitando muito rápido a proposta antes do cara simular, isso está assustando muita gente"):
+        // quem ainda NÃO aceitou recebe primeiro só a SIMULAÇÃO (2 opções). A proposta só é gravada se ele aceitar (opção 1 → link na hora)
+        // ou se não responder em 30 min (grava e manda /parabens para ele avaliar). Aceite do bot / ordem do vigia continuam gravando direto.
+        if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) {
+          const tabS = logRobo().slice(antes).map(l => /Tabela: .*?(\d{2,3})x\s+[\d,]+%\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/.exec(l)).filter(Boolean).pop();
+          const okS = v => /\d,\d{2}$/.test(String(v || ''));
+          const fS = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
+          poeAO(o.hash, { estado: 'simulada', tSim: Date.now(), liberado: okS(m[1]) ? m[1] : ((tabS && okS(tabS[3])) ? tabS[3] : m[1]), parcela: (tabS && okS(tabS[2])) ? tabS[2] : (fS.parcela || ''), prazo: (tabS && tabS[1]) || fS.prazo || '108', nomeReal: fS.nome || o.nomeReal });
+          try { diario(fS.nome || o.nome || '', 'simulou no ' + o.banco + ' (R$ ' + m[1] + ') SEM gravar → vai só a simulação (7.55)'); } catch (e) {}
+          setTimeout(() => { location.href = location.origin + '/?p=' + pag; }, 3000);
+          return;
+        }
         if (o.tipo === 'cpf') {
           const tab = logRobo().slice(antes).map(l => /Tabela: .*?(\d{2,3})x\s+[\d,]+%\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/.exec(l)).filter(Boolean).pop();
           poeAO(o.hash, { estado: 'gravando' });
@@ -1520,6 +1532,37 @@
     // 2+ palavras só com letras, a primeira com 3+ letras. Apelido/usuário ("Kel", "Adri...", "Monica 5516…", emoji) → sem nome.
     const nomeZapOk = n => { const t = String(n || '').trim(); if (!t || /[^\p{L}\s'.-]/u.test(t) || /\.\.|\d/.test(t)) return ''; const w = t.split(/\s+/).filter(Boolean); return w.length >= 2 && w[0].replace(/[^\p{L}]/gu, '').length >= 3 && w.every(x => x.replace(/[^\p{L}]/gu, '').length >= 2) ? t : ''; };
     const nomeCli = x => primeiroNome((x && x.nomeReal) || nomeZapOk(x && x.nome));
+    // 7.55: texto da simulação (padrão 16/11: 2 opções jan/abril; Daycoval/Quero Mais/carência pedida → 1 opção)
+    function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+      const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
+      const seg = '\n\n✅ Sem taxas escondidas\n✅ Você pode cancelar de graça em até 7 dias\n⭐ Nota 4,9 no Google e empresa verificada no Reclame Aqui\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.';
+      if (!duas) return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*' + seg + '\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
+      const v2 = brl(Math.floor(numL(o.liberado) * 0.945 * 100) / 100);
+      return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *aprox. R$ ' + v2 + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *abril/2027*' + seg + '\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'; }
+    // 7.55: lê pelo servidor se o cliente respondeu à simulação (sem abrir a tela). 1/sim → grava e manda o link já; 2 → vigia (carência);
+    // 3/não desejo → pergunta o motivo; qualquer outra coisa (dúvida, outro valor) → vigia responde.
+    setInterval(async () => { if (!faz('atendimento')) return; try {
+        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && x.estado === 'sim_enviada');
+        for (const x of pend) { const j = await apiLer(x.hash, 15); if (!j || !Array.isArray(j.newMessages)) continue;
+          const T = m => Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0;
+          const tx = m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || '')); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/^\s*bolt\s*/i, '').trim(); };
+          const cli = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > (+x.tSimEnv || 0) + 3000).map(tx).filter(Boolean);
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || y.estado !== 'sim_enviada') continue;
+          if (!cli.length) { y.chkOkT = Date.now(); GM_setValue('auto_ordens', O2); continue; }
+          const ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
+          const nmR = y.nomeReal || y.nome || '';
+          if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode)\b[^?\d]{0,25}$/i.test(ult))) {
+            Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
+          else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
+            Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: digitar FACTA 90 DIAS e mandar o link (7.55)' }); diario(nmR, '🔴 escolheu a opção 2 (carência) → vigia digita (7.55)'); }
+          else if (/^\s*(3|3️⃣|n[ãa]o desejo|n[ãa]o quero)\s*[.!]?\s*$/i.test(ult)) {
+            y.estado = 'sim_resp'; const nm3 = nomeCli(y); const DS = GM_getValue('desisti_resp', {}) || {}; DS[y.hash] = Date.now(); GM_setValue('desisti_resp', DS);
+            window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm3 ? nm3 + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que não ficou bom? 🙏 Às vezes é o valor, a parcela ou alguma dúvida sobre segurança, e quase sempre dá para ajustar do jeito que fica bom para você.\n\nSe quiser, me diz o valor que você precisa que eu simulo de novo, sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
+            diario(nmR, 'respondeu "não desejo" à simulação → perguntei o motivo (7.55)'); }
+          else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · respondeu à simulação: "' + y.respSim + '" → VIGIA responde (7.55)' }); diario(nmR, '🔴 respondeu à simulação → vigia (7.55)'); }
+          GM_setValue('auto_ordens', O2);
+        }
+      } catch (e) {} }, 60000);
     setInterval(() => {
       if (!faz('atendimento')) return;   // 5.64 papel da aba
       try {
@@ -1747,6 +1790,27 @@
             const linhaA = sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oA.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaA, atalhos: [], nome: oA.nome || '', fone: oA.fone || '', nota: ddA + ' ' + hhmm(Date.now()) + ' [robô 5.96] CPF recebido → mensagem de acolhimento (consultando).' }));
             return; } }
+        // 7.55: SIMULAÇÃO ANTES DA DIGITAÇÃO — manda só a simulação; 15 min sem resposta → um toque; 30 min sem resposta → digita e manda /parabens
+        { const oS = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'simulada');
+          if (oS) { const dS = new Date(), ddS = String(dS.getDate()).padStart(2, '0') + '/' + String(dS.getMonth() + 1).padStart(2, '0');
+            if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) { oS.estado = 'erro'; oS.erro = 'simulação sem valor/parcela/prazo (7.55) → vigia'; GM_setValue('auto_ordens', O); return; }
+            const linhaS = textoSim755(oS);
+            oS.estado = 'sim_enviada'; oS.tSimEnv = Date.now(); (oS.hist = oS.hist || []).push(hhmm(Date.now()) + ' simulação enviada (sem proposta gravada)'); GM_setValue('auto_ordens', O);
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: oS.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaS, atalhos: [], tags: ['01 A - Inss Com Margem - SEM 87 E 88'], nome: oS.nome || '',
+              nota: ddS + ' ' + hhmm(Date.now()) + ' [robô 7.55] ' + (oS.nomeReal || oS.nome || '') + ' · ' + (oS.resumo || '') + ' · simulado no ' + (oS.banco || '?') + ' R$ ' + oS.liberado + ' ' + oS.prazo + 'x R$ ' + oS.parcela + ' → só a SIMULAÇÃO (proposta NÃO gravada). Aceitou (1) → grava e manda o link; 30 min sem resposta → grava e manda /parabens.' }));
+            diario(oS.nomeReal || oS.nome || '', 'simulação enviada sem digitar — aguarda 30 min (7.55)'); return; }
+          const hS = new Date().getHours(); const okH = hS >= 8 && hS < 21;
+          for (const k in O) { const x = O[k]; if (!x || x.tipo !== 'cpf' || x.estado !== 'sim_enviada') continue;
+            const dt = Date.now() - (+x.tSimEnv || 0); const lido = Date.now() - (+x.chkOkT || 0) < 3 * 60000;   // só age com a conversa lida há < 3 min (sem resposta do cliente)
+            if (dt > 22 * 3600000 || (dt > 2 * 3600000 && !x.chkOkT)) { x.estado = 'erro'; x.erro = 'simulação enviada às ' + hhmm(x.tSimEnv) + ' e não deu para confirmar a resposta (7.55) → vigia'; GM_setValue('auto_ordens', O); continue; }
+            if (!okH || !lido) continue;
+            if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
+              diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
+            if (dt >= 15 * 60000 && !x.fupSim) { x.fupSim = Date.now(); GM_setValue('auto_ordens', O); const nmF = nomeCli(x);
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), soSeNossaUltima: 1, nome: x.nome || '',
+                linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder *1* ou *2* que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
+              diario(nmF || x.hash.slice(0, 5), '15 min sem resposta à simulação → toque (7.55)'); return; }
+          } }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
         if (oL) {   // 4.75: simulação + link pelo robô
           // 6.90 (caso Dulce JZRGM 16:34: ordem com 'R$ undefined' e sem link quase saiu) — sem valor, parcela, prazo ou link a simulação NÃO sai: vira erro pro vigia.
@@ -1758,7 +1822,11 @@
           const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
           const duasOp = !aceiteBn && !/DAYCOVAL|QUERO/i.test(String(oL.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(oL.bancoStefany || '')) && numL(oL.liberado) > 0;
           const v2 = duasOp ? brl(Math.floor(numL(oL.liberado) * 0.945 * 100) / 100) : '';
-          const linha = aceiteBn
+          const linha = oL.simGravar
+            ? (oL.aceitouSim
+              ? 'Perfeito' + (nm ? ', ' + nm : '') + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
+              : (nm ? nm + ', p' : 'P') + 'ara você conferir com calma, já deixei pronta a proposta da *Opção 1️⃣*: *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* 😊\n\nÉ só abrir o link abaixo pelo celular e ver todos os detalhes. Se preferir a opção 2 ou outro valor, me fala aqui que eu ajusto. 🔒 Nada é concluído sem a sua confirmação.')
+            : aceiteBn
             ? 'Pronto, ' + nm + '! 😊 A sua proposta de *R$ ' + oL.liberado + '* em ' + oL.prazo + 'x de *R$ ' + oL.parcela + '* já está pronta. Segue abaixo 👇'
             : (duasOp
               ? '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + oL.liberado + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *aprox. R$ ' + v2 + '*\n📆 ' + oL.prazo + 'x de *R$ ' + oL.parcela + '*\n🗓️ 1ª parcela: *abril/2027*\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Não desejo\n\nÉ só responder com o número 🤝'
