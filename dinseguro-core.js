@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.62';
+  const VERSAO = '7.63';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -447,7 +447,7 @@
           //    – só um com margem → segue com esse; – os dois com margem → os DOIS são levados (vigia simula e manda os dois: B1/B7);
           //    – nenhum com margem → desfecho normal (sem margem), só depois de olhar todos.
           const linhasB = () => [...document.querySelectorAll('tr')].filter(tr => [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())));
-          const infoB = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); return { mat: c.find(t => /^\d{8,11}$/.test(t)) || '', esp: String(+(c.find(t => /^\d{1,2}$/.test(t)) || 0)).padStart(2, '0'), ddb: c.find(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t)) || '', ativo: /\bATIVO\b/.test(tr.innerText), valor: c.find(t => /R\$/.test(t)) || '' }; };
+          const infoB = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); return { mat: c.find(t => /^\d{6,11}$/.test(t) && t.replace(/^0+/, '') !== String(o.cpf || '').replace(/^0+/, '')) || ''   /* 7.63: matrícula de 7 dígitos (caso Maria Helena) — nunca pegar o CPF */, esp: String(+(c.find(t => /^\d{1,2}$/.test(t)) || 0)).padStart(2, '0'), ddb: c.find(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t)) || '', ativo: /\bATIVO\b/.test(tr.innerText), valor: c.find(t => /R\$/.test(t)) || '' }; };
           const ordData = d => d.split('/').reverse().join('');
           const ativosB = linhasB().map(infoB).filter(x => x.ativo);
           if (!ativosB.length) { poeAO(o.hash, { estado: 'desfecho', acao: 'sem_beneficio', resumo: 'nenhum benefício ATIVO no CPF' }); return; }   // 7.54: não para mais — retorno + 07 + fecha
