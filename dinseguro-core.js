@@ -5690,8 +5690,8 @@
         // 7.75 (Stefany 17/11 15:01, caso Paulo IOLDH esp 42: "Da onde que tirou que esse cara pensão alimentícia? Não pode ter esse tipo de erro"): o campo "Pensão Alimentícia" do Multicorban NÃO recusa mais — só fica anotado
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|tag + flow Inicio do atendimento — não fazemos proposta com representante legal';
         else if (margem < 25)                f.recusa = 'SEM_MARGEM|01 I|/n30';   // 5.16 (Stefany 12/11 11:25): mínimo R$ 25
-        else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|acima de 76 anos: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
-        else if (idadeF >= 74)               f.recusa = 'IDADE_PERGUNTAR|—|74 a 76 anos: perguntar à Stefany ANTES de simular, digitar ou gastar consulta';
+        // 7.83 (Stefany 17/11 17:58, caso Jofre A8YV6 75a: "com essa idade, 74 a 76 anos, a gente não atende"): 74 anos ou mais = mesma regra de acima de 76
+        else if (idadeF >= 74)               f.recusa = 'IDADE|Acima De 80 Anos|74 anos ou mais: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
