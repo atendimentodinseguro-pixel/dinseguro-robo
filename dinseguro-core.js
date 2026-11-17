@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.50';
+  const VERSAO = '7.51';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -1676,7 +1676,7 @@
           // com o objetivo de contornar a objeção e gerar venda". Cliente disse que desistiu / não quer → pergunta o motivo + segurança + consulta grátis. 1 vez a cada 20 h.
           { const DESI = /(?<![\wÀ-ÿ])(desisti|desisto|n[ãa]o quero mais|n[ãa]o tenho (mais )?interesse|deixa (pra|para) l[áa]|n[ãa]o vou querer|n[ãa]o quero n[ãa]o|n[ãa]o quero)(?![\wÀ-ÿ])/i;
             const DS = GM_getValue('desisti_resp', {}) || {};
-            for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !DESI.test(x.ultCliTxt || '')) continue;
+            for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || x.vencida || x.ultLado !== 'cli' || !(DESI.test(x.ultCliTxt || '') || /^\s*(n[ãa]o desejo|3️⃣|3)\s*[.!]?\s*$/i.test(x.ultCliTxt || '') && x.link && !x.semLink)) continue;   // 7.51 (Nilson 16/11 20:51: respondeu '3' = 'Não desejo' no menu 1/2/3 da simulação e ninguém contornou)
               if (DS[k] && agora5 - DS[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
               const nm = nomeCli(x); const comProp = x.link && !x.semLink;
               const texto = (nm ? nm + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que te fez desistir? 🙏 Às vezes é uma dúvida sobre segurança, sobre o valor ou sobre a parcela, e quase sempre dá para ajustar do jeito que fica bom para você.' +
