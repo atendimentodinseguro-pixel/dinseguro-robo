@@ -57,7 +57,7 @@
       // 7.79 (17/11: a aba [VARREDURA] recarregava a cada versão nova NO MEIO da rodada e a rodada nunca terminava): varrendo → só recarrega quando a rodada acabar
       if (/botmaker/.test(location.host) && Date.now() - (+sessionStorage.getItem('dins_varrendo') || 0) < 3 * 60000) { localStorage.setItem('dins_recarregar_depois', '1'); return; }
       if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 3) return;
-      try { const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && ['consultando', 'digitando', 'pronto', 'gravando'].includes(o.estado) && Date.now() - (+o.t || 0) < 15 * 60000)) return; } catch (e) {}
+      try { const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && (['consultando', 'digitando', 'pronto', 'gravando', 'link'].includes(o.estado) || (o.estado === 'gravada' && !o.aguardaLista)) && Date.now() - (+o.t || 0) < 3 * 3600000)) return; } catch (e) {}   // 7.83 (17/11 16:20, Nilson IY680: a aba da FACTA recarregou entre 'gravada' e o link): gravada/link também seguram, e a ordem pode ter até 3 h (o.t é a hora em que ela nasceu)
       const ta = document.querySelector('textarea'); if (ta && ta.value && ta.value.trim()) return;
       if (+localStorage.getItem('dins_vigia_trava') > Date.now() || (/botmaker/.test(location.host) && sessionStorage.getItem('dins_papel') === 'vigia')) return;   // aba do vigia: quem recarrega é o vigia
       n.push(Date.now()); sessionStorage.setItem('dins_auto_reload', JSON.stringify(n)); console.log('[Dinseguro] versão nova ' + vr + ' (rodando ' + VERSAO + ') → recarregando');
