@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.79';
+  const VERSAO = '7.80';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -4147,9 +4147,12 @@
           if (NAO_MEXER_HASH.includes(it.id)) continue;
           if (cursor.feitos.includes(it.id)) continue;   // 5.45: já feito antes da recarga
           if (new Date().getHours() >= VARRE_LIMITE_H) { log && log('Varredura: passou das ' + VARRE_LIMITE_H + 'h — o resto fica para a próxima rodada.', 'aviso'); break; }
-          // 7.79 "pega 10, manda": com 10 esperando na fila do WhatsApp (o envio é no máximo 10 por hora) a análise para; a próxima rodada continua de onde a fila parou
+          // 7.79 "pega 10, manda": com 10 esperando na fila do WhatsApp (o envio é no máximo 10 por hora) não entra follow-up novo na fila até ela esvaziar
+          // 7.80 (Stefany 17/11 15:29: "quem ele só fecha não conta nessa numeração… fez os 10 da hora, pega a galera que só tem que fechar, fecha"):
+          // fila do WhatsApp cheia NÃO para a rodada — só deixa de pôr follow-up novo na fila; quem é só fechar (desfecho / 01 C) continua sendo fechado, sem limite.
+          let loteCheio = false;
           if (!primeira) { const fW = GM_getValue('wa_fila', []) || [];
-            if (fW.filter(x => x.estado === 'pendente' && x.fone).length >= WA_LOTE) { placar.lote = WA_LOTE; log && log('Varredura: ' + WA_LOTE + ' na fila do WhatsApp — paro de analisar e continuo na próxima rodada.', 'ok'); break; }
+            loteCheio = fW.filter(x => x.estado === 'pendente' && x.fone).length >= WA_LOTE; if (loteCheio) placar.lote = WA_LOTE;
             if (fW.some(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000)) { placar.ja_wa = (placar.ja_wa || 0) + 1; continue; } }   // já está na fila/já recebeu nos últimos 7 dias: não analisa de novo
           if (naFatia >= VARRE_FATIA && !varreSozinha()) {   // 5.45: pausa da fatia — atendimento trabalha (6.11: não quando a varredura tem perfil próprio)
             naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
@@ -4165,6 +4168,7 @@
               plano.itens.push(Object.assign({ id: it.id, nome: it.nome, fone: dA.fone || '' }, dA)); GM_setValue('varre_plano', plano); cursor.itensPlano = plano.itens;
               if (primeira) { salva(); continue; }
               if (dA.acao === 'revisar') { placar.revisar++; salva(); continue; }
+              if (dA.acao === 'wa' && loteCheio) { placar.wa_depois = (placar.wa_depois || 0) + 1; salva(); continue; }   // fica para a próxima rodada
               if (dA.acao === 'wa') { const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
                 if (!ja) { f.push({ hash: it.id, fone: dA.fone, nome: nomeSeguro(it.nome), caso: dA.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
                 placar.wa++; salva(); continue; } } }
@@ -4179,6 +4183,7 @@
           if (d.acao === 'revisar') { placar.revisar++; salva(); continue; }
           if (d.acao === 'fecha') { const r = await executarOrdemVarredura(it.id, 'fecha', varreNota('janela vencida; ' + d.motivo + '. Conversa encerrada.')); r === 'ok' ? placar.fechadas++ : placar.erros++; salva(); continue; }
           if (d.acao === 'c01') { const r = await executarOrdemVarredura(it.id, 'classifica_fecha', varreNota('janela vencida, sem CPF e sem interação → 01 C. Conversa encerrada.')); r === 'ok' ? placar.c01++ : placar.erros++; salva(); continue; }
+          if (d.acao === 'wa' && loteCheio) { placar.wa_depois = (placar.wa_depois || 0) + 1; salva(); continue; }   // fica para a próxima rodada
           if (d.acao === 'wa') {
             const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
             if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeSeguro(nomeDoContato() || it.nome), caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); /* 4.31: só nome de verdade (vazio = sem nome) */ GM_setValue('wa_fila', f); }
