@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.51';
+  const VERSAO = '7.52';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2988,7 +2988,8 @@
       'falta desbloquear': n => `${n ? n + ', b' : 'B'}oa notícia! 🎉 O banco aprovou a sua proposta. Agora falta só um passo: desbloquear o seu benefício para empréstimo no Meu INSS. Te mando o passo a passo aqui embaixo 👇`,
       'falta anuência': n => `${n ? n + ', o' : 'O'} desbloqueio deu certo! 🙌 Agora falta só confirmar a contratação no Meu INSS (a anuência). Te mando o passo a passo aqui embaixo 👇`,
       // 7.48 (Stefany 16/11 19:01/19:23, caso Fernanda: "verifica no painel se já fez o pagamento… avisar… não quero ficar te lembrando"): esteira PAGO → avisa + /22N e abre o pós-venda
-      'pago': n => `${n ? n + ', n' : 'N'}otícia boa! 🎉 O seu empréstimo já foi PAGO pelo banco e o valor já foi enviado para a sua conta. Confere aí e me avisa quando cair, tá? 😊`
+      // 7.52 (Stefany 16/11 21:45: "integrado é sinal que o banco colocou para pagamento… a gente tem uma mensagem automática para isso, para não se comprometer com o cliente"): no pago/integrado sai SÓ a /22N, sem linha nossa
+      'pago': null
     };
     const ATALHOS_FASE = { 'falta desbloquear': ['/dsg25a', '/dsg25'], 'falta anuência': ['/anuencia', '/anuencia2'], 'pago': ['/22N'] };
     // 4.51 — libera "Chat em atendimento com Fulano": ⋮ → "Liberar chat bloqueado por …". Procura em todos os documentos (o menu abre em overlay).
@@ -3104,8 +3105,7 @@
         if (fe.fase === 'falta desbloquear' && /passo a passo para realizar o desbloqueio|desbloqueio do seu benef/i.test(ent)) { marca({ faseFeita: fe.fase }, 'desbloqueio já tinha sido mandado'); return; }
         if (fe.fase === 'falta anuência' && /anu[eê]ncia/i.test(ent.slice(-3000))) { marca({ faseFeita: fe.fase }, 'anuência já tinha sido mandada'); return; }
         const nome = nomeDoAlvo(alvo);
-        await mensagemLivre(LINHA_FASE[fe.fase](nome));
-        await new Promise(s => setTimeout(s, 2500));
+        if (LINHA_FASE[fe.fase]) { await mensagemLivre(LINHA_FASE[fe.fase](nome)); await new Promise(s => setTimeout(s, 2500)); }
         for (const at of ATALHOS_FASE[fe.fase]) { await respostaRapida(at, false, true); await new Promise(s => setTimeout(s, 3000)); }
         marca({ faseFeita: fe.fase, faseFeitaT: Date.now(), faseToq: 0 }, fe.fase + ': linha pessoal + ' + ATALHOS_FASE[fe.fase].join(' + ') + ' enviados');
         if (fe.fase === 'pago') { try { window.dinsPago(alvo.hash, nome); } catch (e) {} }   // 7.48: abre o pós-venda (extra → /W40 → /102 /103)
