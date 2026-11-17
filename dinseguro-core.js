@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.82';
+  const VERSAO = '7.83';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -254,7 +254,7 @@
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'telefone_origem', 'email',
     'nascimento', 'mae', 'sexo', 'renda', 'uf', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'banco', 'agencia', 'conta', 'tipo_conta',
     // campos de ANALISE: nao vao para a digitacao, servem para decidir se atendemos
-    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany', 'prazo_ordem_stefany'];
+    'margem', 'rmc', 'rcc', 'rg', 'situacao', 'pensao', 'representante', 'rep_dados', 'conta_origem', 'conta_sugerida', 'flash', 'banco_ordem_stefany', 'prazo_ordem_stefany', 'aleatoria_ok'];   // 7.83: aleatoria_ok vai no texto (digitação em paralelo não depende da ficha_atual)
   const fichaParaTexto = f => CAMPOS.map(k => `${k}: ${f[k] ?? ''}`).join('\n');
   function textoParaFicha(t) {
     const f = {};
@@ -565,8 +565,12 @@
     // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
     if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
       if (ocupadoAuto || /[?&]p=propostas/.test(location.search) || !ninguemMexendo()) return;
-      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL'); if (!o) return;
-      const pag = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco];
+      // 7.83 (Stefany 17/11 16:06 "ele consegue ser mais rápido sem perder a precisão?"): cada aba do New Corban pode ficar FIXA num banco
+      // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
+      const fixo = String(sessionStorage.getItem('dins_nc_fixo') || '').toLowerCase().split(/[ ,]+/).filter(Boolean);
+      const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' };
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco]))); if (!o) return;
+      const pag = pg0[o.banco];
       if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
       sessionStorage.removeItem('dins_auto_nav');
@@ -579,7 +583,10 @@
       if (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim) && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
         const antes = logRobo().length;
-        car.click(); await zz(2500); dig.click();
+        // 7.83: a ficha vai DIRETO da ordem para a caixa do painel (antes: 'Carregar ficha' lia a ficha_atual global + 2,5 s de espera)
+        const taP = document.getElementById('dins-ficha');
+        if (taP && cpfOk(f)) { taP.value = fichaParaTexto(f); await zz(400); } else { car.click(); await zz(2500); }
+        dig.click();
         let fim = null;
         for (let i = 0; i < 160 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon|NÃO gravar|PAROU/i.test(l)); }   // 5.17: 'NÃO gravar' também encerra
         if (!fim) throw new Error('a digitação não terminou em 4 min');   // 5.13 (caso Josias TYK97: 90 s era pouco)
@@ -643,7 +650,7 @@
         }
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
       finally { ocupadoAuto = false; ocupadoT = 0; }
-    }, 15000);
+    }, 5000);   // 7.83: olha a fila a cada 5 s (antes 15 s)
   }
 
   // ================================================================== BOTMAKER: VIGIA
