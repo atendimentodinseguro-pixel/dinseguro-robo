@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.83';
+  const VERSAO = '7.84';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -5890,7 +5890,7 @@
     const fonte = el('autocomplete-api-fonte'); fonte.value = 'inss'; if ($) $(fonte).trigger('change');
     el('autocomplete-api-btn_buscar').click();
     // 7.74 (17/11 14:58, Sandra 3UQG6): o New Corban passou a numerar o botão pela linha (autocomplete-btn-inss0), não pelo benefício → achar a linha que tem o benefício
-    const btn = await esperar(() => el('autocomplete-btn-inss' + so(f.beneficio)) || (() => { const tr = [...document.querySelectorAll('tr')].find(t => so(t.innerText).includes(so(f.beneficio)) && t.querySelector('[id^="autocomplete-btn-"]')); return tr ? tr.querySelector('[id^="autocomplete-btn-"]') : null; })(), 20000);
+    const btn = await esperar(() => el('autocomplete-btn-inss' + so(f.beneficio)) || (() => { const tr = [...document.querySelectorAll('tr')].find(t => so(t.innerText).includes(so(f.beneficio).replace(/^0+/, '')) && t.querySelector('[id^="autocomplete-btn-"]'))   /* 7.84 (Jandira 17/11 19:56): a lista mostra o benefício SEM o zero da frente (874236690) e a ficha tem 0874236690 */; return tr ? tr.querySelector('[id^="autocomplete-btn-"]') : null; })(), 20000);
     if (!btn) throw new Error('Benefício ' + f.beneficio + ' não apareceu no auto-complete.');
     btn.click();
     const ok = await esperar(() => so(el('matricula_preferencial').value) === so(f.beneficio) && el('nome_cliente') && el('nome_cliente').value, 20000);
