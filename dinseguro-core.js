@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.69';
+  const VERSAO = '7.70';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -529,7 +529,8 @@
               put2('banco', o.contaFix.banco); put2('agencia', o.contaFix.agencia); put2('conta', o.contaFix.conta); put2('tipo_conta', o.contaFix.tipo_conta); put2('conta_origem', 'informada pelo cliente no chat (vigia)'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             if (o.bancoStefany) { const put3 = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; }; const bS = String(o.bancoStefany).toUpperCase().trim(); put3('banco_ordem_stefany', bS); put3('banco_destino', bS.split(/\s+/)[0]); if (/90\s*DIAS|CAR[EÊ]NCIA/.test(bS)) put3('prazo_ordem_stefany', 'CARENCIA 90 DIAS');   /* 7.26 (Rosa 16/11): 'FACTA 90 DIAS' → banco FACTA + carência */ ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 6.27: banco mandado pela Stefany (extra.bancoStefany)
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
-            const f3 = GM_getValue('ficha_atual', null);
+            // 7.70 (caso Washington HQ2X9 13:39): a ficha salvava DEPOIS da conferência → 'a ficha salva não é a do cliente'. Espera até 12 s pela ficha certa.
+            let f3 = GM_getValue('ficha_atual', null); for (let i = 0; i < 10 && !(f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')); i++) { await zz(1000); if (i === 4 && sv0) sv0.click(); f3 = GM_getValue('ficha_atual', null); }
             const okF = f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
             const bd = ((f3 && f3.banco_destino) || '').toUpperCase();
             let porque = '';
