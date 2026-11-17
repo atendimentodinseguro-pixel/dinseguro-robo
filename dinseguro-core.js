@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.55';
+  const VERSAO = '7.56';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -4865,6 +4865,7 @@
       const razao = num(f._liberado_daycoval) / (num(f.parcela) || 1);
       if ((f.prazo || '108') === '108' && (razao < 40 || razao > 48))
         throw new Error('Valor não confere: liberado ÷ parcela = ' + razao.toFixed(2) + ' (o certo é ~43 a 45). Não vou cadastrar.');
+      if (f._soSimular) return;   // 7.56: só a simulação (o cliente ainda não aceitou) — não cadastra proposta
 
       await clicar(/^ADICIONAR OFERTA$/i);
       await clicar(/VER RESUMO DE OFERTAS/i);
@@ -5053,7 +5054,7 @@
     // ---- painel
     const p = painel('Digitação ' + PORTAL.nome);
     p.querySelector('#dins-corpo').innerHTML =
-      botao('Carregar ficha', '#475569') + botao('Fazer tudo', '#7c3aed') + botao('Digitar', '#2563eb') + botao('Gerar e pegar link', '#16a34a') +
+      botao('Carregar ficha', '#475569') + botao('Fazer tudo', '#7c3aed') + botao('Digitar', '#2563eb') + botao('Gerar e pegar link', '#16a34a') + botao('Só simular', '#0891b2') +
       `<div style="margin-top:6px;color:#94a3b8;font-size:12px">${QM ? 'Conta aleatória combinada: Caixa 104 / 3880 / 111113-1 (poupança)' : 'Conta aleatória: próxima 001/0001/<span id="dins-seq"></span>-8'}</div>` +
       `<textarea id="dins-res" readonly style="width:100%;height:70px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px"></textarea>`;
     const seq = p.querySelector('#dins-seq'); if (seq) seq.textContent = Math.max(GM_getValue('conta_seq', 11), 11);
@@ -5068,6 +5069,11 @@
       const status = (st, extra) => { try { localStorage.setItem(QM ? 'dins_queromais_status' : 'dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, portal: PORTAL.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
       status('rodando');
       try {
+        if (a === 'Só simular') {   // 7.56 (Stefany 17/11 01:24: Daycoval na mesma regra — simulação antes da digitação)
+          { const t = bancoErrado(f, QM ? 'queromais' : 'daycoval'); if (t) throw new Error(t); }
+          f._soSimular = 1; try { await simular(f); } finally { delete f._soSimular; }
+          status('simulado', { liberado: f._liberado_daycoval || '', parcela: f.parcela, prazo: f.prazo || '108' }); log('Simulado: R$ ' + (f._liberado_daycoval || '?') + ' (sem cadastrar proposta).', 'ok'); return;
+        }
         if (a === 'Digitar' || a === 'Fazer tudo') {
           { const t = bancoErrado(f, QM ? 'queromais' : 'daycoval'); if (t) throw new Error(t); }
           { const t = telefoneErrado(f); if (t) throw new Error(t); }
@@ -5134,10 +5140,17 @@
           GM_setValue('ficha_atual', o.ficha);
           poeAOd(o.hash, { estado: 'digitando' });
           const t0 = Date.now();
-          const b = [...p.querySelectorAll('button')].find(x => x.dataset.a === 'Fazer tudo'); if (!b) throw new Error('botão Fazer tudo não está na tela');
+          const soSim = !o.aceite && !o.simGravar;   // 7.56: mesma regra do New Corban — quem não aceitou recebe só a simulação
+          const b = [...p.querySelectorAll('button')].find(x => x.dataset.a === (soSim ? 'Só simular' : 'Fazer tudo')); if (!b) throw new Error('botão ' + (soSim ? 'Só simular' : 'Fazer tudo') + ' não está na tela');
           b.click();
           let st = null;
-          for (let i = 0; i < 240 && !st; i++) { await sleep(2500); try { const s0 = JSON.parse(localStorage.getItem('dins_daycoval_status') || 'null'); if (s0 && s0.t >= t0 && (s0.st === 'ok' || s0.st === 'erro')) st = s0; } catch (e) {} }
+          for (let i = 0; i < 240 && !st; i++) { await sleep(2500); try { const s0 = JSON.parse(localStorage.getItem('dins_daycoval_status') || 'null'); if (s0 && s0.t >= t0 && (s0.st === 'ok' || s0.st === 'erro' || s0.st === 'simulado')) st = s0; } catch (e) {} }
+          if (st && st.st === 'simulado') {
+            if (!st.liberado) throw new Error('simulação do Daycoval sem valor liberado');
+            poeAOd(o.hash, { estado: 'simulada', tSim: Date.now(), liberado: st.liberado, parcela: st.parcela || o.ficha.parcela, prazo: st.prazo || '108', banco: 'DAYCOVAL' });
+            try { const m = [...document.querySelectorAll('a')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e))); if (m) m.click(); } catch (e) {}   // tela limpa para o próximo (nunca F5)
+            return;
+          }
           if (!st) throw new Error('a digitação no Daycoval não terminou em 10 min');
           if (st.st === 'erro') throw new Error(st.erro || 'erro no portal');
           const f = o.ficha, so0 = x => String(x || '').replace(/\D/g, ''), bc = so0(f.banco).padStart(3, '0');
