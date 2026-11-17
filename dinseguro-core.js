@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.76';
+  const VERSAO = '7.77';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -5845,6 +5845,16 @@
   const ta = p.querySelector('#dins-ficha');
   let mensagem = '';
 
+  // 7.77 (17/11 15:10, Sandra 3UQG6 FACTA): o New Corban passou a deixar abertas as janelas "Informações do Cliente" e "Histórico Bancário"
+  // depois do auto-complete → o Gravar não mostrava confirmação. Fecha as duas (só essas) pelo X.
+  function fechaModaisNC(onde) {
+    try { [...document.querySelectorAll('.modal.show')].filter(m => /Informa[çc][õo]es do Cliente|Hist[óo]rico Banc[áa]rio/i.test(m.innerText || '')).forEach(m => {
+      const x = m.querySelector('.btn-close, button.close, [data-bs-dismiss="modal"], [data-dismiss="modal"]'); if (x) x.click();
+      else { m.classList.remove('show'); m.style.display = 'none'; }
+      try { log('Janela "' + ((m.innerText || '').trim().split('\n')[0]).slice(0, 30) + '" fechada (' + onde + ', 7.77)'); } catch (e) {} });
+      if (![...document.querySelectorAll('.modal.show')].length) { document.querySelectorAll('.modal-backdrop').forEach(b => b.remove()); document.body.classList.remove('modal-open'); document.body.style.overflow = ''; }
+    } catch (e) {}
+  }
   // ---- 1. Auto-complete pelo CPF + benefício
   async function autoComplete(f) {
     // 7.58 (17/11 08:02, caso João Batista FAWBI: a tela da FACTA abriu com a operação "Portabilidade + Refin" → "Nenhuma tabela 1,85%"): operação sempre MARGEM (novo)
@@ -5861,6 +5871,7 @@
     const ok = await esperar(() => so(el('matricula_preferencial').value) === so(f.beneficio) && el('nome_cliente') && el('nome_cliente').value, 20000);
     if (!ok) throw new Error('Auto-complete não preencheu os dados.');
     await sleep(800);
+    fechaModaisNC('auto-complete');   // 7.77
     log('Auto-complete OK: ' + el('nome_cliente').value, 'ok');
   }
 
@@ -6113,6 +6124,7 @@
     } catch (e) { if (/C6: o cliente já tem/.test(e.message)) throw e; } }
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
+    fechaModaisNC('antes do Gravar');   // 7.77
     el('btn_gravar_proposta').click();
     const modal = await esperar(() => {
       const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText));
