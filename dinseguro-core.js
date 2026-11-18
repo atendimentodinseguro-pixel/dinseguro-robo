@@ -1767,6 +1767,7 @@
           if (simples && tagsOk && (txt || tagsO.length) && !/undefined/.test(txt) && window.dinsBmIntent) {
             if (txt) { await bmEnviarTexto(o.hash, txt); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); passos.push('msg: pela API'); }
             for (const t of tagsO) { const ri = await window.dinsBmIntent(o.hash, mapT(t)); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('intenção ' + mapT(t) + ' não aceitou'); passos.push('tag ' + t + ': pela intenção'); }
+            if (cpfVerificado) { try { const E9 = ESP(); if (!E9[o.hash]) { const t9 = Date.now(); E9[o.hash] = { hash: o.hash, nome: o.nome || '', tipo: 'cpf', t0: t9, toques: novaSequencia('cpf', t9, 0), tag01C: t9 }; gravaESP(E9); } const PC9 = GM_getValue('pedir_cpf_feito', {}) || {}; PC9[o.hash] = Date.now(); GM_setValue('pedir_cpf_feito', PC9); passos.push('toques do CPF agendados'); } catch (e) {} }   // 8.35: mantém o 1 toque em 1 h + 08:00
             salvaProgresso({ tagsFeitas: 1 }); grava('ok'); localStorage.removeItem('dins_ordem'); log && log('8.33: ' + o.acao + ' pela API (sem a tela): ' + passos.join(' · '), 'ok'); return; }
         } catch (e8) { passos.push('8.33 pela API falhou (' + String((e8 && e8.message) || e8).slice(0, 60) + ') → tela'); }
         if (o.acao === 'pedir_cpf' && !o.texto && !o.msgFeita) throw new Error('pedido de CPF sem texto — não marquei como feito (6.98)');
