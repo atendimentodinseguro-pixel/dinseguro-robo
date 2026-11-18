@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.37
+// @version      3.38
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -62,7 +62,7 @@
     try { localStorage.setItem('dins_loader', JSON.stringify({ v: '3.34', t: Date.now() })); } catch (e) {}
     const UW = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
     const embutido = () => {
-      // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.8
+      // Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.9
       // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
       //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
       //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -234,8 +234,11 @@
             for (let i = 0; i < 25; i++) { await esp(1000);
               const rows = [...document.querySelectorAll('#main [role="row"]')].filter(x => (x.innerText || '').replace(/\s+/g, ' ').includes(ini));
               const r0 = rows[rows.length - 1];
-              st = !r0 ? 'sem balão' : r0.querySelector('[data-icon*="msg-dblcheck"],[data-icon*="msg-check"]') ? 'ok' : r0.querySelector('[data-icon*="msg-time"]') ? 'reloginho' : 'sem ícone';
+              // 1.9 (14:58: o ✓ do WhatsApp novo não tem mais o nome "msg-check" → deu "sem ícone" numa mensagem que saiu): ok = qualquer ícone de check; reloginho = ícone de relógio/pendente
+              const relo = r0 && r0.querySelector('[data-icon*="time"],[data-icon*="clock"],[data-icon*="pending"],[aria-label*="endente"],[aria-label*="ending"]');
+              st = !r0 ? 'sem balão' : relo ? 'reloginho' : r0.querySelector('[data-icon*="check"],[aria-label*="Enviada"],[aria-label*="Entregue"],[aria-label*="Lida"],[aria-label*="Sent"],[aria-label*="Delivered"],[aria-label*="Read"]') ? 'ok' : 'sem ícone';
               if (st === 'ok') break; }
+            if (st === 'sem ícone') st = 'ok';   // balão saiu e não está no reloginho → enviado
             if (st !== 'ok') { marca(alvo, { estado: 'erro', motivo: 'mensagem NÃO confirmada pelo WhatsApp (' + st + ' depois de 25 s) — conferir a conexão do WhatsApp Web' });
               GM_setValue('wa_prox', Date.now() + 365 * 86400000); GM_setValue('wa_status', { t: Date.now(), m: 'PAUSADO: mensagem ficou no ' + st }); log(alvo.nome || alvo.hash.slice(0, 5), '→ NÃO confirmada (' + st + ') — envio pausado'); return; } }
           marca(alvo, { estado: 'enviado', quando: Date.now() });
@@ -257,7 +260,7 @@
         codigo = sha ? await pegarWa(WAURL(sha)) : ''; if (!codigo) codigo = await pegarWa(WAURL('main') + '?t=' + Date.now()); } catch (e) {}
       if (codigo && /Dinseguro — envio da varredura/.test(codigo)) { GM_setValue('wa_cache', codigo); } else codigo = GM_getValue('wa_cache', '');
       if (codigo) { try { new Function('GM_getValue', 'GM_setValue', 'unsafeWindow', codigo)(GM_getValue, GM_setValue, UW); console.log('[Dinseguro] WhatsApp: módulo do GitHub', (codigo.match(/Versão WA: ([\d.]+)/) || [])[1]); try { localStorage.setItem('dins_wa_modulo', 'github ' + ((codigo.match(/Versão WA: ([\d.]+)/) || [])[1] || '')); } catch (e) {} return; } catch (e) { console.warn('[Dinseguro] WhatsApp: não deu para rodar o módulo baixado — uso a cópia embutida', e); } }
-      try { localStorage.setItem('dins_wa_modulo', 'embutido 1.8'); } catch (e) {}
+      try { localStorage.setItem('dins_wa_modulo', 'embutido 1.9'); } catch (e) {}
       embutido();
     })();
     return;   // no WhatsApp Web o robô principal não roda (não precisa)
