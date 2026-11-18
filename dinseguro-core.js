@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.28';
+  const VERSAO = '8.29';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4406,6 +4406,9 @@
       } catch (e) { return null; }
     }
     async function executarOrdemVarredura(hash, acao, nota) {
+      // 8.29 (Stefany 18/11 12:40: intenções testadas e ligadas): fechar / 01 C + fechar pela INTENÇÃO do Botmaker, sem abrir a tela
+      try { const ON = GM_getValue('bm_intents_on', []) || []; const it = acao === 'fecha' ? 'fechar_so' : acao === 'c01' ? 'fechar_01c' : '';
+        if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(hash, it); if (ri && ri.http >= 200 && ri.http < 300) { try { diario('varredura', (acao === 'c01' ? '01 C + fechou' : 'fechou') + ' pela intenção ' + it + ' ✓ (sem a tela)'); } catch (e) {} return 'ok'; } } } catch (e) {}
       while (localStorage.getItem('dins_ordem')) await esp(3000);
       const t0 = Date.now();
       localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao, quem: 'varredura', nota, t: t0 }));
