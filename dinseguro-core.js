@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.39';
+  const VERSAO = '8.40';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -844,7 +844,18 @@
       document.body.appendChild(b); } catch (e) {} }; setTimeout(poe, 4000); setInterval(poe, 30000); } } catch (e) {}
   const msgTxt806 = m => String(typeof (m && m.MESSAGE) === 'string' ? m.MESSAGE : JSON.stringify((m && m.MESSAGE) || ''));
   const humano806 = m => !!m && m.FROM === 'me' && ((m.FROM_NAME && m.FROM_NAME !== 'Bot') || /^\s*\[Dinseguro\]/.test(msgTxt806(m)));   // 8.06: mensagem nossa pela API (FROM_NAME 'Bot' + [Dinseguro]) conta como humana
-  function bmEnviarTexto(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
+  // 8.40 (Stefany 18/11 16:08: "o robô de atendimento está mandando mensagem no número suspenso"): o 0800 191 2261 (558001912261) caiu na Meta.
+  // Conversa que chegou por um canal suspenso NUNCA recebe mensagem do robô — nem pela API nem pela tela (executor de ordens).
+  const CANAIS_SUSPENSOS = ['558001912261'];
+  const canalCache = {};
+  async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s;
+      const tk = GM_getValue('bm_api_token', ''); if (!tk || !/^[A-Z0-9]{20}$/.test(String(chatId))) return false;
+      const ch = await new Promise(r0 => { try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats/' + chatId, timeout: 15000, headers: { 'access-token': tk, Accept: 'application/json' },
+        onload: r => { try { r0(String((JSON.parse(r.responseText).chat || {}).channelId || '')); } catch (e) { r0(''); } }, onerror: () => r0(''), ontimeout: () => r0('') }); } catch (e) { r0(''); } }); const sus = CANAIS_SUSPENSOS.some(n => ch.includes(n)); if (ch) canalCache[chatId] = { s: sus, t: Date.now() }; return sus; } catch (e) { return false; } }
+  window.dinsCanalSuspenso = canalSuspenso;
+  window.dinsBmApiOn = on => { if (on !== undefined) GM_setValue('bm_api_on', on ? 1 : 0); return GM_getValue('bm_api_on', 1); };   // chave geral do envio pela API (0 = desligado em todas as abas deste Chrome)
+  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); return bmEnviarTexto0(chatId, texto); }
+  function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
       data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: (/^\s*\[/.test(String(texto)) ? '' : '[Dinseguro]\n') + String(texto) }] }),   // 8.06: pela API a mensagem chega como 'Bot' → leva o [Dinseguro] (igual à tela) e o robô reconhece como resposta nossa
       onload: r => (r.status >= 200 && r.status < 300) ? res(r.responseText) : rej(new Error('API Botmaker HTTP ' + r.status + ' ' + String(r.responseText || '').slice(0, 120))),
@@ -1739,6 +1750,7 @@
       if (!d) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', erro: 'ação desconhecida: ' + o.acao })); ultima = id; return; }
       rodando = true; ultima = id;
       const passos = [];
+      if (o.hash && await canalSuspenso(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'canal SUSPENSO (0800 191 2261) — ordem não executada (8.40)', t: Date.now() })); rodando = false; return; }
       const grava = (st, extra) => { localStorage.setItem('dins_ordem_status',
         JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
         // 4.83 (Stefany 11/11 21:58, caso Fernando: "depois que ele responde, ele fica pendente… já fechou, já resolveu, e não coloca como resolvido"):
