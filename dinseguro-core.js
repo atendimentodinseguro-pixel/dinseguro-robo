@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.22';
+  const VERSAO = '8.23';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1884,6 +1884,12 @@
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
         let mud = false;
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
+        // 8.23 (Stefany 18/11 11:40: "o robô pega a pessoa que não tem oportunidade de negócio, ele tem que fechar… não está fechando"):
+        // desfecho com a mensagem JÁ enviada pela API tem PRIORIDADE na tela (só tag + nota + fechar) — antes de esteira, toques e follow-ups.
+        { const oP = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && x.msgApi && DESFECHOS[x.acao] && DESFECHOS[x.acao].fechar);
+          if (oP) { const dP = new Date(), ddP = String(dP.getDate()).padStart(2, '0') + '/' + String(dP.getMonth() + 1).padStart(2, '0');
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: oP.hash, acao: oP.acao, q15: !!oP.q15, t: Date.now(), msgFeita: 1, linhaFeita: 1, nota: ddP + ' ' + hhmm(Date.now()) + ' [robô 8.23] ' + (oP.nomeReal || oP.nome || '') + ' · ' + (oP.resumo || '') + ' → retorno já enviado pela API; tag + fechar.' + (oP.q15 ? ' Tem margem para cartão → Q15.' : '') }));
+            oP.estado = 'desfecho_enviado'; oP.tEnv = Date.now(); GM_setValue('auto_ordens', O); return; } }
         // 7.01 (caso Francisca/Pra Iris K94HN 20:03: a ordem de simulação + link sumiu no meio — a simulação saiu e o link não; ficou 'link_enviado' para sempre):
         // 'link_enviado' há 6 min+, sem ordem em andamento para ele e sem status ok/erro dele depois do envio → volta como erro para o vigia conferir o que saiu.
         { let oA = null; try { oA = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
