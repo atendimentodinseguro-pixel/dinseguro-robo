@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.37';
+  const VERSAO = '8.38';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1760,6 +1760,9 @@
         // de onde parou (não para mais deixando a conversa aberta). A mensagem nunca sai duas vezes (o.msgFeita).
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } await confereChat(o.hash); };   // 5.03: confere o cliente antes de CADA envio
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
+        // 8.38 (Stefany 18/11 14:05, número caiu na Meta por denúncia de spam: "o ponto principal é ficar pedindo CPF para quem não demonstrou interesse… isso gera muito bloqueio"):
+        // pedido de CPF AUTOMÁTICO do robô desligado. Só sai se o vigia/Stefany pedir (quem: 'vigia' ou permitido:1).
+        if (o.acao === 'pedir_cpf' && o.quem === 'robo' && !o.permitido) { passos.push('pedido de CPF automático desligado (8.38) — não mandei'); grava('ok'); localStorage.removeItem('dins_ordem'); return; }
         if (/undefined/.test(String(o.linha || '') + JSON.stringify(o.trocas || []))) throw new Error('mensagem com "undefined" — não envio (6.90)');   // 6.90
         // 8.33 (Stefany 18/11 13:07: "em alguns casos ele poderia fechar na API, que seria mais rápido"): mensagem simples (fase_msg) e só tag (so_tag 01 A / 01 C)
         // saem pela API — texto pelo send-messages, tag pela intenção tag_01a / tag_01c — sem abrir a tela. Qualquer coisa fora disso segue pela tela.
@@ -3185,6 +3188,12 @@
       const reg = (st, fim) => { if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome, 'toque do link ' + toque.tipo + ': ' + st); const r2 = RG(), x = r2[alvo.hash]; if (!x) return; const q = x.toques.find(k => k.tipo === toque.tipo);
         if (fim) { q.feito = Date.now(); } q.st = st; x.hist.push(hhmm(Date.now()) + ' ' + toque.tipo + ': ' + st); gravaRG(r2); desenharRegua(); };
       const estado = (est, motivo) => { const r2 = RG(), x = r2[alvo.hash]; x.estado = est; x.motivo = motivo; x.hist.push(hhmm(Date.now()) + ' ' + est + ': ' + motivo); gravaRG(r2); desenharRegua(); };
+      // 8.38 (Stefany 18/11 14:05): proposta mandada SÓ PARA ANÁLISE (cliente não aceitou a simulação) → UM follow-up só, /132 2 h depois do link;
+      // sem o 'Conseguiu acessar?' de 10 min e sem o do dia seguinte (no dia seguinte é a varredura). Quem ACEITOU segue 10 min / 60 min / manhã / tarde.
+      { const O38 = GM_getValue('auto_ordens', {}) || {}; const oA38 = O38[alvo.hash]; const aceitou = !!(alvo.aceite || (oA38 && oA38.aceite));
+        if (!aceitou) {
+          if (toque.tipo !== '60') { reg('pulado (só análise — 8.38: um follow-up só, /132 em 2 h)', true); return; }
+          if (agora < (+alvo.linkT || 0) + 120 * M) { const r38 = RG(), x38 = r38[alvo.hash]; const q38 = x38 && x38.toques.find(k => k.tipo === '60'); if (q38) { q38.quando = (+alvo.linkT || agora) + 120 * M; gravaRG(r38); } return; } } }
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
       if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
@@ -3795,6 +3804,7 @@
       if (d.getHours() >= 21) { d.setHours(20, 45, 0, 0); q = d.getTime(); } else if (d.getHours() < 8) { d.setDate(d.getDate() - 1); d.setHours(20, 45, 0, 0); q = d.getTime(); }
       return q; }
     function novaSequencia(tipo, t0, ultCliT) {   // 5.38 / 5.47
+      if (tipo === 'cpf') return [];   // 8.38: nada de cobrar CPF de novo (1 h / 08:00) — gera denúncia
       const manha = dias => { const d = new Date(t0); d.setDate(d.getDate() + dias); d.setHours(8, 0, 0, 0); return d.getTime(); };
       if (tipo === 'doc') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }];
       const seq = [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }];
@@ -4635,7 +4645,8 @@
                 if (andando) VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag };   // confere de novo na próxima volta
                 // 8.32 (Cristina GOG47 18/11: parou 'com_margem' às 11:02 esperando o vigia ler o extrato (7.71) e ninguém viu): segura do extrato → VERMELHO na hora, não reconsulta
                 if (!teve && oR && oR.cpf === cpf5 && oR.estado === 'com_margem' && /7\.71|ARQUIVO/.test(String(oR.resumo || ''))) { try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome: String(c.firstName || ''), estado: 'alerta', toques: [], hist: [], criadoT: ag }); if (!/8\.32/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = '8.32: tem margem (' + String(oR.resumo || '').split('·')[0].trim() + ') mas mandou ARQUIVO → vigia confere o extrato e libera (dinsAutoMudar extratoOk) — cliente esperando desde ' + hhmm(tCpf); x.ultLado = 'cli'; x.ultCliT = tCpf; x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + x.motivo); gravaRG(R); res.push(String(c.firstName || '') + ' (vigia: extrato)'); diario(String(c.firstName || id.slice(0, 5)), '🔴 tem margem mas mandou arquivo → vigia confere o extrato (8.32)'); } } catch (e) {} VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; }
-                if (!teve && !desf5 && !andando && !(SM[id] && ag - SM[id] < 30 * 86400000) && !jaFezProposta((RG() || {})[id])) {
+                const uU38 = [...ms].reverse().find(m => m.from === 'user'); const encerrou38 = uU38 && /encerrar agora/i.test(String((uU38.content && (uU38.content.selectedButton || uU38.content.text)) || ''));   // 8.38: pediu para encerrar → não reconsulta
+                if (!teve && !desf5 && !andando && !encerrou38 && !(SM[id] && ag - SM[id] < 30 * 86400000) && !jaFezProposta((RG() || {})[id])) {
                   const tent = (o5 && o5.cpf === cpf5 && +o5.tentEsp) || 0;
                   if (tent < 2) { O[id] = { hash: id, nome: (o5 && o5.nome) || String(c.firstName || ''), cpf: cpf5, fone: (o5 && o5.fone) || ((RG()[id] || {}).fone || ''), tipo: 'cpf', cpfT: tCpf, valorBot: (o5 && o5.valorBot) || 0, aceite: false, estado: 'nova', t: ag, tentEsp: tent + 1, hist: ((o5 && o5.cpf === cpf5 && o5.hist) || []).concat([hhmm(ag) + ' 8.15: mandou CPF ' + hhmm(tCpf) + ' e não recebeu simulação/sem margem/link → consulta de novo (tentativa ' + (tent + 1) + ')']) };
                     GM_setValue('auto_ordens', O); res.push(String(c.firstName || id.slice(0, 5)) + ' (sem resultado → consulta)'); diario(String(c.firstName || id.slice(0, 5)), '🔁 mandou CPF às ' + hhmm(tCpf) + ' e não recebeu resultado → consulta de novo (8.15, tentativa ' + (tent + 1) + ')'); VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; }
@@ -4660,7 +4671,9 @@
             // CPF: digitado pelo cliente (nas mensagens dele) ou na variável CPF do bot
             let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
             if (!cpf) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }
-            if (/encerrar agora/i.test(btn) && !cpf) return;   // 8.14 (Hilton 18/11): com CPF e sem simulação, 'Encerrar agora' NÃO tira da fila
+            // 8.38 (Stefany 18/11 14:05: "o pessoal que pediu o encerramento… taguear e fechar, não ficar mandando mensagem"): 'Encerrar agora' → o bot já mandou a despedida;
+            // o robô só coloca a tag e fecha pela intenção (sem CPF → 01 C; com CPF → só fechar). Não consulta, não manda nada.
+            if (/encerrar agora/i.test(btn)) { try { const ON38 = GM_getValue('bm_intents_on', []) || []; const it38 = cpf ? 'fechar_so' : 'fechar_01c'; if (ON38.includes(it38) && window.dinsBmIntent) { window.dinsBmIntent(id, it38).then(ri => { if (ri && ri.http >= 200 && ri.http < 300) diario(nome || id.slice(0, 5), 'pediu para encerrar → ' + (cpf ? 'fechou' : '01 C + fechou') + ' pela intenção (8.38)'); }); VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; } } catch (e) {} return; }
             const ordem = O[id]; const ordemViva = ordem && ordem.cpf && ag - (+ordem.t || 0) < 23 * 3600000;
             if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
