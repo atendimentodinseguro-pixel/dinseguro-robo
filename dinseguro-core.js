@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.88';
+  const VERSAO = '7.89';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -850,6 +850,11 @@
       return 'wait'; }
     window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
     const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
+    // 7.89: conferir a API do Botmaker sem mandar mensagem (só leitura: GET /chats) — o vigia chama dinsBmApi()
+    window.dinsBmApi = () => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); const on = bmApiLigada(); if (!tk) return res({ ligada: false, motivo: 'sem token' });
+      try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats', timeout: 20000, headers: { 'access-token': tk, Accept: 'application/json' },
+        onload: r => res({ ligada: on, http: r.status, ok: r.status >= 200 && r.status < 300, resp: String(r.responseText || '').slice(0, 160) }),
+        onerror: () => res({ ligada: on, erro: 'sem resposta' }), ontimeout: () => res({ ligada: on, erro: 'demorou' }) }); } catch (e) { res({ ligada: on, erro: e.message }); } });
     const API_ADIA = {}; const apiAdiado = id => (API_ADIA[id] || 0) > Date.now();   // 6.06: conversa com o BOT falando agora → não abre a tela por 2 min
     const T0 = Date.now();
     const ABA = (() => { let k = sessionStorage.getItem('dins_aba_id');
@@ -1389,7 +1394,7 @@
       const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
       let rrApi = false;   // 7.88: resposta rápida de TEXTO sai pela API do Botmaker (o texto já foi montado na caixa)
-      if (bmApiLigada()) { const hR = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (hR) { try { await bmEnviarTexto(hR, valorEnviado); rrApi = true; setNativo(document.querySelector('textarea'), ''); } catch (e) { try { console.warn('[Dinseguro] API Botmaker falhou → tela', e); } catch (x) {} } } }
+      if (bmApiLigada()) { const hR = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (hR) { try { await bmEnviarTexto(hR, valorEnviado); rrApi = true; setNativo(document.querySelector('textarea'), ''); try { diario(nomeDoContato(), 'resposta rápida pela API do Botmaker'); } catch (x) {} } catch (e) { try { console.warn('[Dinseguro] API Botmaker falhou → tela', e); } catch (x) {} } } }
       if (!rrApi) clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
       const chegou = rrApi ? await ate(() => document.querySelector('.entries').innerText.slice(-4000).replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(trecho.replace(/\s+/g, ' ').trim().slice(0, 30)), 16000) : document.querySelector('.entries').innerText.slice(-4000)
