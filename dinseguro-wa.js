@@ -1,4 +1,4 @@
-// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.5
+// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.8
 // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
 //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
 //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -94,9 +94,20 @@ async function abrirPeloMais(numero) {
 // passa de 10 → este módulo deixa esse contador sempre cheio (o nosso contador é outro: 'wa_hora_…').
 const calaAntigo = () => { try { const d = new Date(); for (let h = 0; h < 24; h++) GM_setValue('wa_feitas_' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + '-' + h, 99); } catch (e) {} };
 calaAntigo(); setInterval(calaAntigo, 10 * 60000);
+// 1.8 (Stefany 18/11 14:42, José …6520 e Drika …8589 "não enviou"): o robô dava como ENVIADA só porque a caixa esvaziou;
+// com o WhatsApp Web sem conexão a mensagem fica no reloginho e nunca sai — e a conversa ainda era fechada no Botmaker.
+// Agora: (a) sem conexão (aviso "Computador não conectado" / "Conectando…" / "Telefone não conectado") NÃO envia, só espera;
+// (b) depois do clique espera até 25 s o ✓ da mensagem — se ficar no reloginho = ERRO "não confirmado" e o envio PAUSA (não fecha no Botmaker);
+// (c) comando de fora GM 'wa_recarregar' (dinsWaRecarregar() no Botmaker) recarrega esta aba.
+const CARREGOU = Date.now();
+const semConexao = () => { try { if (document.querySelector('[data-icon="alert-computer"],[data-icon="alert-phone"],[data-icon*="alert-offline"],[data-icon="alert-update"]')) return true;
+  const sd = document.querySelector('#side'), pn = document.querySelector('#pane-side'); const t = sd ? (sd.innerText || '').replace((pn && pn.innerText) || '', '').slice(0, 800) : (document.body.innerText || '').slice(0, 800);   // só o aviso de cima, nunca as conversas
+  return /computador n[ãa]o (est[áa] )?conectado|telefone n[ãa]o (est[áa] )?conectado|conectando\.\.\.|conectando…|tentando (se )?conectar|sem conex[ãa]o|computer not connected|phone not connected|connecting/i.test(t); } catch (e) { return false; } };
+setInterval(() => { try { const rq = +GM_getValue('wa_recarregar', 0) || 0; if (rq > CARREGOU && Date.now() - rq < 10 * 60000 && !ocupado) { GM_setValue('wa_recarregar', 0); location.reload(); } } catch (e) {} }, 15000);
 let ocupado = false;
 const tick = async () => {
   if (ocupado || !horario() || !appPronto()) return;   // WhatsApp ainda carregando: só espera (nunca recarrega)
+  if (semConexao()) { GM_setValue('wa_status', { t: Date.now(), m: 'WhatsApp Web sem conexão — esperando para enviar' }); return; }   // 1.8
   const pend = fila().filter(x => x.estado === 'pendente' && x.fone);
   if (!pend.length) return;
   const prox = +GM_getValue('wa_prox', 0) || 0;
@@ -154,7 +165,17 @@ const tick = async () => {
     if (!bt) { marca(alvo, { estado: 'erro', motivo: 'botão de enviar não encontrado (rascunho na caixa)' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
     bt.click(); await esp(3000);
     if (cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa continuou cheia depois de enviar' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
+    // 1.8: só é ENVIADA com o ✓ do WhatsApp (reloginho = ainda não saiu)
+    { const ini = msg.replace(/\s+/g, ' ').trim().slice(0, 25); let st = '';
+      for (let i = 0; i < 25; i++) { await esp(1000);
+        const rows = [...document.querySelectorAll('#main [role="row"]')].filter(x => (x.innerText || '').replace(/\s+/g, ' ').includes(ini));
+        const r0 = rows[rows.length - 1];
+        st = !r0 ? 'sem balão' : r0.querySelector('[data-icon*="msg-dblcheck"],[data-icon*="msg-check"]') ? 'ok' : r0.querySelector('[data-icon*="msg-time"]') ? 'reloginho' : 'sem ícone';
+        if (st === 'ok') break; }
+      if (st !== 'ok') { marca(alvo, { estado: 'erro', motivo: 'mensagem NÃO confirmada pelo WhatsApp (' + st + ' depois de 25 s) — conferir a conexão do WhatsApp Web' });
+        GM_setValue('wa_prox', Date.now() + 365 * 86400000); GM_setValue('wa_status', { t: Date.now(), m: 'PAUSADO: mensagem ficou no ' + st }); log(alvo.nome || alvo.hash.slice(0, 5), '→ NÃO confirmada (' + st + ') — envio pausado'); return; } }
     marca(alvo, { estado: 'enviado', quando: Date.now() });
+    GM_setValue('wa_status', { t: Date.now(), m: 'ok ' + (alvo.nome || alvo.hash.slice(0, 5)) });
     GM_setValue(mh, (+GM_getValue(mh, 0) || 0) + 1);
     GM_setValue('wa_prox', Date.now() + (3 + Math.random() * 1.5) * 60000);   // 1.7 (Stefany 18/11 11:58: 'demorou 8 min de intervalo'): espera 3 a 4,5 min — com a conferência do próximo, o envio fica entre 4 e 6 min
     try { localStorage.setItem('dins_wa_ultimo', JSON.stringify({ nome: alvo.nome, caso: alvo.caso, hora: new Date().toLocaleTimeString('pt-BR').slice(0, 5) })); } catch (e) {}

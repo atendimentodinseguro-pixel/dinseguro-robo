@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.38';
+  const VERSAO = '8.39';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4277,6 +4277,10 @@
     window.dinsWaVer = () => (GM_getValue('wa_fila', []) || []).map(x => ({ nome: x.nome, caso: x.caso, estado: x.estado, quem: x.quem || 'antiga', fone: x.fone ? '…' + String(x.fone).slice(-4) : '', hash: x.hash, criado: x.criado ? new Date(x.criado).toLocaleString('pt-BR').slice(0, 16) : '', quando: x.quando ? new Date(x.quando).toLocaleString('pt-BR').slice(0, 16) : '', motivo: x.motivo || '', fechado: x.fechado || '' }));
     window.dinsWaArquivarAntigas = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente' && x.quem !== 'varredura 4.27') { x.estado = 'arquivado'; x.motivo = 'fila antiga (antes da 4.27) — não enviar'; n++; } }); GM_setValue('wa_fila', f); return n; };
     window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome, true); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
+    // 8.39 (18/11 14:42, José/Drika "não enviou"): devolver para a fila quem foi dado como enviado sem ter saído; recarregar a aba do WhatsApp de fora; ver o estado do envio
+    window.dinsWaReenviar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /enviado|erro/.test(x.estado)) { x.estado = 'pendente'; x.motivo = 'devolvido à fila (não tinha saído) ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5); delete x.quando; delete x.preOk; delete x.tentAbrir; n++; } }); GM_setValue('wa_fila', f); return n; };
+    window.dinsWaRecarregar = () => { GM_setValue('wa_recarregar', Date.now()); return 'pedido'; };
+    window.dinsWaStatus = () => GM_getValue('wa_status', null);
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaReativar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && x.estado === 'arquivado' && /tirado à mão/.test(x.motivo || '')) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; delete x.tentAbrir; delete x.foneAlt; n++; } }); GM_setValue('wa_fila', f); return n; };   // 7.22: desfaz o dinsWaTirar
