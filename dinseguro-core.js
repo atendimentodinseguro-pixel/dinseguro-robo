@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.09';
+  const VERSAO = '8.10';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -877,6 +877,8 @@
     async function cpfDoServidor(h) { try { const js = await apiLer(h, 1); if (!js) return '';
         const vv = Object.assign({}, ((js.customer || {}).variables) || {}, ((((js.result || {}).state) || {}).variables) || {});
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
+    // 8.10 (Elias DX7HR 18/11 10:23: voltou pelo anúncio sem CPF; o robô achou o CPF de setembro e disse "Recebi o seu CPF") → texto certo para CPF de conversa antiga
+    const cpfAntigo810 = x => /7\.04|, pedido de CPF\)|follow-up de CPF/i.test(((x && x.hist) || []).join(' '));
     function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
         O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; r9[h].cpfSrv = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
@@ -939,7 +941,7 @@
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
         if (oA) { ocup790 = true; oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
           try { const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
-            await bmEnviarTexto(oA.hash, sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝');
+            await bmEnviarTexto(oA.hash, sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\n' + (cpfAntigo810(oA) ? 'Já tenho o seu CPF aqui do nosso último contato e já estou consultando para você agora.' : 'Recebi o seu CPF e já estou consultando aqui para você.') + ' Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝');
             diario(oA.nomeReal || oA.nome || '', 'CPF recebido → "já estou consultando" NA HORA pela API (' + Math.round((Date.now() - (+oA.t || Date.now())) / 1000) + ' s)');
           } catch (e) { const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oA.hash]) { delete O3[oA.hash].acolheu; O3[oA.hash].acol793Falhou = 1; GM_setValue('auto_ordens', O3); } }   // falhou → a tela manda (5.96)
           finally { ocup790 = false; } return; }
@@ -2095,7 +2097,7 @@
           if (oA) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
             const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; /* 7.06 (Stefany 15/11 07:39, caso Nick Salim = Monique): CPF recebido e ainda não consultado → sem nome do WhatsApp; o nome exato só nas próximas mensagens (nomeReal da consulta) */ const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
             const dA = new Date(), ddA = String(dA.getDate()).padStart(2, '0') + '/' + String(dA.getMonth() + 1).padStart(2, '0');
-            const linhaA = sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝';
+            const linhaA = sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\n' + (cpfAntigo810(oA) ? 'Já tenho o seu CPF aqui do nosso último contato e já estou consultando para você agora.' : 'Recebi o seu CPF e já estou consultando aqui para você.') + ' Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝';
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oA.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaA, atalhos: [], nome: oA.nome || '', fone: oA.fone || '', nota: ddA + ' ' + hhmm(Date.now()) + ' [robô 5.96] CPF recebido → mensagem de acolhimento (consultando).' }));
             return; } }
         // 7.55: SIMULAÇÃO ANTES DA DIGITAÇÃO — manda só a simulação; 15 min sem resposta → um toque; 30 min sem resposta → digita e manda /parabens
