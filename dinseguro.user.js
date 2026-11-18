@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.35
+// @version      3.36
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -24,6 +24,7 @@
 // @connect      raw.githubusercontent.com
 // @connect      api.github.com
 // @connect      developers.newcorban.com.br
+// @connect      api.botmaker.com
 // ==/UserScript==
 
 /* Carregador 3.3 — 07/11/2026. Três problemas já resolvidos aqui:

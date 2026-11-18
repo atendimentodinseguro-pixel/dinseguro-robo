@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.87';
+  const VERSAO = '7.88';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -773,6 +773,21 @@
   // ================================================================== BOTMAKER: VIGIA
   // Roda dentro da lista de chats. Não gasta nada: só anota cliente NOVO derivado para atendimento
   // em localStorage 'dins_fila' (o Claude lê essa fila) e avisa com som + notificação.
+  // ================================================================== 7.88 API OFICIAL DO BOTMAKER (envio de mensagens)
+  // Stefany 17/11 21:32 ("sim"): mensagem escrita pelo robô sai pela API (https://api.botmaker.com/v2.0/chats-actions/send-messages)
+  // em vez de digitar na caixa e clicar em enviar → acaba o "chat bloqueado"/"mensagem não apareceu" (caso Rosa 17/11 18:40).
+  // A tela continua conferindo duplicidade, janela de 24 h, tique e chat certo. Sem token ou com erro da API → segue pela tela, como antes.
+  // Token: menu do Tampermonkey → "Dinseguro: token da API do Botmaker" (gerado em go.botmaker.com/#/integrations/api).
+  function bmApiLigada() { try { return !!GM_getValue('bm_api_token', '') && GM_getValue('bm_api_on', 1) !== 0; } catch (e) { return false; } }
+  try { if (typeof GM_registerMenuCommand === 'function' && window.top === window && /botmaker/.test(location.host)) {
+    GM_registerMenuCommand('Dinseguro: token da API do Botmaker', () => { const t = prompt('Cole aqui o access-token da API do Botmaker (Integrações → API). Vazio = desliga.', ''); if (t === null) return; const v = String(t).trim(); GM_setValue('bm_api_token', v.length > 20 ? v : ''); GM_setValue('bm_api_on', v.length > 20 ? 1 : 0); alert(v.length > 20 ? 'Token do Botmaker salvo. As mensagens do robô passam a sair pela API.' : 'API do Botmaker desligada: as mensagens voltam a sair pela tela.'); });
+  } } catch (e) {}
+  function bmEnviarTexto(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
+    try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
+      data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: String(texto) }] }),
+      onload: r => (r.status >= 200 && r.status < 300) ? res(r.responseText) : rej(new Error('API Botmaker HTTP ' + r.status + ' ' + String(r.responseText || '').slice(0, 120))),
+      onerror: () => rej(new Error('API Botmaker sem resposta')), ontimeout: () => rej(new Error('API Botmaker demorou')) }); } catch (e) { rej(e); } }); }
+
   if (location.host === 'go.botmaker.com') {
     if (!/moduleForward\/chats/.test(location.pathname)) return;
     // 5.64 — UM ROBÔ POR ABA. Papel guardado na própria aba (sessionStorage: sobrevive ao F5, cada aba tem o seu):
@@ -1373,9 +1388,11 @@
       const valorEnviado = document.querySelector('textarea').value;
       const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
-      clicar(await ate(() => document.querySelector('button.send-button-component')));
+      let rrApi = false;   // 7.88: resposta rápida de TEXTO sai pela API do Botmaker (o texto já foi montado na caixa)
+      if (bmApiLigada()) { const hR = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (hR) { try { await bmEnviarTexto(hR, valorEnviado); rrApi = true; setNativo(document.querySelector('textarea'), ''); } catch (e) { try { console.warn('[Dinseguro] API Botmaker falhou → tela', e); } catch (x) {} } } }
+      if (!rrApi) clicar(await ate(() => document.querySelector('button.send-button-component')));
       await esp(4000);
-      const chegou = document.querySelector('.entries').innerText.slice(-4000)
+      const chegou = rrApi ? await ate(() => document.querySelector('.entries').innerText.slice(-4000).replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(trecho.replace(/\s+/g, ' ').trim().slice(0, 30)), 16000) : document.querySelector('.entries').innerText.slice(-4000)
         .replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(trecho.replace(/\s+/g, ' ').trim().slice(0, 30));
       if (!chegou) throw new Error('mandei mas a mensagem não apareceu no chat (chat bloqueado?)');
       // 5.94 (Stefany 13/11 10:16): balão com "!" vermelho = NÃO foi enviado ao cliente. ✓ = saiu; ✓✓ cinza = chegou; ✓✓ azul = viu.
@@ -1398,6 +1415,20 @@
 
     // 2b. texto escrito, sem atalho (pensão alimentícia)
     async function mensagemLivre(texto) {
+      // 7.88: com a API do Botmaker ligada, a mensagem sai pela API (mesmo com o chat bloqueado por outro atendente)
+      if (bmApiLigada()) { const hA = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iA = idDaTela();
+        if (hA && (!iA || iA === hA) && !janelaVencidaAgora()) { try {
+          const k = (String(texto).match(/https?:\/\/\S+/) || [])[0] ? String(texto).match(/https?:\/\/\S+/)[0].replace(/[*_\s]/g, '') : String(texto).replace(/[*_\s]/g, '').slice(0, 45);
+          const jaA = [...document.querySelectorAll('.entries [class*="entries-li"].right')].slice(-6).some(e => (e.innerText || '').replace(/[*_\s]/g, '').includes(k));
+          let odA = null; try { odA = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); } catch (e) {}
+          if (jaA && !(odA && (odA.forcar || odA.reenvio) && !odA.reenvioUsado)) throw Object.assign(new Error('DUPLICADO: essa mensagem já está no chat — não mandei de novo'), { dup: 1 });
+          await bmEnviarTexto(hA, texto);
+          if (odA && (odA.forcar || odA.reenvio)) { try { odA.reenvioUsado = 1; localStorage.setItem('dins_ordem', JSON.stringify(odA)); } catch (e) {} }
+          const alvo = String(texto).replace(/[*_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+          const veio = await ate(() => ((document.querySelector('.entries') || {}).innerText || '').slice(-4000).replace(/[*_]/g, '').replace(/\s+/g, ' ').includes(alvo), 20000);
+          try { diario(nomeDoContato(), 'mensagem pela API do Botmaker' + (veio ? '' : ' (ainda não apareceu na tela)')); } catch (e) {}
+          return String(texto).slice(0, 40);
+        } catch (e) { if (e.dup) throw e; try { console.warn('[Dinseguro] API Botmaker falhou → tela', e); } catch (x) {} } } }
       const ta = await ate(() => document.querySelector('textarea'));
       if (!ta) throw new Error('caixa de mensagem não encontrada');
       { const hT = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iT = idDaTela(); if (hT && iT && iT !== hT) throw new Error('a tela mostra as mensagens de OUTRO cliente (' + iT.slice(0, 5) + ' ≠ ' + hT.slice(0, 5) + ') — NÃO mandei nada'); }   // 7.36
