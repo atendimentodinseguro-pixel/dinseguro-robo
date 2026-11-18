@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.47';
+  const VERSAO = '8.48';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -667,6 +667,24 @@
   // Falha técnica (rede, 401, 429, 5xx) → apiFalhou = 1 e a ordem volta para a TELA (aba do New Corban), como antes.
   // Erro do BANCO (recusou, sem oferta, Não Perturbe…) → 'erro' com o motivo, igual à tela.
   const NCAPI = 'https://developers.newcorban.com.br/v1';
+  // 8.48 (Stefany 18/11 19:44, "bora"): API do ZAP RESPONDER (segundo sistema de WhatsApp) — token colado por ela no menu do Tampermonkey (nunca no chat).
+  // Base https://api.zapresponder.com.br, header Authorization: Bearer <token>. Leitura e envio para o vigia testar; a varredura passa a usar depois de testado.
+  try { if (typeof GM_registerMenuCommand === 'function' && window.top === window) {
+    GM_registerMenuCommand('Dinseguro: token do Zap Responder', () => { const t = prompt('Cole aqui o token de integração do Zap Responder (gerado no painel). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length < 16) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('zr_api_token', v); alert('Token do Zap Responder salvo neste Chrome. Recarregue a aba (F5).'); });
+  } } catch (e) {}
+  function zrReq(metodo, caminho, corpo) { return new Promise(res => { const tk = GM_getValue('zr_api_token', ''); if (!tk) return res({ erro: 'sem token do Zap Responder' });
+    if (!/^\/api\//.test(String(caminho))) return res({ erro: 'caminho inválido' });
+    try { GM_xmlhttpRequest({ method: metodo, url: 'https://api.zapresponder.com.br' + caminho, timeout: 30000, headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json', Accept: 'application/json' }, data: corpo ? JSON.stringify(corpo) : undefined,
+      onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } }); }
+  try { const W0 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+    W0.dinsZrTem = () => !!GM_getValue('zr_api_token', '');
+    W0.dinsZrGet = p => /^\/api\/(departamento\/all|whatsapp\/[\w-]+$|atendentes|etiquetas|contatos(\/phone\/\d+)?$|v2\/conversations\/)/.test(String(p)) ? zrReq('GET', p) : Promise.resolve({ erro: 'caminho não liberado' });   // só leitura
+    W0.dinsZrSessao = id => { if (id !== undefined) GM_setValue('zr_session', String(id || '')); return GM_getValue('zr_session', ''); };
+    W0.dinsZrEnviar = (numero, texto) => { const sid = GM_getValue('zr_session', ''); const n = String(numero || '').replace(/\D/g, ''); if (!sid) return Promise.resolve({ erro: 'sessão do Zap Responder não definida (dinsZrSessao)' }); if (!/^55\d{10,11}$/.test(n) || !String(texto || '').trim()) return Promise.resolve({ erro: 'número ou texto inválido' });
+      const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return Promise.resolve({ erro: 'fora do horário (8h–21h)' }); return zrReq('POST', '/api/whatsapp/message/' + encodeURIComponent(sid), { type: 'text', number: n, message: String(texto), showInChat: true }); };
+    W0.dinsZrEncerrar = numero => { const n = String(numero || '').replace(/\D/g, ''); return /^55\d{10,11}$/.test(n) ? zrReq('POST', '/api/conversa/encerrar', { chatId: n }) : Promise.resolve({ erro: 'número inválido' }); };
+    W0.dinsZrEtiquetas = (numero, add, rem) => { const n = String(numero || '').replace(/\D/g, ''); return /^55\d{10,11}$/.test(n) ? zrReq('POST', '/api/vincular_etiquetas', { chatId: n, labels_to_add: add || [], labels_to_remove: rem || [] }) : Promise.resolve({ erro: 'número inválido' }); };
+  } catch (e) {}
   const NC_LOGIN = { c6: '02267367688_005279', facta: '94271_STEFANY', qualibank: 'Stefanymonarasouza@gmail.com' };
   const NC_SELLER = 24549;
   function dinsApiLigada() { try { return !!GM_getValue('nc_api_token', '') && GM_getValue('nc_api_on', 1) !== 0; } catch (e) { return false; } }
