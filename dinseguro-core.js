@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.36';
+  const VERSAO = '8.37';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4674,7 +4674,8 @@
           }); }
         // 8.34 (Stefany 18/11 13:09: "janela de 24 h vencida, caso que a gente não atende… o robô sabe fazer, pode fechar via API, com o tagueamento correto"):
         // conversa VENCIDA sem follow-up a fazer → fecha pela intenção daqui mesmo (a varredura continua com quem tem follow-up).
-        try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_so') && ON.includes('fechar_01c')) {
+        // 8.37 (Stefany 18/11 13:41: "o robô de atendimento… parar de pegar esse pessoal com a janela de 24 h fechada… está atrasando o atendimento… foi um equívoco meu"): DESLIGADO — vencidas são só da varredura
+        try { const ON = GM_getValue('bm_intents_on', []) || []; if (false && ON.includes('fechar_so') && ON.includes('fechar_01c')) {
           const FV = GM_getValue('esp_api_fechou_venc', {}) || {}; for (const k in FV) if (ag - FV[k] > 7 * 86400000) delete FV[k];
           const venc = all.filter(c => !janAberta(c) && !FV[c.chat.chatId] && !protegido(c.chat.chatId) && c.chat.chatId !== 'F20QOEL8YYLQN2S6SR47').slice(0, 30);
           const frV = encodeURIComponent(new Date(ag - 6 * 86400000).toISOString()); let nF = 0, n01 = 0;
