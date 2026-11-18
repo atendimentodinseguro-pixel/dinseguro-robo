@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.24';
+  const VERSAO = '8.25';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -921,8 +921,11 @@
         try { const L = GM_getValue('bm_sim_dono', null); if (L && L.id !== EU790 && Date.now() - (+L.t || 0) < 15000) return; GM_setValue('bm_sim_dono', { id: EU790, t: Date.now() }); } catch (e) { return; }
         const O = GM_getValue('auto_ordens', {}) || {};
         // 8.09 (Assis 18/11 10:00: ficou 8 min em 'consultando' e a consulta nunca voltou): consulta parada há 4 min+ → volta para 'nova' (até 2 vezes)
-        { const oC = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'consultando' && Date.now() - (+x.tConsulta || +x.t || 0) > 4 * 60000 && (+x.reConsulta || 0) < 2 && Date.now() - (+x.t || 0) < 3 * 3600000);
+        { const oC = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'consultando' && Date.now() - (+x.tConsulta || +x.t || 0) > 4 * 60000 && (+x.reConsulta || 0) < 4 && Date.now() - (+x.t || 0) < 6 * 3600000);
           if (oC) { const n = (+oC.reConsulta || 0) + 1; Object.assign(oC, { estado: 'nova', reConsulta: n, tConsulta: Date.now() }); (oC.hist = oC.hist || []).push(hhmm(Date.now()) + ' 8.09: consulta parada há 4 min → de novo (' + n + 'ª)'); GM_setValue('auto_ordens', O); try { diario(oC.nomeReal || oC.nome || '', 'consulta parada há 4 min → refazendo (8.09)'); } catch (e) {} return; } }
+        // 8.25 (Hilton/Lavínia 18/11: 'consultando' há 60+ min depois das tentativas) → erro para o vigia, nunca fica parado calado
+        { const oE = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'consultando' && (+x.reConsulta || 0) >= 4 && Date.now() - (+x.tConsulta || +x.t || 0) > 6 * 60000);
+          if (oE) { oE.estado = 'erro'; oE.erro = 'a consulta no Multicorban não voltou depois de 4 tentativas → vigia (8.25)'; (oE.hist = oE.hist || []).push(hhmm(Date.now()) + ' 8.25: consulta não voltou (4 tentativas) → erro'); GM_setValue('auto_ordens', O); try { diario(oE.nomeReal || oE.nome || '', '🔴 a consulta não voltou depois de 4 tentativas → vigia (8.25)'); } catch (e) {} } }
         // nota + tag pendentes de simulação já enviada pela API
         const pN = Object.values(O).find(x => x && x.notaPend790 && x.estado === 'sim_enviada');
         if (pN && !localStorage.getItem('dins_ordem')) { localStorage.setItem('dins_ordem', JSON.stringify({ hash: pN.hash, acao: 'so_tag', quem: 'robo', t: Date.now(), tags: ['01 A - Inss Com Margem - SEM 87 E 88'], msgFeita: 1, linhaFeita: 1, nota: pN.notaPend790 }));
