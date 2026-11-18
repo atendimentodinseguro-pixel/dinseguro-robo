@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.94';
+  const VERSAO = '7.95';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -769,6 +769,49 @@
         if (e.tecnico) poe(o.hash, { estado: 'ficha_ok', apiFalhou: 1, erroApi: m }, 'API falhou (' + m.slice(0, 60) + ') → digita pela TELA');
         else poe(o.hash, { estado: 'erro', erro: m }); }
       finally { ocupApi = false; } }, 4000); }
+  // ================================================================== 7.95 ESTEIRA PELA API DO NEW CORBAN
+  // Stefany 17/11 22:38 ("Sim"): o robô acompanha as propostas pela API (GET /v1/proposals?updated_since=…) a cada 3 min, sem a aba ?p=propostas,
+  // e grava no mesmo GM 'esteira' que a tela usa (chave 'L:'+link e 'C:'+cpf) + a DDB em 'ddb_cli'. O quadro e a régua decidem o passo (faseEsteira):
+  // pago → /22N · benefício bloqueado / AVERBE JA → desbloqueio (DDB ≥ 91) · anuência → /anuencia · vídeo (nuvidio) → manda o link · conta recusada → vigia.
+  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg/i.test(location.host)) { const EU5 = Math.random().toString(36).slice(2, 8); let ocup5 = false;
+    const nnE5 = s2 => String(s2 || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+    const dBR5 = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
+    const limpa5 = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const rodaEst = async () => {
+      if (ocup5 || !dinsApiLigada()) return;
+      try { const L = GM_getValue('nc_est_dono', null); if (L && L.id !== EU5 && Date.now() - (+L.t || 0) < 5 * 60000) return; GM_setValue('nc_est_dono', { id: EU5, t: Date.now() }); } catch (e) { return; }
+      ocup5 = true; const ini = Date.now(); let nLista = 0, nDet = 0;
+      try {
+        const desde = +GM_getValue('nc_est_desde', 0) || (Date.now() - 3 * 86400000);
+        let cursor = '', pag = 0; const lista = [];
+        do { const q = cursor ? '?per_page=200&cursor=' + encodeURIComponent(cursor) : '?per_page=200&updated_since=' + encodeURIComponent(new Date(desde - 2 * 60000).toISOString());
+          const r = await ncReq('GET', '/proposals' + q); ((r && r.data) || []).forEach(x => lista.push(x)); cursor = (r && r.meta && r.meta.next_cursor) || ''; pag++; } while (cursor && pag < 6);
+        nLista = lista.length;
+        const E = GM_getValue('esteira', {}) || {}; const D = GM_getValue('ddb_cli', {}) || {}; const PEND = GM_getValue('nc_est_pend', {}) || {};
+        const guarda = (p, extra) => { const br = p.bank_reference || {}; const cpf = so((p.customer || {}).cpf); const nome = (p.customer || {}).name || ''; const link = br.formalization_link || '';
+          const banco = String(((p.proposal || {}).bank || {}).name || '').replace(/^Banco\s+/i, '').replace(/^Quali\s*Banking$/i, 'QUALIBANK');
+          const status = p.stage === 'paid' ? 'PAGO' : p.stage === 'canceled' ? 'CANCELADA' : String((((p.proposal || {}).status) || {}).name || '');
+          const reg = Object.assign({ cpf, nome, link, banco, status, statusBanco: br.bank_status || '', real: br.bank_status_description || '', t: Date.now(), api: 1, propNc: p.id, propBanco: br.proposal_number || '' }, extra || {});
+          if (link) E['L:' + link] = reg; if (cpf) E['C:' + cpf + ':' + (link || br.proposal_number || p.id)] = reg;
+          const ddb = dBR5((p.benefit || {}).benefit_dispatch_date); if (ddb) { if (cpf) D['C:' + cpf] = ddb; if (nome) D['N:' + nnE5(nome)] = ddb; } };
+        for (const p of lista) { guarda(p); const sb = String((p.bank_reference || {}).bank_status || '');
+          if (p.stage !== 'canceled' && p.stage !== 'paid' && !/PENDENTE FORMALIZA/i.test(sb)) PEND[p.id] = p; else delete PEND[p.id]; }
+        // detalhe (motivo do banco + observações) de até 12 por rodada; o resto fica para a próxima
+        for (const id of Object.keys(PEND).slice(0, 12)) { const p = PEND[id];
+          try { const d = await ncReq('GET', '/proposals/' + id); const pd = (d && d.data) || d || {}; const br = pd.bank_reference || {};
+            const ob = await ncReq('GET', '/proposals/' + id + '/observations?per_page=10'); const OB = ((ob && ob.data) || []).filter(o => o && o.source === 'API');
+            const txt = OB.slice(0, 4).map(o => limpa5(o.text)).join(' · ').slice(0, 600);
+            const video = (OB.map(o => (String(o.text || '').match(/https?:\/\/nuvidio\.me\/[A-Za-z0-9_-]+/) || [])[0]).find(Boolean)) || '';
+            guarda(Object.assign({}, p, pd, { bank_reference: Object.assign({}, p.bank_reference || {}, br) }), { real: limpa5((br.bank_status_description || '') + ' · ' + txt), video });
+            delete PEND[id]; nDet++; } catch (e) { if (e && e.tecnico) break; delete PEND[id]; } }
+        for (const k in E) if (Date.now() - (E[k].t || 0) > 3 * 24 * 3600000) delete E[k];
+        GM_setValue('esteira', E); GM_setValue('esteira_t', Date.now()); GM_setValue('ddb_cli', D); GM_setValue('nc_est_pend', PEND); GM_setValue('nc_est_desde', ini);
+        try { localStorage.setItem('dins_est_api', JSON.stringify({ t: new Date().toTimeString().slice(0, 5), lista: nLista, detalhes: nDet, faltam: Object.keys(PEND).length })); } catch (e) {}
+      } catch (e) { try { localStorage.setItem('dins_est_api', JSON.stringify({ t: new Date().toTimeString().slice(0, 5), erro: String(e.message || e).slice(0, 160) })); } catch (x) {} }
+      finally { ocup5 = false; } };
+    setTimeout(rodaEst, 40000); setInterval(rodaEst, 3 * 60000);
+    try { window.dinsEsteiraApi = () => { try { return JSON.parse(localStorage.getItem('dins_est_api') || 'null'); } catch (e) { return null; } }; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsEsteiraApi = window.dinsEsteiraApi; } catch (e) {}
+  }
 
   // ================================================================== BOTMAKER: VIGIA
   // Roda dentro da lista de chats. Não gasta nada: só anota cliente NOVO derivado para atendimento
@@ -1837,6 +1880,8 @@
                 continue;
               }
               linha = (nm ? nm + ', e' : 'E') + 'stá tudo certinho com a sua proposta 😊\n\nAgora falta só um passo rápido do seu lado, que é liberar o benefício para o banco. Vou te mandar logo abaixo como fazer, é bem simples.'; atalhos = ['/dsg25a', '/dsg25|midia']; pularSe = 'passo a passo para realizar o desbloqueio'; }
+            else if (fe.fase === 'falta vídeo' && fe.video) { linha = (nm ? nm + ', s' : 'S') + 'ua proposta já foi aprovada 🎉 Para o banco liberar o dinheiro, falta só uma confirmação rápida por vídeo.\n\nÉ só abrir o link abaixo pelo celular, permitir a câmera e seguir as instruções (leva uns 2 minutinhos) 👇\n' + fe.video + '\n\nSe tiver qualquer dificuldade, me chama aqui que eu te ajudo. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.'; atalhos = []; pularSe = 'nuvidio\\.me'; }
+            else if (fe.fase === 'conta recusada') { const r5 = GM_getValue('regua', {}) || {}; if (r5[k]) { r5[k].faseFeita = fe.fase; r5[k].estado = 'alerta'; r5[k].motivo = 'esteira ' + (fe.banco || '') + ': banco recusou a conta de pagamento do benefício → pedir a conta certa e corrigir a proposta (7.95)'; (r5[k].hist = r5[k].hist || []).push(hhmm(Date.now()) + ' ' + r5[k].motivo); GM_setValue('regua', r5); } try { diario(nm || k.slice(0, 5), '🔴 banco recusou a conta do benefício → vigia pede a conta certa (7.95)'); } catch (e) {} continue; }
             else if (fe.fase === 'falta anuência') { linha = (nm ? nm + ', o' : 'O') + ' desbloqueio deu certo 👏 Agora falta só confirmar a autorização no Meu INSS. Te mando abaixo como fazer:'; atalhos = ['/anuencia', '/anuencia2|midia']; pularSe = 'confirmar a autoriza[çc][ãa]o no Meu INSS'; }
             else continue;
             const r3 = GM_getValue('regua', {}) || {}; if (r3[k]) { r3[k].faseMsg = fe.fase; r3[k].faseMsgT = Date.now(); (r3[k].hist = r3[k].hist || []).push(hhmm(Date.now()) + ' esteira "' + fe.fase + '" → mensagem automática'); GM_setValue('regua', r3); }
@@ -2136,10 +2181,13 @@
       if (/PAG[OA]\b|INTEGRAD|FINALIZAD|CONCRETIZ/.test(t)) { fase = 'pago'; }
       else if (/CANCEL|REPROV|RECUS|NEGAD/.test(t)) { fase = 'recusada'; acao = 'banco recusou/cancelou → ver com a Stefany'; }
       else if (/ENVIO DOC|AGUARD\w* DOC|PEND\w* (DE )?DOC/.test(t)) { fase = 'falta documento'; acao = 'pedir o documento (linha pessoal + /CLT1)'; }   // 4.79
+      else if (/CBC|IF PAGADORA|CONTA (CORRENTE )?(INV|INCORRET)|DADOS BANC\w* (INV|INCORRET)/.test(t)) { fase = 'conta recusada'; acao = 'banco recusou a conta de pagamento do benefício → pedir a conta certa e corrigir a proposta'; }   // 7.95 (Sandra FACTA 17/11)
+      else if (e.video && /NUVIDIO|VALIDA[ÇC][ÃA]O DA PROPOSTA|P[ÓO]S.?VENDA|AUDITORIA/.test(t)) { fase = 'falta vídeo'; acao = 'mandar o link da videochamada do banco'; }   // 7.95 (Nila Qualibank 17/11)
       else if (/ANUENCIA|ANUÊNCIA/.test(t)) { fase = 'falta anuência'; acao = 'mandar linha pessoal + /anuencia + /anuencia2'; }
+      else if (/BENEF[IÍ]CIO BLOQUEADO|BLOQUEADO (PARA EMPR|PELO BENEFICI)/.test(t)) { fase = 'falta desbloquear'; acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }   // 7.95 (Elizabeth FACTA 17/11: 'INCONSISTENCIA DATAPREV - BENEFÍCIO BLOQUEADO')
       else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA|PROPOSTA ASSINADA|FORMALIZA\S* CONCLU|A?VERBA\S* ON-? ?LINE/.test(t)) { fase = 'falta desbloquear';   /* 7.47 (Stefany 16/11 19:22, Édina Daycoval): 'Formalização concluída' / 'averba online' = aprovado → desbloqueio */   /* 7.27 (Stefany 16/11 16:04): 'Proposta Assinada' já pede o desbloqueio */ acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
-      return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '' };
+      return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '', video: e.video || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
     // 4.86: ao carregar, o último desfecho/ordem OK (feito antes da 4.83) e as ordens automáticas terminadas também contam como resolvidas
