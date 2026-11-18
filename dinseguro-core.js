@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.91';
+  const VERSAO = '7.92';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2540,7 +2540,8 @@
                 if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom que você voltou, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
-                  API_ADIA[id] = Date.now() + 30 * 60000; diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'voltou pelo anúncio sem CPF → pedido do CPF (6.86)'); return false; }
+                  API_ADIA[id] = Date.now() + 30 * 60000; try { const PF = GM_getValue('pedir_cpf_feito', {}) || {}; PF[id] = Date.now(); GM_setValue('pedir_cpf_feito', PF); } catch (e) {}   /* 7.92 (17/11 21:55–22:00, William: pedia o CPF a cada minuto — 'NÃO saiu de novo' — e prendia a fila da tela): marca na hora, para todas as abas */
+                  diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'voltou pelo anúncio sem CPF → pedido do CPF (6.86)'); return false; }
                 if (iA >= 0 && cv.length === 11 && Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) { API_ADIA[id] = Date.now() + 10 * 60000; return false; }   // 7.29
                 try { const SM2 = JSON.parse(localStorage.getItem('dins_sem_margem') || '{}'); if (SM2[id] && Date.now() - SM2[id] < 30 * 86400000) { API_ADIA[id] = Date.now() + 6 * 3600000; return false; } } catch (e) {}   // 7.66
                 if (iA >= 0 && cv.length === 11 && cpfDigitoOk(cv) && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000) {
