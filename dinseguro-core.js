@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.17';
+  const VERSAO = '8.18';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4611,6 +4611,20 @@
       } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
       finally { espApiRodando = false; try { desenharRegua(); } catch (e) {} } }
     window.dinsEsperaApi = esperaApi812;
+    // 8.18 (18/11 11:20: 26 'sem margem' parados — o envio pela API dentro do intervalo 7.90 não rodava e a fila da tela estava cheia de toques):
+    // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
+    { let ocup818 = false;
+      setInterval(async () => { if (ocup818) return; try { if (meuPapel() === 'vigia' || !bmApiLigada()) return; const L = GM_getValue('sm818_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('sm818_dono', { aba: ABA, t: Date.now() });
+        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
+        if (!oM) return; ocup818 = true;
+        const RC = GM_getValue('rr_cache', {}) || {}; const n30 = (RC['/n30'] && RC['/n30'].tx) || 'Assim que abrir margem no seu benefício, a gente te avisa por aqui. 💙\n\nQualquer dúvida, estamos à disposição. 🤝\n*Um grande abraço da equipe Dinseguro!*';
+        try { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal || ''))); await esp(1500); await bmEnviarTexto(oM.hash, n30);
+          const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].msgApi = 1; O2[oM.hash].sm818Feito = Date.now(); (O2[oM.hash].hist = O2[oM.hash].hist || []).push(hhmm(Date.now()) + ' 8.18: sem margem enviado pela API'); GM_setValue('auto_ordens', O2); }
+          try { const F = GM_getValue('desf_msg_feita', {}) || {}; F[oM.hash + '|' + oM.acao] = Date.now(); GM_setValue('desf_msg_feita', F); } catch (e) {}
+          diario(oM.nomeReal || oM.nome || '', 'sem margem: retorno pela API ✓ (8.18, ' + Math.round((Date.now() - (+oM.t || Date.now())) / 60000) + ' min depois do resultado)');
+        } catch (e) { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].sm818Tent = (+O2[oM.hash].sm818Tent || 0) + 1; O2[oM.hash].sm818Prox = Date.now() + 60000; O2[oM.hash].sm818Erro = String((e && e.message) || e).slice(0, 160); GM_setValue('auto_ordens', O2); }
+          diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu (8.18): ' + String((e && e.message) || e).slice(0, 120)); }
+        finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 20000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; checkup24h(); } catch (e) {} }, 15 * 60000);
