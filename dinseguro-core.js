@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.04';
+  const VERSAO = '8.05';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1749,6 +1749,10 @@
         if (o.soSeNossaUltima && !o.msgFeita) { try { const ul = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => (e.innerText || '').trim().length > 2).slice(-1)[0];
           let recente = false; { const mh = /(\d{1,2}):(\d{2})\s*(AM|PM)/i.exec((ul && ul.innerText) || ''); if (mh) { let h = +mh[1] % 12; if (/PM/i.test(mh[3])) h += 12; const d = new Date(); d.setHours(h, +mh[2], 0, 0); const dif = Date.now() - d.getTime(); recente = dif >= 0 && dif < 2 * 3600000; } }
           if (ul && (ul.classList.contains('left') || recente)) { passos.push(recente ? 'falamos há menos de 2 h — NÃO mandei o toque' : 'cliente falou por último — NÃO mandei o toque'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
+        // 8.05 (Jandira 17/11: a simulação das 20:30 não chegou ao chat e o toque 'conseguiu ver as opções?' saiu assim mesmo): o.exige = texto que TEM de estar no chat
+        if (o.exige && !o.msgFeita) { let ok805 = true; try { ok805 = new RegExp(o.exige, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-30000)); } catch (e) {}
+          if (!ok805) { try { const O5 = GM_getValue('auto_ordens', {}) || {}; if (O5[o.hash]) { Object.assign(O5[o.hash], { estado: 'simulada', tSimEnv: 0, fupSim: 0, chkOkT: 0, erro: '' }); (O5[o.hash].hist = O5[o.hash].hist || []).push(hhmm(Date.now()) + ' 8.05: a simulação NÃO estava no chat → volta para mandar de novo'); GM_setValue('auto_ordens', O5); } } catch (e) {}
+            passos.push('8.05: simulação não está no chat — toque não enviado, simulação volta para envio'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, notaFeita: 1 }); } }
         if (o.pularSe && !o.msgFeita) { try { if (new RegExp(o.pularSe, 'i').test((document.querySelector('.entries') || {}).innerText.slice(-20000))) { passos.push('já tinha saído (não repeti)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); } } catch (e) {} }   // 4.79
         if (o.linha && !o.linhaFeita) { await garante(); passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
@@ -2101,7 +2105,7 @@
             if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
             if (dt >= 15 * 60000 && !x.fupSim) { x.fupSim = Date.now(); GM_setValue('auto_ordens', O); const nmF = nomeCli(x);
-              localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), /* 7.59: sem soSeNossaUltima — a trava 'falamos há menos de 2 h' engolia o toque (caso João FAWBI 08:22); a resposta do cliente já é conferida pelo servidor */ nome: x.nome || '',
+              localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), exige: 'Novo Cr[ée]dito Dispon[íi]vel|Valor na conta', /* 7.59: sem soSeNossaUltima — a trava 'falamos há menos de 2 h' engolia o toque (caso João FAWBI 08:22); a resposta do cliente já é conferida pelo servidor */ nome: x.nome || '',
                 linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder *1* ou *2* que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
               diario(nmF || x.hash.slice(0, 5), '15 min sem resposta à simulação → toque (7.55)'); return; }
           } }
