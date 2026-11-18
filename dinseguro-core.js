@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.00';
+  const VERSAO = '8.01';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1762,7 +1762,7 @@
         if (o.q15 && /^(sem_margem|sem_margem_k)$/.test(o.acao)) tags.push(TAG_Q15);
         if (!o.tagsFeitas) { for (const t of tags) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); }
         if (o.nota && !o.notaFeita && !(o.pularSe && passos.some(x => /já tinha saído/.test(x)))) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
-        if (d.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }
+        if (d.fechar || o.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }   // 8.01 (Nozeli 17/11 22:55: a tag Q15 pelo so_tag deixou a conversa aberta) — ordem com fechar:true fecha no fim
         else if (d.fluxo) { await esp(8000); try { passos.push('o flow não fechou → ' + await fecharConversa()); limparFiltro(); } catch (e) { passos.push('fechada pelo flow'); } }   // 7.30 (Stefany 16/11 16:25: marcou 07, mandou a mensagem e não fechou — ela fechou à mão)
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
