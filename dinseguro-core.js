@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.48';
+  const VERSAO = '8.49';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -971,6 +971,12 @@
       x.revConf = 1; x.estado = 'reverso_conferir'; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 8.47: o CPF achado pelo telefone deu ' + (x.acao || 'desfecho') + ' → não mandei o desfecho, pedi o CPF para confirmar'); GM_setValue('auto_ordens', O);
       const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (PC[x.hash] > Date.now() - 30 * 864e5) return;
       window.dinsFilaVigia({ hash: x.hash, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.47: CPF achado pelo telefone deu ' + (x.acao || 'desfecho') + ' — confirmar o CPF do cliente' }); PC[x.hash] = Date.now(); GM_setValue('pedir_cpf_feito', PC); diario(x.nome || x.hash.slice(0, 5), '🔎 CPF do telefone deu ' + (x.acao || 'desfecho') + ' → pediu o CPF para confirmar (8.47)'); } catch (e) {} }, 3000);
+    // 8.49: botão para colar o token do Zap Responder (só na aba [VIGIA], enquanto não houver token) — o menu do Tampermonkey não aparece em todas as abas
+    setInterval(() => { try { const tem = !!GM_getValue('zr_api_token', ''); const b0 = document.getElementById('dins-zr-token'); const vig = sessionStorage.getItem('dins_papel') === 'vigia';
+      if (tem || !vig) { if (b0) b0.remove(); return; } if (b0 || !document.body) return; const b = document.createElement('button'); b.id = 'dins-zr-token'; b.textContent = '🔑 Colar o token do Zap Responder';
+      b.style.cssText = 'position:fixed;left:12px;bottom:56px;z-index:2147483646;padding:8px 14px;border:0;border-radius:8px;background:#16a34a;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)';
+      b.onclick = () => { const t = prompt('Cole aqui o token de integração do Zap Responder (Integrações → Integração API). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length < 16) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('zr_api_token', v); alert('Token do Zap Responder salvo neste Chrome. ✅'); b.remove(); };
+      document.body.appendChild(b); } catch (e) {} }, 5000);
     window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
