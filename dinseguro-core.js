@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.27';
+  const VERSAO = '8.28';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -925,7 +925,7 @@
     // 7.90 (Stefany 17/11 21:47, caso Antonio: CPF 21:41, simulou pela API 21:42, mas a simulação só saiu 21:47 — a aba estava presa em outra ordem):
     // simulação pronta → sai NA HORA pela API do Botmaker, sem esperar a fila da tela. Nota e tag vão depois, pela tela, quando ela estiver livre.
     { const EU790 = Math.random().toString(36).slice(2, 8); let ocup790 = false;
-      setInterval(async () => { if (ocup790 || !bmApiLigada()) return;
+      setInterval(async () => { if (ocup790 || !bmApiLigada()) return; try { if (meuPapel() === 'vigia' || meuPapel() === 'varredura') return; } catch (e) {}   // 8.28 (Raimundo 12:29: 'já estou consultando' saiu 2 vezes — a aba [VIGIA] também mandava)
         try { const L = GM_getValue('bm_sim_dono', null); if (L && L.id !== EU790 && Date.now() - (+L.t || 0) < 15000) return; GM_setValue('bm_sim_dono', { id: EU790, t: Date.now() }); } catch (e) { return; }
         const O = GM_getValue('auto_ordens', {}) || {};
         // 8.09 (Assis 18/11 10:00: ficou 8 min em 'consultando' e a consulta nunca voltou): consulta parada há 4 min+ → volta para 'nova' (até 2 vezes)
