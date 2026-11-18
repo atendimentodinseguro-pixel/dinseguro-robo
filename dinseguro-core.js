@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.49';
+  const VERSAO = '8.50';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -669,7 +669,7 @@
   const NCAPI = 'https://developers.newcorban.com.br/v1';
   // 8.48 (Stefany 18/11 19:44, "bora"): API do ZAP RESPONDER (segundo sistema de WhatsApp) — token colado por ela no menu do Tampermonkey (nunca no chat).
   // Base https://api.zapresponder.com.br, header Authorization: Bearer <token>. Leitura e envio para o vigia testar; a varredura passa a usar depois de testado.
-  try { if (typeof GM_registerMenuCommand === 'function' && window.top === window) {
+  try { if (typeof GM_registerMenuCommand === 'function' && (window.top === window || /moduleForward\/chats/.test(location.pathname))) {
     GM_registerMenuCommand('Dinseguro: token do Zap Responder', () => { const t = prompt('Cole aqui o token de integração do Zap Responder (gerado no painel). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length < 16) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('zr_api_token', v); alert('Token do Zap Responder salvo neste Chrome. Recarregue a aba (F5).'); });
   } } catch (e) {}
   function zrReq(metodo, caminho, corpo) { return new Promise(res => { const tk = GM_getValue('zr_api_token', ''); if (!tk) return res({ erro: 'sem token do Zap Responder' });
