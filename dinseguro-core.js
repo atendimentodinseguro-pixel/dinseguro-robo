@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.42';
+  const VERSAO = '8.43';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1752,7 +1752,9 @@
       if (!d) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', erro: 'ação desconhecida: ' + o.acao })); ultima = id; return; }
       rodando = true; ultima = id;
       const passos = [];
-      if (o.hash && await canalSuspenso(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'canal SUSPENSO (0800 191 2261) — ordem não executada (8.40)', t: Date.now() })); rodando = false; return; }
+      if (o.hash && await canalSuspenso(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'canal SUSPENSO (0800 191 2261) — ordem não executada (8.40)', t: Date.now() })); localStorage.removeItem('dins_ordem');   /* 8.43 (Stefany 18/11 18:58: "o robô não fala nada desde 18:52"): a ordem ficava parada e travava a fila inteira */
+        try { const OS = GM_getValue('auto_ordens', {}) || {}; if (OS[o.hash]) { OS[o.hash].estado = 'suspenso'; OS[o.hash].erro = 'canal suspenso 0800 191 2261 — sem mensagem (8.43)'; GM_setValue('auto_ordens', OS); } } catch (e) {}
+        rodando = false; return; }
       const grava = (st, extra) => { localStorage.setItem('dins_ordem_status',
         JSON.stringify(Object.assign({ st, hash: o.hash, acao: o.acao, passos, t: Date.now() }, extra || {})));
         // 4.83 (Stefany 11/11 21:58, caso Fernando: "depois que ele responde, ele fica pendente… já fechou, já resolveu, e não coloca como resolvido"):
