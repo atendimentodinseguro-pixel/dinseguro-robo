@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.05';
+  const VERSAO = '8.06';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -831,9 +831,11 @@
   try { if (typeof GM_registerMenuCommand === 'function' && window.top === window && /botmaker/.test(location.host)) {
     GM_registerMenuCommand('Dinseguro: token da API do Botmaker', () => { const t = prompt('Cole aqui o access-token da API do Botmaker (Integrações → API). Vazio = desliga.', ''); if (t === null) return; const v = String(t).trim(); GM_setValue('bm_api_token', v.length > 20 ? v : ''); GM_setValue('bm_api_on', v.length > 20 ? 1 : 0); alert(v.length > 20 ? 'Token do Botmaker salvo. As mensagens do robô passam a sair pela API.' : 'API do Botmaker desligada: as mensagens voltam a sair pela tela.'); });
   } } catch (e) {}
+  const msgTxt806 = m => String(typeof (m && m.MESSAGE) === 'string' ? m.MESSAGE : JSON.stringify((m && m.MESSAGE) || ''));
+  const humano806 = m => !!m && m.FROM === 'me' && ((m.FROM_NAME && m.FROM_NAME !== 'Bot') || /^\s*\[Dinseguro\]/.test(msgTxt806(m)));   // 8.06: mensagem nossa pela API (FROM_NAME 'Bot' + [Dinseguro]) conta como humana
   function bmEnviarTexto(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
-      data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: String(texto) }] }),
+      data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: (/^\s*\[/.test(String(texto)) ? '' : '[Dinseguro]\n') + String(texto) }] }),   // 8.06: pela API a mensagem chega como 'Bot' → leva o [Dinseguro] (igual à tela) e o robô reconhece como resposta nossa
       onload: r => (r.status >= 200 && r.status < 300) ? res(r.responseText) : rej(new Error('API Botmaker HTTP ' + r.status + ' ' + String(r.responseText || '').slice(0, 120))),
       onerror: () => rej(new Error('API Botmaker sem resposta')), ontimeout: () => rej(new Error('API Botmaker demorou')) }); } catch (e) { rej(e); } }); }
 
@@ -2557,7 +2559,7 @@
       try { if (!protegido(id) && !['F20QOEL8YYLQN2S6SR47','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
         if (!(AO0 && (AO0.cpf && Date.now() - (+AO0.t || 0) < 23 * 3600000))) { const j = await apiLer(id, 30);
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
-            const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
+            const humano = humano806;
             const tags = (j.customer.tags || []).join('|');
             // 6.88 (caso Cristiane WZVUX 15:16: cliente do empréstimo CLT, já recebeu o link da plataforma, escreveu uma dúvida → o robô mandou
             // "Recebi o seu CPF e já estou consultando" e abriu consulta INSS). Conversa CLT nunca vira ordem de consulta INSS: vai ao vigia.
@@ -2964,7 +2966,7 @@
     function ladosServidor(j) { try { if (!j || !Array.isArray(j.newMessages)) return null;
         const nm = [...j.newMessages].sort((a, b) => Date.parse(a.CREATION_TIME || 0) - Date.parse(b.CREATION_TIME || 0));
         const ms = nm.map(m => { const raw = msgTextoSrv(m); const lado = m.FROM === 'me' ? 'nos' : 'cli';
-          return { lado, bot: lado === 'nos' && (m.FROM_NAME === 'Bot' || TEMPLATE_PESSOA.test(raw)), txt: raw.replace(/\*/g, '').replace(/\s+/g, ' ').trim(), t: Date.parse(m.CREATION_TIME || '') || 0, raw: raw.replace(/\*/g, '') }; })
+          return { lado, bot: lado === 'nos' && ((m.FROM_NAME === 'Bot' && !/^\s*\[Dinseguro\]/.test(raw)) || TEMPLATE_PESSOA.test(raw)), txt: raw.replace(/\*/g, '').replace(/\s+/g, ' ').trim(), t: Date.parse(m.CREATION_TIME || '') || 0, raw: raw.replace(/\*/g, '') }; })
           .filter(m => (m.raw || '').trim().length || m.lado === 'cli');
         return ladosDe(ms); } catch (e) { return null; } }
     // Comparação tela × servidor (não muda nada no atendimento — só anota as diferenças para a gente conferir antes de trocar)
@@ -2994,7 +2996,7 @@
         if (!el.classList.contains('left') && !el.classList.contains('right')) continue;
         if (/^\[Nota interna\]|~ Criado por/.test(txt)) continue;
         const lado = el.classList.contains('left') ? 'cli' : 'nos';
-        if (lado === 'nos' && el.classList.contains('first-from')) grpBot = /Enviado pelo credsegurobank/.test(txt);
+        if (lado === 'nos' && el.classList.contains('first-from')) grpBot = /Enviado pelo credsegurobank/.test(txt) && !/credsegurobank\s*\[Dinseguro\]/.test(txt);   // 8.06
         if (lado === 'nos' && /Enviado por Dinseguro|^\s*\[Dinseguro\]/m.test(txt)) grpBot = false;   // 4.21a: mensagem nossa no meio do grupo do bot (caso Hilda) não é do bot
         let t = null; const h = /(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(done_all|check|done)?\s*$/i.exec(txt);
         if (h && dia) { let hh = +h[1] % 12; if (/PM/i.test(h[3] || '')) hh += 12; if (!h[3]) hh = +h[1]; t = new Date(dia[0], dia[1], dia[2], hh, +h[2]).getTime(); }
@@ -4499,14 +4501,14 @@
         for (const h of ids) { if (protegido(h) || h === 'F20QOEL8YYLQN2S6SR47') continue; await new Promise(r => setTimeout(r, 400)); let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
           const ms = j.newMessages || []; let iC = -1; for (let i = ms.length - 1; i >= 0; i--) { if (ms[i].FROM !== 'me') { iC = i; break; } } if (iC < 0) continue;
           const c = ms[iC]; const tC = new Date(c.CREATION_TIME).getTime() || +c.CREATION_TIME || 0; const min = (Date.now() - tC) / 60000; if (!(min >= 15 && min < 23 * 60)) continue;
-          if (ms.slice(iC + 1).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue;
+          if (ms.slice(iC + 1).some(humano806)) continue;
           const tx = String(typeof c.MESSAGE === 'string' ? c.MESSAGE : JSON.stringify(c.MESSAGE || '')); const tags = (j.customer.tags || []).join('|');
           const txAll = ms.filter(m => m.FROM !== 'me').map(m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''))).join(' | ');
           if (/n[ãa]o sou|bolsa fam/i.test(txAll) || /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) continue;   // não é INSS / já teve desfecho (6.79: em qualquer mensagem dele, não só a última)
-          { const hum = ms.filter(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot'); const uh = hum[hum.length - 1]; if (uh && /r[oô]mulo/i.test(uh.FROM_NAME) && !/\[Dinseguro\]/.test(String(uh.MESSAGE || ''))) continue; }   // 6.79: conversa do Rômulo — não tocar
+          { const hum = ms.filter(humano806); const uh = hum[hum.length - 1]; if (uh && /r[oô]mulo/i.test(uh.FROM_NAME) && !/\[Dinseguro\]/.test(String(uh.MESSAGE || ''))) continue; }   // 6.79: conversa do Rômulo — não tocar
           if (/^\s*\{"button":"\s*(Encerrar agora|Sim|Não)\s*"/i.test(tx) && (Date.now() - tC) > 6 * 3600000) continue;   // 6.79: só clicou botão e já faz 6 h+
           if (/^\s*\{"button":"\s*Encerrar agora\s*"/i.test(tx)) { let iT = -1; for (let i = iC - 1; i >= 0; i--) { if (ms[i].FROM !== 'me' && !/^\s*\{"button"/.test(String(typeof ms[i].MESSAGE === 'string' ? ms[i].MESSAGE : JSON.stringify(ms[i].MESSAGE || '')))) { iT = i; break; } }
-            if (iT < 0 || ms.slice(iT + 1, iC).some(m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot')) continue; }   // 6.97 (caso Cristiane 18:15): 'Encerrar agora' depois de já termos respondido o que ela escreveu = encerrou, não é vermelho
+            if (iT < 0 || ms.slice(iT + 1, iC).some(humano806)) continue; }   // 6.97 (caso Cristiane 18:15): 'Encerrar agora' depois de já termos respondido o que ela escreveu = encerrou, não é vermelho
           if (/^\s*(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|deus aben[çc]o\w*|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i.test(tx.replace(/\{"button"[^}]*\}/g, ''))) continue;   // só agradeceu/confirmou (6.91: + combinado, certo, entendi… — caso Édina 'Combinado')
           // 7.02 (Stefany 20:02, Nilson 0ZMD0 / Simone 5I9HL: chegaram só com o anúncio, sem texto, e ficaram horas sem nada — o 7.00 só vale para conversa nova no quadro):
           // última mensagem do cliente = anúncio sem texto, sem CPF no cadastro, ninguém respondeu → pede o CPF pela fila (uma vez a cada 12 h).
