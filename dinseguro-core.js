@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.07';
+  const VERSAO = '8.08';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1440,7 +1440,10 @@
       const hashRR0 = window.top.location.hash;   // 4.60
       if (!midia && /^\/(dsg25|anuencia|anuencia2)$/i.test(String(atalho).trim())) midia = true;   // 6.99 (casos Dulce/Sonia 19:59: o vídeo /dsg25 não saiu — 'caixa de mensagem não encontrada'): vídeo/imagem sempre como mídia
       const ta = await ate(() => document.querySelector('textarea'));
-      if (!ta) throw new Error('caixa de mensagem não encontrada');
+      // 8.08 (Rosa 09:17, Oton 09:33: 'caixa de mensagem não encontrada' — conversa com o bot ativo não mostra a caixa): resposta rápida de TEXTO já aprendida (8.00) → manda pela API
+      if (!ta) { const RC8 = GM_getValue('rr_cache', {}) || {}; const c8 = RC8[String(atalho).trim().toLowerCase()]; const h8 = idDaTela();
+        if (!midia && !editar && !(trocas && trocas.length) && c8 && c8.tx && h8 && bmApiLigada()) { await bmEnviarTexto(h8, (prefixo ? prefixo + ', ' : '') + c8.tx); try { diario(nomeDoContato(), 'resposta rápida ' + atalho + ' pela API (sem caixa na tela, 8.08)'); } catch (e) {} return 'enviada pela API (8.08)'; }
+        throw new Error('caixa de mensagem não encontrada' + (c8 ? '' : ' (o robô ainda não aprendeu o texto de ' + atalho + ')')); }
       if (janelaVencidaAgora()) { fecharTemplate(); throw new Error('JANELA_VENCIDA'); }
       { const hT = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iT = idDaTela(); if (hT && iT && iT !== hT) throw new Error('a tela mostra as mensagens de OUTRO cliente (' + iT.slice(0, 5) + ' ≠ ' + hT.slice(0, 5) + ') — NÃO mandei nada'); }   // 7.36
       const porNome = !/^\//.test(atalho);
