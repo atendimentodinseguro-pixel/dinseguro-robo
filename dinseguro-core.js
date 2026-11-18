@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.26';
+  const VERSAO = '8.27';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -911,6 +911,7 @@
     // 7.91: leitura da API do Botmaker para o vigia (só GET: modelos do WhatsApp, canais, intents, campanhas) — nunca envia nada
     // 8.26 (Stefany 18/11 12:17: criou a intenção 'fechar_sem_margem' no Botmaker — teste pela API): dispara uma intenção (tag + fechar) numa conversa.
     // Só intenções com nome começando por fechar_ ou tag_ (não manda mensagem). Devolve status e texto da resposta para diagnóstico.
+    window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -4646,6 +4647,13 @@
           else { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal || ''))); await esp(1500); await bmEnviarTexto(oM.hash, n30); }
           const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].msgApi = 1; O2[oM.hash].sm818Feito = Date.now(); (O2[oM.hash].hist = O2[oM.hash].hist || []).push(hhmm(Date.now()) + ' 8.18: sem margem enviado pela API'); GM_setValue('auto_ordens', O2); }
           try { const F = GM_getValue('desf_msg_feita', {}) || {}; F[oM.hash + '|' + oM.acao] = Date.now(); GM_setValue('desf_msg_feita', F); } catch (e) {}
+          // 8.27: fecha pela INTENÇÃO do Botmaker (tag + fechar pela API, sem a fila da tela) quando ela estiver ligada em bm_intents_on
+          try { const ON = GM_getValue('bm_intents_on', []) || []; const MAPA = { sem_margem: oM.q15 ? 'fechar_sem_margem_q15' : 'fechar_sem_margem', sem_margem_k: 'fechar_sem_margem_k', loas_sem: 'fechar_loas_sem', loas_com: 'fechar_loas_com', especie_fora: 'fechar_07', sem_beneficio: 'fechar_07', pensao: 'fechar_07' };
+            const it = MAPA[oM.acao]; if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(oM.hash, it);
+              if (ri && ri.http >= 200 && ri.http < 300) { const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oM.hash]) { O3[oM.hash].estado = 'desfecho_ok'; O3[oM.hash].fechouIntent = it; (O3[oM.hash].hist = O3[oM.hash].hist || []).push(hhmm(Date.now()) + ' 8.27: fechado pela intenção ' + it); GM_setValue('auto_ordens', O3); }
+                try { window.dinsReguaCancelar && window.dinsReguaCancelar(oM.hash, 'desfecho ' + oM.acao + ' (intenção)'); } catch (e) {}
+                diario(oM.nomeReal || oM.nome || '', 'tag + fechou pela intenção ' + it + ' ✓ (API, sem a tela)'); }
+              else diario(oM.nomeReal || oM.nome || '', '⚠️ intenção ' + it + ' não aceitou (' + ((ri && (ri.http || ri.erro)) || '?') + ') → fecha pela tela'); } } catch (e) {}
           diario(oM.nomeReal || oM.nome || '', oM.acao + ': retorno pela API ✓ (8.18, ' + Math.round((Date.now() - (+oM.t || Date.now())) / 60000) + ' min depois do resultado)');
         } catch (e) { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].sm818Tent = (+O2[oM.hash].sm818Tent || 0) + 1; O2[oM.hash].sm818Prox = Date.now() + 60000; O2[oM.hash].sm818Erro = String((e && e.message) || e).slice(0, 160); GM_setValue('auto_ordens', O2); }
           diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu (8.18): ' + String((e && e.message) || e).slice(0, 120)); }
