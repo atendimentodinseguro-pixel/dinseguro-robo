@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.54';
+  const VERSAO = '8.55';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4521,6 +4521,9 @@
         if (temCpf && !temTag(/01.?A|Com.?Margem/i)) return { acao: 'revisar', motivo: 'tem CPF sem tag (conferir margem)' };
         const nossaHumana = ms.some(m => m.lado === 'nos' && !m.bot && /\*?\[[^\]\n]{2,40}\]/.test(m.txt));
         const pediuCpf = /CPF/i.test(nos) && /(me (envie|mande|passa)|informe|número do seu CPF|seu CPF)/i.test(nos);
+        // 8.55 (Stefany 18/11 20:36): varredura com mensagem SÓ para quem tem chance de negócio (mandou CPF, simulou, proposta/link, pagamento, bloqueio).
+        // Quem só respondeu e não mandou CPF → NÃO tem follow-up: 01 C + fechar (intenção), mesmo que a gente tenha falado com ele.
+        if (!temCpf && ON829.includes('fechar_01c')) return { acao: 'c01', motivo: 'sem CPF (só conversa' + (nossaHumana ? ', nossa resposta' : '') + (pediuCpf ? ', CPF pedido' : '') + ') → 01 C + fechar, sem follow-up (8.55)' };
         if (temCpf || nossaHumana) { const caso = temCpf ? 'atendimento' : (pediuCpf ? 'cpf' : 'atendimento');
           return fone.length >= 10 ? { acao: 'wa', caso, motivo: (temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno') + ' [servidor]', fone } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
         if (ON829.includes('fechar_01c') && !temCpf && !nossaHumana) return { acao: 'c01', motivo: 'só o fluxo do bot, sem CPF → 01 C + fechar (intenção)' };   // 8.29
