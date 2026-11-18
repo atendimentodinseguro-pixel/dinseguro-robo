@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.18';
+  const VERSAO = '8.19';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4550,8 +4550,13 @@
         let p = '/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); const all = []; let k = 0;
         while (p && k < 8) { const r = await get(p); if (!r || r.http !== 200) break; all.push(...((r.j && r.j.items) || [])); const np = r.j && r.j.nextPage; p = np ? String(np).replace('https://api.botmaker.com/v2.0', '') : null; k++; }
         const VI = GM_getValue('esp_api_vistos2', {}) || {}; for (const id in VI) if (ag - (+VI[id].t || 0) > 30 * 3600000) delete VI[id];
-        const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return lu > ag - 23 * 3600000 && ag - lu > 8 * 60000 && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
-          .sort((a, b) => Date.parse(a.lastUserMessageDatetime) - Date.parse(b.lastUserMessageDatetime)).slice(0, 150);
+        // 8.19 (Stefany 18/11 11:28: "tá lendo conversas que a janela de 24 h já fechou… isso é serviço do varredor"): só conversa com a janela do WhatsApp ABERTA
+        const janAberta = c => { const w = Date.parse(c.whatsAppWindowCloseDatetime || 0); return w ? w > ag + 10 * 60000 : Date.parse(c.lastUserMessageDatetime || 0) > ag - 23 * 3600000; };
+        try { const R0 = RG(); let mud0 = false; const fech = new Set(all.filter(c => !janAberta(c)).map(c => c.chat.chatId));
+          for (const k in R0) { const x = R0[k]; if (x && x.estado === 'alerta' && fech.has(k)) { x.estado = 'vencida'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.19: janela de 24 h fechada → é do varredor (saiu do vermelho)'); mud0 = true; } }
+          if (mud0) gravaRG(R0); } catch (e) {}
+        const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return janAberta(c) && ag - lu > 8 * 60000 && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
+          .sort((a, b) => Date.parse(b.lastUserMessageDatetime) - Date.parse(a.lastUserMessageDatetime)).slice(0, 200);
         const fr = encodeURIComponent(new Date(ag - 30 * 3600000).toISOString());
         const BOTPASSA = /atendente humano|Estou analisando suas informa|logo voc[êe] ser[áa] atendid|Aguarde um momento|nos envie uma mensagem de texto ou um [áa]udio|Bem-vindo de volta|Fico feliz que voc[êe] voltou|Nosso hor[áa]rio de atendimento|Estamos analisando aguarde/i;
         const T = m => String((m && m.content && (m.content.text || '')) || '');
@@ -4627,8 +4632,7 @@
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 20000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
-    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; checkup24h(); } catch (e) {} }, 15 * 60000);
-    setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) checkup24h(); } catch (e) {} }, 3 * 60000);
+    // 8.19: o check-up antigo (lia conversa por conversa pela tela) foi substituído pela espera API (8.12–8.19) — não roda mais sozinho; window.dinsCheckup continua para uso manual
     window.dinsReler = h => { const r = RG(); let n = 0; for (const k in r) { const x = r[k]; if (!x) continue;
         if (h === 'azul' ? (['acompanhando', 'pausada', 'esgotada', 'encerrado'].includes(x.estado) && Date.now() - Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0) < 48 * 3600000) : k === h) { x.reler = 1; n++; } }
       gravaRG(r); return n; };
