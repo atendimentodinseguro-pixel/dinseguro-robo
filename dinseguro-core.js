@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.90';
+  const VERSAO = '7.91';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -850,6 +850,12 @@
       return 'wait'; }
     window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
     const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
+    // 7.91: leitura da API do Botmaker para o vigia (só GET: modelos do WhatsApp, canais, intents, campanhas) — nunca envia nada
+    window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
+      if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats)/.test(String(path))) return res({ erro: 'caminho não liberado' });
+      try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
+        onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); },
+        onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     // 7.90 (Stefany 17/11 21:47, caso Antonio: CPF 21:41, simulou pela API 21:42, mas a simulação só saiu 21:47 — a aba estava presa em outra ordem):
     // simulação pronta → sai NA HORA pela API do Botmaker, sem esperar a fila da tela. Nota e tag vão depois, pela tela, quando ela estiver livre.
     { const EU790 = Math.random().toString(36).slice(2, 8); let ocup790 = false;
