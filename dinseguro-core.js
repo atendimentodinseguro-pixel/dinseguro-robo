@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.06';
+  const VERSAO = '8.07';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -772,6 +772,11 @@
         else poe(o.hash, Object.assign({ estado: 'gravada', aguardaLista: 1, tGrav: Date.now() }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' — link vem em seguida');
       } catch (e) { const m = String(e.message || e).slice(0, 200);
         if (e.tecnico) poe(o.hash, { estado: 'ficha_ok', apiFalhou: 1, erroApi: m }, 'API falhou (' + m.slice(0, 60) + ') → digita pela TELA');
+        // 8.07 (Maria da Silva 18/11 09:13: a regra 8.03 mandou para a FACTA, mas a tabela Smart 1 (até R$ 5 mil) não está liberada no New Corban → ficou parada):
+        // FACTA recusou por tabela não liberada / sem oferta → tenta a QUALIBANK (reserva), uma vez; invalidez abaixo de 58 não vai para a Qualibank
+        else if (o.banco === 'FACTA' && !o.reservaQuali && /N[ÃA]O est[áa] liberada|sem oferta|Prazo de \d+ meses n[ãa]o dispon/i.test(m) && !(INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58)) {
+          const O7 = GM_getValue('auto_ordens', {}) || {}; const x7 = O7[o.hash]; if (x7) { x7.ficha = Object.assign({}, x7.ficha || {}, { banco_destino: 'QUALIBANK', banco_ordem_stefany: '', carencia: '' }); GM_setValue('auto_ordens', O7); }
+          poe(o.hash, { estado: 'ficha_ok', banco: 'QUALIBANK', reservaQuali: 1, erro: '' }, 'FACTA recusou (' + m.slice(0, 70) + ') → reserva QUALIBANK (8.07)'); try { diario(o.nomeReal || o.nome || '', 'FACTA recusou (' + m.slice(0, 50) + ') → tenta na Qualibank (8.07)'); } catch (x) {} }
         else poe(o.hash, { estado: 'erro', erro: m }); }
       finally { ocupApi = false; } }, 4000); }
   // ================================================================== 7.95 ESTEIRA PELA API DO NEW CORBAN
