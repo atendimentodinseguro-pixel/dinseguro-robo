@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.20';
+  const VERSAO = '8.21';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1774,10 +1774,12 @@
         if (o.linha && !o.linhaFeita) { await garante(); passos.push('linha:' + await mensagemLivre(o.linha)); salvaProgresso({ linhaFeita: 1 }); await garante(); }   // 4.24: linha cordial antes da resposta rápida
         if (d.tagsAntes && !o.tagsFeitas) { const tg0 = (o.tags && o.tags.length ? o.tags : d.tags); for (const t of tg0) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); await garante(); }   // 4.72
         if (!o.msgFeita) {
+          try {   // 8.21 (18/11 11:32: 'NÃO conseguiu … DUPLICADO' deixava a conversa sem tag e ABERTA): mensagem já no chat → segue para tag e fechar
           if (o.atalhos && o.atalhos.length) { for (let i = (o.atIdx || 0); i < o.atalhos.length; i++) { await garante(); const [at, md] = String(o.atalhos[i]).split('|'); passos.push('msg:' + await respostaRapida(at, false, false, null, o.trocas, md === 'midia')); salvaProgresso({ atIdx: i + 1 }); await esp(1500); } }   // 4.79: várias respostas rápidas em ordem
           else if (d.fluxo) { passos.push(await executarFluxo(d.fluxo)); }
           else if (o.atalho || d.atalho) { passos.push('msg:' + await respostaRapida(o.atalho || d.atalho, d.editar, false, null, o.trocas)); }
           else if (o.texto || d.texto) { passos.push('msg:' + await mensagemLivre(o.texto || d.texto)); }
+          } catch (eD) { if (!/DUPLICADO/.test((eD && eD.message) || '')) throw eD; passos.push('msg já estava no chat (não repeti) — segue tag/fechar'); }
           salvaProgresso({ msgFeita: 1 });
           try { const f2 = GM_getValue('desf_msg_feita', {}) || {}; f2[chaveDesf] = Date.now(); for (const k in f2) if (Date.now() - f2[k] > 48 * 3600000) delete f2[k]; GM_setValue('desf_msg_feita', f2); } catch (e) {}
         }
