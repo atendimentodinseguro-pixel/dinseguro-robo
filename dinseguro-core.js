@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.13';
+  const VERSAO = '8.14';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4565,12 +4565,12 @@
             const cU = ms[iC]; const tx = T(cU); const tipo = (cU.content && cU.content.type) || ''; const min = Math.round((ag - Date.parse(cU.creationTime)) / 60000);
             const btn = tipo === 'button-click' ? String((cU.content && (cU.content.selectedButton || cU.content.text)) || '') : '';
             { const pal = tx.toLowerCase().replace(/[^a-zà-ú\s]/g, ' ').split(/\s+/).filter(Boolean); const ACK = /^(ok+|okay|obrigad[oa]s?|muito|muit[ao]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa]|bom|tudo|bem|certo|entendi|valeu|am[ée]m|deus|aben[çc]o\w*|bj|abra[çc]o|grat[ao]|de|nada)$/; if ((pal.length && pal.length <= 6 && pal.every(x => ACK.test(x))) || (!pal.length && tx.trim())) return; }   // 8.13: 'Ok obrigado', 'Tá bom, obrigada', só emoji → não é espera
-            if (/encerrar agora/i.test(btn)) return;
             const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
             const nome = String(c.firstName || '').trim();
             // CPF: digitado pelo cliente (nas mensagens dele) ou na variável CPF do bot
             let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
             if (!cpf) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }
+            if (/encerrar agora/i.test(btn) && !cpf) return;   // 8.14 (Hilton 18/11): com CPF e sem simulação, 'Encerrar agora' NÃO tira da fila
             const ordem = O[id]; const ordemViva = ordem && ordem.cpf && ag - (+ordem.t || 0) < 23 * 3600000;
             if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
