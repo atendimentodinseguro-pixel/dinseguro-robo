@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.11';
+  const VERSAO = '8.12';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4536,6 +4536,59 @@
         window.dinsCheckupRes = res; if (res.length) diario('check-up', res.length + ' conversa(s) da janela de 24 h sem resposta → vermelho: ' + res.slice(0, 4).map(o => o.nome.split(' ')[0] + ' ' + o.min + 'min').join(', '));
       } catch (e) {} finally { checkupRodando = false; try { desenharRegua(); } catch (e) {} } }
     window.dinsCheckup = checkup24h;
+    // 8.12 (Stefany 18/11 10:26: "não tem desculpa mais para o robô não conseguir validar todo mundo que está na fila, como já tem API"):
+    // ESPERA PELA API — a cada 5 min (8h–21h) lê pela API pública do Botmaker TODAS as conversas em que o cliente escreveu nas últimas 24 h
+    // (não só as do quadro). Última mensagem é do cliente e só o bot respondeu ("Estamos analisando", "atendente humano"…) há 8+ min →
+    //   CPF (digitado ou na variável CPF) → abre a consulta sozinho · sem CPF, chegou pelo anúncio → pede o CPF · o resto → vermelho para o vigia.
+    // Também limpa o vermelho velho do check-up de quem já foi respondido.
+    let espApiRodando = false;
+    async function esperaApi812() { if (espApiRodando) return; espApiRodando = true; const res = []; let n = 0;
+      try { const ag = Date.now(); const dono = GM_getValue('esp_api_dono', null); if (dono && dono.aba !== ABA && ag - dono.t < 9 * 60000) return; GM_setValue('esp_api_dono', { aba: ABA, t: ag });
+        const get = window.dinsBmGet; if (!get) return;
+        let p = '/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); const all = []; let k = 0;
+        while (p && k < 8) { const r = await get(p); if (!r || r.http !== 200) break; all.push(...((r.j && r.j.items) || [])); const np = r.j && r.j.nextPage; p = np ? String(np).replace('https://api.botmaker.com/v2.0', '') : null; k++; }
+        const VI = GM_getValue('esp_api_vistos', {}) || {}; for (const id in VI) if (ag - (+VI[id].t || 0) > 30 * 3600000) delete VI[id];
+        const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return lu > ag - 23 * 3600000 && ag - lu > 8 * 60000 && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
+          .sort((a, b) => Date.parse(a.lastUserMessageDatetime) - Date.parse(b.lastUserMessageDatetime)).slice(0, 80);
+        const fr = encodeURIComponent(new Date(ag - 30 * 3600000).toISOString());
+        const BOTPASSA = /atendente humano|Estou analisando suas informa|logo voc[êe] ser[áa] atendid|Aguarde um momento|nos envie uma mensagem de texto ou um [áa]udio|Bem-vindo de volta|Fico feliz que voc[êe] voltou|Nosso hor[áa]rio de atendimento|Estamos analisando aguarde/i;
+        const T = m => String((m && m.content && (m.content.text || '')) || '');
+        const O = GM_getValue('auto_ordens', {}) || {}; const SM = (() => { try { return JSON.parse(localStorage.getItem('dins_sem_margem') || '{}'); } catch (e) { return {}; } })();
+        for (let i = 0; i < cand.length; i += 6) { const lote = cand.slice(i, i + 6); const rs = await Promise.all(lote.map(c => get('/messages?chat-id=' + c.chat.chatId + '&from=' + fr)));
+          rs.forEach((r, q) => { const c = lote[q]; const id = c.chat.chatId; if (!r || r.http !== 200) return; n++; const ms = (r.j && r.j.items) || [];
+            let iC = -1; for (let x = ms.length - 1; x >= 0; x--) { if (ms[x].from === 'user') { iC = x; break; } }
+            const dep = iC < 0 ? [] : ms.slice(iC + 1); const respondido = iC < 0 || dep.some(m => !BOTPASSA.test(T(m)));
+            VI[id] = { lu: c.lastUserMessageDatetime, ok: respondido ? 1 : 0, t: ag };
+            if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
+            if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
+            { const ags = ms.filter(m => m.from === 'agent'); const ua = ags[ags.length - 1]; if (ua && /R[ôo]mulo|Stefany/i.test(T(ua).slice(0, 40)) && !/\[Dinseguro\]/.test(T(ua).slice(0, 20))) return; }   // conversa de humano (Rômulo/Stefany) — não tocar
+            const cU = ms[iC]; const tx = T(cU); const tipo = (cU.content && cU.content.type) || ''; const min = Math.round((ag - Date.parse(cU.creationTime)) / 60000);
+            const btn = tipo === 'button-click' ? String((cU.content && (cU.content.selectedButton || cU.content.text)) || '') : '';
+            if (/^\s*(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|obg|brigad[oa]|combinado|blz|beleza|t[áa] bom|tudo bem|certo|entendi|valeu|am[ée]m|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i.test(tx)) return;
+            if (/encerrar agora/i.test(btn)) return;
+            const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
+            const nome = String(c.firstName || '').trim();
+            // CPF: digitado pelo cliente (nas mensagens dele) ou na variável CPF do bot
+            let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
+            if (!cpf) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }
+            const ordem = O[id]; const ordemViva = ordem && ordem.cpf && ag - (+ordem.t || 0) < 23 * 3600000;
+            if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
+              let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
+              if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
+            if (!cpf) { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const anuncio = !tx.trim() || /desejo mais informa|mais informa[çc][õo]es|tenho interesse|^\s*(oi|ol[áa]|bom dia|boa tarde|boa noite)\b/i.test(tx);
+              if (anuncio && !(PC[id] > ag - 12 * 3600000)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: '', nota: 'espera API 8.12: chegou sem CPF e ninguém respondeu há ' + min + ' min → pedido de CPF' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(nome + ' (pedir CPF)'); diario(nome || id.slice(0, 5), '🔎 espera API: sem CPF há ' + min + ' min → pediu o CPF (8.12)'); } return; } }
+            // o resto (pergunta, arquivo sem CPF, áudio, cliente com ordem parada…) → vermelho para o vigia
+            if (ordemViva && !['feito', 'erro', 'desfecho_ok', 'com_margem', 'sim_enviada', 'link'].includes(ordem.estado)) return;   // a ordem está andando
+            try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome, estado: 'alerta', toques: [], hist: [], criadoT: ag }); const mot = 'espera API: cliente escreveu "' + (tx || btn || '[' + tipo + ']').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + min + ' min e só o bot respondeu';
+              if (x.estado !== 'alerta' || !/espera API/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = mot; x.ultLado = 'cli'; x.ultCliT = Date.parse(cU.creationTime); x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + mot); gravaRG(R); res.push(nome + ' (vigia)'); } } catch (e) {}
+          }); }
+        GM_setValue('esp_api_vistos', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
+        window.dinsEsperaRes = res; if (res.length) diario('espera API', res.length + ' cliente(s) esperando: ' + res.slice(0, 6).join(', '));
+      } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
+      finally { espApiRodando = false; try { desenharRegua(); } catch (e) {} } }
+    window.dinsEsperaApi = esperaApi812;
+    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
+    setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; checkup24h(); } catch (e) {} }, 15 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) checkup24h(); } catch (e) {} }, 3 * 60000);
     window.dinsReler = h => { const r = RG(); let n = 0; for (const k in r) { const x = r[k]; if (!x) continue;
