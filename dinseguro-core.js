@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.97';
+  const VERSAO = '7.98';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -508,7 +508,9 @@
           else if (mot === 'LOAS' && mg != null && mg >= 400) acao = 'loas_com';
           else if (mot === 'REPRESENTANTE') acao = /03 B/.test(String(ficha.recusa || '')) ? 'representante_sm' : 'representante';   // 6.81: dinsAcaoDaRecusa não existe na aba do Multicorban (caso Tania 13:42)   // 6.55: tag 03 + flow, sozinho
           else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
-          if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo });
+          // 7.98 (Stefany 17/11 22:52, caso Nozeli: sem margem e o robô não pôs a Q15): sem margem de empréstimo + RMC ou RCC > 0 → tag Q15 (LOAS nunca leva Q15)
+          const q15 = acao === 'sem_margem' && [ficha.rmc, ficha.rcc].some(v => (num(String(v || '').split('(')[0]) || 0) > 0);
+          if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo: resumo + (q15 ? ' · cartão: RMC ' + (ficha.rmc || '—') + ' / RCC ' + (ficha.rcc || '—') + ' → Q15' : ''), q15 });
           else if (!mot) {
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
             // com margem → digita no VALOR MÁXIMO (valor em branco = parcela da margem, 108x) e para em "Pronto" (o vigia grava e manda
@@ -2132,7 +2134,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'loas_com', t: Date.now(), nota, texto: DESFECHOS.loas_com.texto.replace('{NOME}', pn).replace('Oi, ! ', 'Oi! ') }));
           } else {
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
-          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now(), nota, linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)), nome: o.nome || '', fone: o.fone || (((GM_getValue('regua', {}) || {})[o.hash]) || {}).fone || '' }));   // 5.74: nome/fone na ordem (caso Vms: painel 'V.m.d.' ≠ lista 'Vms' → o sem margem nunca saiu)
+          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, q15: !!o.q15, t: Date.now(), nota: nota + (o.q15 ? ' Tem margem para cartão → Q15.' : ''), linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)), nome: o.nome || '', fone: o.fone || (((GM_getValue('regua', {}) || {})[o.hash]) || {}).fone || '' }));   // 5.74: nome/fone na ordem (caso Vms: painel 'V.m.d.' ≠ lista 'Vms' → o sem margem nunca saiu)
           }
           o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
         }
