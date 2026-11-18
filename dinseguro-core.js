@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.92';
+  const VERSAO = '7.93';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -866,6 +866,14 @@
         const pN = Object.values(O).find(x => x && x.notaPend790 && x.estado === 'sim_enviada');
         if (pN && !localStorage.getItem('dins_ordem')) { localStorage.setItem('dins_ordem', JSON.stringify({ hash: pN.hash, acao: 'so_tag', quem: 'robo', t: Date.now(), tags: ['01 A - Inss Com Margem - SEM 87 E 88'], msgFeita: 1, linhaFeita: 1, nota: pN.notaPend790 }));
           delete pN.notaPend790; GM_setValue('auto_ordens', O); }
+        // 7.93 (Stefany 17/11 22:12: "1 minuto é muito tempo"): o "recebi o seu CPF, já estou consultando" sai NA HORA pela API, antes da consulta acabar
+        const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && ['nova', 'consultando', 'ficha_ok', 'digitando'].includes(x.estado) && Date.now() - (+x.t || 0) < 15 * 60000 && !x.valorVigia);
+        if (oA) { ocup790 = true; oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
+          try { const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
+            await bmEnviarTexto(oA.hash, sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\nRecebi o seu CPF e já estou consultando aqui para você. Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝');
+            diario(oA.nomeReal || oA.nome || '', 'CPF recebido → "já estou consultando" NA HORA pela API (' + Math.round((Date.now() - (+oA.t || Date.now())) / 1000) + ' s)');
+          } catch (e) { const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oA.hash]) { delete O3[oA.hash].acolheu; GM_setValue('auto_ordens', O3); } }   // falhou → a tela manda (5.96)
+          finally { ocup790 = false; } return; }
         const oS = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'simulada' && !x.api790T && Date.now() - (+x.tSim || 0) < 20 * 60000);
         if (!oS) return;
         const ex = extrSync(oS); if (ex === 'wait' || ex) return;   // extrato → o caminho antigo (7.71) cuida
