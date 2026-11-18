@@ -4564,7 +4564,7 @@
             { const ags = ms.filter(m => m.from === 'agent'); const ua = ags[ags.length - 1]; if (ua && /R[ôo]mulo|Stefany/i.test(T(ua).slice(0, 40)) && !/\[Dinseguro\]/.test(T(ua).slice(0, 20))) return; }   // conversa de humano (Rômulo/Stefany) — não tocar
             const cU = ms[iC]; const tx = T(cU); const tipo = (cU.content && cU.content.type) || ''; const min = Math.round((ag - Date.parse(cU.creationTime)) / 60000);
             const btn = tipo === 'button-click' ? String((cU.content && (cU.content.selectedButton || cU.content.text)) || '') : '';
-            { const pal = tx.toLowerCase().replace(/[^a-zà-ú\s]/g, ' ').split(/\s+/).filter(Boolean); const ACK = /^(ok+|okay|obrigad[oa]s?|muito|muit[ao]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa]|bom|tudo|bem|certo|entendi|valeu|am[ée]m|deus|aben[çc]o\w*|sim|t[áa]|bj|abra[çc]o|grat[ao]|de|nada)$/; if ((pal.length && pal.length <= 6 && pal.every(x => ACK.test(x))) || (!pal.length && tx.trim())) return; }   // 8.13: 'Ok obrigado', 'Tá bom, obrigada', só emoji → não é espera
+            { const pal = tx.toLowerCase().replace(/[^a-zà-ú\s]/g, ' ').split(/\s+/).filter(Boolean); const ACK = /^(ok+|okay|obrigad[oa]s?|muito|muit[ao]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa]|bom|tudo|bem|certo|entendi|valeu|am[ée]m|deus|aben[çc]o\w*|bj|abra[çc]o|grat[ao]|de|nada)$/; if ((pal.length && pal.length <= 6 && pal.every(x => ACK.test(x))) || (!pal.length && tx.trim())) return; }   // 8.13: 'Ok obrigado', 'Tá bom, obrigada', só emoji → não é espera
             if (/encerrar agora/i.test(btn)) return;
             const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
             const nome = String(c.firstName || '').trim();
