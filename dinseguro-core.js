@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.43';
+  const VERSAO = '8.44';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4697,8 +4697,17 @@
               const gente = dep.some(m => m.from === 'agent');
               const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
               const tags8 = (c.tags || []).join('|');
-              if (!temCpf8 && !gente && min8 > 15 && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C/i.test(tags8) && !(O[id] && O[id].cpf)) {
-                const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 12 * 3600000)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: '', nota: '8.32: parou no fluxo do bot sem CPF há ' + Math.round(min8) + ' min (só mensagens automáticas depois) → pedido de CPF' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🔎 parou no bot sem CPF há ' + Math.round(min8) + ' min → pediu o CPF (8.32)'); } } } } catch (e) {} }
+              // 8.44 (Stefany 18/11 19:02): no lugar do pedido de CPF, UMA mensagem de valor que não pede dado nenhum (nome só se for nome de gente).
+              // Quem responder QUERO → aí sim o pedido de CPF (permitido).
+              const VM = GM_getValue('valor_msg_feito', {}) || {}; const quero8 = /^\s*(eu\s+)?quero\b/i.test(T(cU8)) && cU8.from === 'user';
+              if (!temCpf8 && !gente && quero8 && VM[id] && !(O[id] && O[id].cpf) && min8 > 0.3) {
+                const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 12 * 3600000)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.44: respondeu QUERO à mensagem de valor → pedido de CPF' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (QUERO → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu QUERO → pediu o CPF (8.44)'); } } }
+              else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id])) {
+                VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
+                const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
+                const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro.\n\nVi que você começou a ver as condições do empréstimo consignado do INSS com a gente. Pode ficar tranquilo(a), é tudo seguro:\n✅ A gente não cobra nada antes\n✅ Nunca pedimos senha do banco nem do Meu INSS\n✅ Você vê a simulação e só contrata se quiser\n\nQuer fazer uma simulação gratuita? É só responder *QUERO* 🤝';
+                bmEnviarTexto(id, txt44).then(() => diario(String(c.firstName || id.slice(0, 5)), '💬 mensagem de valor enviada (8.44) — parou no bot sem CPF há ' + Math.round(min8) + ' min')).catch(e => { diario(String(c.firstName || id.slice(0, 5)), '⚠️ mensagem de valor não saiu (8.44): ' + String((e && e.message) || e).slice(0, 90)); });
+                res.push(String(c.firstName || '') + ' (mensagem de valor)'); } } catch (e) {} }
             if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
             if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
             { const ags = ms.filter(m => m.from === 'agent'); const ua = ags[ags.length - 1]; if (ua && /R[ôo]mulo|Stefany/i.test(T(ua).slice(0, 40)) && !/\[Dinseguro\]/.test(T(ua).slice(0, 20))) return; }   // conversa de humano (Rômulo/Stefany) — não tocar
