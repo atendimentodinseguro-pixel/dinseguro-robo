@@ -103,7 +103,8 @@ const tick = async () => {
   if (prox - Date.now() > 86400000) return;                            // pausado à mão (dinsWaPausar)
   const naEspera = Date.now() < prox;                                  // 4 a 6 min entre envios (1.5: na espera só confere o próximo, não envia)
   const hora = new Date(); const mh = 'wa_hora_' + hora.toDateString() + '_' + hora.getHours();
-  if ((+GM_getValue(mh, 0) || 0) >= 10) return;                       // no máximo 10 por hora
+  // 1.6 (Stefany 18/11 11:37: "como a varredura está atrasada… não precisa limitar no máximo 10 por hora, vou deixar ele rodar direto"): sem teto por hora; a cadência de 4 a 6 min entre envios continua
+  if ((+GM_getValue(mh, 0) || 0) >= 999) return;
   const alvo = pend[0];
   if (naEspera && alvo.preOk && Date.now() - alvo.preOk < 15 * 60000) return;   // o próximo já foi conferido: só espera o horário
   const adia = ms => GM_setValue('wa_prox', naEspera ? Math.max(prox, Date.now() + ms) : Date.now() + ms);   // na espera nunca encurta o intervalo
