@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.32';
+  const VERSAO = '8.33';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1755,6 +1755,19 @@
         const garante = async () => { if (window.top.location.hash !== '#/chats/' + o.hash) { passos.push('voltou ao chat'); await abrir(o.hash); } await confereChat(o.hash); };   // 5.03: confere o cliente antes de CADA envio
         const salvaProgresso = mud => { Object.assign(o, mud); try { localStorage.setItem('dins_ordem', JSON.stringify(o)); } catch (e) {} };
         if (/undefined/.test(String(o.linha || '') + JSON.stringify(o.trocas || []))) throw new Error('mensagem com "undefined" — não envio (6.90)');   // 6.90
+        // 8.33 (Stefany 18/11 13:07: "em alguns casos ele poderia fechar na API, que seria mais rápido"): mensagem simples (fase_msg) e só tag (so_tag 01 A / 01 C)
+        // saem pela API — texto pelo send-messages, tag pela intenção tag_01a / tag_01c — sem abrir a tela. Qualquer coisa fora disso segue pela tela.
+        try { const ON = GM_getValue('bm_intents_on', []) || [];
+          const simples = ['fase_msg', 'so_tag'].includes(o.acao) && !(o.atalhos && o.atalhos.length) && !o.atalho && !(o.trocas && o.trocas.length) && !o.soSeNossaUltima && !o.exige && !o.pularSe && !o.fechar && !o.forcar && !o.reenvio;
+          const tagsO = (o.tags && o.tags.length) ? o.tags : [];
+          const mapT = t => /^01 A/i.test(t) ? 'tag_01a' : /^01 C/i.test(t) ? 'tag_01c' : '';
+          const tagsOk = tagsO.every(t => mapT(t) && ON.includes(mapT(t)));
+          const txt = (o.msgFeita || o.linhaFeita) ? '' : String(o.texto || o.linha || '');
+          if (simples && tagsOk && (txt || tagsO.length) && !/undefined/.test(txt) && window.dinsBmIntent) {
+            if (txt) { await bmEnviarTexto(o.hash, txt); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); passos.push('msg: pela API'); }
+            for (const t of tagsO) { const ri = await window.dinsBmIntent(o.hash, mapT(t)); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('intenção ' + mapT(t) + ' não aceitou'); passos.push('tag ' + t + ': pela intenção'); }
+            salvaProgresso({ tagsFeitas: 1 }); grava('ok'); localStorage.removeItem('dins_ordem'); log && log('8.33: ' + o.acao + ' pela API (sem a tela): ' + passos.join(' · '), 'ok'); return; }
+        } catch (e8) { passos.push('8.33 pela API falhou (' + String((e8 && e8.message) || e8).slice(0, 60) + ') → tela'); }
         if (o.acao === 'pedir_cpf' && !o.texto && !o.msgFeita) throw new Error('pedido de CPF sem texto — não marquei como feito (6.98)');
         await abrir(o.hash);                               passos.push('abriu');
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
