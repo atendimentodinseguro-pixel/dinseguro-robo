@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.44';
+  const VERSAO = '8.45';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -928,6 +928,14 @@
     // 7.91: leitura da API do Botmaker para o vigia (só GET: modelos do WhatsApp, canais, intents, campanhas) — nunca envia nada
     // 8.26 (Stefany 18/11 12:17: criou a intenção 'fechar_sem_margem' no Botmaker — teste pela API): dispara uma intenção (tag + fechar) numa conversa.
     // Só intenções com nome começando por fechar_ ou tag_ (não manda mensagem). Devolve status e texto da resposta para diagnóstico.
+    // 8.45 (Stefany 18/11 19:03, foto Nanipinheirolima: mensagem à mão/da rede de segurança no número suspenso, erro vermelho):
+    // conversa do canal SUSPENSO (0800 191 2261) → a caixa de mensagem fica travada e vazia para QUALQUER um (robô, vigia, rede, gente).
+    { let sus45 = null, h45 = '';
+      setInterval(() => { try { const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]{20})/i) || [])[1] || ''; const ta = document.querySelector('textarea'); if (!ta) return;
+        if (h !== h45) { h45 = h; sus45 = null; if (h) canalSuspenso(h).then(v => { if (h45 === h) sus45 = v; }).catch(() => {}); }
+        if (sus45 === true) { if (!ta.dataset.dins45) { ta.dataset.dins45 = '1'; ta.dataset.dinsPh = ta.placeholder || ''; } ta.disabled = true; ta.placeholder = '⛔ Número 0800 191 2261 SUSPENSO na Meta — não mande mensagem por esta conversa';
+          if (ta.value) { const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(ta, ''); ta.dispatchEvent(new Event('input', { bubbles: true })); } }
+        else if (ta.dataset.dins45) { ta.disabled = false; ta.placeholder = ta.dataset.dinsPh || ''; delete ta.dataset.dins45; } } catch (e) {} }, 300); }
     window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
