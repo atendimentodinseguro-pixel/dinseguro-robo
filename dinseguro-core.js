@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.01';
+  const VERSAO = '8.02';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2548,7 +2548,7 @@
         if (u && u.FROM === 'me' && u.FROM_NAME === 'Bot' && ut && Date.now() - ut < 6 * 60000 && soBotao && !passouHumano) { API_ADIA[id] = Date.now() + 2 * 60000; API_PLACAR.bot = (API_PLACAR.bot || 0) + 1; return false; } } else API_PLACAR.falhas++; } } catch (e) {}
       // 6.32 (Stefany 14/11 08:46 "Sim" — robô lendo pelo servidor, sem abrir a conversa): CPF mandado pelo cliente (texto) ou já gravado na
       // variável CPF do contato, sem resposta humana depois → cria a ordem de consulta direto do servidor, sem abrir a tela.
-      try { if (!protegido(id) && !['F20QOEL8YYLQN2S6SR47','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','3JRR7X56WSMO5SZEHW3K','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
+      try { if (!protegido(id) && !['F20QOEL8YYLQN2S6SR47','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
         if (!(AO0 && (AO0.cpf && Date.now() - (+AO0.t || 0) < 23 * 3600000))) { const j = await apiLer(id, 30);
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
             const humano = m => m.FROM === 'me' && m.FROM_NAME && m.FROM_NAME !== 'Bot';
@@ -3295,7 +3295,7 @@
         if (nossas.some(t => SIG_VIDEO.test(t)) && !(x && x.tVideo)) window.dinsVideo(hash, nomeSeguro(nomeDoContato()));
       } catch (e) {}
     }, 20000);
-    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3', '3JRR7X56WSMO5SZEHW3K', 'TYK97LS0A0LUTJ89N3WG', '44PQVTU6SYGBY2WM8E1V', '0KSYJ'];   // 7.23: mesmos chats que não se mexem (João Carlos, Carmen, Lu, Marcelo, teste, Josias, Marilza do Rômulo)
+    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG', '44PQVTU6SYGBY2WM8E1V', '0KSYJ'];   // 7.23: mesmos chats que não se mexem (João Carlos, Carmen, Lu, Marcelo, teste, Josias, Marilza do Rômulo)
     const detPos = { h: '' };
     let posRodando = false;
     async function olharPos() {
@@ -4196,7 +4196,7 @@
     //  5) PRIMEIRA RODADA DO DIA: monta a lista e espera o botão "✅ Pode executar" no painel (regra dela); as outras rodam direto.
     // Liberar 01 D: dinsVarreLiberar('HASH', 'chamar'|'so_fechar').  Rodar agora: localStorage.dins_varrer_agora='1'.
     const DESF_TAG = /^(01 I|01 k|02 |03 |07 |Acima De 80)/i;
-    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3', '3JRR7X56WSMO5SZEHW3K', 'TYK97LS0A0LUTJ89N3WG'];   // 6.26: teste Romulo · João Carlos · Carmen · Lu Andrade · Marcelo 72ND · teste da Stefany · Josias (proposta a cancelar)   // chat de teste "Romulo"
+    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG'];   // 6.26: teste Romulo · João Carlos · Carmen · Lu Andrade · Marcelo 72ND · teste da Stefany · Josias (proposta a cancelar)   // chat de teste "Romulo"
     window.dinsVarreLiberar = (hash, modo) => { const L = GM_getValue('varre_liberados', {}) || {}; if (modo) L[hash] = modo; else delete L[hash]; GM_setValue('varre_liberados', L); return L[hash] || null; };
     window.dinsVarreVer = () => GM_getValue('varre_plano', null);
     // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
