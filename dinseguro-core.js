@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.46';
+  const VERSAO = '8.47';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -936,6 +936,23 @@
         if (sus45 === true) { if (!ta.dataset.dins45) { ta.dataset.dins45 = '1'; ta.dataset.dinsPh = ta.placeholder || ''; } ta.disabled = true; ta.placeholder = '⛔ Número 0800 191 2261 SUSPENSO na Meta — não mande mensagem por esta conversa';
           if (ta.value) { const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(ta, ''); ta.dispatchEvent(new Event('input', { bubbles: true })); } }
         else if (ta.dataset.dins45) { ta.disabled = false; ta.placeholder = ta.dataset.dinsPh || ''; delete ta.dataset.dins45; } } catch (e) {} }, 300); }
+    // 8.47 (Stefany 18/11 19:20): ANÁLISE REVERSA — cliente que aceitou (bot ≥ R$ 10 mil, ou respondeu a simulação padrão) e não mandou CPF:
+    // procura o CPF pelo telefone do WhatsApp no New Corban (API) e no FullConsig (sessão aberta no Chrome). Achou → consulta e manda a simulação real, sem pedir dado.
+    // Achou mas deu sem margem / LOAS / espécie fora → pede o CPF UMA vez para confirmar (o telefone pode ser de outra pessoa da família). Não achou → pede o CPF uma vez.
+    const foneDe847 = c => { let d = String(c || '').replace(/\D/g, ''); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); if (d.length === 10) d = d.slice(0, 2) + '9' + d.slice(2); return d.length === 11 ? d : ''; };
+    async function ncPorFone847(f) { for (const q of ['/customers?phone=', '/customers?telefone=']) { try { const j = await ncReq('GET', q + f); const L = (j && (j.data || j.items)) || []; const x = (Array.isArray(L) ? L : [L]).find(y => y && cpfDigitoOk(y.cpf)); if (x) return String(x.cpf).replace(/\D/g, ''); if (Array.isArray(L)) return ''; } catch (e) { if (e && e.status && e.status !== 404 && e.status !== 422) return ''; } } return ''; }
+    function fcPorFone847(f) { return new Promise(res => { try { const fm = '(' + f.slice(0, 2) + ') ' + f.slice(2, 7) + '-' + f.slice(7);
+        GM_xmlhttpRequest({ method: 'POST', url: 'https://sistema.fullconsig.com.br/consulta/validaConsultaOffline', timeout: 45000, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+          data: new URLSearchParams({ consulta: 'inss', id_data_campanha: '', valor: '', valorTelefone: fm, telefone: 'true' }).toString(),
+          onload: r => { try { const j = JSON.parse(r.responseText); if (!j || !j.consulta) return res(''); const tx = new DOMParser().parseFromString(j.consulta, 'text/html').body.textContent; const c = (tx.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/g) || []).map(x => x.replace(/\D/g, '')).find(cpfDigitoOk); res(c || ''); } catch (e) { res(''); } },
+          onerror: () => res(''), ontimeout: () => res('') }); } catch (e) { res(''); } }); }
+    async function reverso847(fone) { const f = foneDe847(fone); if (!f) return { cpf: '', fonte: 'sem telefone' }; let c = await ncPorFone847(f); if (c) return { cpf: c, fonte: 'New Corban' }; c = await fcPorFone847(f); if (c) return { cpf: c, fonte: 'FullConsig' }; return { cpf: '', fonte: 'não achou' }; }
+    window.dinsReversoTeste = async fone => { const r = await reverso847(fone); return { fonte: r.fonte, cpf: r.cpf ? '***' + r.cpf.slice(-5) : '' }; };
+    // resultado negativo de ordem achada pelo telefone → não manda desfecho: pede o CPF uma vez para confirmar
+    setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; const x = Object.values(O).find(y => y && y.reverso && y.estado === 'desfecho' && !y.revConf); if (!x) return;
+      x.revConf = 1; x.estado = 'reverso_conferir'; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 8.47: o CPF achado pelo telefone deu ' + (x.acao || 'desfecho') + ' → não mandei o desfecho, pedi o CPF para confirmar'); GM_setValue('auto_ordens', O);
+      const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (PC[x.hash] > Date.now() - 30 * 864e5) return;
+      window.dinsFilaVigia({ hash: x.hash, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.47: CPF achado pelo telefone deu ' + (x.acao || 'desfecho') + ' — confirmar o CPF do cliente' }); PC[x.hash] = Date.now(); GM_setValue('pedir_cpf_feito', PC); diario(x.nome || x.hash.slice(0, 5), '🔎 CPF do telefone deu ' + (x.acao || 'desfecho') + ' → pediu o CPF para confirmar (8.47)'); } catch (e) {} }, 3000);
     window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
@@ -966,7 +983,7 @@
         // 8.00 (Stefany 17/11 22:58, caso Jurema: consulta 22:52, retorno só 22:56 — esperou a fila da tela): sem margem → linha + /n30 NA HORA pela API;
         // tags, nota e fechar vão depois pela tela (ordem com msgFeita/linhaFeita). Sem o texto do /n30 guardado → caminho antigo.
         { const RC = GM_getValue('rr_cache', {}) || {}; const n30 = RC['/n30'] && RC['/n30'].tx;
-          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && !x.api800Falhou && !(+x.api800Prox > Date.now()) && Date.now() - (+x.t || 0) < 90 * 60000);
+          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && !x.api800Falhou && !(+x.api800Prox > Date.now()) && Date.now() - (+x.t || 0) < 90 * 60000);
           if (oM) { ocup790 = true; oM.api800T = Date.now(); GM_setValue('auto_ordens', O);
             try { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal))); await esp(1500); await bmEnviarTexto(oM.hash, n30);
               const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].msgApi = 1; GM_setValue('auto_ordens', O4); }
@@ -1946,7 +1963,7 @@
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
         // 8.23 (Stefany 18/11 11:40: "o robô pega a pessoa que não tem oportunidade de negócio, ele tem que fechar… não está fechando"):
         // desfecho com a mensagem JÁ enviada pela API tem PRIORIDADE na tela (só tag + nota + fechar) — antes de esteira, toques e follow-ups.
-        { const oP = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && x.msgApi && DESFECHOS[x.acao] && DESFECHOS[x.acao].fechar);
+        { const oP = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && x.msgApi && DESFECHOS[x.acao] && DESFECHOS[x.acao].fechar);
           if (oP) { const dP = new Date(), ddP = String(dP.getDate()).padStart(2, '0') + '/' + String(dP.getMonth() + 1).padStart(2, '0');
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oP.hash, acao: oP.acao, q15: !!oP.q15, t: Date.now(), msgFeita: 1, linhaFeita: 1, nota: ddP + ' ' + hhmm(Date.now()) + ' [robô 8.23] ' + (oP.nomeReal || oP.nome || '') + ' · ' + (oP.resumo || '') + ' → retorno já enviado pela API; tag + fechar.' + (oP.q15 ? ' Tem margem para cartão → Q15.' : '') }));
             oP.estado = 'desfecho_enviado'; oP.tEnv = Date.now(); GM_setValue('auto_ordens', O); return; } }
@@ -2220,7 +2237,7 @@
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
-        const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
+        const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
@@ -4709,7 +4726,19 @@
               // Quem responder QUERO → aí sim o pedido de CPF (permitido).
               // 8.46 (Stefany 18/11 19:05): no lugar do "QUERO", vai a SIMULAÇÃO PADRÃO (margem cheia, com e sem carência). Respondeu escolhendo uma opção ou outro valor → pede o CPF UMA vez; não mandou → não insiste.
               const VM = GM_getValue('valor_msg_feito', {}) || {}; const resp8 = cU8.from === 'user' && VM[id] && Date.parse(cU8.creationTime) > VM[id] && !/n[ãa]o\s+desej|n[ãa]o\s+quero|n[ãa]o\s+tenho\s+interesse|encerrar/i.test(btn8 + ' ' + T(cU8));
-              if (!temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
+              const RV = GM_getValue('reverso_feito', {}) || {};
+              const valBot8 = Math.max(0, ...ms.filter(m => m.from === 'bot').map(m => { const v = (T(m).match(/R\$\s*([\d.]{5,}),\d{2}/) || [])[1]; return v ? +v.replace(/\./g, '') : 0; }));
+              const aceite8 = ms.some(m => m.from === 'user' && /desejo contratar|quero contratar|sim,? quero|quero esse|aceito/i.test(String((m.content && (m.content.selectedButton || m.content.text)) || ''))) && valBot8 >= 10000;
+              if (!temCpf8 && !gente && (resp8 || aceite8) && !RV[id] && !(O[id] && O[id].cpf) && min8 > 0.3 && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|01 D|InssFechouNegocio|Sem_margem|SEM_MARGEM|01_I_|01k_/i.test(tags8)) {
+                RV[id] = ag; for (const q in RV) if (ag - RV[q] > 30 * 864e5) delete RV[q]; GM_setValue('reverso_feito', RV);
+                const nm47 = String(c.firstName || '').trim(); const v47 = (String(T(cU8)).match(/(\d{1,3}(?:\.\d{3})+|\d{4,6})(?:,\d{2})?/) || [])[1]; const vEsc47 = aceite8 ? valBot8 : (v47 ? +v47.replace(/\./g, '') : 0);
+                reverso847((c.chat && c.chat.contactId) || c.contactId).then(r => { try {
+                  if (r.cpf) { const O7 = GM_getValue('auto_ordens', {}) || {}; if (O7[id] && O7[id].cpf) return;
+                    O7[id] = { hash: id, nome: nm47, cpf: r.cpf, fone: String((c.chat && c.chat.contactId) || c.contactId || '').replace(/\D/g, ''), tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc47 >= 1000 ? vEsc47 : 0, aceite: !!aceite8, estado: 'nova', t: Date.now(), acolheu: 1, reverso: 1, hist: [hhmm(Date.now()) + ' 8.47: análise reversa — CPF achado pelo telefone no ' + r.fonte + ' (cliente não mandou CPF) → consulta sem pedir dado'] };
+                    GM_setValue('auto_ordens', O7); diario(nm47 || id.slice(0, 5), '🔎 análise reversa: CPF achado no ' + r.fonte + ' pelo telefone → consultando sem pedir dado (8.47)'); }
+                  else { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (PC[id] > Date.now() - 30 * 864e5) return; window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.47: aceitou/respondeu e o telefone não está no New Corban nem no FullConsig → pedido de CPF, uma vez só' }); PC[id] = Date.now(); GM_setValue('pedir_cpf_feito', PC); diario(nm47 || id.slice(0, 5), '🔎 análise reversa não achou o telefone → pediu o CPF uma vez (8.47)'); } } catch (e) {} });
+                res.push(nm47 + ' (análise reversa pelo telefone)'); }
+              else if (false && !temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
                 const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 30 * 864e5)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.46: respondeu à simulação padrão (' + String(T(cU8)).slice(0, 30) + ') → pedido de CPF, uma vez só' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (respondeu a simulação → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu a simulação padrão → pediu o CPF (8.46, uma vez só)'); } } }
               else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id])) {
                 VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
@@ -4774,7 +4803,7 @@
     // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
     { let ocup818 = false;
       setInterval(async () => { if (ocup818) return; try { if (meuPapel() === 'vigia' || !bmApiLigada()) return; const L = GM_getValue('sm818_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('sm818_dono', { aba: ABA, t: Date.now() });
-        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
+        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
         if (!oM) return; ocup818 = true;
         const RC = GM_getValue('rr_cache', {}) || {}; const n30 = (RC['/n30'] && RC['/n30'].tx) || 'Assim que abrir margem no seu benefício, a gente te avisa por aqui. 💙\n\nQualquer dúvida, estamos à disposição. 🤝\n*Um grande abraço da equipe Dinseguro!*';
         try { const D8 = DESFECHOS[oM.acao]; if (D8.texto) await bmEnviarTexto(oM.hash, String(D8.texto).replace(/\{NOME\}/g, primeiroNome(oM.nomeReal || '') || ''));   // 8.20: LOAS, não localizado, espécie fora… também pela API
