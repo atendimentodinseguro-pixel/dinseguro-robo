@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.51';
+  const VERSAO = '8.52';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2262,7 +2262,7 @@
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
-        const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
+        const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && (!bmApiLigada() || !DESFECHOS[x.acao] || !(DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') || (+x.sm818Tent || 0) >= 3 || Date.now() - (+x.t || 0) > 4 * 60000) && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
@@ -4827,8 +4827,8 @@
     // 8.18 (18/11 11:20: 26 'sem margem' parados — o envio pela API dentro do intervalo 7.90 não rodava e a fila da tela estava cheia de toques):
     // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
     { let ocup818 = false;
-      setInterval(async () => { if (ocup818) return; try { if (meuPapel() === 'vigia' || !bmApiLigada()) return; const L = GM_getValue('sm818_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('sm818_dono', { aba: ABA, t: Date.now() });
-        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
+      setInterval(async () => { if (ocup818) return; try { if (meuPapel() === 'vigia' || !bmApiLigada()) return;   /* 8.52: roda a cada 6 s (antes 20 s) e a tela espera a API */ const L = GM_getValue('sm818_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('sm818_dono', { aba: ABA, t: Date.now() });
+        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 5000 && Date.now() - (+x.t || 0) < 6 * 3600000);
         if (!oM) return; ocup818 = true;
         const RC = GM_getValue('rr_cache', {}) || {}; const n30 = (RC['/n30'] && RC['/n30'].tx) || 'Assim que abrir margem no seu benefício, a gente te avisa por aqui. 💙\n\nQualquer dúvida, estamos à disposição. 🤝\n*Um grande abraço da equipe Dinseguro!*';
         try { const D8 = DESFECHOS[oM.acao]; if (D8.texto) await bmEnviarTexto(oM.hash, String(D8.texto).replace(/\{NOME\}/g, primeiroNome(oM.nomeReal || '') || ''));   // 8.20: LOAS, não localizado, espécie fora… também pela API
@@ -4845,7 +4845,7 @@
           diario(oM.nomeReal || oM.nome || '', oM.acao + ': retorno pela API ✓ (8.18, ' + Math.round((Date.now() - (+oM.t || Date.now())) / 60000) + ' min depois do resultado)');
         } catch (e) { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].sm818Tent = (+O2[oM.hash].sm818Tent || 0) + 1; O2[oM.hash].sm818Prox = Date.now() + 60000; O2[oM.hash].sm818Erro = String((e && e.message) || e).slice(0, 160); GM_setValue('auto_ordens', O2); }
           diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu (8.18): ' + String((e && e.message) || e).slice(0, 120)); }
-        finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 20000); }
+        finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
     // 8.19: o check-up antigo (lia conversa por conversa pela tela) foi substituído pela espera API (8.12–8.19) — não roda mais sozinho; window.dinsCheckup continua para uso manual
