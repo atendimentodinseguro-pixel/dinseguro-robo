@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.02';
+  const VERSAO = '8.03';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -177,7 +177,9 @@
     // Mudança da Stefany, 08/11/2026 10:18: abaixo de R$ 6 mil vai para a QUALIBANK
     // SEMPRE, inclusive no fim de semana. Isso REVOGA a janela de fim de semana de
     // 07/11 14:55, que mandava esses clientes para o C6 de sexta 17h a domingo.
-    return { banco: 'QUALIBANK', motivo: 'Abaixo de R$ 6 mil, não é invalidez nem pensão <45: Qualibank, tabela normal (631)' + nota };
+    // 8.03 (Stefany 17/11 23:12: "até 5 mil pode passar para preferência no Facta… benefícios que não são invalidez"): a faixa que ia para a
+    // QUALIBANK (não invalidez, abaixo de R$ 6 mil) passa a ir para a FACTA. A Qualibank fica para invalidez 58–59 e como reserva da FACTA.
+    return { banco: 'FACTA', motivo: 'Abaixo de R$ 6 mil e não é invalidez: FACTA (Stefany 17/11 23:12 — antes Qualibank)' + nota };
   }
 
 
