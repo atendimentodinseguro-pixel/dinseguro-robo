@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.29';
+  const VERSAO = '8.30';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4376,7 +4376,8 @@
         const tags = (cu.tags || []).map(String);
         const temTag = re => tags.some(t => re.test(t));
         if (temTag(/01.?D|Fechou.?Neg/i)) return null;
-        if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return null;   // desfecho → fecha (tela)
+        const ON829 = GM_getValue('bm_intents_on', []) || [];
+        if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'desfecho já tagueado — só fechar (intenção)' } : null;   // desfecho → fecha (8.29: pela intenção, sem a tela)
         if ((GM_getValue('wa_bloqueados', []) || []).includes(it.id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
         const txtDe = m => { let s = typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''); try { const o = JSON.parse(s); if (o && o.button) s = o.button; } catch (e) {} return String(s || '').replace(/\s+/g, ' ').trim(); };
         const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME))).map(m => ({ lado: m.FROM === 'me' ? 'nos' : 'cli', bot: m.FROM === 'me' && /^Bot$/i.test(m.FROM_NAME || ''), txt: txtDe(m) }));
@@ -4402,13 +4403,14 @@
         const pediuCpf = /CPF/i.test(nos) && /(me (envie|mande|passa)|informe|número do seu CPF|seu CPF)/i.test(nos);
         if (temCpf || nossaHumana) { const caso = temCpf ? 'atendimento' : (pediuCpf ? 'cpf' : 'atendimento');
           return fone.length >= 10 ? { acao: 'wa', caso, motivo: (temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno') + ' [servidor]', fone } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
+        if (ON829.includes('fechar_01c') && !temCpf && !nossaHumana) return { acao: 'c01', motivo: 'só o fluxo do bot, sem CPF → 01 C + fechar (intenção)' };   // 8.29
         return null;   // só o fluxo do bot → 01 C + fechar (precisa da tela)
       } catch (e) { return null; }
     }
     async function executarOrdemVarredura(hash, acao, nota) {
       // 8.29 (Stefany 18/11 12:40: intenções testadas e ligadas): fechar / 01 C + fechar pela INTENÇÃO do Botmaker, sem abrir a tela
-      try { const ON = GM_getValue('bm_intents_on', []) || []; const it = acao === 'fecha' ? 'fechar_so' : acao === 'c01' ? 'fechar_01c' : '';
-        if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(hash, it); if (ri && ri.http >= 200 && ri.http < 300) { try { diario('varredura', (acao === 'c01' ? '01 C + fechou' : 'fechou') + ' pela intenção ' + it + ' ✓ (sem a tela)'); } catch (e) {} return 'ok'; } } } catch (e) {}
+      try { const ON = GM_getValue('bm_intents_on', []) || []; const it = acao === 'fecha' ? 'fechar_so' : (acao === 'c01' || acao === 'classifica_fecha') ? 'fechar_01c' : '';
+        if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(hash, it); if (ri && ri.http >= 200 && ri.http < 300) { try { diario('varredura', (acao !== 'fecha' ? '01 C + fechou' : 'fechou') + ' pela intenção ' + it + ' ✓ (sem a tela)'); } catch (e) {} return 'ok'; } } } catch (e) {}
       while (localStorage.getItem('dins_ordem')) await esp(3000);
       const t0 = Date.now();
       localStorage.setItem('dins_ordem', JSON.stringify({ hash, acao, quem: 'varredura', nota, t: t0 }));
@@ -4475,6 +4477,7 @@
               plano.itens.push(Object.assign({ id: it.id, nome: it.nome, fone: dA.fone || '' }, dA)); GM_setValue('varre_plano', plano); cursor.itensPlano = plano.itens;
               if (primeira) { salva(); continue; }
               if (dA.acao === 'revisar') { placar.revisar++; salva(); continue; }
+              if (dA.acao === 'fecha' || dA.acao === 'c01') { const rF = await executarOrdemVarredura(it.id, dA.acao === 'c01' ? 'classifica_fecha' : 'fecha', varreNota(dA.motivo)); if (rF === 'ok') { if (dA.acao === 'c01') placar.c01++; else placar.fechadas++; } else placar.erros++; salva(); continue; }   // 8.29: fecha pela intenção sem abrir a tela
               if (dA.acao === 'wa' && loteCheio) { placar.wa_depois = (placar.wa_depois || 0) + 1; salva(); continue; }   // fica para a próxima rodada
               if (dA.acao === 'wa') { const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
                 if (!ja) { f.push({ hash: it.id, fone: dA.fone, nome: nomeSeguro(it.nome), caso: dA.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
