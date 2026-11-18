@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.89';
+  const VERSAO = '7.90';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -850,6 +850,29 @@
       return 'wait'; }
     window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
     const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
+    // 7.90 (Stefany 17/11 21:47, caso Antonio: CPF 21:41, simulou pela API 21:42, mas a simulação só saiu 21:47 — a aba estava presa em outra ordem):
+    // simulação pronta → sai NA HORA pela API do Botmaker, sem esperar a fila da tela. Nota e tag vão depois, pela tela, quando ela estiver livre.
+    { const EU790 = Math.random().toString(36).slice(2, 8); let ocup790 = false;
+      setInterval(async () => { if (ocup790 || !bmApiLigada()) return;
+        try { const L = GM_getValue('bm_sim_dono', null); if (L && L.id !== EU790 && Date.now() - (+L.t || 0) < 15000) return; GM_setValue('bm_sim_dono', { id: EU790, t: Date.now() }); } catch (e) { return; }
+        const O = GM_getValue('auto_ordens', {}) || {};
+        // nota + tag pendentes de simulação já enviada pela API
+        const pN = Object.values(O).find(x => x && x.notaPend790 && x.estado === 'sim_enviada');
+        if (pN && !localStorage.getItem('dins_ordem')) { localStorage.setItem('dins_ordem', JSON.stringify({ hash: pN.hash, acao: 'so_tag', quem: 'robo', t: Date.now(), tags: ['01 A - Inss Com Margem - SEM 87 E 88'], msgFeita: 1, linhaFeita: 1, nota: pN.notaPend790 }));
+          delete pN.notaPend790; GM_setValue('auto_ordens', O); }
+        const oS = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'simulada' && !x.api790T && Date.now() - (+x.tSim || 0) < 20 * 60000);
+        if (!oS) return;
+        const ex = extrSync(oS); if (ex === 'wait' || ex) return;   // extrato → o caminho antigo (7.71) cuida
+        if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) return;
+        ocup790 = true; oS.api790T = Date.now(); GM_setValue('auto_ordens', O);
+        try { const linhaS = textoSim755(oS); await bmEnviarTexto(oS.hash, linhaS);
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const x = O2[oS.hash]; if (!x) return;
+          const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+          Object.assign(x, { estado: 'sim_enviada', tSimEnv: Date.now(), notaPend790: dd + ' ' + hhmm(Date.now()) + ' [robô 7.90] ' + (x.nomeReal || x.nome || '') + ' · ' + (x.resumo || '') + ' · simulado no ' + (x.banco || '?') + ' R$ ' + x.liberado + ' ' + x.prazo + 'x R$ ' + x.parcela + ' → só a SIMULAÇÃO, enviada na hora pela API do Botmaker (proposta NÃO gravada). Aceitou (1) → grava e manda o link; 30 min sem resposta → grava e manda /parabens.' });
+          (x.hist = x.hist || []).push(hhmm(Date.now()) + ' simulação enviada pela API do Botmaker (7.90)'); GM_setValue('auto_ordens', O2);
+          diario(x.nomeReal || x.nome || '', 'simulação enviada NA HORA pela API do Botmaker (' + Math.round((Date.now() - (+x.t || Date.now())) / 1000) + ' s depois do CPF)');
+        } catch (e) { try { console.warn('[Dinseguro] 7.90 simulação pela API falhou → tela', e); } catch (x) {} }   // falhou → continua 'simulada' e o caminho antigo (7.55) manda pela tela
+        finally { ocup790 = false; } }, 3000); }
     // 7.89: conferir a API do Botmaker sem mandar mensagem (só leitura: GET /chats) — o vigia chama dinsBmApi()
     window.dinsBmApi = () => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); const on = bmApiLigada(); if (!tk) return res({ ligada: false, motivo: 'sem token' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats', timeout: 20000, headers: { 'access-token': tk, Accept: 'application/json' },
