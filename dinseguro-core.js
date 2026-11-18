@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.12';
+  const VERSAO = '8.13';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4564,7 +4564,7 @@
             { const ags = ms.filter(m => m.from === 'agent'); const ua = ags[ags.length - 1]; if (ua && /R[ôo]mulo|Stefany/i.test(T(ua).slice(0, 40)) && !/\[Dinseguro\]/.test(T(ua).slice(0, 20))) return; }   // conversa de humano (Rômulo/Stefany) — não tocar
             const cU = ms[iC]; const tx = T(cU); const tipo = (cU.content && cU.content.type) || ''; const min = Math.round((ag - Date.parse(cU.creationTime)) / 60000);
             const btn = tipo === 'button-click' ? String((cU.content && (cU.content.selectedButton || cU.content.text)) || '') : '';
-            if (/^\s*(ok+|okay|obrigad[oa]s?|muito obrigad[oa]|obg|brigad[oa]|combinado|blz|beleza|t[áa] bom|tudo bem|certo|entendi|valeu|am[ée]m|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i.test(tx)) return;
+            { const pal = tx.toLowerCase().replace(/[^a-zà-ú\s]/g, ' ').split(/\s+/).filter(Boolean); const ACK = /^(ok+|okay|obrigad[oa]s?|muito|muit[ao]|obg|obgd[ao]?|brigad[oa]|combinado|blz|beleza|t[áa]|bom|tudo|bem|certo|entendi|valeu|am[ée]m|deus|aben[çc]o\w*|sim|t[áa]|bj|abra[çc]o|grat[ao]|de|nada)$/; if ((pal.length && pal.length <= 6 && pal.every(x => ACK.test(x))) || (!pal.length && tx.trim())) return; }   // 8.13: 'Ok obrigado', 'Tá bom, obrigada', só emoji → não é espera
             if (/encerrar agora/i.test(btn)) return;
             const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
             const nome = String(c.firstName || '').trim();
