@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.35';
+  const VERSAO = '8.36';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -836,6 +836,12 @@
   try { if (typeof GM_registerMenuCommand === 'function' && window.top === window && /botmaker/.test(location.host)) {
     GM_registerMenuCommand('Dinseguro: token da API do Botmaker', () => { const t = prompt('Cole aqui o access-token da API do Botmaker (Integrações → API). Vazio = desliga.', ''); if (t === null) return; const v = String(t).trim(); GM_setValue('bm_api_token', v.length > 20 ? v : ''); GM_setValue('bm_api_on', v.length > 20 ? 1 : 0); alert(v.length > 20 ? 'Token do Botmaker salvo. As mensagens do robô passam a sair pela API.' : 'API do Botmaker desligada: as mensagens voltam a sair pela tela.'); });
   } } catch (e) {}
+  // 8.36 (Stefany 18/11 13:24: "antes aparecia um botão apenas e eu clicava"): sem o token da API do Botmaker → botão na tela para ELA colar o token (o robô nunca digita token)
+  try { if (window.top === window && /botmaker/.test(location.host)) { const poe = () => { try { if (GM_getValue('bm_api_token', '')) { const b0 = document.getElementById('dins-bm-token'); if (b0) b0.remove(); return; }
+      if (document.getElementById('dins-bm-token') || !document.body) return; const b = document.createElement('button'); b.id = 'dins-bm-token'; b.textContent = '🔑 Colar o token da API do Botmaker';
+      b.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483646;padding:8px 14px;border:0;border-radius:8px;background:#dc2626;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)';
+      b.onclick = () => { const t = prompt('Cole aqui o access-token da API do Botmaker (credencial desta aba). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length <= 20) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('bm_api_token', v); GM_setValue('bm_api_on', 1); alert('Token do Botmaker salvo neste Chrome. Recarregue a aba (F5).'); b.remove(); };
+      document.body.appendChild(b); } catch (e) {} }; setTimeout(poe, 4000); setInterval(poe, 30000); } } catch (e) {}
   const msgTxt806 = m => String(typeof (m && m.MESSAGE) === 'string' ? m.MESSAGE : JSON.stringify((m && m.MESSAGE) || ''));
   const humano806 = m => !!m && m.FROM === 'me' && ((m.FROM_NAME && m.FROM_NAME !== 'Bot') || /^\s*\[Dinseguro\]/.test(msgTxt806(m)));   // 8.06: mensagem nossa pela API (FROM_NAME 'Bot' + [Dinseguro]) conta como humana
   function bmEnviarTexto(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
