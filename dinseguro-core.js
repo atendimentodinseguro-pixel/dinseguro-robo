@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.16';
+  const VERSAO = '8.17';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -930,12 +930,14 @@
         // 8.00 (Stefany 17/11 22:58, caso Jurema: consulta 22:52, retorno só 22:56 — esperou a fila da tela): sem margem → linha + /n30 NA HORA pela API;
         // tags, nota e fechar vão depois pela tela (ordem com msgFeita/linhaFeita). Sem o texto do /n30 guardado → caminho antigo.
         { const RC = GM_getValue('rr_cache', {}) || {}; const n30 = RC['/n30'] && RC['/n30'].tx;
-          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && Date.now() - (+x.t || 0) < 30 * 60000);
+          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && !x.api800Falhou && !(+x.api800Prox > Date.now()) && Date.now() - (+x.t || 0) < 90 * 60000);
           if (oM) { ocup790 = true; oM.api800T = Date.now(); GM_setValue('auto_ordens', O);
             try { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal))); await esp(1500); await bmEnviarTexto(oM.hash, n30);
               const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].msgApi = 1; GM_setValue('auto_ordens', O4); }
               diario(oM.nomeReal || oM.nome || '', 'sem margem: retorno NA HORA pela API (' + Math.round((Date.now() - (+oM.t || Date.now())) / 1000) + ' s depois do CPF); tags e fechar pela tela');
-            } catch (e) { const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].api800Falhou = 1; GM_setValue('auto_ordens', O4); } }
+            } catch (e) { const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { const er = String((e && e.message) || e).slice(0, 160); O4[oM.hash].api800Erro = er; O4[oM.hash].api800Tent = (+O4[oM.hash].api800Tent || 0) + 1;
+              if (O4[oM.hash].api800Tent < 3 && !/sem token/.test(er)) { delete O4[oM.hash].api800T; O4[oM.hash].api800Prox = Date.now() + 90000; } else O4[oM.hash].api800Falhou = 1;   // 8.17: tenta de novo pela API (até 3 vezes) antes de cair na fila da tela
+              GM_setValue('auto_ordens', O4); diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu: ' + er + ' (tentativa ' + O4[oM.hash].api800Tent + ')'); } }
             finally { ocup790 = false; } return; } }
         // 7.93 (Stefany 17/11 22:12: "1 minuto é muito tempo"): o "recebi o seu CPF, já estou consultando" sai NA HORA pela API, antes da consulta acabar
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
