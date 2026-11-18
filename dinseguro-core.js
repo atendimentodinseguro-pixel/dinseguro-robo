@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.33';
+  const VERSAO = '8.34';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4664,6 +4664,28 @@
             try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome, estado: 'alerta', toques: [], hist: [], criadoT: ag }); const mot = 'espera API: cliente escreveu "' + (tx || btn || '[' + tipo + ']').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + min + ' min e só o bot respondeu';
               if (x.estado !== 'alerta' || !/espera API/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = mot; x.ultLado = 'cli'; x.ultCliT = Date.parse(cU.creationTime); x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + mot); gravaRG(R); res.push(nome + ' (vigia)'); } } catch (e) {}
           }); }
+        // 8.34 (Stefany 18/11 13:09: "janela de 24 h vencida, caso que a gente não atende… o robô sabe fazer, pode fechar via API, com o tagueamento correto"):
+        // conversa VENCIDA sem follow-up a fazer → fecha pela intenção daqui mesmo (a varredura continua com quem tem follow-up).
+        try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_so') && ON.includes('fechar_01c')) {
+          const FV = GM_getValue('esp_api_fechou_venc', {}) || {}; for (const k in FV) if (ag - FV[k] > 7 * 86400000) delete FV[k];
+          const venc = all.filter(c => !janAberta(c) && !FV[c.chat.chatId] && !protegido(c.chat.chatId) && c.chat.chatId !== 'F20QOEL8YYLQN2S6SR47').slice(0, 30);
+          const frV = encodeURIComponent(new Date(ag - 6 * 86400000).toISOString()); let nF = 0, n01 = 0;
+          for (const c of venc) { const id = c.chat.chatId; const tags = (c.tags || []).join('|');
+            if (/01_?D|FechouNeg|Fechou_?Neg/i.test(tags)) { FV[id] = ag; continue; }   // fechou negócio: esteira acompanha, não fecha
+            const fe = (() => { try { return faseEsteira(RG()[id] || {}); } catch (e) { return null; } })(); if (fe && fe.fase) { FV[id] = ag; continue; }   // tem esteira andando
+            let r = await get('/messages?chat-id=' + id + '&from=' + frV); if (!r || r.http !== 200) continue; let ms = (r.j && r.j.items) || []; let pg = 0;
+            while (r.j && r.j.nextPage && pg < 4) { r = await get(String(r.j.nextPage).replace('https://api.botmaker.com/v2.0', '')); if (!r || r.http !== 200) break; ms = ms.concat((r.j && r.j.items) || []); pg++; }
+            const nos = ms.filter(m => m.from !== 'user').map(T).join('\n'); const cli = ms.filter(m => m.from === 'user').map(T);
+            const temCpf = cli.some(t => /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(t)) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
+            const temLink = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*joinbank|\S*queromais|\S*daycoval)|Novo Cr[ée]dito Dispon/i.test(nos);
+            const desf = /01_I_|01k_|SEM_MARGEM|Sem_margem|02_|LoasSem|LoasCom|NaoIdentificado|Acima_?De_?80|Q15/i.test(tags);
+            const recusou = cli.slice(-6).some(t => /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer)|sem interesse|desisto|n[ãa]o me interessa|para de (me )?mandar)/i.test(t));
+            let it = '';
+            if (desf || recusou) it = 'fechar_so';
+            else if (!temCpf && !temLink) it = 'fechar_01c';
+            if (!it) { FV[id] = ag; continue; }   // tem follow-up (link / CPF com margem): fica para a varredura
+            const ri = await window.dinsBmIntent(id, it); if (ri && ri.http >= 200 && ri.http < 300) { FV[id] = ag; if (it === 'fechar_01c') n01++; else nF++; } }
+          GM_setValue('esp_api_fechou_venc', FV); if (nF + n01) { res.push('vencidas fechadas ' + (nF + n01)); diario('espera API', '🔒 janela vencida sem follow-up: fechou ' + nF + ' (desfecho/recusa) + ' + n01 + ' (01 C) pela intenção (8.34)'); } } } catch (e) {}
         GM_setValue('esp_api_vistos3', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
         window.dinsEsperaRes = res; if (res.length) diario('espera API', res.length + ' cliente(s) esperando: ' + res.slice(0, 6).join(', '));
       } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
