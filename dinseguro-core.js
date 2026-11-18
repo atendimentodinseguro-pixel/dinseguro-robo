@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.53';
+  const VERSAO = '8.54';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4527,6 +4527,27 @@
         return null;   // só o fluxo do bot → 01 C + fechar (precisa da tela)
       } catch (e) { return null; }
     }
+    // 8.54 (Stefany 18/11 20:35: "colocar a varredura para fechar… só a galera que não tem que fazer follow-up"): passada SÓ DE FECHAMENTO pela API.
+    // Lista pela API as conversas com janela de 24 h vencida (últimos N dias), decide com a mesma regra da varredura e fecha pela INTENÇÃO
+    // só o que é 'fecha' (desfecho/recusou/sem margem) ou 'c01' (só o bot, sem CPF). Follow-up (wa) e revisar ficam de fora. Nunca abre a tela, nunca manda mensagem.
+    window.dinsVarreFechar = async (dias, max) => { const res = { vistos: 0, fechados: 0, c01: 0, pulados: 0, erros: 0, follow: 0, revisar: 0, lista: [] };
+      try { const ON = GM_getValue('bm_intents_on', []) || []; if (!ON.includes('fechar_so') || !ON.includes('fechar_01c')) return { erro: 'intenções fechar_so / fechar_01c desligadas' };
+        const de = new Date(Date.now() - (+dias || 3) * 864e5).toISOString(); let r = await window.dinsBmGet('/chats?from=' + de); let it = (r.j && r.j.items) || []; let pg = 0;
+        while (r.j && r.j.nextPage && pg < 30) { r = await window.dinsBmGet(String(r.j.nextPage).replace(/^https?:\/\/[^/]+\/v2\.0/, '')); it = it.concat((r.j && r.j.items) || []); pg++; }
+        const ag = Date.now(); const FEITO = GM_getValue('varre_fechou854', {}) || {};
+        const alvo = it.filter(x => { const c = x.chat || {}; const w = Date.parse(x.whatsAppWindowCloseDatetime || '') || 0; return c.chatId && w && w < ag && !protegido(c.chatId) && !(FEITO[c.chatId] > ag - 12 * 3600000); });
+        for (const x of alvo.slice(0, +max || 80)) { const id = x.chat.chatId; res.vistos++;
+          let d = null; try { d = await decidirVarreduraApi({ id, nome: String(x.firstName || '') }); } catch (e) { d = null; }
+          if (!d || d.acao === 'sem_leitura') { res.pulados++; continue; }
+          if (d.acao === 'wa') { res.follow++; continue; } if (d.acao === 'revisar') { res.revisar++; continue; }
+          if (d.acao !== 'fecha' && d.acao !== 'c01') { res.pulados++; continue; }
+          const intent = d.acao === 'c01' ? 'fechar_01c' : (/SEM MARGEM/i.test(d.motivo || '') && ON.includes('fechar_sem_margem') ? 'fechar_sem_margem' : 'fechar_so');
+          const ri = await window.dinsBmIntent(id, intent);
+          if (ri && ri.http >= 200 && ri.http < 300) { FEITO[id] = Date.now(); d.acao === 'c01' ? res.c01++ : res.fechados++; res.lista.push(String(x.firstName || id.slice(0, 5)).slice(0, 14) + ' → ' + intent); diario('varredura', 'fechou pela intenção ' + intent + ' (8.54): ' + String(x.firstName || '') + ' — ' + String(d.motivo || '').slice(0, 60)); }
+          else res.erros++;
+          await esp(700); }
+        for (const q in FEITO) if (ag - FEITO[q] > 7 * 864e5) delete FEITO[q]; GM_setValue('varre_fechou854', FEITO);
+      } catch (e) { res.erro = String((e && e.message) || e).slice(0, 120); } return res; };
     async function executarOrdemVarredura(hash, acao, nota) {
       // 8.29 (Stefany 18/11 12:40: intenções testadas e ligadas): fechar / 01 C + fechar pela INTENÇÃO do Botmaker, sem abrir a tela
       try { const ON = GM_getValue('bm_intents_on', []) || []; let it = acao === 'fecha' ? 'fechar_so' : (acao === 'c01' || acao === 'classifica_fecha') ? 'fechar_01c' : '';
