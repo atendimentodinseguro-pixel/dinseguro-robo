@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.99';
+  const VERSAO = '8.00';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -913,6 +913,16 @@
         const pN = Object.values(O).find(x => x && x.notaPend790 && x.estado === 'sim_enviada');
         if (pN && !localStorage.getItem('dins_ordem')) { localStorage.setItem('dins_ordem', JSON.stringify({ hash: pN.hash, acao: 'so_tag', quem: 'robo', t: Date.now(), tags: ['01 A - Inss Com Margem - SEM 87 E 88'], msgFeita: 1, linhaFeita: 1, nota: pN.notaPend790 }));
           delete pN.notaPend790; GM_setValue('auto_ordens', O); }
+        // 8.00 (Stefany 17/11 22:58, caso Jurema: consulta 22:52, retorno só 22:56 — esperou a fila da tela): sem margem → linha + /n30 NA HORA pela API;
+        // tags, nota e fechar vão depois pela tela (ordem com msgFeita/linhaFeita). Sem o texto do /n30 guardado → caminho antigo.
+        { const RC = GM_getValue('rr_cache', {}) || {}; const n30 = RC['/n30'] && RC['/n30'].tx;
+          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && Date.now() - (+x.t || 0) < 30 * 60000);
+          if (oM) { ocup790 = true; oM.api800T = Date.now(); GM_setValue('auto_ordens', O);
+            try { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal))); await esp(1500); await bmEnviarTexto(oM.hash, n30);
+              const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].msgApi = 1; GM_setValue('auto_ordens', O4); }
+              diario(oM.nomeReal || oM.nome || '', 'sem margem: retorno NA HORA pela API (' + Math.round((Date.now() - (+oM.t || Date.now())) / 1000) + ' s depois do CPF); tags e fechar pela tela');
+            } catch (e) { const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].api800Falhou = 1; GM_setValue('auto_ordens', O4); } }
+            finally { ocup790 = false; } return; } }
         // 7.93 (Stefany 17/11 22:12: "1 minuto é muito tempo"): o "recebi o seu CPF, já estou consultando" sai NA HORA pela API, antes da consulta acabar
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
         if (oA) { ocup790 = true; oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
@@ -1475,6 +1485,7 @@
       }
       if (window.top.location.hash !== hashRR0 || (vigiaTrava() && !rodando)) { setNativo(document.querySelector('textarea'), ''); throw new Error('a tela trocou de chat antes de enviar — não mandei'); }   // 4.60
       const valorEnviado = document.querySelector('textarea').value;
+      try { if (!editar && !prefixo && !(trocas && trocas.length) && valorEnviado && valorEnviado.length > 40) { const RC = GM_getValue('rr_cache', {}) || {}; RC[String(atalho).trim().toLowerCase()] = { tx: valorEnviado, t: Date.now() }; GM_setValue('rr_cache', RC); } } catch (e) {}   // 8.00: guarda o texto da resposta rápida (a API manda sem passar pela tela)
       const trecho = valorEnviado
         .replace(/[*_]/g, '').split('\n').find(l => l.trim().length > 20) || '';
       let rrApi = false;   // 7.88: resposta rápida de TEXTO sai pela API do Botmaker (o texto já foi montado na caixa)
@@ -2118,7 +2129,7 @@
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
-        const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho');
+        const o = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
@@ -2135,7 +2146,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'loas_com', t: Date.now(), nota, texto: DESFECHOS.loas_com.texto.replace('{NOME}', pn).replace('Oi, ! ', 'Oi! ') }));
           } else {
           const nota = dd + ' ' + hhmm(Date.now()) + ' [robô] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' · CPF mandado ' + hhmm(o.cpfT || o.t) + ' → linha cordial + /n30 + ' + (o.acao === 'loas_sem' ? '02 I' : '01 I') + ' + fechar (automático 4.24).';
-          localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, q15: !!o.q15, t: Date.now(), nota: nota + (o.q15 ? ' Tem margem para cartão → Q15.' : ''), linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)), nome: o.nome || '', fone: o.fone || (((GM_getValue('regua', {}) || {})[o.hash]) || {}).fone || '' }));   // 5.74: nome/fone na ordem (caso Vms: painel 'V.m.d.' ≠ lista 'Vms' → o sem margem nunca saiu)
+          localStorage.setItem('dins_ordem', JSON.stringify(Object.assign(o.msgApi ? { msgFeita: 1, linhaFeita: 1 } : {}, { hash: o.hash, acao: o.acao, q15: !!o.q15, t: Date.now(), nota: nota + (o.q15 ? ' Tem margem para cartão → Q15.' : ''), linha: LINHA_SEM_MARGEM(primeiroNome(o.nomeReal)), nome: o.nome || '', fone: o.fone || (((GM_getValue('regua', {}) || {})[o.hash]) || {}).fone || '' })));   // 5.74: nome/fone na ordem (caso Vms: painel 'V.m.d.' ≠ lista 'Vms' → o sem margem nunca saiu)
           }
           o.estado = 'desfecho_enviado'; o.tEnv = Date.now(); mud = true;
         }
