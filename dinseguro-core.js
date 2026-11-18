@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.30';
+  const VERSAO = '8.31';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4389,7 +4389,7 @@
         if (u.lado === 'cli' && CPFRE.test(u.txt)) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
         const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
         const cli6 = ms.filter(m => m.lado === 'cli').slice(-6).map(m => m.txt);
-        if (cli6.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
+        if (cli6.some(t => RECUSOU.test(t))) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — sem follow-up, fechada (8.31)' } : { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
         const fe = faseEsteira(RG()[it.id] || {});
         if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
         const nos = ms.filter(m => m.lado === 'nos').map(m => m.txt).join('\n');
@@ -4461,7 +4461,11 @@
           let loteCheio = false;
           if (!primeira) { const fW = GM_getValue('wa_fila', []) || [];
             loteCheio = fW.filter(x => x.estado === 'pendente' && x.fone).length >= WA_LOTE; if (loteCheio) placar.lote = WA_LOTE;
-            if (fW.some(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000)) { placar.ja_wa = (placar.ja_wa || 0) + 1; continue; } }   // já está na fila/já recebeu nos últimos 7 dias: não analisa de novo
+            const jaW = fW.find(x => x.hash === it.id && ['pendente', 'enviado', 'pulado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
+            if (jaW) { placar.ja_wa = (placar.ja_wa || 0) + 1;
+              // 8.31 (Stefany 18/11 12:47: "a galera já vencida… fora do escopo de follow-up… pode tudo ser finalizado dentro da API"): já recebeu o follow-up e não respondeu → fecha pela intenção
+              if (jaW.estado !== 'pendente' && (GM_getValue('bm_intents_on', []) || []).includes('fechar_so')) { const rF = await executarOrdemVarredura(it.id, 'fecha', varreNota('janela vencida; já recebeu o follow-up no WhatsApp e não respondeu. Conversa encerrada.')); if (rF === 'ok') placar.fechadas++; salva(); }
+              continue; } }   // já está na fila/já recebeu nos últimos 7 dias: não analisa de novo
           if (naFatia >= VARRE_FATIA && !varreSozinha()) {   // 5.45: pausa da fatia — atendimento trabalha (6.11: não quando a varredura tem perfil próprio)
             naFatia = 0; const ini = Date.now(); localStorage.setItem('dins_varre_pausa', 'fatia');
             while (Date.now() - ini < VARRE_PAUSA || (atendimentoPendente(true) && Date.now() - ini < 20 * 60000) || localStorage.getItem('dins_ordem')) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); await esp(5000); }
