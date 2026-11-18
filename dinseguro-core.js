@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.93';
+  const VERSAO = '7.94';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -738,7 +738,7 @@
     const ben = { registration_number: so(f.beneficio).replace(/^0+/, ''), benefit_species: +so(f.especie), state: end.state, benefit_dispatch_date: ncD(f.ddb) || null, receive_card: false };
     const idem = 'dins-' + o.hash + '-' + banco + '-' + of.table_id + '-' + Math.round(+of.installment * 100);
     let corpo;
-    if (banco === 'qualibank') corpo = { bank_username: NC_LOGIN[banco], idempotency_key: idem, offer_token: of.offer_token, client: Object.assign({ enrollment: ben.registration_number, gender: sx[0] }, cli), address: end, phone: { area_code: tel.slice(0, 2), number: tel.slice(2) }, benefit: { species: ben.benefit_species, state: ben.state, benefit_dispatch_date: ben.benefit_dispatch_date }, bank_account: conta, seller_id: NC_SELLER };
+    if (banco === 'qualibank') corpo = { bank_username: NC_LOGIN[banco], idempotency_key: idem, offer_token: of.offer_token, client: Object.assign({ enrollment: ben.registration_number, gender: sx[0] }, cli), address: end, phone: { area_code: tel.slice(0, 2), number: tel.slice(2) }, benefit: { species: ben.benefit_species, state: ben.state, benefit_dispatch_date: ben.benefit_dispatch_date }, bank_account: conta, seller_id: NC_SELLER, bank_options: { formalization_type: false } };   // 7.94 (Stefany 17/11 22:20): igual à tela (4.65) — "Documentos enviados pelo próprio cliente" DESLIGADO: nós anexamos o documento
     else corpo = Object.assign({ bank_username: NC_LOGIN[banco], idempotency_key: idem, offer_token: of.offer_token, simulation_basis: 'by_installment_amount', covenant_group: 'inss', product_id: 1, covenant_id: 7000,
       client: Object.assign({ gender: banco === 'facta' ? sx[0] : sx }, cli), address: end, phone: { area_code: tel.slice(0, 2), number: tel.slice(2) }, payment: { method: 'bank_account' }, liberation_account: conta, benefit: ben, seller_id: NC_SELLER }, banco === 'c6' ? { payment_benefit: conta } : {});
     const r = await ncReq('POST', '/integrations/' + banco + '/send-margin', corpo); const d0 = (r && r.data) || r || {};
