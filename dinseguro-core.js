@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.31';
+  const VERSAO = '8.32';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4579,7 +4579,7 @@
         const get = window.dinsBmGet; if (!get) return;
         let p = '/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); const all = []; let k = 0;
         while (p && k < 8) { const r = await get(p); if (!r || r.http !== 200) break; all.push(...((r.j && r.j.items) || [])); const np = r.j && r.j.nextPage; p = np ? String(np).replace('https://api.botmaker.com/v2.0', '') : null; k++; }
-        const VI = GM_getValue('esp_api_vistos2', {}) || {}; for (const id in VI) if (ag - (+VI[id].t || 0) > 30 * 3600000) delete VI[id];
+        const VI = GM_getValue('esp_api_vistos3', {}) || {}; for (const id in VI) if (ag - (+VI[id].t || 0) > 30 * 3600000) delete VI[id];
         // 8.19 (Stefany 18/11 11:28: "tá lendo conversas que a janela de 24 h já fechou… isso é serviço do varredor"): só conversa com a janela do WhatsApp ABERTA
         const janAberta = c => { const w = Date.parse(c.whatsAppWindowCloseDatetime || 0); return w ? w > ag + 10 * 60000 : Date.parse(c.lastUserMessageDatetime || 0) > ag - 23 * 3600000; };
         try { const R0 = RG(); let mud0 = false; const fech = new Set(all.filter(c => !janAberta(c)).map(c => c.chat.chatId));
@@ -4607,17 +4607,27 @@
                 const ACOL = /Recebi o seu CPF|J[áa] tenho o seu CPF|j[áa] estou consultando|Estamos analisando|Bem-vindo de volta|Fico feliz que voc[êe] voltou/i;
                 const RESULT = /Novo Cr[ée]dito Dispon[íi]vel|Valor na conta|n[ãa]o h[áa] margem|sem margem|margem dispon[íi]vel|LOAS|n[ãa]o consigo liberar|https?:\/\/\S*(facta|dcy\.app|join|c6|quali|nuvidio|bit\.ly)|Op[çc][ãa]o 1|extrato de empr[ée]stimo.*(margem|valor)/i;
                 const depC = ms.filter(m => Date.parse(m.creationTime) > tCpf && m.from !== 'user');
-                const oR = O[id]; const resultadoOrdem = oR && oR.cpf === cpf5 && ['desfecho', 'desfecho_enviado', 'desfecho_ok', 'sim_enviada', 'link', 'feito', 'com_margem'].includes(oR.estado) && ag - (+oR.t || 0) < 24 * 3600000;   // 8.16: a ordem já deu resultado → não reconsulta
+                const oR = O[id]; const resultadoOrdem = oR && oR.cpf === cpf5 && ['desfecho', 'desfecho_enviado', 'desfecho_ok', 'sim_enviada', 'link', 'feito'].includes(oR.estado) && ag - (+oR.t || 0) < 24 * 3600000;   // 8.16: a ordem já deu resultado → não reconsulta
                 const teve = resultadoOrdem || depC.some(m => RESULT.test(T(m)) || (m.from === 'agent' && T(m).replace(/\*?\[Dinseguro\]\*?/g, '').trim().length > 15 && !ACOL.test(T(m))));
                 const tags5 = (c.tags || []).join('|'); const desf5 = /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|Sem_margem|01 I/i.test(tags5);
                 const o5 = O[id]; const andando = o5 && ['nova', 'consultando', 'ficha_ok', 'digitando', 'simulada'].includes(o5.estado) && ag - (+o5.t || 0) < 20 * 60000;
                 if (andando) VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag };   // confere de novo na próxima volta
+                // 8.32 (Cristina GOG47 18/11: parou 'com_margem' às 11:02 esperando o vigia ler o extrato (7.71) e ninguém viu): segura do extrato → VERMELHO na hora, não reconsulta
+                if (!teve && oR && oR.cpf === cpf5 && oR.estado === 'com_margem' && /7\.71|ARQUIVO/.test(String(oR.resumo || ''))) { try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome: String(c.firstName || ''), estado: 'alerta', toques: [], hist: [], criadoT: ag }); if (!/8\.32/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = '8.32: tem margem (' + String(oR.resumo || '').split('·')[0].trim() + ') mas mandou ARQUIVO → vigia confere o extrato e libera (dinsAutoMudar extratoOk) — cliente esperando desde ' + hhmm(tCpf); x.ultLado = 'cli'; x.ultCliT = tCpf; x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + x.motivo); gravaRG(R); res.push(String(c.firstName || '') + ' (vigia: extrato)'); diario(String(c.firstName || id.slice(0, 5)), '🔴 tem margem mas mandou arquivo → vigia confere o extrato (8.32)'); } } catch (e) {} VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; }
                 if (!teve && !desf5 && !andando && !(SM[id] && ag - SM[id] < 30 * 86400000) && !jaFezProposta((RG() || {})[id])) {
                   const tent = (o5 && o5.cpf === cpf5 && +o5.tentEsp) || 0;
                   if (tent < 2) { O[id] = { hash: id, nome: (o5 && o5.nome) || String(c.firstName || ''), cpf: cpf5, fone: (o5 && o5.fone) || ((RG()[id] || {}).fone || ''), tipo: 'cpf', cpfT: tCpf, valorBot: (o5 && o5.valorBot) || 0, aceite: false, estado: 'nova', t: ag, tentEsp: tent + 1, hist: ((o5 && o5.cpf === cpf5 && o5.hist) || []).concat([hhmm(ag) + ' 8.15: mandou CPF ' + hhmm(tCpf) + ' e não recebeu simulação/sem margem/link → consulta de novo (tentativa ' + (tent + 1) + ')']) };
                     GM_setValue('auto_ordens', O); res.push(String(c.firstName || id.slice(0, 5)) + ' (sem resultado → consulta)'); diario(String(c.firstName || id.slice(0, 5)), '🔁 mandou CPF às ' + hhmm(tCpf) + ' e não recebeu resultado → consulta de novo (8.15, tentativa ' + (tent + 1) + ')'); VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; }
                   try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome: String(c.firstName || ''), estado: 'alerta', toques: [], hist: [], criadoT: ag }); if (!/8\.15/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = '8.15: mandou CPF às ' + hhmm(tCpf) + ', o robô consultou 2 vezes e o resultado não chegou ao cliente — vigia resolve'; x.ultLado = 'cli'; x.ultCliT = tCpf; x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + x.motivo); gravaRG(R); res.push(String(c.firstName || '') + ' (vigia: 2 tentativas)'); } } catch (e) {}
                   VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; } } }
+            // 8.32 (Julio ZMH5P 18/11: parou no fluxo do bot sem CPF às 07:09 e só recebeu mensagem automática do bot): sem CPF e sem resposta de GENTE depois da última mensagem dele → pede o CPF (1 vez a cada 12 h)
+            if (respondido && iC >= 0 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') { try {
+              const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
+              const gente = dep.some(m => m.from === 'agent');
+              const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
+              const tags8 = (c.tags || []).join('|');
+              if (!temCpf8 && !gente && min8 > 15 && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C/i.test(tags8) && !(O[id] && O[id].cpf)) {
+                const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 12 * 3600000)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: '', nota: '8.32: parou no fluxo do bot sem CPF há ' + Math.round(min8) + ' min (só mensagens automáticas depois) → pedido de CPF' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🔎 parou no bot sem CPF há ' + Math.round(min8) + ' min → pediu o CPF (8.32)'); } } } } catch (e) {} }
             if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
             if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
             { const ags = ms.filter(m => m.from === 'agent'); const ua = ags[ags.length - 1]; if (ua && /R[ôo]mulo|Stefany/i.test(T(ua).slice(0, 40)) && !/\[Dinseguro\]/.test(T(ua).slice(0, 20))) return; }   // conversa de humano (Rômulo/Stefany) — não tocar
@@ -4641,7 +4651,7 @@
             try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome, estado: 'alerta', toques: [], hist: [], criadoT: ag }); const mot = 'espera API: cliente escreveu "' + (tx || btn || '[' + tipo + ']').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + min + ' min e só o bot respondeu';
               if (x.estado !== 'alerta' || !/espera API/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = mot; x.ultLado = 'cli'; x.ultCliT = Date.parse(cU.creationTime); x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + mot); gravaRG(R); res.push(nome + ' (vigia)'); } } catch (e) {}
           }); }
-        GM_setValue('esp_api_vistos2', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
+        GM_setValue('esp_api_vistos3', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
         window.dinsEsperaRes = res; if (res.length) diario('espera API', res.length + ' cliente(s) esperando: ' + res.slice(0, 6).join(', '));
       } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
       finally { espApiRodando = false; try { desenharRegua(); } catch (e) {} } }
