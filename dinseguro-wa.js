@@ -156,7 +156,7 @@ const tick = async () => {
     if (cx.innerText.trim()) { marca(alvo, { estado: 'erro', motivo: 'a caixa continuou cheia depois de enviar' }); GM_setValue('wa_prox', Date.now() + 365 * 86400000); return; }
     marca(alvo, { estado: 'enviado', quando: Date.now() });
     GM_setValue(mh, (+GM_getValue(mh, 0) || 0) + 1);
-    GM_setValue('wa_prox', Date.now() + (4 + Math.random() * 2) * 60000);   // próxima entre 4 e 6 min
+    GM_setValue('wa_prox', Date.now() + (3 + Math.random() * 1.5) * 60000);   // 1.7 (Stefany 18/11 11:58: 'demorou 8 min de intervalo'): espera 3 a 4,5 min — com a conferência do próximo, o envio fica entre 4 e 6 min
     try { localStorage.setItem('dins_wa_ultimo', JSON.stringify({ nome: alvo.nome, caso: alvo.caso, hora: new Date().toLocaleTimeString('pt-BR').slice(0, 5) })); } catch (e) {}
   } catch (e) { marca(alvo, { estado: 'erro', motivo: String(e.message || e) }); }
   finally { ocupado = false; }
