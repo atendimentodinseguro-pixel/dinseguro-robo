@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.34';
+  const VERSAO = '8.35';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1758,8 +1758,9 @@
         // 8.33 (Stefany 18/11 13:07: "em alguns casos ele poderia fechar na API, que seria mais rápido"): mensagem simples (fase_msg) e só tag (so_tag 01 A / 01 C)
         // saem pela API — texto pelo send-messages, tag pela intenção tag_01a / tag_01c — sem abrir a tela. Qualquer coisa fora disso segue pela tela.
         try { const ON = GM_getValue('bm_intents_on', []) || [];
-          const simples = ['fase_msg', 'so_tag'].includes(o.acao) && !(o.atalhos && o.atalhos.length) && !o.atalho && !(o.trocas && o.trocas.length) && !o.soSeNossaUltima && !o.exige && !o.pularSe && !o.fechar && !o.forcar && !o.reenvio;
-          const tagsO = (o.tags && o.tags.length) ? o.tags : [];
+          const cpfVerificado = o.acao === 'pedir_cpf' && /8\.32|8\.12|espera API/.test(String(o.nota || ''));   // 8.35: pedido de CPF que a espera API já conferiu (sem CPF em lugar nenhum) também vai pela API
+          const simples = (['fase_msg', 'so_tag'].includes(o.acao) || cpfVerificado) && !(o.atalhos && o.atalhos.length) && !o.atalho && !(o.trocas && o.trocas.length) && !o.soSeNossaUltima && !o.exige && !o.pularSe && !o.fechar && !o.forcar && !o.reenvio;
+          const tagsO = (o.tags && o.tags.length) ? o.tags : (cpfVerificado ? ((DESFECHOS.pedir_cpf || {}).tags || []) : []);
           const mapT = t => /^01 A/i.test(t) ? 'tag_01a' : /^01 C/i.test(t) ? 'tag_01c' : '';
           const tagsOk = tagsO.every(t => mapT(t) && ON.includes(mapT(t)));
           const txt = (o.msgFeita || o.linhaFeita) ? '' : String(o.texto || o.linha || '');
