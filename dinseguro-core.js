@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.50';
+  const VERSAO = '8.51';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1007,7 +1007,7 @@
         // 8.00 (Stefany 17/11 22:58, caso Jurema: consulta 22:52, retorno só 22:56 — esperou a fila da tela): sem margem → linha + /n30 NA HORA pela API;
         // tags, nota e fechar vão depois pela tela (ordem com msgFeita/linhaFeita). Sem o texto do /n30 guardado → caminho antigo.
         { const RC = GM_getValue('rr_cache', {}) || {}; const n30 = RC['/n30'] && RC['/n30'].tx;
-          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && !x.api800Falhou && !(+x.api800Prox > Date.now()) && Date.now() - (+x.t || 0) < 90 * 60000);
+          const oM = n30 && Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && /^sem_margem(_k)?$/.test(x.acao || '') && !x.api800T && !x.api800Falhou && !(+x.api800Prox > Date.now()) && Date.now() - (+x.t || 0) < 90 * 60000);
           if (oM) { ocup790 = true; oM.api800T = Date.now(); GM_setValue('auto_ordens', O);
             try { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal))); await esp(1500); await bmEnviarTexto(oM.hash, n30);
               const O4 = GM_getValue('auto_ordens', {}) || {}; if (O4[oM.hash]) { O4[oM.hash].msgApi = 1; GM_setValue('auto_ordens', O4); }
@@ -1801,6 +1801,7 @@
       if (!d) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', erro: 'ação desconhecida: ' + o.acao })); ultima = id; return; }
       rodando = true; ultima = id;
       const passos = [];
+      try { if (o.hash && protegido(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'conversa protegida (não mexer) — ordem não executada (8.51)', t: Date.now() })); localStorage.removeItem('dins_ordem'); rodando = false; return; } } catch (e) {}
       if (o.hash && await canalSuspenso(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'canal SUSPENSO (0800 191 2261) — ordem não executada (8.40)', t: Date.now() })); localStorage.removeItem('dins_ordem');   /* 8.43 (Stefany 18/11 18:58: "o robô não fala nada desde 18:52"): a ordem ficava parada e travava a fila inteira */
         try { const OS = GM_getValue('auto_ordens', {}) || {}; if (OS[o.hash]) { OS[o.hash].estado = 'suspenso'; OS[o.hash].erro = 'canal suspenso 0800 191 2261 — sem mensagem (8.43)'; GM_setValue('auto_ordens', OS); } } catch (e) {}
         rodando = false; return; }
@@ -1987,7 +1988,7 @@
         for (const k in O) { const o = O[k]; if (o.estado === 'desfecho_enviado' && st && st.hash === o.hash && ['ok', 'erro'].includes(st.st) && st.t > (o.tEnv || 0)) { o.estado = st.st === 'ok' ? 'desfecho_ok' : 'erro'; if (st.st !== 'ok') o.erro = 'desfecho automático parou: ' + (st.erro || ''); mud = true; } }
         // 8.23 (Stefany 18/11 11:40: "o robô pega a pessoa que não tem oportunidade de negócio, ele tem que fechar… não está fechando"):
         // desfecho com a mensagem JÁ enviada pela API tem PRIORIDADE na tela (só tag + nota + fechar) — antes de esteira, toques e follow-ups.
-        { const oP = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && x.msgApi && DESFECHOS[x.acao] && DESFECHOS[x.acao].fechar);
+        { const oP = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && x.msgApi && DESFECHOS[x.acao] && DESFECHOS[x.acao].fechar);
           if (oP) { const dP = new Date(), ddP = String(dP.getDate()).padStart(2, '0') + '/' + String(dP.getMonth() + 1).padStart(2, '0');
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oP.hash, acao: oP.acao, q15: !!oP.q15, t: Date.now(), msgFeita: 1, linhaFeita: 1, nota: ddP + ' ' + hhmm(Date.now()) + ' [robô 8.23] ' + (oP.nomeReal || oP.nome || '') + ' · ' + (oP.resumo || '') + ' → retorno já enviado pela API; tag + fechar.' + (oP.q15 ? ' Tem margem para cartão → Q15.' : '') }));
             oP.estado = 'desfecho_enviado'; oP.tEnv = Date.now(); GM_setValue('auto_ordens', O); return; } }
@@ -2261,7 +2262,7 @@
           localStorage.setItem('dins_ordem', JSON.stringify({ hash: oL.hash, acao: 'sim_link', quem: 'robo', t: Date.now(), linha, atalho: aceiteBn ? '/bn54n' : '/parabens', trocas, nota, reenvio: oL.reenvio ? 1 : 0 }));
           oL.estado = 'link_enviado'; oL.tEnv = Date.now(); GM_setValue('auto_ordens', O); return;
         }
-        const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
+        const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
@@ -2618,7 +2619,7 @@
     // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
-    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0'];   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
+    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0', '76Q6E8N6OJ8M4FJWI3GS', 'GYHPCFWP8SS8MG9ACP0G'];   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
     const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^⚫/, /^romulo\b/i, /^jair\b/i];   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
@@ -4827,7 +4828,7 @@
     // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
     { let ocup818 = false;
       setInterval(async () => { if (ocup818) return; try { if (meuPapel() === 'vigia' || !bmApiLigada()) return; const L = GM_getValue('sm818_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('sm818_dono', { aba: ABA, t: Date.now() });
-        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
+        const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 45000 && Date.now() - (+x.t || 0) < 6 * 3600000);
         if (!oM) return; ocup818 = true;
         const RC = GM_getValue('rr_cache', {}) || {}; const n30 = (RC['/n30'] && RC['/n30'].tx) || 'Assim que abrir margem no seu benefício, a gente te avisa por aqui. 💙\n\nQualquer dúvida, estamos à disposição. 🤝\n*Um grande abraço da equipe Dinseguro!*';
         try { const D8 = DESFECHOS[oM.acao]; if (D8.texto) await bmEnviarTexto(oM.hash, String(D8.texto).replace(/\{NOME\}/g, primeiroNome(oM.nomeReal || '') || ''));   // 8.20: LOAS, não localizado, espécie fora… também pela API
