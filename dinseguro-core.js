@@ -4404,7 +4404,7 @@
     //  • FATIAS: a cada 5 conversas abertas, pausa de 2 min (robô do atendimento e vigia trabalham); com cliente esperando a pausa estica;
     //  • CURSOR: a rodada guarda o que já fez (GM varre_cursor); recarregou/travou → retoma sozinha do mesmo ponto até as 17h;
     //  • versão nova do robô só entra entre rodadas: localStorage dins_recarregar_depois='1' → recarrega quando a rodada acabar.
-    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17, WA_LOTE = 10;
+    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17, WA_LOTE = 40;   // 8.22 (Stefany 18/11 11:37): sem o teto de 10 por hora
     async function varrerJanelaVencida(forcarExecucao, retomar) {
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
