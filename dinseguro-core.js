@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.40';
+  const VERSAO = '8.41';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4293,6 +4293,15 @@
     window.dinsWaReenviar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /enviado|erro/.test(x.estado)) { x.estado = 'pendente'; x.motivo = 'devolvido à fila (não tinha saído) ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5); delete x.quando; delete x.preOk; delete x.tentAbrir; n++; } }); GM_setValue('wa_fila', f); return n; };
     window.dinsWaRecarregar = () => { GM_setValue('wa_recarregar', Date.now()); return 'pedido'; };
     window.dinsWaStatus = () => GM_getValue('wa_status', null);
+    // 8.41: tira da fila do WhatsApp quem já recebeu o retorno de SEM MARGEM (ou tem tag de desfecho) e fecha a conversa (01 I pela intenção)
+    window.dinsWaLimparSemMargem = async (fechar = true) => { const f = GM_getValue('wa_fila', []) || []; const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel/i; const out = [];
+      for (const x of f.filter(y => y.estado === 'pendente')) { let j = null; try { j = await apiLer(x.hash, 60); } catch (e) {} if (!j || !j.customer) { out.push([x.nome, 'sem leitura']); continue; }
+        const tags = (j.customer.tags || []).map(String); const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME)));
+        let iSM = -1, iLK = -1; ms.forEach((m, i) => { if (m.FROM === 'me') { const t = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : ''); if (SM_RE.test(t)) iSM = i; if (/https?:\/\//.test(t)) iLK = i; } });
+        const desf = tags.some(t => /^0?1.?[IK]\b|^0?2.?[AI]\b|Sem.?margem/i.test(t)) && !tags.some(t => /01.?D|Fechou.?Neg/i.test(t));
+        if ((iSM >= 0 && iSM > iLK) || desf) { const g = GM_getValue('wa_fila', []) || []; g.forEach(y => { if (y.hash === x.hash && y.estado === 'pendente') { y.estado = 'arquivado'; y.motivo = 'sem margem — só fechar (8.41)'; } }); GM_setValue('wa_fila', g);
+          let r = ''; if (fechar && window.dinsBmIntent) { const ri = await window.dinsBmIntent(x.hash, desf ? 'fechar_so' : 'fechar_sem_margem'); r = ri && (ri.http || ri.erro); } out.push([x.nome, desf ? 'tag de desfecho' : 'retorno sem margem', 'fechou ' + r]); } }
+      return out; };
     window.dinsWaPausar = (on = true) => { GM_setValue('wa_prox', on ? Date.now() + 365 * 86400000 : 0); return on ? 'pausado' : 'liberado'; };
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaReativar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && x.estado === 'arquivado' && /tirado à mão/.test(x.motivo || '')) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; delete x.tentAbrir; delete x.foneAlt; n++; } }); GM_setValue('wa_fila', f); return n; };   // 7.22: desfaz o dinsWaTirar
@@ -4406,6 +4415,9 @@
       if (cliTxts.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cliTxts.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
       const fe = faseEsteira(RG()[id] || {});
       if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
+      { const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel/i; const nosT = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => !e.className.includes('left')).map(e => e.innerText || '');
+        let iSM = -1, iLK = -1; nosT.forEach((t, i) => { if (SM_RE.test(t)) iSM = i; if (/https?:\/\//.test(t)) iLK = i; });
+        if (iSM >= 0 && iSM > iLK) return { acao: 'fecha', motivo: 'já recebeu o retorno de SEM MARGEM — só fechar, sem follow-up' }; }   // 8.41
       if (c.link || c.prop) return c.fone ? { acao: 'wa', caso: 'link', motivo: 'link enviado sem resposta' } : { acao: 'revisar', motivo: 'link enviado, mas sem telefone no painel' };
       if (c.temCpf && !tem(/^01 A/i)) return { acao: 'revisar', motivo: 'tem CPF sem tag (conferir margem)' };
       if (c.temCpf || c.nossaHumana) { const caso = c.temCpf ? 'atendimento' : (c.pediuCpf ? 'cpf' : 'atendimento');
@@ -4442,6 +4454,10 @@
         if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
         const nos = ms.filter(m => m.lado === 'nos').map(m => m.txt).join('\n');
         const fone = String(cu.WHATSAPP_CURATED_NUM || cu.PLATFORM_CONTACT_ID || '').replace(/\D/g, '');
+        // 8.41 (Stefany 18/11 16:11, caso Sidney: já tinha recebido o retorno de SEM MARGEM e a varredura mandou follow-up no WhatsApp): sem margem = só fechar
+        { const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel/i; const LK_RE = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)/i;
+          let iSM = -1, iLK = -1; ms.forEach((m, i) => { if (m.lado === 'nos') { if (SM_RE.test(m.txt)) iSM = i; if (LK_RE.test(m.txt)) iLK = i; } });
+          if (iSM >= 0 && iSM > iLK) return { acao: 'fecha', motivo: 'já recebeu o retorno de SEM MARGEM — só fechar, sem follow-up' }; }
         const link = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)/i.test(nos);
         const prop = /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(nos);
         if (link || prop) return fone.length >= 10 ? { acao: 'wa', caso: 'link', motivo: 'link enviado sem resposta', fone } : { acao: 'revisar', motivo: 'link enviado, mas sem telefone' };
@@ -4457,7 +4473,8 @@
     }
     async function executarOrdemVarredura(hash, acao, nota) {
       // 8.29 (Stefany 18/11 12:40: intenções testadas e ligadas): fechar / 01 C + fechar pela INTENÇÃO do Botmaker, sem abrir a tela
-      try { const ON = GM_getValue('bm_intents_on', []) || []; const it = acao === 'fecha' ? 'fechar_so' : (acao === 'c01' || acao === 'classifica_fecha') ? 'fechar_01c' : '';
+      try { const ON = GM_getValue('bm_intents_on', []) || []; let it = acao === 'fecha' ? 'fechar_so' : (acao === 'c01' || acao === 'classifica_fecha') ? 'fechar_01c' : '';
+        if (acao === 'fecha' && /SEM MARGEM/.test(String(nota || '')) && ON.includes('fechar_sem_margem')) it = 'fechar_sem_margem';   // 8.41: tag 01 I + fecha
         if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(hash, it); if (ri && ri.http >= 200 && ri.http < 300) { try { diario('varredura', (acao !== 'fecha' ? '01 C + fechou' : 'fechou') + ' pela intenção ' + it + ' ✓ (sem a tela)'); } catch (e) {} return 'ok'; } } } catch (e) {}
       while (localStorage.getItem('dins_ordem')) await esp(3000);
       const t0 = Date.now();
