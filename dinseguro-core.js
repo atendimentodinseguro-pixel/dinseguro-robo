@@ -47,7 +47,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.98';
+  const VERSAO = '7.99';
+  function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -2272,7 +2273,7 @@
       return nomeSeguro(alvo && alvo.nome);
     }
     const MSG_TARDE = nome => `${nome ? nome + ', p' : 'P'}assando rapidinho 😊 A sua proposta continua pronta, com as condições que você viu. Falta só abrir o link e fazer a selfie de segurança para o dinheiro ir para a sua conta. Se tiver qualquer dúvida ou dificuldade, me chama aqui que eu te ajudo agora.`;   // 7.32
-    const MSG_MANHA = nome => `Bom dia${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
+    const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
       'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
       'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
       'Se tiver qualquer dificuldade, me chama aqui que eu te ajudo 🤝';
@@ -3116,7 +3117,7 @@
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
-      if (toque.tipo === 'manha' && agora - toque.quando > 3 * H) { reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
+      if (toque.tipo === 'manha' && new Date(toque.quando).toDateString() !== new Date(agora).toDateString()) {   /* 7.99 (Stefany 17/11 22:52: "se o computador ligar 9, 10, tem que acompanhar o horário que ligar"): o toque das 08:00 sai quando o computador ligar, no MESMO dia (8h–21h); só é pulado se ficou de um dia anterior */ reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
       // 4.19 — TRAVA ENTRE ABAS (Stefany 19:30 "Duplicou": o "Conseguiu acessar?" do José Tobias saiu 2x às 19:27, porque duas
       // abas/janelas do Botmaker com o robô pegaram o mesmo toque). Quem vai mandar reserva o toque no armazenamento comum,
       // espera e confere se a reserva é dele; a outra aba desiste.
@@ -3730,14 +3731,14 @@
     const TXT_ESP = {
       cpf: { '1h': n => `${n ? n + ', t' : 'T'}udo bem? 😊 Ficou faltando só o número do seu CPF para eu consultar o valor que você consegue liberar. Pode me mandar aqui mesmo, só os números.`,
              '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
-             '08h2': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
-             '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
+             '08h2': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
+             '08h': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
       link: { '1h': n => `Oi${n ? ', ' + n : ''}! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela está no link que te mandei acima. Só reforçando: essa condição está garantida para hoje — amanhã o banco pode mudar a taxa e o valor pode ficar diferente. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, me chama aqui que eu te ajudo a finalizar agora. 🤝`,
-              '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta ainda está no link que te mandei. Hoje eu confiro com o banco: se a taxa não mudou, seguimos com o mesmo valor. Para garantir, o ideal é finalizar ainda hoje — é só abrir o link e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
+              '08h': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ A sua proposta ainda está no link que te mandei. Hoje eu confiro com o banco: se a taxa não mudou, seguimos com o mesmo valor. Para garantir, o ideal é finalizar ainda hoje — é só abrir o link e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
       duvida: { '1h': (n, l, a) => a && a.temCpf ? `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.` : `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Se quiser, me manda o seu CPF (só os números) que eu já consulto o valor que você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
-                '08h': (n, l, a) => a && a.temCpf ? `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `Bom dia${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
+                '08h': (n, l, a) => a && a.temCpf ? `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
       simulacao: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo tudo pronto para você.\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo`,
-                   '08h': n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
+                   '08h': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ A sua simulação continua disponível. Quer que eu deixe tudo pronto para você?\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo` },
       doc: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu tirar a foto do documento? 😊 Assim que você mandar aqui, eu já sigo com a sua proposta. Se tiver qualquer dificuldade, me fala que eu te ajudo.` },
       lembrete: { 'lembrete': (n, link) => `${n ? 'Oi, ' + n + '! ' : 'Oi! '}Conforme combinamos, estou passando aqui 😊 ` + (link ? 'A sua proposta está no link que te mandei. Como as condições do banco podem mudar de um dia para o outro, eu confiro aqui agora: se a taxa não tiver mudado, seguimos com o mesmo valor. O ideal é finalizar hoje, é só abrir o link e fazer a selfie de segurança.' : 'Podemos continuar de onde paramos?') + ' Se precisar de ajuda em qualquer etapa, me chama aqui 🤝' },
     };
@@ -3762,7 +3763,7 @@
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
       const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome || y.nome, 'follow-up ' + toque.q + ': ' + st); };
-      if (/^08h/.test(toque.q) && agora - toque.quando > 3 * H) { marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
+      if (/^08h/.test(toque.q) && new Date(toque.quando).toDateString() !== new Date(agora).toDateString()) {   /* 7.99: idem — computador ligou depois das 8h → manda assim que ligar, no mesmo dia */ marcaQ({ feito: agora }, 'pulado (passou da manhã)'); return; }
       if (!navPega('espera')) return;
       espRodando = true;
       try {
