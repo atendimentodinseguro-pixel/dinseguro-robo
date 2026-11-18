@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '7.96';
+  const VERSAO = '7.97';
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
   try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
@@ -778,6 +778,7 @@
     const dBR5 = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
     const limpa5 = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const rodaEst = async () => {
+      try { localStorage.setItem('dins_est_api_tick', JSON.stringify({ t: new Date().toTimeString().slice(0, 8), ocup: ocup5, api: dinsApiLigada(), dono: GM_getValue('nc_est_dono', null) })); } catch (e) { try { localStorage.setItem('dins_est_api_tick', 'erro ' + e.message); } catch (x) {} }
       if (ocup5 || !dinsApiLigada()) return;
       try { const L = GM_getValue('nc_est_dono', null); if (L && L.id !== EU5 && Date.now() - (+L.t || 0) < 5 * 60000) return; GM_setValue('nc_est_dono', { id: EU5, t: Date.now() }); } catch (e) { return; }
       ocup5 = true; const ini = Date.now(); let nLista = 0, nDet = 0;
@@ -810,7 +811,7 @@
       } catch (e) { try { localStorage.setItem('dins_est_api', JSON.stringify({ t: new Date().toTimeString().slice(0, 5), erro: String(e.message || e).slice(0, 160) })); } catch (x) {} }
       finally { ocup5 = false; } };
     setTimeout(rodaEst, 40000); setInterval(rodaEst, 3 * 60000);
-    try { window.dinsEsteiraApi = () => { try { return JSON.parse(localStorage.getItem('dins_est_api') || 'null'); } catch (e) { return null; } }; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsEsteiraApi = window.dinsEsteiraApi; } catch (e) {}
+    try { window.dinsEstRodar = () => { GM_setValue('nc_est_dono', null); return rodaEst(); }; window.dinsEsteiraApi = () => { try { return JSON.parse(localStorage.getItem('dins_est_api') || 'null'); } catch (e) { return null; } }; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsEsteiraApi = window.dinsEsteiraApi; } catch (e) {}
   }
 
   // ================================================================== BOTMAKER: VIGIA
