@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.41';
+  const VERSAO = '8.42';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1473,6 +1473,7 @@
     // (não fecha a janela de template sozinho fora do envio: a Stefany pode estar usando de propósito)
     async function respostaRapida(atalho, editar, semRegua, prefixo, trocas, midia) {
       const hashRR0 = window.top.location.hash;   // 4.60
+      { const hS = (hashRR0.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (hS && await canalSuspenso(hS)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio (8.42)'); }   // 8.42: a tela também não manda no número suspenso
       if (!midia && /^\/(dsg25|anuencia|anuencia2)$/i.test(String(atalho).trim())) midia = true;   // 6.99 (casos Dulce/Sonia 19:59: o vídeo /dsg25 não saiu — 'caixa de mensagem não encontrada'): vídeo/imagem sempre como mídia
       const ta = await ate(() => document.querySelector('textarea'));
       // 8.08 (Rosa 09:17, Oton 09:33: 'caixa de mensagem não encontrada' — conversa com o bot ativo não mostra a caixa): resposta rápida de TEXTO já aprendida (8.00) → manda pela API
@@ -1562,6 +1563,7 @@
 
     // 2b. texto escrito, sem atalho (pensão alimentícia)
     async function mensagemLivre(texto) {
+      { const hS = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (hS && await canalSuspenso(hS)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio (8.42)'); }   // 8.42 (Stefany 18/11 18:13, Nonata: toque de CPF saiu pela tela no número suspenso)
       // 7.88: com a API do Botmaker ligada, a mensagem sai pela API (mesmo com o chat bloqueado por outro atendente)
       if (bmApiLigada()) { const hA = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; const iA = idDaTela();
         if (hA && (!iA || iA === hA) && !janelaVencidaAgora()) { try {
@@ -3852,11 +3854,12 @@
       // 5.38 (caso Rubi: toques 1h e 08h saíram 08:53 e 08:54): vários vencidos → só o MAIS RECENTE sai (os anteriores ficam 'pulado');
       // e nunca dois toques com menos de 1 h entre eles.
       { const o0 = ESP(); let m0 = false;
-        for (const x of Object.values(o0)) { const venc = (x.toques || []).filter(k => !k.feito && k.quando <= agora); if (venc.length > 1) { venc.slice(0, -1).forEach(k => { k.feito = agora; k.st = 'pulado (atrasado — vale o toque seguinte)'; }); m0 = true; }
+        for (const x of Object.values(o0)) { if (x.tipo === 'cpf' && (x.toques || []).some(k => !k.feito)) { (x.toques || []).forEach(k => { if (!k.feito) { k.feito = agora; k.st = 'pulado (8.42: não cobramos CPF de novo)'; } }); x.parado = 1; m0 = true; continue; }   // 8.42 (Stefany 18/11 18:13, Nonata): sequências de CPF criadas antes do 8.38 não saem mais
+          const venc = (x.toques || []).filter(k => !k.feito && k.quando <= agora); if (venc.length > 1) { venc.slice(0, -1).forEach(k => { k.feito = agora; k.st = 'pulado (atrasado — vale o toque seguinte)'; }); m0 = true; }
           const ultEnv = Math.max(0, ...(x.toques || []).filter(k => /^enviado/.test(k.st || '')).map(k => +k.feito || 0));
           const prox = (x.toques || []).find(k => !k.feito && k.quando <= agora); if (prox && ultEnv && agora - ultEnv < 60 * M && !(prox.prox > agora)) { prox.prox = ultEnv + 60 * M; m0 = true; } }
         if (m0) gravaESP(o0); }
-      for (const x of Object.values(ESP())) { if (x.parado || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
+      for (const x of Object.values(ESP())) { if (x.parado || x.tipo === 'cpf' || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
       const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome || y.nome, 'follow-up ' + toque.q + ': ' + st); };
@@ -3895,7 +3898,7 @@
         { const nt = (nomeDoContato() || '').trim().toLowerCase(), na = (alvo.nome || '').trim().toLowerCase();
           if (na && nt && nt.split(' ')[0] !== na.split(' ')[0]) throw new Error('nome do chat (' + nt + ') não é o do registro (' + na + ')'); }
         const f = (TXT_ESP[alvo.tipo] || {})[toque.q] || (toque.q === 'janela' ? TXT_JANELA : null); if (!f) throw new Error('sem texto para ' + alvo.tipo + '/' + toque.q);
-        await mensagemLivre(f(n, temLink, alvo));
+        await mensagemLivre(f(n, temLink, alvo.tipo === 'duvida' ? Object.assign({}, alvo, { temCpf: true }) : alvo));   // 8.42: o toque de dúvida não pede CPF
         marcaQ({ feito: Date.now() }, 'enviado ' + hhmm(Date.now()));
         marcaHistESP(alvo.hash, alvo.tipo);   // 4.61
         try { const r2 = RG(); if (r2[alvo.hash]) { r2[alvo.hash].hist.push(hhmm(Date.now()) + ' follow-up ' + alvo.tipo + ' ' + toque.q + ' enviado'); gravaRG(r2); } } catch (e) {}
