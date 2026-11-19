@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.67';
+  const VERSAO = '8.68';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1810,6 +1810,9 @@
       rodando = true; ultima = id;
       const passos = [];
       try { if (o.hash && protegido(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'conversa protegida (não mexer) — ordem não executada (8.51)', t: Date.now() })); localStorage.removeItem('dins_ordem'); rodando = false; return; } } catch (e) {}
+      // 8.68 (Stefany 19/11 08:38: "o robô tá pedindo CPF no primeiro atendimento"): pedido de CPF automático do robô só sai se a SIMULAÇÃO PADRÃO (8.46) já foi mandada para esta conversa
+      //       (o 8.46 pede o CPF depois que o cliente responde) ou se a ordem veio liberada (permitido/reverso). Senão: descarta, sem mensagem.
+      if (o.acao === 'pedir_cpf' && (o.quem || '') === 'robo' && !o.permitido && !o.reverso && !((GM_getValue('valor_msg_feito', {}) || {})[o.hash])) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'pedido de CPF no 1º atendimento desligado — vai a simulação padrão (8.68)', t: Date.now() })); localStorage.removeItem('dins_ordem'); try { diario('robô', 'pedido de CPF no 1º atendimento descartado → simulação padrão (8.68)'); } catch (e) {} return; }
       if (o.hash && await canalSuspenso(o.hash)) { localStorage.setItem('dins_ordem_status', JSON.stringify({ st: 'erro', hash: o.hash, acao: o.acao, erro: 'canal SUSPENSO (0800 191 2261) — ordem não executada (8.40)', t: Date.now() })); localStorage.removeItem('dins_ordem');   /* 8.43 (Stefany 18/11 18:58: "o robô não fala nada desde 18:52"): a ordem ficava parada e travava a fila inteira */
         try { const OS = GM_getValue('auto_ordens', {}) || {}; if (OS[o.hash]) { OS[o.hash].estado = 'suspenso'; OS[o.hash].erro = 'canal suspenso 0800 191 2261 — sem mensagem (8.43)'; GM_setValue('auto_ordens', OS); } } catch (e) {}
         rodando = false; return; }
@@ -2751,7 +2754,8 @@
                   /* 7.54: não é nosso público → tag 07 + fecha (o bot já deu o retorno "não temos opção para autônomo") */
                   if (!/07 - Nao|NaoIdentificado/i.test(tags)) { try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'fecha', quem: 'robo', tags: ['07 - Nao Identificado'], nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 7.54] disse que não é aposentado/pensionista do INSS → não é nosso público: tag 07 + fechar.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); diario(((j.customer.FIRST_NAME || '') + '').trim() || id.slice(0, 5), 'não é do INSS → tag 07 + fechar (7.54)'); } } catch (e) {} }
                   return false; }
-                if (iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
+                // 8.68 (Stefany 19/11 08:38: "o robô tá pedindo CPF no primeiro atendimento"): DESLIGADO — primeiro contato sem CPF recebe a SIMULAÇÃO PADRÃO (8.46); o CPF só é pedido depois que o cliente responde
+                if (false && iA >= 0 && cv.length !== 11 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) > 3 * 60000 && Date.now() - (Date.parse(nm[iA].CREATION_TIME) || +nm[iA].CREATION_TIME || 0) < 6 * 3600000 && !((GM_getValue('pedir_cpf_feito', {}) || {})[id] > Date.now() - 12 * 3600000)) {
                   const hh8 = new Date().getHours(); const sd8 = hh8 < 12 ? 'Bom dia' : hh8 < 18 ? 'Boa tarde' : 'Boa noite';
                   try { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { F.push({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: ((j.customer.FIRST_NAME || '') + '').trim(), texto: sd8 + '! 😊 Que bom falar com você, aqui é da Dinseguro.\n\nPara eu consultar agora a melhor condição para você, me passa o número do seu CPF ou do seu benefício?', nota: new Date().toLocaleDateString('pt-BR').slice(0, 5) + ' ' + hhmm(Date.now()) + ' [robô 6.86] voltou pelo anúncio sem CPF no cadastro → pedido do CPF + 01 C.' }); localStorage.setItem('dins_fila_vigia', JSON.stringify(F)); } } catch (e) {}
                   API_ADIA[id] = Date.now() + 30 * 60000; try { const PF = GM_getValue('pedir_cpf_feito', {}) || {}; PF[id] = Date.now(); GM_setValue('pedir_cpf_feito', PF); } catch (e) {}   /* 7.92 (17/11 21:55–22:00, William: pedia o CPF a cada minuto — 'NÃO saiu de novo' — e prendia a fila da tela): marca na hora, para todas as abas */
