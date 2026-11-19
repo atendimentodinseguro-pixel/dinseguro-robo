@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.33';
+  const VERSAO = '9.34';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3133,7 +3133,7 @@
       if (mud) GM_setValue('auto_ordens', O); if (mr) { gravaRG(r); try { desenharRegua(); } catch (e) {} } } catch (e) {} }, 60000);
 
     // 4.13 — "precisa de alguém junto" à mão (decisão da Stefany etc.): dinsReguaJunto('HASH', 'motivo') / dinsReguaSoltar('HASH')
-    window.dinsReguaJunto = (hash, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; x.junto = motivo || 'decisão da Stefany'; x.hist.push(hhmm(Date.now()) + ' junto: ' + x.junto); gravaRG(r); desenharRegua(); return true; };
+    window.dinsReguaJunto = (hash, motivo) => { const r = RG(), x = r[hash]; if (!x) return false; x.junto = motivo || 'decisão da Stefany'; x.juntoT = Date.now(); x.hist.push(hhmm(Date.now()) + ' junto: ' + x.junto); gravaRG(r); desenharRegua(); return true; };
     window.dinsReguaSoltar = hash => { const r = RG(), x = r[hash]; if (!x) return false; delete x.junto; gravaRG(r); desenharRegua(); return true; };
 
     // 1) DETECTOR: o chat aberto tem link de proposta mandado por nós que a régua ainda não conhece?
@@ -4291,6 +4291,8 @@
         if (fe && fe.fase === 'pago') return 'E';
         if (fe && fe.fase === 'recusada') return 'J';
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
+        // 9.34 (Stefany 17:52 "sim"): ninguém fica esquecido no 🟡 — 2 h sem mexer (sem o cliente escrever e sem ação nossa) → volta para o 🔴 para alguém decidir. Protegido (não mexer) não volta.
+        try { if (!protegido(x.hash) && (x.junto || x.humano924 || x.estado === 'humano') && !(x.estado === 'humano' && protegido(x.hash))) { const tJ = Math.max(+x.juntoT || 0, +x.ultCliT || 0, +x.ultT || 0, +x.criadoT || 0); if (tJ && Date.now() - tJ > 120 * M) { x.revisar934 = 1; return 'R'; } } } catch (e) {}
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
         if (protegido(x.hash)) return 'J';   // 5.52: NÃO MEXER fica no amarelo
@@ -4301,7 +4303,7 @@
         { const e = ESPq[x.hash]; if (e && (e.toques || []).some(q => !q.feito)) return 'F';
           if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F';
           if (x.estado === 'esgotada' && x.link && !x.vencida) return 'F'; }   // 5.81: follow-ups feitos → a varredura pega quando a janela vencer (automático)
-        if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
+        if (['encerrado', 'concluída'].includes(x.estado)) return 'A5';   // 9.34: sem o bloco ⚪
         // 9.16 (Stefany 19/11 16:31: "aguardando cliente é um status muito genérico — criar mais subdivisões para controlar melhor"): o azul virou 5 situações, cada uma com o passo da regra
         { const mo = String(x.motivo || ''); const ao9 = (GM_getValue('auto_ordens', {}) || {})[x.hash];
           // 9.19 (Stefany 19/11 16:50: "me traga cada status… para o robô ficar 100%"): a classificação usa o que foi FEITO (mapas gravados no envio) e o atendente da conversa (lido na API), não o motivo antigo
@@ -4313,8 +4315,7 @@
           if (DVq[x.hash] && DVq[x.hash].t && DVq[x.hash].enc) return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
           if (x.link && !x.semLink) return 'A4';
-          if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'A3';
-          if (+VMq[x.hash]) return 'A2';
+          if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0) || +VMq[x.hash]) return 'F';   // 9.34
           if (/follow-up de d[úu]vida feito|toques feitos|esgotad/i.test(mo) || x.estado === 'esgotada') return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
           if (x.link && !x.semLink) return 'A4';
@@ -4323,8 +4324,7 @@
           return 'A'; }
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['B', '🤖 No atendimento do bot do Botmaker — o robô adianta (consulta/simula/digita) e entra quando o bot parar ~5 min', '#67e8f9'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
-        ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A2', '🟠 Simulação padrão enviada — 1 h sem resposta: avisa, 01 C e fecha', '#fdba74'], ['A3', '🟤 Pedimos o CPF — 2 h sem resposta: avisa, 01 C e fecha', '#d6b08c'],
-        ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['A6', '🔘 01 D sem margem — fecha com 01 k em 2 h, sem mensagem', '#cbd5e1'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+        ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['E', '⚪ Encerrados hoje', '#94a3b8']].filter(b => !['A2', 'A3', 'A6', 'E'].includes(b[0]));   /* 9.34 (Stefany 19/11 17:52 "sim"): 🟠 🟤 🔘 ⚪ saíram — ficavam sempre vazios; o passo aparece na linha do verde */
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
       if (faz('atendimento')) try {
