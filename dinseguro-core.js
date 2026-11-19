@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.79';
+  const VERSAO = '8.80';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4546,6 +4546,9 @@
         const tags = (cu.tags || []).map(String);
         const temTag = re => tags.some(t => re.test(t));
         if (temTag(/01.?D|Fechou.?Neg/i)) return null;
+        // 8.80 (Stefany 19/11 10:54, robô da VARREDURA com 91 na lista: "quem já está com a conversa encerrada não precisa"): a varredura só pega conversa com a janela vencida E ainda ABERTA.
+        // Já encerrada (fila = intenção de fechar: fechar_* / tag_01a / tag_01c) → pula: não manda follow-up, não reabre, não conta.
+        try { if (window.dinsBmGet && bmApiLigada()) { const rq880 = await window.dinsBmGet('/chats/' + it.id); const q880 = String((rq880 && rq880.j && rq880.j.queueId) || ''); if (/^(fechar_[a-z0-9_]+|tag_01a|tag_01c)$/.test(q880)) return { acao: 'pular', motivo: 'já encerrada (' + q880 + ') — não é da varredura (8.80)' }; } } catch (e) {}
         const ON829 = GM_getValue('bm_intents_on', []) || [];
         if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'desfecho já tagueado — só fechar (intenção)' } : null;   // desfecho → fecha (8.29: pela intenção, sem a tela)
         // 8.62 (Stefany 18/11 22:25: Leslie CLT e Lenita 07 já estavam fechadas e tagueadas): fora do perfil (CLT / servidor / não identificado sem INSS) → não é revisar; pula
