@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.28';
+  const VERSAO = '9.29';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3650,6 +3650,18 @@
     window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
     window.dinsReguaSemLinkComLink = () => Object.values(RG()).filter(x => x.semLink && /^01 A sem link/.test(x.motivo || '')).map(x => ({ hash: x.hash, nome: x.nome }));
     window.dinsReguaDetectar = () => { try { detectarLink(); return (RG()[(window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]] || {}).semLink ? 'ainda sem link' : 'ok'; } catch (e) { return 'erro ' + e.message; } };
+    // 9.29 (Stefany 19/11 17:20: "tem tudo isso no manual… quais são as mensagens padrão"): /w40, /102 e /103 não estavam no cache (só aprende quando a tela consegue mandar).
+    // O robô aprende o texto pela API numa conversa que já recebeu o pós-pagamento (POS com /W40 e /102 feitos). A /102 é guardada sem o nome (começa em "sua opinião…").
+    async function aprendePos929() { try { const RC = GM_getValue('rr_cache', {}) || {}; if (RC['/w40'] && RC['/102'] && RC['/103']) return 'ok'; if (!window.dinsBmGet) return 'sem API';
+        const cand = Object.values(POS()).filter(x => x && x.w40 && x.p102 && x.hash).sort((a, b) => (b.p102 || 0) - (a.p102 || 0)).slice(0, 6);
+        for (const x of cand) { const m = await window.dinsBmGet('/messages?chat-id=' + x.hash + '&from=' + encodeURIComponent(new Date((+x.t22 || +x.w40) - 3600000).toISOString())); let it = (m && m.j && m.j.items) || []; let nx = m && m.j && m.j.nextPage, pg = 0;
+          while (nx && pg < 4) { const m2 = await window.dinsBmGet(String(nx).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); it = it.concat((m2 && m2.j && m2.j.items) || []); nx = m2 && m2.j && m2.j.nextPage; pg++; }
+          const T = k => String((k.content && k.content.text) || '').replace(/^\s*\*?\[Dinseguro\]\*?\s*/i, ''); const nos = it.filter(k => k.from !== 'user').map(T);
+          const w = nos.find(t => SIG_W40.test(t)); const a = nos.find(t => /sua opini[ãa]o [ée] uma estrela/i.test(t)); const b = nos.find(t => /deixe sua avalia[çc][ãa]o clicando/i.test(t));
+          const R2 = GM_getValue('rr_cache', {}) || {}; if (w && !R2['/w40']) R2['/w40'] = { tx: w, t: Date.now(), de: 'aprendido 9.29' }; if (a && !R2['/102']) R2['/102'] = { tx: a.replace(/^[^,\n]{1,30},\s*/, ''), t: Date.now(), de: 'aprendido 9.29' }; if (b && !R2['/103']) R2['/103'] = { tx: b, t: Date.now(), de: 'aprendido 9.29' }; GM_setValue('rr_cache', R2);
+          if (R2['/w40'] && R2['/102'] && R2['/103']) { diario('pós-pagamento', '📚 textos da /W40, /102 e /103 aprendidos pela API (9.29)'); return 'aprendido'; } }
+        return 'não achei'; } catch (e) { return 'erro ' + String((e && e.message) || e); } }
+    window.dinsAprendePos = aprendePos929; setTimeout(() => { try { if (meuPapel() !== 'vigia') aprendePos929(); } catch (e) {} }, 45000); setInterval(() => { try { if (meuPapel() !== 'vigia') aprendePos929(); } catch (e) {} }, 30 * 60000);
     window.dinsRRVer = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return Object.keys(RC).sort(); } catch (e) { return []; } };   // 9.25: quais respostas rápidas estão guardadas
     window.dinsPosTirar = hash => { const o = POS(); delete o[hash]; gravaPOS(o); return true; };
     // detector: a conversa aberta tem a /22N ou o link de vídeo da nossa parte → registra (sem abrir nada)
@@ -3703,7 +3715,7 @@
       const marca = mud => { const o = POS(), y = o[alvo.hash]; if (!y) return; Object.assign(y, mud); y.hist.push(hhmm(Date.now()) + ' ' + passo + ': ' + (mud.st || 'ok')); gravaPOS(o); };
       // 9.25 (Stefany 19/11 17:07, Patricia: "caiu, recebeu — você já sabe o que fazer"; a /W40 pela tela falhou 16:21 "resposta rápida não apareceu"):
       // com a API ligada, /W40 e /102 + /103 saem PELA API com o texto guardado das respostas rápidas, sem depender da tela. Confere a /22N pelas mensagens da API.
-      if ((passo === 'w40' || passo === 'p102') && bmApiLigada() && window.dinsBmGet) { const RC = GM_getValue('rr_cache', {}) || {}; const tx = k => (RC[k] && RC[k].tx) || '';
+      if ((passo === 'w40' || passo === 'p102') && bmApiLigada() && window.dinsBmGet) { const RC = GM_getValue('rr_cache', {}) || {}; const tx = k => String((RC[String(k).toLowerCase()] && RC[String(k).toLowerCase()].tx) || '').replace(/^\s*\*?\[Dinseguro\]\*?\s*/i, '');   /* 9.29: as chaves do cache são minúsculas (/w40) */
         const prontos = passo === 'w40' ? !!tx('/W40') : (!!tx('/102') && !!tx('/103'));
         if (prontos) { posRodando = true; try {
             const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date(Date.now() - 72 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []); const nossasA = ms.filter(k => k.from !== 'user').map(k => String((k.content && k.content.text) || ''));
@@ -3711,7 +3723,7 @@
             const nm0 = String(alvo.nome || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(nm0) ? nm0.charAt(0).toUpperCase() + nm0.slice(1).toLowerCase() : '';
             if (passo === 'w40') { if (nossasA.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat (API)' }); return; }
               await bmEnviarTexto(alvo.hash, tx('/W40')); marca({ w40: Date.now(), st: 'enviada pela API (9.25)' }); diario(alvo.nome || '', 'pós-pagamento: /W40 pela API ✓ (9.25)'); return; }
-            await bmEnviarTexto(alvo.hash, (nm ? nm + ', ' : '') + tx('/102').replace(/^\s*([A-ZÁÉÍÓÚ])/, c => nm ? c.toLowerCase() : c)); await new Promise(r9 => setTimeout(r9, 2000)); await bmEnviarTexto(alvo.hash, tx('/103'));
+            await bmEnviarTexto(alvo.hash, (nm ? nm + ', ' : '') + tx('/102').replace(/^[\s,]+/, '').replace(/^\s*([A-ZÁÉÍÓÚ])/, c => nm ? c.toLowerCase() : c)); await new Promise(r9 => setTimeout(r9, 2000)); await bmEnviarTexto(alvo.hash, tx('/103'));
             marca({ p102: Date.now(), st: 'enviadas pela API (9.25)' }); diario(alvo.nome || '', 'pós-pagamento: /102 + /103 pela API ✓ (9.25)'); return;
           } catch (e) { marca({ erro: 'API: ' + String((e && e.message) || e).slice(0, 100) }); } finally { posRodando = false; } } }
       if (!navPega('pos')) return;
