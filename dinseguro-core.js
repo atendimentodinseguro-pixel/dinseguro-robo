@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.44';
+  const VERSAO = '9.45';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1181,6 +1181,8 @@
         if (await window.dinsBotAtivo(oS.hash)) return;   // 9.28: cliente ainda no fluxo do bot do Botmaker → simulação pronta, sai quando o bot parar (~5 min)
         ocup790 = true; oS.api790T = Date.now(); GM_setValue('auto_ordens', O);
         try { const linhaS = textoSim755(oS); await bmEnviarTexto(oS.hash, linhaS);
+          /* 9.45 (José Pinheiro GMVVS 19/11 20:13 e 20:16: simulação DUPLICADA — a mensagem saiu pela API, um erro logo depois deixou a ordem em 'simulada' e a tela mandou de novo): marca como enviada NA MESMA HORA, antes de qualquer outra coisa */
+          try { const O9 = GM_getValue('auto_ordens', {}) || {}; if (O9[oS.hash]) { O9[oS.hash].estado = 'sim_enviada'; O9[oS.hash].tSimEnv = Date.now(); GM_setValue('auto_ordens', O9); } } catch (e9) {}
           const O2 = GM_getValue('auto_ordens', {}) || {}; const x = O2[oS.hash]; if (!x) return;
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           Object.assign(x, { estado: 'sim_enviada', tSimEnv: Date.now(), notaPend790: dd + ' ' + hhmm(Date.now()) + ' [robô 7.90] ' + (x.nomeReal || x.nome || '') + ' · ' + (x.resumo || '') + ' · simulado no ' + (x.banco || '?') + ' R$ ' + x.liberado + ' ' + x.prazo + 'x R$ ' + x.parcela + ' → só a SIMULAÇÃO, enviada na hora pela API do Botmaker (proposta NÃO gravada). Aceitou (1) → grava e manda o link; 30 min sem resposta → grava e manda /parabens.' });
