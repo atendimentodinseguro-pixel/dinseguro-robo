@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.74';
+  const VERSAO = '8.75';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -995,8 +995,7 @@
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
-        onload: r => { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01)/.test(String(intent))) { try { const R = GM_getValue('regua', {}) || {}; if (R[chatId]) { R[chatId].estado = 'fechada'; R[chatId].motivo = 'fechada pela intenção ' + intent + ' (8.73)'; (R[chatId].hist = R[chatId].hist || []).push(hhmm(Date.now()) + ' fechada pela intenção ' + intent); GM_setValue('regua', R); } } catch (e) {} }   /* 8.73 (Stefany 19/11 10:46: "a lista dele tá atrasada, vê gente que já foi fechada") */
-          res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+        onload: r => res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }), onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages)/.test(String(path))) return res({ erro: 'caminho não liberado' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
@@ -1053,18 +1052,6 @@
         } catch (e) { try { console.warn('[Dinseguro] 7.90 simulação pela API falhou → tela', e); } catch (x) {} }   // falhou → continua 'simulada' e o caminho antigo (7.55) manda pela tela
         finally { ocup790 = false; } }, 3000); }
     // 7.89: conferir a API do Botmaker sem mandar mensagem (só leitura: GET /chats) — o vigia chama dinsBmApi()
-    // 8.74 (Stefany 19/11 10:49: "tem 91 pessoas na lista e a maioria já está fechada — só mexe com quem está com a janela aberta"):
-    // a cada 5 min, confere pela API até 40 conversas do quadro: janela de 24 h vencida → vencida (vai para a varredura); fechada pela intenção → fechada
-    setInterval(async () => { try { if (meuPapel() === 'vigia' || !GM_getValue('bm_api_token', '')) return; if (Date.now() - (+GM_getValue('sync874_t', 0) || 0) < 4.5 * 60000) return; GM_setValue('sync874_t', Date.now());
-        const R0 = GM_getValue('regua', {}) || {}; const ids = Object.keys(R0).filter(k => R0[k] && !['fechada', 'cancelada'].includes(R0[k].estado) && !R0[k].vencida && /^[A-Z0-9]{20}$/.test(k)).sort((a, b) => (+R0[a].sync874 || 0) - (+R0[b].sync874 || 0)).slice(0, 40);
-        const res = {}; for (const id of ids) { try { const r = await window.dinsBmGet('/chats/' + id); if (r && r.j && r.j.chat) res[id] = r.j; } catch (e) {} }
-        const R = GM_getValue('regua', {}) || {}; const ag = Date.now(); let mud = 0;
-        for (const id in res) { const x = R[id]; if (!x) continue; const j = res[id]; x.sync874 = ag; const w = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const q = String(j.queueId || '');
-          if (/^fechar_|^tag_01[ac]$/.test(q) && !(Date.parse(j.lastUserMessageDatetime || '') > (+x.fech874 || 0) && (+x.fech874 || 0) && false)) { if (x.estado !== 'fechada') { x.estado = 'fechada'; x.motivo = 'fechada (' + q + ') — conferido pela API (8.74)'; mud++; } }
-          else if (w && w < ag && !x.vencida) { x.vencida = 1; mud++; } }
-        GM_setValue('regua', Object.assign(GM_getValue('regua', {}) || {}, R));
-        if (mud) diario('quadro', 'conferido pela API: ' + mud + ' conversa(s) fechada(s)/vencida(s) saíram do quadro (8.74)');
-      } catch (e) {} }, 60000);
     window.dinsBmApi = () => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); const on = bmApiLigada(); if (!tk) return res({ ligada: false, motivo: 'sem token' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats', timeout: 20000, headers: { 'access-token': tk, Accept: 'application/json' },
         onload: r => res({ ligada: on, http: r.status, ok: r.status >= 200 && r.status < 300, resp: String(r.responseText || '').slice(0, 160) }),
@@ -4007,7 +3994,6 @@
       const ESPq = GM_getValue('espera', {}) || {};   // 5.51
       const venceu = x => { const uc = Math.max(+x.ultCliT || 0, +x.cpfSemRespT || 0, +x.semCpfT || 0); if (!uc && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && (+x.ultT || 0) && agora - x.ultT > 24 * H) return true;
         if (!uc && !(+x.ultT || 0) && ['acompanhando', 'pausada', 'esgotada'].includes(x.estado) && agora - Math.max(+x.criadoT || 0, +x.linkT || 0) > 24 * H) return true;   // 5.53: nunca lida e com mais de 24 h   // 5.51: sem hora do cliente e nossa última há mais de 24 h → janela fechada
-        if (!uc && x.estado === 'alerta' && (+x.ultT || 0) && agora - x.ultT > 24 * H) return true;   // 8.74: alerta sem hora do cliente e parado há mais de 24 h
         return x.vencida || (uc && agora - uc > 24 * H) || /janela de 24 h vencida/i.test(x.motivo || ''); };   // 5.05 (caso Marco Aurélio: CPF 23:23 de ontem, mas ultCliT ficou com uma mensagem mais antiga → achava janela vencida e não consultava)
       const lista = Object.values(r).filter(x => x.estado !== 'fechada' && x.estado !== 'cancelada' && !venceu(x) && (agora - x.linkT < 48 * H || x.estado === 'humano' || x.estado === 'alerta'))
         .sort((a, b) => (ordem[a.estado] ?? 5) - (ordem[b.estado] ?? 5) || a.linkT - b.linkT);
@@ -4041,8 +4027,6 @@
         if (fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase) && x.estado !== 'humano' && !(x.faseFeita && x.faseFeita === fe.fase)) return 'R';   // 4.18c: com humano (Marlene/Rômulo) fica no amarelo
         if (fe && fe.fase === 'pago') return 'E';
         if (fe && fe.fase === 'recusada') return 'J';
-        if (['encerrado', 'fechada'].includes(x.estado)) return 'E';   // 8.73: fechada (intenção/tela) sai do vermelho
-        if (x.ultCliT && agora - x.ultCliT > 24 * 60 * M && x.estado === 'alerta' && !(fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase))) return 'A';   // 8.73: janela de 24 h vencida = serviço da varredura, não do "responder agora"
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
