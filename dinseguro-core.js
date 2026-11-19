@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.31';
+  const VERSAO = '9.32';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1061,6 +1061,10 @@
         onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); },
         onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     // 9.15: diagnóstico — por que um link pronto ainda não saiu pela API (cada condição do bloco 8.79)
+    // 9.32 (19/11 17:43, Edna: link pronto 17:39 e não saiu — dinsLinkDiag deu "protegido is not defined"): o bloco 7.90/8.79 (envio pela API da simulação,
+    // do sem margem e do LINK) chamava protegido(), que só existe mais abaixo noutro escopo → ReferenceError engolido pelo try → o LINK NUNCA saía sozinho
+    // (Ariana, Maurilio, Oscar 3x, Estefania, Edna). Agora o bloco usa esta ponte, que consulta a função de verdade quando ela já estiver pronta.
+    const protegido = h => { try { return typeof window.dinsEhProtegido === 'function' ? !!window.dinsEhProtegido(h) : false; } catch (e) { return false; } };
     window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // 9.28 (Stefany 19/11 17:17): cliente ainda no FLUXO DO BOT do Botmaker → o robô já adianta (consulta, simula, digita se aceitou, despacha sem margem na hora),
     // mas a SIMULAÇÃO e o LINK só saem quando o bot parar de interagir com ele por ~5 min (ou passar para atendente). Cache de 60 s por conversa.
@@ -2820,6 +2824,7 @@
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
     // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
+    window.dinsEhProtegido = h => protegido(h);   // 9.32: ponte para o bloco de envio pela API
     const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
       const x = (gmCache('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
       const it = (JSON.parse(localStorage.getItem('dins_fila') || '[]') || []).find(f => f && (f.id === h || f.hash === h)); return !!(it && nomeProtegido(it.nome)); } catch (e) { return false; } };
