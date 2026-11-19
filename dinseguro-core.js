@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.39';
+  const VERSAO = '9.40';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -483,7 +483,7 @@
             [...tr.querySelectorAll('button,a')].find(e => /^Consultar$/i.test(e.innerText.trim())).click();
             for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000); };
           // 7.65 (caso Maria Helena): vigia escolhe o benefício → o.matVigia = matrícula; segue só com ele (cliente com 2 benefícios, digitar um de cada vez)
-          if (o.matVigia) { const mv0 = String(o.matVigia).replace(/\D/g, '').replace(/^0+/, ''); const cv0 = cands.filter(x => x.mat.replace(/^0+/, '') === mv0); if (cv0.length) cands.splice(0, cands.length, ...cv0); }
+          if (o.matVigia) { const mv0 = String(o.matVigia).replace(/\D/g, '').replace(/^0+/, ''); const cv0 = cands.filter(x => x.mat.replace(/^0+/, '') === mv0 || (mv0.length >= 4 && mv0.length <= 6 && x.mat.endsWith(mv0)));   /* 9.40: o vigia pode passar só o final da matrícula (…1913) */ if (cv0.length) cands.splice(0, cands.length, ...cv0); }
           if (cands.length > 1) {
             const res = [];
             for (const c of cands) {
