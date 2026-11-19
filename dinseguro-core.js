@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.98';
+  const VERSAO = '8.99';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2586,7 +2586,7 @@
     // Não mexe em nada no Botmaker. Cliente que voltar a escrever ganha a anotação de novo. Histórico de cada um: só as últimas 15 linhas.
     const FIM897 = /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada)$/;
     const POS897 = x => /01 ?D|fechou neg|esteira|pago|averb|anu[êe]ncia|desbloque|AVERBE|formaliza/i.test(String(x.motivo || '') + ' ' + String(x.fase || '') + ' ' + ((x.hist || []).slice(-4).join(' ')));
-    window.dinsLimpaCaderno = (simular) => { try { const r = RG(); const ag = Date.now(); const FM = GM_getValue('fechadas888', {}) || {}; let tirou = 0, cortou = 0, ficou = 0; const motivos = {};
+    window.dinsLimpaCaderno = (simular) => { try { const r = RG(); const ag = Date.now(); const FM = GM_getValue('fechadas888', {}) || {}; const DEL = GM_getValue('regua_del', {}) || {};   /* 8.99: o gravaRG junta com o que está gravado — para SAIR de verdade tem que marcar em regua_del (a 8.97 contava mas não tirava) */ let tirou = 0, cortou = 0, ficou = 0; const motivos = {};
         for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === 'F20QOEL8YYLQN2S6SR47' || protegido(k)) { ficou++; continue; }
           const ult = Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0, +x.ultCliT || 0, +x.lidoT || 0);
           const pos = POS897(x) && ag - ult < 10 * 864e5 && !/^(cancelada)$/.test(x.estado || '');
@@ -2596,9 +2596,9 @@
           else if (FIM897.test(x.estado || '')) sai = 'encerrada (' + x.estado + ')';
           else if (fechadaConv && x.estado !== 'alerta') sai = 'conversa fechada';
           else if (ag - ult > 24 * 3600000) sai = 'sem atividade há mais de 24 h';
-          if (sai) { motivos[sai] = (motivos[sai] || 0) + 1; tirou++; if (!simular) delete r[k]; continue; }
+          if (sai) { motivos[sai] = (motivos[sai] || 0) + 1; tirou++; if (!simular) { delete r[k]; DEL[k] = ag; } continue; }
           ficou++; if (!simular && (x.hist || []).length > 15) { x.hist = x.hist.slice(-15); cortou++; } }
-        if (!simular) { gravaRG(r); try { const O = GM_getValue('auto_ordens', {}) || {}; let n = 0; for (const h in O) { const o = O[h]; if (!o || (ag - (+o.t || 0) > 3 * 864e5 && !['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(o.estado))) { delete O[h]; n++; } else if ((o.hist || []).length > 15) o.hist = o.hist.slice(-15); } GM_setValue('auto_ordens', O); motivos['pedidos com mais de 3 dias (fora do caderno)'] = n; } catch (e) {}
+        if (!simular) { for (const d in DEL) if (ag - (+DEL[d] || 0) > 20 * 864e5) delete DEL[d]; GM_setValue('regua_del', DEL); gravaRG(r); try { const O = GM_getValue('auto_ordens', {}) || {}; let n = 0; for (const h in O) { const o = O[h]; if (!o || (ag - (+o.t || 0) > 3 * 864e5 && !['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(o.estado))) { delete O[h]; n++; } else if ((o.hist || []).length > 15) o.hist = o.hist.slice(-15); } GM_setValue('auto_ordens', O); motivos['pedidos com mais de 3 dias (fora do caderno)'] = n; } catch (e) {}
           try { diario('caderno', '🧹 limpeza 8.97: ficaram ' + ficou + ', saíram ' + tirou + ' (' + Object.entries(motivos).map(([a, b]) => b + ' ' + a).join(', ') + ')'); } catch (e) {} try { desenharRegua(); } catch (e) {} }
         return { ficou, tirou, motivos, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // roda sozinho de 30 em 30 min, numa aba só (não na do vigia)
