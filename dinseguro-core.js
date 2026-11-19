@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.41';
+  const VERSAO = '9.42';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -939,7 +939,12 @@
   window.dinsCanalSuspenso = canalSuspenso;
   window.dinsLibera865 = (h, on = true) => { const L = GM_getValue('libera865', {}) || {}; if (on) L[h] = Date.now(); else delete L[h]; GM_setValue('libera865', L); delete canalCache[h]; return Object.keys(L).length; };   // 8.71 (Stefany 19/11 09:37: os de ontem do 0800 que mandaram CPF → consultar e retornar)
   window.dinsBmApiOn = on => { if (on !== undefined) GM_setValue('bm_api_on', on ? 1 : 0); return GM_getValue('bm_api_on', 1); };   // chave geral do envio pela API (0 = desligado em todas as abas deste Chrome)
-  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); return bmEnviarTexto0(chatId, texto); }
+  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} return r942; }
+  // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
+  // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
+  function marcaDesligarBot942(chatId) { if (!chatId || chatId === 'F20QOEL8YYLQN2S6SR47') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true) return;
+    const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 15000); }
+  window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
   function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
       data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: (/^\s*\[/.test(String(texto)) ? '' : '[Dinseguro]\n') + String(texto) }] }),   // 8.06: pela API a mensagem chega como 'Bot' → leva o [Dinseguro] (igual à tela) e o robô reconhece como resposta nossa
@@ -1481,6 +1486,13 @@
   // O Claude tria e consulta; este robô só executa a ordem já decidida:
   // resposta rápida (ou texto livre) + tag + nota + fechar conversa.
   // Ordem em localStorage.dins_ordem, resultado em localStorage.dins_ordem_status.
+  // 9.42: desliga o bot da conversa aberta pelo botão ⏻ do topo do chat. Ligado = dica "Apagar/Desligar"; desligado = "Prender Bot / Reativar o bot nessa conversa".
+  async function desligaBotTela942() { const bt = [...document.querySelectorAll('header.chats-toolbar button, #bm-chats-bar button')].find(b => /power_settings_new/.test(b.innerText || ''));
+    if (!bt) return 'bot: botão ⏻ não achado';
+    const dica = () => String(bt.title || bt.getAttribute('aria-label') || '') + ' ' + String((bt.parentElement && (bt.parentElement.title || bt.parentElement.getAttribute('aria-label'))) || '');
+    if (/prender|reativar|ligar o bot|ativar o bot/i.test(dica()) && !/desligar|apagar/i.test(dica())) return 'bot já estava desligado';
+    bt.click(); await new Promise(r => setTimeout(r, 1500));
+    return /prender|reativar/i.test(dica()) ? 'bot desligado (9.42)' : 'bot: cliquei no ⏻ (9.42)'; }
   const DESFECHOS = {
     sem_margem:       { atalho: '/n30', tags: ['01 I - INSS Sem margem 2026'], fechar: true },
     sem_margem_k:     { atalho: '/n30', tags: ['01 k SEM Margem Nao Rodar Whats'], fechar: true },
@@ -1512,6 +1524,7 @@
     // 4.97 (Stefany 12/11 09:15 "pode ensinar ele"; casos Vania 11/11 21:35 e Gladimir 12/11 07:14): entrou pelo anúncio e o bot não respondeu → flow "Inicio do atendimento"
     anuncio_sem_bot:  { fluxo: 'Inicio do atendimento', tags: [], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
+    nada_bot:         { atalho: null,   tags: [], fechar: false },   // 9.42: só abre a conversa e desliga o bot (⏻)
     // 4.79: mensagem da fase da esteira (documento / desbloqueio / anuência) — o.linha + o.atalhos, sem tag, sem fechar
     fase_msg:         { atalho: null,   tags: [], fechar: false },
     // 4.78: cliente parado no bot sem CPF → mensagem pedindo o CPF (o.texto) + 01 C (a espera de CPF 1h/08h nasce sozinha)
@@ -1997,6 +2010,9 @@
         } catch (e8) { passos.push('8.33 pela API falhou (' + String((e8 && e8.message) || e8).slice(0, 60) + ') → tela'); }
         if (o.acao === 'pedir_cpf' && !o.texto && !o.msgFeita) throw new Error('pedido de CPF sem texto — não marquei como feito (6.98)');
         await abrir(o.hash);                               passos.push('abriu');
+        // 9.42: quem nós atendemos fica com o bot DESLIGADO (menos quando a ação é rodar um flow, que precisa do bot)
+        if (!d.fluxo) { try { passos.push(await desligaBotTela942()); } catch (e) { passos.push('bot: ' + String((e && e.message) || e).slice(0, 40)); } }
+        if (o.acao === 'nada_bot') { grava('ok'); localStorage.removeItem('dins_ordem'); try { diario(o.nome || o.hash.slice(0, 5), passos.filter(p => /bot/.test(p)).join(' · ') || 'bot conferido'); } catch (e) {} return; }
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
         const chaveDesf = o.hash + '|' + o.acao + (o.acao === 'sim_link' ? '|' + (((o.trocas || []).find(t => /link/i.test(t[0])) || [])[1] || o.t || '') : '') + (o.acao === 'fase_msg' ? '|' + [...String(o.linha || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 1000003, 7) : '');   // 6.63 (14/11 12:10, Consuelo/Eduardo: a 2ª mensagem do vigia no mesmo dia era tida como repetida e NÃO saía) — fase_msg só é repetida se o TEXTO for o mesmo   // 6.01 (Michele/Marilza 13/11): proposta REFEITA tem outro link → não é repetição
@@ -2205,6 +2221,10 @@
             AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
             return; } } catch (e) {}
+        // 9.42: fila de conversas com o bot ainda ligado depois da nossa mensagem → abre e desliga (uma por vez)
+        try { const DB = GM_getValue('desligar_bot942', {}) || {}; const NMb = GM_getValue('nao_mexer', {}) || {};
+          for (const k of Object.keys(DB)) { delete DB[k]; GM_setValue('desligar_bot942', DB); if (k === 'F20QOEL8YYLQN2S6SR47' || NMb[k] || protegido(k)) continue;
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'nada_bot', quem: 'robo', t: Date.now() })); return; } } catch (e) {}
           for (const k in RGv) { if (true) break;   /* 8.79: pedido de CPF antigo DESLIGADO (regra 19/11: CPF só depois da resposta à simulação padrão) — ocupava a fila da tela à toa */ const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k) || jaFezProposta(x)) continue;   // 6.35: 01 D/pago nunca recebe pedido de CPF
             // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
