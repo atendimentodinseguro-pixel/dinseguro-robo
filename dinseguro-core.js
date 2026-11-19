@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.40';
+  const VERSAO = '9.41';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1090,6 +1090,9 @@
     // do sem margem e do LINK) chamava protegido(), que só existe mais abaixo noutro escopo → ReferenceError engolido pelo try → o LINK NUNCA saía sozinho
     // (Ariana, Maurilio, Oscar 3x, Estefania, Edna). Agora o bloco usa esta ponte, que consulta a função de verdade quando ela já estiver pronta.
     const protegido = h => { try { return typeof window.dinsEhProtegido === 'function' ? !!window.dinsEhProtegido(h) : false; } catch (e) { return false; } };
+    /* 9.41 (Sueli 1Z6OUJ 19/11 19:51: link FACTA pronto e não saía — 'nomeCli is not defined', mesmo erro de escopo do 9.32) */
+    const nomeCli = x => { try { if (typeof window.dinsNomeCli === 'function') return window.dinsNomeCli(x); } catch (e) {} return String((x && (x.nomeReal || x.nome)) || '').trim().split(/\s+/)[0].toLowerCase().replace(/^./, c => c.toUpperCase()); };
+    const textoSim755 = o => window.dinsTextoSim755(o);
     window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // 9.28 (Stefany 19/11 17:17): cliente ainda no FLUXO DO BOT do Botmaker → o robô já adianta (consulta, simula, digita se aceitou, despacha sem margem na hora),
     // mas a SIMULAÇÃO e o LINK só saem quando o bot parar de interagir com ele por ~5 min (ou passar para atendente). Cache de 60 s por conversa.
@@ -2085,6 +2088,7 @@
     // 2+ palavras só com letras, a primeira com 3+ letras. Apelido/usuário ("Kel", "Adri...", "Monica 5516…", emoji) → sem nome.
     const nomeZapOk = n => { const t = String(n || '').trim(); if (!t || /[^\p{L}\s'.-]/u.test(t) || /\.\.|\d/.test(t)) return ''; const w = t.split(/\s+/).filter(Boolean); return w.length >= 2 && w[0].replace(/[^\p{L}]/gu, '').length >= 3 && w.every(x => x.replace(/[^\p{L}]/gu, '').length >= 2) ? t : ''; };
     const nomeCli = x => primeiroNome((x && x.nomeReal) || nomeZapOk(x && x.nome));
+    window.dinsNomeCli = x => nomeCli(x);   // 9.41: ponte para o bloco de envio pela API
     // 7.55: texto da simulação (padrão 16/11: 2 opções jan/abril; Daycoval/Quero Mais/carência pedida → 1 opção)
     // 7.61 (Stefany 17/11 10:55): cliente pediu VALOR LIBERADO e tem margem → as duas opções liberam o valor pedido (um pouco acima, como sempre);
     // a opção com carência fica com a parcela um pouco maior (~ parcela ÷ 0,945). Sem pedido de valor (máximo) → mesma parcela e valor ~5,5% menor.
@@ -2094,6 +2098,7 @@
       const p2 = Math.ceil(par / 0.945 * 100) / 100;
       if (pediu && lib > 0 && par > 0 && (!marg || p2 <= marg)) return { v2: brl(lib), p2: brl(p2), pediu: 1 };
       return { v2: brl(Math.floor(lib * 0.945 * 100) / 100), p2: o.parcela, pediu: 0 }; }
+    window.dinsTextoSim755 = o => textoSim755(o);   // 9.41: ponte (function é içada)
     function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
       const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10 * 1.15) ?   /* 8.86: só explica quando o valor ficou de fato maior (Maria Cristina 19/11: R$ 1.929 x R$ 1.928 escolhidos) */ '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Olha a condição que consegui para você com um valor um pouco maior 👇 Se preferir outro valor, é só me falar.' : '';   /* 8.77 */
       const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
