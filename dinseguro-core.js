@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.23';
+  const VERSAO = '9.24';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2626,6 +2626,14 @@
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
           try { const R9 = RG(); if (R9[k] && !!R9[k].comAg919 !== !!j.agentId) { R9[k].comAg919 = !!j.agentId; if (!simular) gravaRG(R9); } } catch (e) {}   // 9.19
+          // 9.24 (Stefany 19/11 17:06, Edna: "se é coisa que o robô entende, dentro do fluxo, pode mandar; se não é o fluxo, fica no amarelo"): o que decide é QUEM conduz —
+          // última mensagem nossa saiu do robô/vigia (fluxo: simulação, proposta, link, resposta padrão) → o robô segue a régua, mesmo com atendente na conversa;
+          // última mensagem nossa foi digitada por um atendente ([Rômulo…👤]/[Stefany…👤], fora a resposta automática do bot) → amarelo, o atendente conduz.
+          try { if (j.agentId && !simular) { const mm = await window.dinsBmGet('/messages?chat-id=' + k + '&from=' + encodeURIComponent(new Date(ag - 26 * 3600000).toISOString())); const it = ((mm && mm.j && mm.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
+              const nos = it.filter(m => m.from !== 'user' && String((m.content && m.content.text) || '').trim().length > 15); const u = nos[nos.length - 1]; const tx = String((u && u.content && u.content.text) || '');
+              const hum = !!u && u.from === 'agent' && /^\s*\*?\[(R[ôo]mulo|Stefany|Marlene)[^\]]*\]/i.test(tx) && !/Dei uma olhada no seu caso|Manual Exclusivo|Esse guia foi criado/i.test(tx);
+              const R8 = RG(); if (R8[k] && !!R8[k].humano924 !== hum) { R8[k].humano924 = hum; gravaRG(R8); } }
+            else if (!j.agentId) { const R8 = RG(); if (R8[k] && R8[k].humano924) { R8[k].humano924 = false; if (!simular) gravaRG(R8); } } } catch (e) {}
           if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
         if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
         return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
@@ -4227,9 +4235,10 @@
           // 9.19 (Stefany 19/11 16:50: "me traga cada status… para o robô ficar 100%"): a classificação usa o que foi FEITO (mapas gravados no envio) e o atendente da conversa (lido na API), não o motivo antigo
           const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
           if ((gmCache('fechar_depois911', {}) || {})[x.hash]) return 'F';   // 9.23 (Stefany 17:05: "vai fechar até o horário, tem que ficar no follow-up")
-          { const EN9 = gmCache('enc905', {}) || {}; const DV9 = (DVq[x.hash] || {}); if (!x.comQuem && !x.comAg919 && ((+VMq[x.hash] && !EN9[x.hash]) || (+PCq[x.hash] && !EN9[x.hash]) || (DV9.t && !DV9.enc))) return 'F'; }   // 9.20 (Stefany 19/11 17:01): 01 D sem margem → fecha com 01 k em 2 h, sem mensagem
-          if (x.comQuem || x.comAg919) return 'J';
-          if (DVq[x.hash] && DVq[x.hash].t) return 'A5';
+          { const EN9 = gmCache('enc905', {}) || {}; const DV9 = (DVq[x.hash] || {}); if (!x.comQuem && !x.humano924 && ((+VMq[x.hash] && !EN9[x.hash]) || (+PCq[x.hash] && !EN9[x.hash]) || (DV9.t && !DV9.enc))) return 'F'; }   // 9.20 (Stefany 19/11 17:01): 01 D sem margem → fecha com 01 k em 2 h, sem mensagem
+          if (x.comQuem || x.humano924) return 'J';
+          if (x.link && !x.semLink && (x.toques || []).some(q => !q.feito)) return 'F';   // 9.24 (Cristina): link com follow-up programado = verde, em qualquer estado
+          if (DVq[x.hash] && DVq[x.hash].t && DVq[x.hash].enc) return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
           if (x.link && !x.semLink) return 'A4';
           if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'A3';
@@ -4286,7 +4295,7 @@
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
             { const fd = (gmCache('fechar_depois911', {}) || {})[x.hash]; if (fd) return 'cliente 01 D sem margem: retorno enviado ' + hhmm(+fd.de || 0) + ' · se não responder, fecha com 01 k às ' + hq(+fd.t || 0) + ' sem mandar mensagem'; }
-            if (x.comQuem || x.comAg919 || x.estado === 'humano') return 'com atendente na conversa — o robô não manda nada (o atendente conduz)';
+            if (x.comQuem || x.humano924 || x.estado === 'humano') return 'atendente conduzindo (fora do fluxo do robô) — o robô não manda nada';
             { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
               if (DVq[x.hash] && DVq[x.hash].t) return 'follow-up 1 de 2 feito ("ficou dúvida?" ' + hhmm(DVq[x.hash].t) + ') · próximo: aviso de encerramento + tag e fecha às ' + hq(+DVq[x.hash].t + 60 * M);
               if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'pedimos o CPF ' + hhmm(+PCq[x.hash]) + ' (não se pede de novo) · próximo: aviso de encerramento + 01 C e fecha às ' + hq(+PCq[x.hash] + 120 * M);
@@ -5241,7 +5250,7 @@
           if (DV[id] && ag - (+DV[id].v || 0) < 20 * 60000) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
-          if (!lu || /^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
+          if (!lu || /^fechar_/.test(q) || (!q && !c.agentId) || (R[id] && R[id].humano924) || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
           // 9.23 (Stefany 19/11 17:05, Cléria e Sônia: "teve o primeiro follow-up; nesse segundo já é o encerramento — avisa que encerrou, se precisar chama, e fecha tagueada"):
           // 1 h depois do "ficou mais alguma dúvida?" sem resposta → aviso de encerramento + tag + fecha (sem CPF: fechar_01c; com CPF: fechar_so)
           if (DV[id].t && !DV[id].enc && lu <= (+DV[id].t || 0) && ag - (+DV[id].t || 0) >= 60 * 60000) { try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa, é só chamar a gente aqui. Vai ser um prazer te atender!'); DV[id].enc = ag; n++;
