@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.82';
+  const VERSAO = '8.83';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -147,6 +147,8 @@
       return { banco: 'VIGIA', motivo: 'C6 travado, invalidez ' + id9 + ' anos e Daycoval desligado → vigia decide / espera o C6' }; } } catch (e) {}
     return r; }
   try { const fC6 = on => { GM_setValue('c6_off', on ? 1 : 0); return 'c6_off=' + (on ? 1 : 0); }; window.dinsC6Off = fC6; if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsC6Off = fC6; } catch (e) {}
+  // 8.83: prazo pela idade. Tabela larga (contrato termina até os 80): 71→108 · 72→96 · 73→84 · 74→72 · 75→60 · 76→48. Tabela curta (banco mais rígido): 71→96 · 72→84 · 73→72 · 74→60 · 75→48 · 76→36.
+  function prazoIdade883(idade, curta) { const i = parseInt(idade) || 0; if (i < 71) return 108; return Math.max(36, Math.min(108, ((curta ? 79 : 80) - i) * 12)); }
   function decidirBanco0(f) {
     { const bo = (String(f.banco_ordem_stefany || '').toUpperCase().trim().match(/^(C6|FACTA|QUALIBANK|DAYCOVAL|QUEROMAIS|PRESENCA)\b/) || [])[1]; if (bo) return { banco: bo, motivo: 'ordem da Stefany (banco_ordem_stefany)' }; }   // 7.26 (Rosa 16/11): "FACTA 90 DIAS" também vale   // 6.27
     const idade = parseInt(f.idade) || 0;
@@ -156,7 +158,8 @@
     const inval = INVALIDEZ.includes(esp);
     if (parcela < 25) return { banco: 'NAO', motivo: 'Margem abaixo de R$ 25: /n30.' };   // 5.16
     if (idade > 76) return { banco: 'NAO', motivo: 'Acima de 76 anos: não fazemos.' };
-    if (idade >= 74) return { banco: 'HUMANO', motivo: '74 a 76 anos: perguntar à Stefany antes de simular ou digitar.' };
+    // 8.83 (Stefany 19/11 12:17: "atende com prazo menor" — vale sobre a de 17/11 "74 a 76 não atende"): 74 a 76 anos é atendido, com o prazo que a idade permite (prazoIdade883)
+    if (idade >= 74 && esp !== '87' && esp !== '88') return { banco: 'FACTA', motivo: '74 a 76 anos: FACTA com prazo reduzido pela idade (' + prazoIdade883(idade) + 'x; se o banco recusar, ' + prazoIdade883(idade, 1) + 'x) — Stefany 19/11' };
     if (esp === '87' || esp === '88') return { banco: 'HUMANO', motivo: 'LOAS (87/88): regra própria, não fazemos proposta.' };
     const nota = ` · liberado estimado R$ ${brl(liberado)}`;
     if (inval) {
@@ -252,6 +255,7 @@
     const pz = parseInt(String(prazoTela || f.prazo || '108').replace(/\D/g, ''), 10) || 108;
     if (pz >= 96) return '';
     if (parseInt(String(f.prazo_ordem_stefany || '').replace(/\D/g, ''), 10) === pz) return '';
+    { const i883 = parseInt(f.idade) || 0; if (i883 >= 72 && i883 <= 76 && pz >= prazoIdade883(i883, 1)) return ''; }   // 8.83: prazo reduzido pela idade (72 a 76 anos) é regra, não precisa de ordem
     return `⛔ PRAZO ${pz}x: prazo curto só se SIMULA (último caso) — NÃO se grava sem ordem da Stefany (linha prazo_ordem_stefany: ${pz}). Use 96x ou 108x.`;
   }
   const CAMPOS = ['recusa', 'banco_destino', 'nome', 'cpf', 'beneficio', 'especie', 'idade', 'ddb', 'parcela', 'valor', 'prazo', 'telefone', 'telefone_origem', 'email',
@@ -736,7 +740,10 @@
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
     const pedido = num(f.valor); let parcela = num(f.parcela); const margem = num(f.margem);
     if (!(parcela > 0)) throw new Error('ficha sem parcela');
-    let res = await ncSimula(banco, f, parcela), of = ncEscolhe(banco, f, res.simulations);
+    // 8.83: 71 a 76 anos sem ordem de prazo → simula no prazo que a idade permite (tabela larga) e, se o banco não oferecer, na curta
+    let res, of; { const i883 = parseInt(f.idade) || 0; const pzSt = parseInt(String(f.prazo_ordem_stefany || '').replace(/\D/g, ''), 10) || 0;
+      const termos = (i883 >= 71 && i883 <= 76 && !pzSt) ? [...new Set([prazoIdade883(i883), prazoIdade883(i883, 1)])] : [null];
+      for (let q = 0; q < termos.length; q++) { if (termos[q]) f.prazo = String(termos[q]); try { res = await ncSimula(banco, f, parcela); of = ncEscolhe(banco, f, res.simulations); } catch (e) { if (q === termos.length - 1) throw e; of = null; res = { simulations: [] }; } if (of) break; } }
     // valor pedido é o MÍNIMO (regra 4.12): abaixo → sobe a parcela na proporção (até a margem) e simula de novo, uma vez
     if (of && pedido > 0 && +of.released_amount < pedido) { const p2 = Math.min(Math.ceil(parcela * pedido / +of.released_amount * 1.003 * 100) / 100, margem > 0 ? margem - 0.01 : 1e9);
       if (p2 > parcela + 0.009) { parcela = p2; res = await ncSimula(banco, f, parcela); of = ncEscolhe(banco, f, res.simulations); } }
@@ -5488,6 +5495,9 @@
   // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
   if (/^portaldecredito\.(daycoval|queromaisconsignado)\.com\.br$/.test(location.host)) {
     // 8.81 (19/11: o Daycoval deslogou sozinho ~20 min depois da proposta da Ariana): batida do portal — aberto? logado? — para o quadro avisar NA HORA, sem esperar um pedido ficar parado
+    // 8.83 (Stefany 19/11 12:17: "pode clicar sozinho"): portal na tela de login com usuário e senha JÁ preenchidos pelo Chrome → o robô clica em ENTRAR. Não digita nada; 1 tentativa por hora (se não entrar, o quadro avisa e o vigia clica).
+    if (/daycoval/.test(location.host)) setInterval(() => { try { if (!/\/login/i.test(location.pathname)) return; const pw = document.querySelector('input[type="password"]'); const bt = [...document.querySelectorAll('button')].find(b => /^\s*entrar\s*$/i.test(b.textContent || '')); if (!pw || !bt) return; let auto = false; try { auto = pw.matches(':-webkit-autofill'); } catch (e) {} if (!auto && !pw.value) return;
+      const L = JSON.parse(localStorage.getItem('dins_dayc_login') || '[]').filter(t => Date.now() - t < 3600000); if (L.length >= 1) return; L.push(Date.now()); localStorage.setItem('dins_dayc_login', JSON.stringify(L)); bt.click(); } catch (e) {} }, 15000);
     if (/daycoval/.test(location.host)) { const bate881 = () => { try { GM_setValue('dayc_vivo', { t: Date.now(), logado: !/\/login/i.test(location.pathname) }); } catch (e) {} }; bate881(); setInterval(bate881, 20000); }
     if (window.top !== window) return;
     const QM = /queromais/.test(location.host);
@@ -6443,7 +6453,8 @@
         else if (!negativo(f.representante)) f.recusa = 'REPRESENTANTE|' + (margem >= 20 ? '03 A' : '03 B') + '|tag + flow Inicio do atendimento — não fazemos proposta com representante legal';
         else if (margem < 25)                f.recusa = 'SEM_MARGEM|01 I|/n30';   // 5.16 (Stefany 12/11 11:25): mínimo R$ 25
         // 7.83 (Stefany 17/11 17:58, caso Jofre A8YV6 75a: "com essa idade, 74 a 76 anos, a gente não atende"): 74 anos ou mais = mesma regra de acima de 76
-        else if (idadeF >= 74)               f.recusa = 'IDADE|Acima De 80 Anos|74 anos ou mais: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';
+        else if (idadeF > 76)                f.recusa = 'IDADE|Acima De 80 Anos|77 anos ou mais: fluxo "Início do atendimento" (ordem idade_77), que resolve tudo';   // 8.83 (Stefany 19/11): 74 a 76 passou a ser atendido com prazo menor
+        if (idadeF >= 72 && idadeF <= 76 && !f.prazo_ordem_stefany) f.prazo = String(prazoIdade883(idadeF));
         const d = decidirBanco(f);
         f.banco_destino = d.banco;
         if (!f.beneficio) { log('Não achei o benefício. Clique em "Consultar" no benefício ativo antes.', 'erro'); return; }
