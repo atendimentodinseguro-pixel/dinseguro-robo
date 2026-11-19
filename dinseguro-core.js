@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.18';
+  const VERSAO = '9.19';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1048,6 +1048,7 @@
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
         const hh = new Date().getHours(); if ((hh < 8 || hh >= 21) && !respondendoAgora) return { erro: 'fora do horário (8h–21h)' };
+        try { if (/margem cheia do INSS/i.test(String(texto))) { const VM9 = GM_getValue('valor_msg_feito', {}) || {}; VM9[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM9); } } catch (e) {}   // 9.19: simulação padrão do vigia conta igual à do robô
         await bmEnviarTexto(chatId, String(texto)); try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
         try { const R2 = GM_getValue('regua', {}) || {}; const x2 = R2[chatId]; if (x2 && x2.estado === 'alerta') { x2.estado = 'respondido'; delete x2.reler; delete x2.relerHist; (x2.hist = x2.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: o vigia respondeu pela API → saiu do vermelho'); GM_setValue('regua', R2); } } catch (e) {}
         try { if (/simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(String(texto))) { const VM2 = GM_getValue('valor_msg_feito', {}) || {}; VM2[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM2); } } catch (e) {}
@@ -2620,6 +2621,7 @@
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId); const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
+          try { const R9 = RG(); if (R9[k] && !!R9[k].comAg919 !== !!j.agentId) { R9[k].comAg919 = !!j.agentId; if (!simular) gravaRG(R9); } } catch (e) {}   // 9.19
           if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
         if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
         return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
@@ -4218,7 +4220,14 @@
         if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
         // 9.16 (Stefany 19/11 16:31: "aguardando cliente é um status muito genérico — criar mais subdivisões para controlar melhor"): o azul virou 5 situações, cada uma com o passo da regra
         { const mo = String(x.motivo || ''); const ao9 = (GM_getValue('auto_ordens', {}) || {})[x.hash];
-          if (x.comQuem) return 'J';
+          // 9.19 (Stefany 19/11 16:50: "me traga cada status… para o robô ficar 100%"): a classificação usa o que foi FEITO (mapas gravados no envio) e o atendente da conversa (lido na API), não o motivo antigo
+          const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
+          if (x.comQuem || x.comAg919) return 'J';
+          if (DVq[x.hash] && DVq[x.hash].t) return 'A5';
+          if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
+          if (x.link && !x.semLink) return 'A4';
+          if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'A3';
+          if (+VMq[x.hash]) return 'A2';
           if (/follow-up de d[úu]vida feito|toques feitos|esgotad/i.test(mo) || x.estado === 'esgotada') return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
           if (x.link && !x.semLink) return 'A4';
@@ -4270,7 +4279,11 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
-            if (x.comQuem || x.estado === 'humano') return 'com atendente — o robô não manda';
+            if (x.comQuem || x.comAg919 || x.estado === 'humano') return 'com atendente na conversa — o robô não manda nada (o atendente conduz)';
+            { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
+              if (DVq[x.hash] && DVq[x.hash].t) return 'follow-up de dúvida feito ' + hhmm(DVq[x.hash].t) + ' (1 de 1) — a varredura fecha quando a janela vencer';
+              if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'pedimos o CPF ' + hhmm(+PCq[x.hash]) + ' (não se pede de novo) · avisa o encerramento + 01 C e fecha às ' + hq(+PCq[x.hash] + 120 * M);
+              if (+VMq[x.hash]) return 'simulação padrão enviada ' + hhmm(+VMq[x.hash]) + ' · sem resposta: avisa o encerramento + 01 C e fecha às ' + hq(+VMq[x.hash] + 60 * M); }
             if (/follow-up de d[úu]vida feito/i.test(mo)) return 'follow-up 1 de 1 feito — a varredura fecha quando a janela vencer';
             if (/pedimos o CPF/i.test(mo)) return 'sem follow-up (CPF não se pede de novo) · avisa o encerramento + 01 C e fecha às ' + hq(t0 + 120 * M);
             if (/simula[çc][ãa]o padr[ãa]o|01 A sem link|sem CPF/i.test(mo)) return 'próximo passo às ' + hq(t0 + 60 * M) + ': 1 h sem resposta → pergunta se ficou dúvida (ou encerra, se foi simulação padrão)';
@@ -5225,7 +5238,7 @@
           if ((+DV[id].lu || 0) === lu || (+VM[id] || 0) > lu || (+PC[id] || 0) > lu) continue;   // já perguntamos depois desta mensagem dele · é caso de simulação padrão (9.05) · é pedido de CPF
           const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(lu - 60000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
           const T = k => String((k && k.content && k.content.text) || ''); const AUTO = /Bem-vindo de volta|j[áa] passou por nosso autoatendimento|Para agilizar o seu atendimento|Clique em um dos bot[õo]es|logo voc[êe] ser[áa] atendido/i;
-          const nos = ms.filter(k => k.from !== 'user' && Date.parse(k.creationTime) > lu && T(k).trim().length > 15 && !AUTO.test(T(k))); if (!nos.length) continue;   // só resposta automática do bot não é resposta nossa
+          const nos = ms.filter(k => k.from !== 'user' && Date.parse(k.creationTime) > lu && T(k).trim().length > 15 && !AUTO.test(T(k)) && (k.from === 'agent' || /^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(T(k))) && !/Dei uma olhada no seu caso e encontrei uma oportunidade/i.test(T(k)));   // 9.19: pergunta do fluxo do bot não é resposta nossa if (!nos.length) continue;   // só resposta automática do bot não é resposta nossa
           const ultNos = Date.parse(nos[nos.length - 1].creationTime) || 0; if (ag - ultNos < 60 * 60000 || ag - ultNos > 10 * 3600000) continue;
           if (/ficou (mais )?alguma d[úu]vida|encerrando o seu atendimento/i.test(T(nos[nos.length - 1]))) { DV[id].lu = lu; continue; }
           // 9.14 (Stefany 19/11 16:27, Benedito/Maria da Graça: "já foi acordado, agora o robô tem que seguir"): simulação padrão mandada pelo VIGIA também segue o item 4 —
