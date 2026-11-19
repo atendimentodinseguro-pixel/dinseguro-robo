@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.78';
+  const VERSAO = '8.79';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1046,6 +1046,27 @@
             diario(oA.nomeReal || oA.nome || '', 'CPF recebido → "já estou consultando" NA HORA pela API (' + Math.round((Date.now() - (+oA.t || Date.now())) / 1000) + ' s)');
           } catch (e) { const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oA.hash]) { delete O3[oA.hash].acolheu; O3[oA.hash].acol793Falhou = 1; GM_setValue('auto_ordens', O3); } }   // falhou → a tela manda (5.96)
           finally { ocup790 = false; } return; }
+        // 8.79 (Stefany 19/11 12:02 "tem que resolver tudo… deixa 100%"; Ariana ZJNDJ: link pronto 10 min esperando a fila da tela): proposta gravada com link →
+        // mensagem + LINK saem NA HORA pela API do Botmaker, sem depender da tela. Extrato não lido → vigia (igual à 7.71). Falhou 2 vezes → a tela manda.
+        { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo));
+          if (oK) { const exK = extrSync(oK); if (exK === 'wait') return;
+            if (exK) { oK.estado = 'com_margem'; oK.resumo = (oK.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oK.nomeReal || oK.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
+            if (!trava870('link879_' + oK.hash, 3 * 60000)) return;
+            ocup790 = true; oK.api879T = Date.now(); GM_setValue('auto_ordens', O);
+            try { const nmK = nomeCli(oK); const bnK = oK.aceite && oK.bancoConta; const duasK = !/DAYCOVAL|QUERO/i.test(String(oK.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(oK.bancoStefany || ''));
+              const abreK = oK.simGravar
+                ? (oK.aceitouSim ? 'Perfeito' + (nmK ? ', ' + nmK : '') + '! 😊 A sua proposta de *R$ ' + oK.liberado + '* em ' + oK.prazo + 'x de *R$ ' + oK.parcela + '* já está pronta. Segue abaixo 👇'
+                  : (nmK ? nmK + ', p' : 'P') + 'ara você conferir com calma, já deixei pronta a proposta' + (duasK ? ' da *Opção 1️⃣*' : '') + ': *R$ ' + oK.liberado + '* em ' + oK.prazo + 'x de *R$ ' + oK.parcela + '* 😊\n\nSe preferir ' + (duasK ? 'a opção 2 ou ' : '') + 'outro valor, me fala aqui que eu ajusto.')
+                : bnK ? 'Pronto' + (nmK ? ', ' + nmK : '') + '! 😊 A sua proposta de *R$ ' + oK.liberado + '* em ' + oK.prazo + 'x de *R$ ' + oK.parcela + '* já está pronta. Segue abaixo 👇'
+                : textoSim755(oK);
+              if (!oK.api879Abre) { await bmEnviarTexto(oK.hash, abreK); const Oa = GM_getValue('auto_ordens', {}) || {}; if (Oa[oK.hash]) { Oa[oK.hash].api879Abre = Date.now(); GM_setValue('auto_ordens', Oa); } await esp(1500); }
+              await bmEnviarTexto(oK.hash, '👉 Para conferir todos os detalhes e confirmar, é só tocar no link abaixo *pelo celular*:\n' + oK.link + (bnK ? '\n\nO valor cai na sua conta do *' + oK.bancoConta + '*.' : '') + '\n\n🔒 Nada é concluído sem a sua confirmação. Qualquer dúvida, é só me chamar aqui 🤝');
+              const O5 = GM_getValue('auto_ordens', {}) || {}; const x5 = O5[oK.hash];
+              if (x5) { x5.estado = 'feito'; x5.linkApi879 = Date.now(); (x5.hist = x5.hist || []).push(hhmm(Date.now()) + ' 8.79: mensagem + link enviados pela API do Botmaker'); GM_setValue('auto_ordens', O5); }
+              diario(oK.nomeReal || oK.nome || '', 'proposta ' + (oK.banco || '') + ' Nº ' + (oK.proposta || '') + ': mensagem + LINK enviados NA HORA pela API (8.79)');
+              try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a') && window.dinsBmIntent) window.dinsBmIntent(oK.hash, 'so_tag_01a'); } catch (e) {}
+            } catch (e) { const O5 = GM_getValue('auto_ordens', {}) || {}; const x5 = O5[oK.hash]; if (x5) { const er = String((e && e.message) || e).slice(0, 160); x5.api879Tent = (+x5.api879Tent || 0) + 1; x5.api879Erro = er; if (x5.api879Tent >= 2 || /sem token|SUSPENSO/.test(er)) x5.api879Falhou = 1; else x5.api879Prox = Date.now() + 200000; GM_setValue('auto_ordens', O5); diario(oK.nomeReal || oK.nome || '', '⚠️ link pela API não saiu: ' + er + ' (tentativa ' + x5.api879Tent + ')'); } }
+            finally { ocup790 = false; } return; } }
         const oS = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'simulada' && !x.api790T && Date.now() - (+x.tSim || 0) < 20 * 60000);
         if (!oS) return;
         const ex = extrSync(oS); if (ex === 'wait' || ex) return;   // extrato → o caminho antigo (7.71) cuida
@@ -1076,7 +1097,7 @@
       try { const v = JSON.parse(window.localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000) o[k.slice(9)] = v; else if (Date.now() - (+v.t || 0) > 3600000) window.localStorage.removeItem(k); } catch (e) {} } return o; };
     const consultaViva = () => { try { return Date.now() - (+GM_getValue('mc_vivo', 0) || 0) < 10 * 60000; } catch (e) { return true; } };   // 7.29
     window.dinsConsultaViva = consultaViva;
-    const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; if (r === 'atendimento' && !consultaViva()) return false;   /* 7.29: sem Multicorban neste navegador não atende (não abre ordem) */ const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
+    const faz = r => { const p = meuPapel(); if (p === 'vigia') return false; if (r === 'varredura' && p !== 'varredura' && consultaViva()) return false;   /* 8.79: no Chrome do atendimento (o que tem o Multicorban) nenhuma aba faz varredura — ela é só do outro perfil */ if (r === 'atendimento' && !consultaViva()) return false;   /* 7.29: sem Multicorban neste navegador não atende (não abre ordem) */ const V = abasVivas(); V[ABA] = { papel: p, t: Date.now() };
       const de = q => Object.keys(V).filter(k => V[k].papel === q).sort()[0];
       const dono = de(r) || de('tudo') || de('atendimento'); return dono ? dono === ABA : true; };
     // 5.84 (Stefany 13/11 08:57: "não vi a iniciação com as 4 janelas"): o papel ficava só na aba e sumia quando o Chrome fechava.
@@ -1916,7 +1937,7 @@
         if (!o.tagsFeitas) { for (const t of tags) { await garante(); passos.push('tag:' + await addTag(t)); } salvaProgresso({ tagsFeitas: 1 }); }
         if (o.nota && !o.notaFeita && GM_getValue('nota_on', 0) !== 1) { try { const ON = GM_getValue('auto_ordens', {}) || {}; if (ON[o.hash]) { (ON[o.hash].hist = ON[o.hash].hist || []).push('nota (não escrita no chat — 8.53): ' + String(o.nota).slice(0, 300)); GM_setValue('auto_ordens', ON); } } catch (e) {} salvaProgresso({ notaFeita: 1 }); passos.push('nota desligada (8.53)'); }   // 8.53 (Stefany 18/11 20:06: "pode desligar a nota") — o resumo fica guardado no robô
         if (o.nota && !o.notaFeita && !(o.pularSe && passos.some(x => /já tinha saído/.test(x)))) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
-        if (d.fechar || o.fechar) { await garante(); passos.push(await fecharConversa()); limparFiltro(); }   // 8.01 (Nozeli 17/11 22:55: a tag Q15 pelo so_tag deixou a conversa aberta) — ordem com fechar:true fecha no fim
+        if (d.fechar || o.fechar) { const jf879 = (() => { try { return ((GM_getValue('auto_ordens', {}) || {})[o.hash] || {}).fechouIntent || ''; } catch (e) { return ''; } })(); if (jf879) passos.push('já fechada pela intenção ' + jf879 + ' (8.79: sem fechar em dobro)'); else { await garante(); passos.push(await fecharConversa()); limparFiltro(); } }   // 8.01 (Nozeli 17/11 22:55: a tag Q15 pelo so_tag deixou a conversa aberta) — ordem com fechar:true fecha no fim
         else if (d.fluxo) { await esp(8000); try { passos.push('o flow não fechou → ' + await fecharConversa()); limparFiltro(); } catch (e) { passos.push('fechada pelo flow'); } }   // 7.30 (Stefany 16/11 16:25: marcou 07, mandou a mensagem e não fechou — ela fechou à mão)
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
@@ -2079,7 +2100,7 @@
             AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'anuncio_sem_bot', quem: 'robo', t: Date.now() }));
             return; } } catch (e) {}
-          for (const k in RGv) { const x = RGv[k];
+          for (const k in RGv) { if (true) break;   /* 8.79: pedido de CPF antigo DESLIGADO (regra 19/11: CPF só depois da resposta à simulação padrão) — ocupava a fila da tela à toa */ const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k) || jaFezProposta(x)) continue;   // 6.35: 01 D/pago nunca recebe pedido de CPF
             // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
             // Sinais: ordem automática para este chat (qualquer estado, 23 h), CPF no mapa CPF→chat, ou CPF/consulta registrados na régua.
@@ -2201,7 +2222,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, texto, nota: dd7 + ' ' + hhmm(agora5) + ' [robô 5.60] cliente disse "' + String(x.ultCliTxt || '').slice(0, 50) + '" → resposta (condição de hoje + horário certo) e lembrete na hora combinada.' }));
             return;
           }
-          for (const k in RGh) { const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
+          for (const k in RGh) { if (true) break;   /* 8.79: 5.37 (mensagem pessoal + pedido de CPF) DESLIGADO — mesma regra */ const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
             const handoff = /bot passou para atendente humano/.test(x.motivo || '') && x.handoffT;
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
             const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
@@ -2265,7 +2286,7 @@
                 linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder *1* ou *2* que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
               diario(nmF || x.hash.slice(0, 5), '15 min sem resposta à simulação → toque (7.55)'); return; }
           } }
-        const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link');
+        const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link' && (x.api879Falhou || !bmApiLigada()));   // 8.79: com a API ligada o link sai por ela; a tela só entra se a API falhar
         if (oL) {   // 4.75: simulação + link pelo robô
           { const ex771L = extrSync(oL); if (ex771L === 'wait') return; if (ex771L) { oL.estado = 'com_margem'; oL.resumo = (oL.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oL.nomeReal || oL.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; } }
           // 6.90 (caso Dulce JZRGM 16:34: ordem com 'R$ undefined' e sem link quase saiu) — sem valor, parcela, prazo ou link a simulação NÃO sai: vira erro pro vigia.
@@ -4028,7 +4049,7 @@
         if (x.semLink && x.contornoT && x.ultLado !== 'cli' && agora - x.contornoT > 15 * M && !['humano', 'encerrado'].includes(x.estado))
           return 'contorno ' + hhmm(x.contornoT) + ' sem resposta ' + haMin(x.contornoT) + ' → digitar no valor escolhido (16a)';
         if (x.semLink && x.botParado && !x.temCpf && x.estado === 'acompanhando' && !/n[ãa]o sou|aut[ôo]nomo|\bclt\b|carteira assinada|servidor|for[çc]as armadas|bolsa fam/i.test(x.ultCliTxt || '') && x.ultT && agora - x.ultT > 30 * M)
-          return 'parado no bot ' + haMin(x.ultT) + ', sem CPF → mandar mensagem pedindo o CPF';
+          return 'parado no bot ' + haMin(x.ultT) + ', sem CPF → recebe a simulação padrão';
         return '';
       };
       const bloco = x => {
@@ -4831,7 +4852,7 @@
                   try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome: String(c.firstName || ''), estado: 'alerta', toques: [], hist: [], criadoT: ag }); if (!/8\.15/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = '8.15: mandou CPF às ' + hhmm(tCpf) + ', o robô consultou 2 vezes e o resultado não chegou ao cliente — vigia resolve'; x.ultLado = 'cli'; x.ultCliT = tCpf; x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + x.motivo); gravaRG(R); res.push(String(c.firstName || '') + ' (vigia: 2 tentativas)'); } } catch (e) {}
                   VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; } } }
             // 8.32 (Julio ZMH5P 18/11: parou no fluxo do bot sem CPF às 07:09 e só recebeu mensagem automática do bot): sem CPF e sem resposta de GENTE depois da última mensagem dele → pede o CPF (1 vez a cada 12 h)
-            if (respondido && iC >= 0 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') { try {
+            let fez879 = false; if (iC >= 0 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') { try {   /* 8.79: vale também para quem só recebeu resposta automática do bot */
               const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
               const gente = dep.some(m => m.from === 'agent');
               const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
@@ -4851,7 +4872,7 @@
                     O7[id] = { hash: id, nome: nm47, cpf: r.cpf, fone: String((c.chat && c.chat.contactId) || c.contactId || '').replace(/\D/g, ''), tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc47 >= 1000 ? vEsc47 : 0, aceite: !!aceite8, estado: 'nova', t: Date.now(), acolheu: 1, reverso: 1, hist: [hhmm(Date.now()) + ' 8.47: análise reversa — CPF achado pelo telefone no ' + r.fonte + ' (cliente não mandou CPF) → consulta sem pedir dado'] };
                     GM_setValue('auto_ordens', O7); diario(nm47 || id.slice(0, 5), '🔎 análise reversa: CPF achado no ' + r.fonte + ' pelo telefone → consultando sem pedir dado (8.47)'); }
                   else { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (PC[id] > Date.now() - 30 * 864e5) return; window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.47: aceitou/respondeu e o telefone não está no New Corban nem no FullConsig → pedido de CPF, uma vez só' }); PC[id] = Date.now(); GM_setValue('pedir_cpf_feito', PC); diario(nm47 || id.slice(0, 5), '🔎 análise reversa não achou o telefone → pediu o CPF uma vez (8.47)'); } } catch (e) {} });
-                res.push(nm47 + ' (análise reversa pelo telefone)'); }
+                res.push(nm47 + ' (análise reversa pelo telefone)'); fez879 = true; }
               else if (false && !temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
                 const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 30 * 864e5)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.46: respondeu à simulação padrão (' + String(T(cU8)).slice(0, 30) + ') → pedido de CPF, uma vez só' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (respondeu a simulação → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu a simulação padrão → pediu o CPF (8.46, uma vez só)'); } } }
               else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
@@ -4859,7 +4880,8 @@
                 const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
                 const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro. Fiz uma *simulação gratuita* para você ver quanto dá para liberar no consignado do INSS. É tudo seguro.\n\nSeparei *duas opções* com a margem cheia do INSS:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ 24.849,95*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *R$ 23.483,45*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *abril/2027*\n\n✅ Simulação gratuita e sem compromisso\n✅ Você pode cancelar de graça em até 7 dias\n🔒 A Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Quero outro valor\n\nÉ só responder com o número 🤝';
                 bmEnviarTexto(id, txt44).then(() => { diario(String(c.firstName || id.slice(0, 5)), '💬 simulação padrão enviada (8.46) — parou no bot sem CPF há ' + Math.round(min8) + ' min'); try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01c') && !/InssNaoInformouCPF|01.?C/i.test((c.tags || []).join('|'))) window.dinsBmIntent(id, 'so_tag_01c'); } catch (e) {} })   // 8.69 (Stefany 19/11 09:12, Evelane: "não foi tagueado"): junto com a simulação padrão, tag 01 C SEM fechar (so_tag_01c).catch(e => { diario(String(c.firstName || id.slice(0, 5)), '⚠️ mensagem de valor não saiu (8.44): ' + String((e && e.message) || e).slice(0, 90)); });
-                res.push(String(c.firstName || '') + ' (mensagem de valor)'); } } catch (e) {} }
+                res.push(String(c.firstName || '') + ' (mensagem de valor)'); fez879 = true; } } catch (e) {} }
+            if (fez879 && !respondido) { const tx9 = T(ms[iC]); if (!/\?/.test(tx9) && tx9.trim().length <= 40) { VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; return; } }   /* pergunta ou texto longo → além da simulação, segue para o vermelho (o vigia responde a pergunta) */   // 8.79: já saiu a simulação padrão / análise reversa → não vira vermelho
             if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
             if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
             /* 8.77 (Stefany 19/11 11:42 "tem que resolver a causa" — Oscar 6SEVR e Oton N49ZS): a trava "conversa de humano (Rômulo/Stefany) — não tocar" saiu daqui. O rótulo [Rômulo Lima👤] é o do usuário logado: vai em TODA mensagem que o robô manda pela tela e nas do fluxo do bot, então a trava escondia cliente esperando. Regra 19/11: cliente esperando em chat do Rômulo/Stefany → entra na hora. As conversas de não mexer continuam barradas por protegido(). */
@@ -4878,8 +4900,7 @@
             if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
               if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
-            if (!cpf) { const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const anuncio = !tx.trim() || /desejo mais informa|mais informa[çc][õo]es|tenho interesse|^\s*(oi|ol[áa]|bom dia|boa tarde|boa noite)\b/i.test(tx);
-              if (anuncio && !(PC[id] > ag - 12 * 3600000)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', nome: '', nota: 'espera API 8.12: chegou sem CPF e ninguém respondeu há ' + min + ' min → pedido de CPF' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(nome + ' (pedir CPF)'); diario(nome || id.slice(0, 5), '🔎 espera API: sem CPF há ' + min + ' min → pediu o CPF (8.12)'); } return; } }
+            /* 8.79: o pedido de CPF do 8.12 (cliente do anúncio sem CPF) SAIU — primeiro contato recebe a simulação padrão (bloco acima); o que sobrar vira vermelho */
             // o resto (pergunta, arquivo sem CPF, áudio, cliente com ordem parada…) → vermelho para o vigia
             if (ordemViva && !['feito', 'erro', 'desfecho_ok', 'com_margem', 'sim_enviada', 'link'].includes(ordem.estado) && !ordem.parada877) return;   // a ordem está andando (8.77: parada além do prazo não conta)
             try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome, estado: 'alerta', toques: [], hist: [], criadoT: ag }); const mot = 'espera API: cliente escreveu "' + (tx || btn || '[' + tipo + ']').replace(/\s+/g, ' ').slice(0, 50) + '" há ' + min + ' min e só o bot respondeu';
@@ -4908,6 +4929,13 @@
             if (!it) { FV[id] = ag; continue; }   // tem follow-up (link / CPF com margem): fica para a varredura
             const ri = await window.dinsBmIntent(id, it); if (ri && ri.http >= 200 && ri.http < 300) { FV[id] = ag; if (it === 'fechar_01c') n01++; else nF++; } }
           GM_setValue('esp_api_fechou_venc', FV); if (nF + n01) { res.push('vencidas fechadas ' + (nF + n01)); diario('espera API', '🔒 janela vencida sem follow-up: fechou ' + nF + ' (desfecho/recusa) + ' + n01 + ' (01 C) pela intenção (8.34)'); } } } catch (e) {}
+        // 8.79 (Stefany 19/11 12:03 "quadro etc."): o vermelho de "cliente esperando" SAI sozinho quando a API mostra que já respondemos, e o de cliente calado há mais de 24 h vai para a varredura.
+        // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
+        try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
+          for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
+            if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
+            const u9 = +x.ultCliT || 0; if (!c9 && completo && ((u9 && ag - u9 > 24 * 3600000) || (!u9 && ag - (+x.criadoT || 0) > 24 * 3600000))) { x.estado = 'vencida'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: cliente calado há mais de 24 h → é da varredura (saiu do vermelho)'); m9++; } }
+          if (m9) { gravaRG(R9); diario('quadro', '🧹 ' + m9 + ' vermelho(s) antigo(s) saíram do quadro (já respondidos ou janela vencida) — 8.79'); } } catch (e) {}
         GM_setValue('esp_api_vistos3', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
         window.dinsEsperaRes = res; if (res.length) diario('espera API', res.length + ' cliente(s) esperando: ' + res.slice(0, 6).join(', '));
       } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
