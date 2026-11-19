@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.35';
+  const VERSAO = '9.36';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -592,7 +592,7 @@
       // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
       const fixo = String(sessionStorage.getItem('dins_nc_fixo') || '').toLowerCase().split(/[ ,]+/).filter(Boolean);
       const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' };
-      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
       const pag = pg0[o.banco];
       if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
@@ -758,6 +758,25 @@
         if (parcO > 0 && Math.abs(parc - parcO) / parcO > 0.02) continue; if (pzO && +pp.term && +pp.term !== pzO) continue;
         return { link: br.formalization_link, proposta: String(br.proposal_number || ''), propNc: pd.id || r.propNc, liberado: brl(+pp.released_amount), parcela: brl(parc), prazo: String(pp.term || pzO || ''), adotada887: 1 }; }
     } catch (e) {} return null; }
+  // 9.36 (Stefany 19/11 18:07, Estefania: o C6 REPROVOU a 980160123 porque ela já tinha DUAS propostas C6 de 10/11 pendentes de formalização — "consulta no New Corban
+  // em segundos se o cliente já tem proposta em andamento, para não ter proposta frustrada"). Antes de gravar QUALQUER proposta (API ou tela), o robô pergunta à API do
+  // New Corban pelo CPF: proposta ativa (aguardando formalização / em andamento, últimos 30 dias) → não digita outra. Mesmo banco e com link → reaproveita o link;
+  // senão → para e avisa o vigia com o banco, o número e o status. Sem resposta da API → segue (não trava o atendimento).
+  async function jaTemProp936(o) { try { const cN = so(o.cpf).replace(/^0+/, ''); if (!cN) return null; let L = [];
+      for (const q of ['?search=' + cN + '&search_type=cpf&per_page=30', '?busca=' + cN + '&tipo_busca=cpf&per_page=30']) { try { const r = await ncReq('GET', '/proposals' + q); const d = (r && r.data) || []; L = d.filter(x => so(((x || {}).customer || {}).cpf).replace(/^0+/, '') === cN); if (L.length || (d.length && d.length < 30)) break; } catch (e) {} }
+      const at = L.filter(x => ['awaiting_formalization', 'in_progress'].includes(x.stage) && !/CANCEL|REPROV|PAGO/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 30 * 864e5)
+        .sort((a, b) => (Date.parse(String(b.dates.created_at).replace(' ', 'T')) || 0) - (Date.parse(String(a.dates.created_at).replace(' ', 'T')) || 0));
+      if (!at.length) return { nada: 1 };
+      const bN = String(o.banco || '').toUpperCase().replace(/\s/g, ''); const mesmo = at.find(x => String(((x.proposal || {}).bank || {}).name || '').toUpperCase().replace(/\s/g, '').indexOf(bN) >= 0 && /^https?:\/\//.test(String((x.bank_reference || {}).formalization_link || '')));
+      if (mesmo) { const pp = mesmo.proposal || {}; return { adota: { link: mesmo.bank_reference.formalization_link, proposta: String(mesmo.bank_reference.proposal_number || ''), propNc: mesmo.id, liberado: brl(+pp.released_amount), parcela: brl(+pp.installment_amount), prazo: String(pp.term || ''), adotada936: 1 } }; }
+      const x = at[0]; return { outra: String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' (' + String((x.bank_reference || {}).bank_status || x.stage) + ', de ' + String((x.dates || {}).created_at || '').slice(0, 10) + ', R$ ' + brl(+((x.proposal || {}).released_amount || 0)) + ')' }; } catch (e) { return null; } }
+  window.dinsJaTemProp = async cpf => { const r = await jaTemProp936({ cpf, banco: '' }); return r && (r.nada ? 'nenhuma proposta ativa' : r.adota ? 'ativa com link: Nº ' + r.adota.proposta : r.outra); };
+  setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {}; const o = Object.values(O).find(x => x && x.estado === 'ficha_ok' && !x.chk936 && (x.aceite || x.simGravar || x.aceitouSim)); if (!o) return;
+      const r = await jaTemProp936(o); const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y || y.estado !== 'ficha_ok') return; y.chk936 = Date.now();
+      if (r && r.adota) { Object.assign(y, r.adota, { estado: 'link', erro: '' }); (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: já tinha proposta ativa no ' + y.banco + ' (Nº ' + r.adota.proposta + ') → reaproveita o link, sem digitar outra'); }
+      else if (r && r.outra) { y.estado = 'erro'; y.erro = '9.36: já tem proposta em andamento — ' + r.outra + ' → NÃO digitei outra; vigia decide (reenviar o link dela ou cancelar)'; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + y.erro); try { diario(y.nomeReal || y.nome || '', '⛔ ' + y.erro); } catch (e) {} }
+      else (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: New Corban sem proposta ativa → segue a digitação');
+      GM_setValue('auto_ordens', O2); } catch (e) {} }, 4000);
   async function ncDigitaOrdem(o) {
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
     const pedido = num(f.valor); let parcela = num(f.parcela); const margem = num(f.margem);
@@ -813,7 +832,7 @@
           if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
-      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
+      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
       try { if (o.aceite || o.simGravar) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
@@ -6329,7 +6348,7 @@
         try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
           if (r && r.link && Date.now() - Date.parse(r.quando) < 60 * 60000) { const O = AOd(); const q = Object.values(O).find(x => x && x.tipo === 'cpf' && ['com_margem', 'erro'].includes(x.estado) && cp(x.cpf) === cp(r.cpf) && /DAYCOVAL/.test(x.resumo || x.erro || '') && x.propD !== r.proposta);
             if (q) { poeAOd(q.hash, { estado: 'link', link: r.link, proposta: r.proposta, liberado: r.liberado, parcela: r.parcela, prazo: r.prazo || '108', banco: 'DAYCOVAL', bancoConta: '', propD: r.proposta }); return; } } } catch (e) {}
-        const o = Object.values(AOd()).find(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
+        const o = Object.values(AOd()).find(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
         if (!o) return;
         autoD = true;
         try {
