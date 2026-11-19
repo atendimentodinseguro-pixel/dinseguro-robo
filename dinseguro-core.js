@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.17';
+  const VERSAO = '9.18';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4050,6 +4050,7 @@
         if (agora - (+x.lidoT || 0) > 2 * H && agora - (+x.linkT || 0) < 24 * H && !x.reler) { x.reler = 1; mR = true; }   // relê para saber quem falou por último
         const t = +x.ultT || 0; if (x.ultLado !== 'nos' || !t || agora - t < 2 * H || agora - t > 20 * H || (+x.lidoT || 0) < t) continue;
         if (x.retomarT && agora - x.retomarT < 20 * H) continue;
+        if (true) continue;   // 9.18 (Stefany 19/11 16:44, Cristina: "duplicou" — 14:38 "conseguiu abrir o link?" e 16:39 a retomada 5.38): a retomada de 2 h NÃO está na tabela de follow-ups combinada (item 1: 10 min · 1 h · 08:00 · 14:00) → desligada
         if ((ESP()[k] || {}).tipo === 'link') continue;   // 5.57: a sequência 'link' cuida
         try { const fe = faseEsteira(x); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) continue; } catch (e) {}
         const nm = nomeCli(x);
