@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.10';
+  const VERSAO = '9.11';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5153,7 +5153,13 @@
           try { const F = GM_getValue('desf_msg_feita', {}) || {}; F[oM.hash + '|' + oM.acao] = Date.now(); GM_setValue('desf_msg_feita', F); } catch (e) {}
           // 8.27: fecha pela INTENÇÃO do Botmaker (tag + fechar pela API, sem a fila da tela) quando ela estiver ligada em bm_intents_on
           try { const ON = GM_getValue('bm_intents_on', []) || []; const MAPA = { sem_margem: oM.q15 ? 'fechar_sem_margem_q15' : 'fechar_sem_margem', sem_margem_k: 'fechar_sem_margem_k', loas_sem: 'fechar_loas_sem', loas_com: 'fechar_loas_com', especie_fora: 'fechar_07', sem_beneficio: 'fechar_07', pensao: 'fechar_07' };
-            const it = MAPA[oM.acao]; if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(oM.hash, it);
+            const it = MAPA[oM.acao];
+            // 9.11 (Stefany 19/11 15:04, caso Monica: "cliente que já contratou tem que ter um cuidado — dá um tempo de 2 horas para fechar a conversa"):
+            // 01 D sem margem → manda o retorno agora e SÓ FECHA 2 h depois (fechar_sem_margem_k), se o cliente não escrever de novo nesse tempo.
+            if (oM.acao === 'sem_margem_k' && it) { const FD = GM_getValue('fechar_depois911', {}) || {}; FD[oM.hash] = { t: Date.now() + 120 * 60000, it, de: Date.now(), nome: oM.nomeReal || oM.nome || '' }; GM_setValue('fechar_depois911', FD);
+              const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oM.hash]) { O3[oM.hash].estado = 'desfecho_ok'; O3[oM.hash].fechouIntent = it + ' (em 2 h)'; (O3[oM.hash].hist = O3[oM.hash].hist || []).push(hhmm(Date.now()) + ' 9.11: cliente 01 D — retorno enviado; fecha com 01 k daqui a 2 h'); GM_setValue('auto_ordens', O3); }
+              diario(oM.nomeReal || oM.nome || '', 'cliente 01 D sem margem: retorno enviado; a conversa fecha com 01 k em 2 h (9.11)'); }
+            else if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(oM.hash, it);
               if (ri && ri.http >= 200 && ri.http < 300) { const O3 = GM_getValue('auto_ordens', {}) || {}; if (O3[oM.hash]) { O3[oM.hash].estado = 'desfecho_ok'; O3[oM.hash].fechouIntent = it; (O3[oM.hash].hist = O3[oM.hash].hist || []).push(hhmm(Date.now()) + ' 8.27: fechado pela intenção ' + it); GM_setValue('auto_ordens', O3); }
                 try { window.dinsReguaCancelar && window.dinsReguaCancelar(oM.hash, 'desfecho ' + oM.acao + ' (intenção)'); } catch (e) {}
                 diario(oM.nomeReal || oM.nome || '', 'tag + fechou pela intenção ' + it + ' ✓ (API, sem a tela)'); }
@@ -5164,6 +5170,18 @@
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
+    // 9.11: fechamento adiado do cliente 01 D sem margem (2 h depois do retorno). Cliente escreveu depois do retorno → não fecha (é atendimento; o vigia responde).
+    setInterval(async () => { try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet || !window.dinsBmIntent) return; const L = GM_getValue('fd911_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('fd911_dono', { aba: ABA, t: Date.now() });
+      const FD = GM_getValue('fechar_depois911', {}) || {}; const ag = Date.now(); let mud = false;
+      for (const id of Object.keys(FD)) { const f = FD[id]; if (ag < (+f.t || 0)) continue; delete FD[id]; mud = true;
+        const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) { FD[id] = Object.assign(f, { t: ag + 10 * 60000 }); continue; }
+        const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const q = String(c.queueId || '');
+        if (/^fechar_/.test(q) || (!q && !c.agentId)) { diario(f.nome, '01 D sem margem: a conversa já estava fechada (9.11)'); continue; }
+        if (lu > (+f.de || 0) + 60000 || c.agentId) { diario(f.nome, '01 D sem margem: o cliente escreveu depois do retorno (ou está com atendente) → NÃO fechei; vigia confere (9.11)'); continue; }
+        const ON = GM_getValue('bm_intents_on', []) || []; if (!ON.includes(f.it)) { diario(f.nome, '⚠️ 01 D sem margem: intenção ' + f.it + ' desligada → fechar com 01 k à mão (9.11)'); continue; }
+        const ri = await window.dinsBmIntent(id, f.it); diario(f.nome, (ri && ri.http >= 200 && ri.http < 300) ? '01 D sem margem: 2 h depois do retorno → 01 k e fechou ✓ (9.11)' : '⚠️ 01 D sem margem: a intenção ' + f.it + ' não aceitou → fechar à mão (9.11)');
+        try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, '01 D sem margem — fechado 2 h depois do retorno (9.11)'); } catch (e) {} }
+      if (mud) GM_setValue('fechar_depois911', FD); } catch (e) {} }, 5 * 60000);
     // 9.07 (Stefany 19/11 14:49): cliente fez uma pergunta, nós respondemos e ele ficou 1 HORA sem responder → o robô pergunta "ficou mais alguma dúvida?"
     // pela API, uma vez por resposta nossa. NÃO fecha no fim do dia ("não precisa fechá-lo, a varredura depois fecha"). Fora: quem tem link (régua do link),
     // simulação padrão (9.05), pedido de CPF, conversa com atendente humano, fechada, 01 D ou tag de recusa.
