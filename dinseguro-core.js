@@ -4110,7 +4110,7 @@
           const ultEnv = Math.max(0, ...(x.toques || []).filter(k => /^enviado/.test(k.st || '')).map(k => +k.feito || 0));
           const prox = (x.toques || []).find(k => !k.feito && k.quando <= agora); if (prox && ultEnv && agora - ultEnv < 60 * M && !(prox.prox > agora)) { prox.prox = ultEnv + 60 * M; m0 = true; } }
         if (m0) gravaESP(o0); }
-      for (const x of Object.values(ESP())) { if (x.parado || x.tipo === 'cpf' || protegido(x.hash)) continue; const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
+      for (const x of Object.values(ESP())) { if (x.parado || x.tipo === 'cpf' || x.tipo === 'duvida' || x.tipo === 'simulacao' || protegido(x.hash)) continue;   /* 9.18: 'duvida' e 'simulacao' antigos (1 h · 08:00 · aviso de janela) duplicavam a tabela combinada — agora é a 9.07 (dúvida, 1 vez) e o item 3 (30 min → digita); ficam 'link' e 'lembrete' (cliente pediu para chamar depois) */ const q = (x.toques || []).find(k => !k.feito && k.quando <= agora && (!k.prox || k.prox <= agora)); if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; } }   // 6.48: o mais atrasado primeiro
       if (!alvo) return;
       // toque das 08:00 que já passou há mais de 3 h não sai (ficaria fora de hora)
       const marcaQ = (mud, st) => { const o = ESP(), y = o[alvo.hash]; if (!y) return; const q = y.toques.find(k => k.q === toque.q); Object.assign(q, mud); q.st = st; gravaESP(o); if (/^(enviado|erro)/.test(st || '')) diario(alvo.nome || y.nome, 'follow-up ' + toque.q + ': ' + st); };
