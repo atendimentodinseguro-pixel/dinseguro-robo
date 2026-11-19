@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.13';
+  const VERSAO = '9.14';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4206,7 +4206,7 @@
         return 'A';
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
-        ['A', '🔵 Sem follow-up programado', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+        ['A', '🔵 Próximo passo pela regra', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
       if (faz('atendimento')) try {
@@ -4247,7 +4247,12 @@
           return '<div style="margin-top:4px;padding:3px 6px;border-radius:6px;background:#0f172a;font-size:11px;line-height:1.35"><b>📝 O que o robô fez</b>' + D.map(d => '<div>' + hm(d.t) + ' <b>' + String(d.nome).replace(/</g, '&lt;') + '</b> — ' + String(d.txt).replace(/</g, '&lt;') + '</div>').join('') + '</div>'; } catch (e) { return ''; } })();
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
-      const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) return 'follow-up: nenhum programado';
+      const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
+            if (x.comQuem || x.estado === 'humano') return 'com atendente — o robô não manda';
+            if (/follow-up de d[úu]vida feito/i.test(mo)) return 'follow-up 1 de 1 feito — a varredura fecha quando a janela vencer';
+            if (/pedimos o CPF/i.test(mo)) return 'sem follow-up (CPF não se pede de novo) · avisa o encerramento + 01 C e fecha às ' + hq(t0 + 120 * M);
+            if (/simula[çc][ãa]o padr[ãa]o|01 A sem link|sem CPF/i.test(mo)) return 'próximo passo às ' + hq(t0 + 60 * M) + ': 1 h sem resposta → pergunta se ficou dúvida (ou encerra, se foi simulação padrão)';
+            return 'próximo passo às ' + hq(t0 + 60 * M) + ': "ficou mais alguma dúvida?" (1 h sem resposta)'; }
           const tq0 = tq; { const t2 = tq0.filter(q => !/pulado/i.test(q.st || '')); if (t2.length) tq = t2; } const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
           const qd = pend ? ((new Date(pend.quando).toDateString() !== new Date().toDateString() ? ('0' + new Date(pend.quando).getDate()).slice(-2) + '/' + ('0' + (new Date(pend.quando).getMonth() + 1)).slice(-2) + ' ' : '') + hhmm(pend.quando)) : '';
           return 'follow-up ' + env + ' de ' + tq.length + ' feito' + (pend ? (pend.quando < Date.now() - 5 * M ? ' · ⚠ ATRASADO desde ' + qd : ' · próximo ' + qd) : ' · todos feitos'); } catch (e) { return ''; } };
@@ -5201,6 +5206,12 @@
           const nos = ms.filter(k => k.from !== 'user' && Date.parse(k.creationTime) > lu && T(k).trim().length > 15 && !AUTO.test(T(k))); if (!nos.length) continue;   // só resposta automática do bot não é resposta nossa
           const ultNos = Date.parse(nos[nos.length - 1].creationTime) || 0; if (ag - ultNos < 60 * 60000 || ag - ultNos > 10 * 3600000) continue;
           if (/ficou (mais )?alguma d[úu]vida|encerrando o seu atendimento/i.test(T(nos[nos.length - 1]))) { DV[id].lu = lu; continue; }
+          // 9.14 (Stefany 19/11 16:27, Benedito/Maria da Graça: "já foi acordado, agora o robô tem que seguir"): simulação padrão mandada pelo VIGIA também segue o item 4 —
+          // 1 h sem resposta → aviso de encerramento + 01 C + fecha. (A do robô já era pega pela 9.05; a do vigia não ficava marcada.)
+          if (nos.some(k => /margem cheia do INSS|simula[çc][ãa]o gratuita/i.test(T(k)))) { try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!'); DV[id].lu = lu; DV[id].t = ag; n++; let fe = '';
+              try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'fechar_01c'); fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C e fechou ✓' : ' — ⚠️ a intenção fechar_01c não aceitou'; } else fe = ' — ⚠️ intenção fechar_01c desligada: fechar à mão'; } catch (e) {}
+              try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'simulação padrão (vigia) sem resposta em 1 h → encerrado (9.14)'); } catch (e) {}
+              diario(String(c.firstName || id.slice(0, 5)), '👋 simulação padrão sem resposta há 1 h → avisou o encerramento' + fe + ' (9.14)'); } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.14 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } continue; }
           const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não|pastor)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
           try { await bmEnviarTexto(id, (nm ? nm + ', f' : 'F') + 'icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.'); DV[id].lu = lu; DV[id].t = ag; n++;
             diario(String(c.firstName || id.slice(0, 5)), '💬 1 h sem resposta depois da nossa resposta → perguntou "ficou mais alguma dúvida?" pela API (9.07)');
