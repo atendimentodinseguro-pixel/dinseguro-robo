@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.05';
+  const VERSAO = '9.07';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5160,6 +5160,32 @@
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
+    // 9.07 (Stefany 19/11 14:49): cliente fez uma pergunta, nós respondemos e ele ficou 1 HORA sem responder → o robô pergunta "ficou mais alguma dúvida?"
+    // pela API, uma vez por resposta nossa. NÃO fecha no fim do dia ("não precisa fechá-lo, a varredura depois fecha"). Fora: quem tem link (régua do link),
+    // simulação padrão (9.05), pedido de CPF, conversa com atendente humano, fechada, 01 D ou tag de recusa.
+    { let ocup907 = false;
+      setInterval(async () => { if (ocup907) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+        const L = GM_getValue('duv907_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('duv907_dono', { aba: ABA, t: Date.now() });
+        ocup907 = true; const ag = Date.now(); const R = GM_getValue('regua', {}) || {}; const DV = GM_getValue('duv907', {}) || {}; const VM = GM_getValue('valor_msg_feito', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
+        for (const id of Object.keys(R)) { const x = R[id]; if (n >= 2) break; if (!x || protegido(id) || id === 'F20QOEL8YYLQN2S6SR47' || /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada|alerta|humano)$/.test(x.estado || '') || (x.link && !x.semLink)) continue;
+          if (O[id] && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link', 'desfecho'].includes(O[id].estado)) continue;
+          if (DV[id] && ag - (+DV[id].v || 0) < 20 * 60000) continue;
+          const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
+          const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
+          if (!lu || /^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
+          if ((+DV[id].lu || 0) === lu || (+VM[id] || 0) > lu || (+PC[id] || 0) > lu) continue;   // já perguntamos depois desta mensagem dele · é caso de simulação padrão (9.05) · é pedido de CPF
+          const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(lu - 60000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
+          const T = k => String((k && k.content && k.content.text) || ''); const AUTO = /Bem-vindo de volta|j[áa] passou por nosso autoatendimento|Para agilizar o seu atendimento|Clique em um dos bot[õo]es|logo voc[êe] ser[áa] atendido/i;
+          const nos = ms.filter(k => k.from !== 'user' && Date.parse(k.creationTime) > lu && T(k).trim().length > 15 && !AUTO.test(T(k))); if (!nos.length) continue;   // só resposta automática do bot não é resposta nossa
+          const ultNos = Date.parse(nos[nos.length - 1].creationTime) || 0; if (ag - ultNos < 60 * 60000 || ag - ultNos > 10 * 3600000) continue;
+          if (/ficou (mais )?alguma d[úu]vida|encerrando o seu atendimento/i.test(T(nos[nos.length - 1]))) { DV[id].lu = lu; continue; }
+          const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não|pastor)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
+          try { await bmEnviarTexto(id, (nm ? nm + ', f' : 'F') + 'icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.'); DV[id].lu = lu; DV[id].t = ag; n++;
+            diario(String(c.firstName || id.slice(0, 5)), '💬 1 h sem resposta depois da nossa resposta → perguntou "ficou mais alguma dúvida?" pela API (9.07)');
+            try { const R2 = GM_getValue('regua', {}) || {}; if (R2[id]) { R2[id].motivo = 'follow-up de dúvida feito ' + hhmm(ag) + ' (1 de 1) — a varredura fecha quando a janela vencer'; (R2[id].hist = R2[id].hist || []).push(hhmm(ag) + ' 9.07: follow-up de dúvida enviado'); gravaRG(R2); } } catch (e) {}
+          } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ follow-up de dúvida (9.07) não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
+        for (const k in DV) if (ag - (+DV[k].v || 0) > 3 * 864e5) delete DV[k]; GM_setValue('duv907', DV);
+      } catch (e) {} finally { ocup907 = false; } }, 5 * 60000); }
     // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
     // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
     { let ocup905 = false;
