@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.80';
+  const VERSAO = '8.81';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4951,6 +4951,7 @@
     // vira VERMELHO com o motivo exato (ex.: "a aba do DAYCOVAL está aberta e logada?"). dinsPendencias() = resumo curto para a ronda do vigia.
     { const LIM877 = { nova: 10, consultando: 10, ficha_ok: 10, digitando: 12, pronto: 10, gravando: 8, link: 10, desfecho: 10, desfecho_enviado: 10, simulada: 10 };
       const cpfN = v => so(String(v || '')).replace(/^0+/, '');
+      const dayc881 = () => { try { const d = GM_getValue('dayc_vivo', null); return !d || Date.now() - (+d.t || 0) > 90000 ? 'sem sinal' : d.logado ? 'ok' : 'deslogado'; } catch (e) { return 'sem sinal'; } };
       const vermelho877 = (o, mot) => { try { const R = RG(); const x = R[o.hash] || (R[o.hash] = { hash: o.hash, nome: o.nomeReal || o.nome || '', estado: 'alerta', toques: [], hist: [], criadoT: Date.now() }); x.estado = 'alerta'; x.motivo = mot; x.reler = 1; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' ' + mot); gravaRG(R); diario(o.nomeReal || o.nome || o.hash.slice(0, 5), mot); } catch (e) {} };
       const prazo877 = () => { try { if (!faz('atendimento')) return; const ag = Date.now(); const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
           const D0 = GM_getValue('prazo877_dono', null); if (D0 && D0.aba !== ABA && ag - (+D0.t || 0) < 3 * 60000) return; GM_setValue('prazo877_dono', { aba: ABA, t: ag });
@@ -4959,7 +4960,9 @@
           for (const h in O) { const o = O[h]; if (!o || !LIM877[o.estado] || ag - (+o.t || 0) > 48 * 3600000) continue;
             if (o.estado === 'gravada') continue;
             let p = P[h]; if (!p || p.e !== o.estado) { p = P[h] = { e: o.estado, t: ag }; if (!P.__ini) p.av = ag;   /* 8.78: o que já estava parado ANTES de o prazo existir é passivo (o vigia confere à mão) — não enche o quadro de vermelho velho */ mudP = true; if (o.parada877) { delete o.parada877; mudO = true; } continue; }
-            const min = Math.round((ag - p.t) / 60000); if (min < LIM877[o.estado] || p.av) continue;
+            const min = Math.round((ag - p.t) / 60000);
+            if (o.estado === 'ficha_ok' && /DAYCOVAL/i.test(String(o.banco || '')) && !p.avD && ag - p.t > 60000) { const sd = dayc881(); if (sd !== 'ok') { p.avD = ag; mudP = true; vermelho877(o, '⏰ 8.81: pedido do DAYCOVAL esperando e o portal está ' + (sd === 'deslogado' ? 'DESLOGADO → clicar em ENTRAR na aba do Daycoval' : 'sem sinal → conferir se a aba do Daycoval está aberta e logada')); } }
+            if (min < LIM877[o.estado] || p.av) continue;
             p.av = ag; mudP = true; const nm = o.nomeReal || o.nome || h.slice(0, 5);
             if (o.estado === 'digitando' && (o.viaApi || o.aba === 'api')) {
               const E = GM_getValue('esteira', {}) || {}; let reg = null; for (const k in E) { if (k.slice(0, 2) !== 'C:') continue; const r = E[k]; if (!r || cpfN(r.cpf) !== cpfN(o.cpf)) continue; if (/CANCEL|REPROV/i.test(String(r.status || '') + ' ' + String(r.statusBanco || ''))) continue; if (String(r.banco || '').toUpperCase().replace(/\s/g, '').indexOf(String(o.banco || '').toUpperCase().replace(/\s/g, '')) < 0) continue; if ((+r.t || 0) < p.t - 2 * 60000) continue; if (!reg || (r.link && !reg.link)) reg = r; }
@@ -4977,7 +4980,7 @@
       window.dinsPendencias = () => { try { const ag = Date.now(); const O = GM_getValue('auto_ordens', {}) || {}; const P = GM_getValue('prazo877', {}) || {};
           const verm = Object.values(RG() || {}).filter(x => x && x.estado === 'alerta').map(x => ({ h: x.hash, n: String(x.nome || '').slice(0, 18), m: String(x.motivo || '').slice(0, 110), min: x.ultCliT ? Math.round((ag - x.ultCliT) / 60000) : null })).sort((a, b) => (b.min || 0) - (a.min || 0));
           const ord = Object.values(O).filter(o => o && ag - (+o.t || 0) < 48 * 3600000 && (LIM877[o.estado] || ['com_margem', 'erro'].includes(o.estado)) && !(o.estado === 'com_margem' && ag - (+o.t || 0) > 12 * 3600000)).map(o => ({ h: o.hash, n: String(o.nomeReal || o.nome || '').slice(0, 18), e: o.estado, b: o.banco || '', min: P[o.hash] ? Math.round((ag - P[o.hash].t) / 60000) : Math.round((ag - (+o.t || 0)) / 60000), parada: o.parada877 ? 1 : 0, m: String(o.erro || o.resumo || '').slice(-90) }));
-          return { hora: hhmm(ag), vermelho: verm, ordens: ord }; } catch (e) { return { erro: String((e && e.message) || e) }; } }; }
+          return { hora: hhmm(ag), daycoval: dayc881(), vermelho: verm, ordens: ord }; } catch (e) { return { erro: String((e && e.message) || e) }; } }; }
     // 8.18 (18/11 11:20: 26 'sem margem' parados — o envio pela API dentro do intervalo 7.90 não rodava e a fila da tela estava cheia de toques):
     // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
     { let ocup818 = false;
@@ -5475,6 +5478,8 @@
   // → Resumo → Gerar → Formalizar → link. Muda o endereço, o vendedor, a tabela e a conta aleatória.
   // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
   if (/^portaldecredito\.(daycoval|queromaisconsignado)\.com\.br$/.test(location.host)) {
+    // 8.81 (19/11: o Daycoval deslogou sozinho ~20 min depois da proposta da Ariana): batida do portal — aberto? logado? — para o quadro avisar NA HORA, sem esperar um pedido ficar parado
+    if (/daycoval/.test(location.host)) { const bate881 = () => { try { GM_setValue('dayc_vivo', { t: Date.now(), logado: !/\/login/i.test(location.pathname) }); } catch (e) {} }; bate881(); setInterval(bate881, 20000); }
     if (window.top !== window) return;
     const QM = /queromais/.test(location.host);
     // 3.48 — tudo que difere entre os dois portais fica aqui.
