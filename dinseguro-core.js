@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.69';
+  const VERSAO = '8.70';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -865,6 +865,8 @@
   // 8.40 (Stefany 18/11 16:08: "o robô de atendimento está mandando mensagem no número suspenso"): o 0800 191 2261 (558001912261) caiu na Meta.
   // Conversa que chegou por um canal suspenso NUNCA recebe mensagem do robô — nem pela API nem pela tela (executor de ordens).
   const CANAIS_SUSPENSOS = [];   // 8.64 (Stefany 19/11 08:01: "o telefone voltou, não está mais suspenso") — 0800 191 2261 liberado de novo
+  // 8.70 (Stefany 19/11 09:17, Chung: "Recebi o seu CPF" saiu 2x — duas abas do robô ao mesmo tempo): trava entre abas (localStorage é síncrono no mesmo site)
+  function trava870(chave, ms) { try { const k = 'dins_trava870_' + chave; const v = +localStorage.getItem(k) || 0; if (Date.now() - v < (ms || 10 * 60000)) return false; localStorage.setItem(k, String(Date.now())); return true; } catch (e) { return true; } }
   const canalCache = {};
   const CANAL_VOLTOU865 = { '558001912261': Date.parse('2026-11-19T11:00:00Z') };   // 8.65: voltou 19/11 08:00 (Brasília)
   async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s; let lu865 = 0;
@@ -1026,6 +1028,7 @@
             finally { ocup790 = false; } return; } }
         // 7.93 (Stefany 17/11 22:12: "1 minuto é muito tempo"): o "recebi o seu CPF, já estou consultando" sai NA HORA pela API, antes da consulta acabar
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
+        if (oA && !trava870('acolhe_' + oA.hash)) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O); return; }
         if (oA) { ocup790 = true; oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
           try { const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
             await bmEnviarTexto(oA.hash, sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\n' + (cpfAntigo810(oA) ? 'Já tenho o seu CPF aqui do nosso último contato e já estou consultando para você agora.' : 'Recebi o seu CPF e já estou consultando aqui para você.') + ' Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝');
@@ -2219,6 +2222,7 @@
         // 5.96 (Stefany 13/11 10:25: "tá faltando aquele atendimento cordial… o cliente sempre tem muito medo… atendimento que acolhe"):
         // assim que chega o CPF, antes do resultado, uma mensagem pessoal curta: recebi, estou consultando, segurança, já volto.
         { const oA = Object.values(O).find(x => x.tipo === 'cpf' && !x.acolheu && ['nova', 'consultando', 'ficha_ok', 'digitando'].includes(x.estado) && Date.now() - (+x.t || 0) < 15 * 60000 && !x.valorVigia);
+          if (oA && !trava870('acolhe_' + oA.hash)) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O); return; }
           if (oA) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
             const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; /* 7.06 (Stefany 15/11 07:39, caso Nick Salim = Monique): CPF recebido e ainda não consultado → sem nome do WhatsApp; o nome exato só nas próximas mensagens (nomeReal da consulta) */ const hA = new Date().getHours(); const sA = hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
             const dA = new Date(), ddA = String(dA.getDate()).padStart(2, '0') + '/' + String(dA.getMonth() + 1).padStart(2, '0');
@@ -4838,7 +4842,7 @@
                 res.push(nm47 + ' (análise reversa pelo telefone)'); }
               else if (false && !temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
                 const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 30 * 864e5)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.46: respondeu à simulação padrão (' + String(T(cU8)).slice(0, 30) + ') → pedido de CPF, uma vez só' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (respondeu a simulação → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu a simulação padrão → pediu o CPF (8.46, uma vez só)'); } } }
-              else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id])) {
+              else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
                 VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
                 const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
                 const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro. Fiz uma *simulação gratuita* para você ver quanto dá para liberar no consignado do INSS. É tudo seguro.\n\nSeparei *duas opções* com a margem cheia do INSS:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ 24.849,95*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *R$ 23.483,45*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *abril/2027*\n\n✅ Simulação gratuita e sem compromisso\n✅ Você pode cancelar de graça em até 7 dias\n🔒 A Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Quero outro valor\n\nÉ só responder com o número 🤝';
