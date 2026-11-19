@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.62';
+  const VERSAO = '8.63';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -981,9 +981,9 @@
       b.style.cssText = 'position:fixed;left:12px;bottom:56px;z-index:2147483646;padding:8px 14px;border:0;border-radius:8px;background:#16a34a;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)';
       b.onclick = () => { const t = prompt('Cole aqui o token de integração do Zap Responder (Integrações → Integração API). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length < 16) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('zr_api_token', v); alert('Token do Zap Responder salvo neste Chrome. ✅'); b.remove(); };
       document.body.appendChild(b); } catch (e) {} }, 5000);
-    window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
+    window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
-      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
+      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
         onload: r => res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }), onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
