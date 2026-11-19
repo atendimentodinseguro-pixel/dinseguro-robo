@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.86';
+  const VERSAO = '8.87';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -736,6 +736,19 @@
     const d = await ncEspera('/integrations/executions/' + id, 40);
     if (d.status !== 'completed' || !d.result) throw new Error('simulação recusada: ' + String((d.error && (d.error.message || JSON.stringify(d.error))) || (d.result && d.result.message) || d.status).slice(0, 160));
     return d.result; }
+  // 8.87 (Maria Cristina GOG47 19/11 12:28: aceitou a simulação e a gravação deu "operação já enviada com dados diferentes" — já existia proposta de ontem, igual, esperando assinatura):
+  // antes de gravar, o robô procura proposta ATIVA do mesmo CPF no mesmo banco (pendente de formalização, com link, mesma parcela e prazo, até 10 dias) e REENVIA o link dela em vez de digitar outra.
+  async function adota887(o) { try { const E = GM_getValue('esteira', {}) || {}; const cN = so(o.cpf).replace(/^0+/, ''); const bN = String(o.banco || '').toUpperCase().replace(/\s/g, ''); const cands = [];
+      for (const k in E) { if (k.slice(0, 2) !== 'C:') continue; const r = E[k]; if (!r || !r.propNc || so(r.cpf).replace(/^0+/, '') !== cN) continue; if (String(r.banco || '').toUpperCase().replace(/\s/g, '').indexOf(bN) < 0) continue; if (/CANCEL|REPROV|PAGO/i.test(String(r.status || '') + ' ' + String(r.statusBanco || ''))) continue; if (!cands.some(c => c.propNc === r.propNc)) cands.push(r); }
+      cands.sort((a, b) => (+b.t || 0) - (+a.t || 0));
+      const parcO = num((o.ficha || {}).parcela) || num(o.parcela) || 0; const pzO = +(o.prazo || (o.ficha || {}).prazo || 0) || 0;
+      for (const r of cands.slice(0, 3)) { const d = await ncReq('GET', '/proposals/' + r.propNc); const pd = (d && d.data) || d || {}; const br = pd.bank_reference || {}; const pp = pd.proposal || {};
+        if ((pd.stage && pd.stage !== 'awaiting_formalization') || !/PENDENTE FORMALIZA/i.test(br.bank_status || '') || !/^https?:\/\//.test(String(br.formalization_link || ''))) continue;
+        const cr = Date.parse(String((pd.dates || {}).created_at || '').replace(' ', 'T')) || 0; if (cr && Date.now() - cr > 10 * 864e5) continue;
+        const parc = +pp.installment_amount || 0; if (!(parc > 0) || !(+pp.released_amount > 0)) continue;
+        if (parcO > 0 && Math.abs(parc - parcO) / parcO > 0.02) continue; if (pzO && +pp.term && +pp.term !== pzO) continue;
+        return { link: br.formalization_link, proposta: String(br.proposal_number || ''), propNc: pd.id || r.propNc, liberado: brl(+pp.released_amount), parcela: brl(parc), prazo: String(pp.term || pzO || ''), adotada887: 1 }; }
+    } catch (e) {} return null; }
   async function ncDigitaOrdem(o) {
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
     const pedido = num(f.valor); let parcela = num(f.parcela); const margem = num(f.margem);
@@ -794,7 +807,8 @@
       const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
-      try { const r = await ncDigitaOrdem(o);
+      try { if (o.aceite || o.simGravar) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
+        const r = await ncDigitaOrdem(o);
         if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
         else if (r.link) poe(o.hash, Object.assign({ estado: 'link', link: r.link }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' R$ ' + r.dados.liberado + ' — link na hora');
         else poe(o.hash, Object.assign({ estado: 'gravada', aguardaLista: 1, tGrav: Date.now() }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' — link vem em seguida');
@@ -805,7 +819,8 @@
         else if (o.banco === 'FACTA' && !o.reservaQuali && /N[ÃA]O est[áa] liberada|sem oferta|Prazo de \d+ meses n[ãa]o dispon/i.test(m) && !(INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58)) {
           const O7 = GM_getValue('auto_ordens', {}) || {}; const x7 = O7[o.hash]; if (x7) { x7.ficha = Object.assign({}, x7.ficha || {}, { banco_destino: 'QUALIBANK', banco_ordem_stefany: '', carencia: '' }); GM_setValue('auto_ordens', O7); }
           poe(o.hash, { estado: 'ficha_ok', banco: 'QUALIBANK', reservaQuali: 1, erro: '' }, 'FACTA recusou (' + m.slice(0, 70) + ') → reserva QUALIBANK (8.07)'); try { diario(o.nomeReal || o.nome || '', 'FACTA recusou (' + m.slice(0, 50) + ') → tenta na Qualibank (8.07)'); } catch (x) {} }
-        else poe(o.hash, { estado: 'erro', erro: m }); }
+        else { let ad = null; if (/j[áa] foi enviada com dados diferentes/i.test(m)) { try { ad = await adota887(o); } catch (x) {} }
+          if (ad) poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'o banco disse que a operação já existia → proposta ativa Nº ' + ad.proposta + ' adotada, segue o link (8.87)'); else poe(o.hash, { estado: 'erro', erro: m }); } }
       finally { ocupApi = false; } }, 4000); }
   // ================================================================== 7.95 ESTEIRA PELA API DO NEW CORBAN
   // Stefany 17/11 22:38 ("Sim"): o robô acompanha as propostas pela API (GET /v1/proposals?updated_since=…) a cada 3 min, sem a aba ?p=propostas,
