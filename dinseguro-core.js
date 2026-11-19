@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.08';
+  const VERSAO = '9.09';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5143,6 +5143,10 @@
         const O = GM_getValue('auto_ordens', {}) || {}; const oM = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && DESFECHOS[x.acao] && (DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30') && !x.msgApi && !x.sm818Feito && (+x.sm818Tent || 0) < 3 && !(+x.sm818Prox > Date.now()) && Date.now() - (+x.t || 0) > 5000 && Date.now() - (+x.t || 0) < 6 * 3600000);
         if (!oM) return; ocup818 = true;
         const RC = GM_getValue('rr_cache', {}) || {}; const n30 = (RC['/n30'] && RC['/n30'].tx) || 'Assim que abrir margem no seu benefício, a gente te avisa por aqui. 💙\n\nQualquer dúvida, estamos à disposição. 🤝\n*Um grande abraço da equipe Dinseguro!*';
+        // 9.09 (Stefany 19/11 14:59, caso Monica: 01 D sem margem saiu com 01 I e ela consertou à mão — "cliente que tem 01 D, que já contratou, a gente não usa 01 I, usa 01 k"):
+        // antes de mandar o sem margem, confere as tags pela API. Tem 01 D (InssFechouNegocio) → vira sem_margem_k (intenção fechar_sem_margem_k). Sem 01 D e veio como k → volta para sem_margem (01 I).
+        try { if (/^sem_margem(_k)?$/.test(oM.acao) && window.dinsBmGet) { const g9 = await window.dinsBmGet('/chats/' + oM.hash); const tg9 = ((g9 && g9.j && g9.j.tags) || []).join('|'); if (g9 && g9.http === 200) { const d9 = /01.?D|FechouNeg/i.test(tg9); const nova9 = d9 ? 'sem_margem_k' : 'sem_margem';
+              if (nova9 !== oM.acao) { oM.acao = nova9; const O9 = GM_getValue('auto_ordens', {}) || {}; if (O9[oM.hash]) { O9[oM.hash].acao = nova9; (O9[oM.hash].hist = O9[oM.hash].hist || []).push(hhmm(Date.now()) + ' 9.09: ' + (d9 ? 'cliente tem 01 D → sem margem com 01 k' : 'sem 01 D → sem margem com 01 I')); GM_setValue('auto_ordens', O9); } } } } } catch (e) {}
         try { const D8 = DESFECHOS[oM.acao]; if (D8.texto) await bmEnviarTexto(oM.hash, String(D8.texto).replace(/\{NOME\}/g, primeiroNome(oM.nomeReal || '') || ''));   // 8.20: LOAS, não localizado, espécie fora… também pela API
           else { await bmEnviarTexto(oM.hash, LINHA_SEM_MARGEM(primeiroNome(oM.nomeReal || ''))); await esp(1500); await bmEnviarTexto(oM.hash, n30); }
           const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].msgApi = 1; O2[oM.hash].sm818Feito = Date.now(); (O2[oM.hash].hist = O2[oM.hash].hist || []).push(hhmm(Date.now()) + ' 8.18: sem margem enviado pela API'); GM_setValue('auto_ordens', O2); }
