@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.64';
+  const VERSAO = '8.65';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -866,10 +866,14 @@
   // Conversa que chegou por um canal suspenso NUNCA recebe mensagem do robô — nem pela API nem pela tela (executor de ordens).
   const CANAIS_SUSPENSOS = [];   // 8.64 (Stefany 19/11 08:01: "o telefone voltou, não está mais suspenso") — 0800 191 2261 liberado de novo
   const canalCache = {};
-  async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s;
+  const CANAL_VOLTOU865 = { '558001912261': Date.parse('2026-11-19T11:00:00Z') };   // 8.65: voltou 19/11 08:00 (Brasília)
+  async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s; let lu865 = 0;
       const tk = GM_getValue('bm_api_token', ''); if (!tk || !/^[A-Z0-9]{20}$/.test(String(chatId))) return false;
       const ch = await new Promise(r0 => { try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats/' + chatId, timeout: 15000, headers: { 'access-token': tk, Accept: 'application/json' },
-        onload: r => { try { r0(String((JSON.parse(r.responseText).chat || {}).channelId || '')); } catch (e) { r0(''); } }, onerror: () => r0(''), ontimeout: () => r0('') }); } catch (e) { r0(''); } }); const sus = CANAIS_SUSPENSOS.some(n => ch.includes(n)); if (ch) canalCache[chatId] = { s: sus, t: Date.now() }; return sus; } catch (e) { return false; } }
+        onload: r => { try { const j = JSON.parse(r.responseText); lu865 = Date.parse(j.lastUserMessageDatetime || (j.chat || {}).lastUserMessageDatetime || '') || 0; r0(String((j.chat || {}).channelId || '')); } catch (e) { r0(''); } }, onerror: () => r0(''), ontimeout: () => r0('') }); } catch (e) { r0(''); } });
+      // 8.65 (Stefany 19/11 08:02: "os de ontem não precisa chamar no número que estava suspenso"): no 0800 191 2261, só quem escreveu DEPOIS que o número voltou (19/11 08:00) recebe mensagem
+      const volta = CANAL_VOLTOU865[Object.keys(CANAL_VOLTOU865).find(n => ch.includes(n)) || ''];
+      const sus = CANAIS_SUSPENSOS.some(n => ch.includes(n)) || (!!volta && !(lu865 >= volta)); if (ch) canalCache[chatId] = { s: sus, t: Date.now() - (volta && sus ? 28 * 60000 : 0) }; return sus; } catch (e) { return false; } }
   window.dinsCanalSuspenso = canalSuspenso;
   window.dinsBmApiOn = on => { if (on !== undefined) GM_setValue('bm_api_on', on ? 1 : 0); return GM_getValue('bm_api_on', 1); };   // chave geral do envio pela API (0 = desligado em todas as abas deste Chrome)
   async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); return bmEnviarTexto0(chatId, texto); }
