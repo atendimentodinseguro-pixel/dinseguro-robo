@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.14';
+  const VERSAO = '9.15';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1059,6 +1059,8 @@
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
         onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); },
         onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+    // 9.15: diagnóstico — por que um link pronto ainda não saiu pela API (cada condição do bloco 8.79)
+    window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // 7.90 (Stefany 17/11 21:47, caso Antonio: CPF 21:41, simulou pela API 21:42, mas a simulação só saiu 21:47 — a aba estava presa em outra ordem):
     // simulação pronta → sai NA HORA pela API do Botmaker, sem esperar a fila da tela. Nota e tag vão depois, pela tela, quando ela estiver livre.
     { const EU790 = Math.random().toString(36).slice(2, 8); let ocup790 = false;
@@ -1098,7 +1100,9 @@
           finally { ocup790 = false; } return; }
         // 8.79 (Stefany 19/11 12:02 "tem que resolver tudo… deixa 100%"; Ariana ZJNDJ: link pronto 10 min esperando a fila da tela): proposta gravada com link →
         // mensagem + LINK saem NA HORA pela API do Botmaker, sem depender da tela. Extrato não lido → vigia (igual à 7.71). Falhou 2 vezes → a tela manda.
-        { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo));
+        // 9.15 (19/11, Oscar: link pronto 3 vezes e não saiu sozinho): um pedido antigo em 'link' esperando a leitura do extrato ('wait') era sempre o PRIMEIRO da lista
+        // e dava return — segurava o link de TODOS os outros clientes. Agora quem está em 'wait' é pulado e o próximo link sai.
+        { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo) && extrSync(x) !== 'wait');
           if (oK) { const exK = extrSync(oK); if (exK === 'wait') return;
             if (exK) { oK.estado = 'com_margem'; oK.resumo = (oK.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oK.nomeReal || oK.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
             if (!trava870('link879_' + oK.hash, 3 * 60000)) return;
