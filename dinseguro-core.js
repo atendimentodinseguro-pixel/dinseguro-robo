@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.58';
+  const VERSAO = '8.59';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -927,7 +927,7 @@
     // (o extrato dizia margem R$ 0,02). Cliente com arquivo nas últimas 24 h → o robô NÃO manda simulação nem link: vai para o vigia ler o extrato.
     // O vigia libera com dinsAutoMudar(h,{extratoOk:1}).
     async function extratoNaoLido(o) { try { if (!o || o.extratoOk) return false; const j = await apiLer(o.hash, 40); if (!j) return false; const lim = Date.now() - 24 * 3600000;
-      return (j.newMessages || []).some(m => m.FROM !== 'me' && /^__(file|document)__$/i.test(String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').trim()) && (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) > lim); } catch (e) { return false; } }
+      return (j.newMessages || []).some(m => m.FROM !== 'me' && /^__(file|document|image|photo|picture)__$/i.test(String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').trim()) && (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) > lim); } catch (e) { return false; } }
     // versão síncrona para os blocos do intervalo: true = tem extrato não lido OU ainda não deu para conferir (espera a próxima volta)
     // 7.73 (caso Washington HQ2X9 14:14): respondeu "3" no mesmo minuto em que os 30 min venceram e o robô foi digitar mesmo assim.
     // Antes de digitar pelos 30 min, confere PELO SERVIDOR se o cliente escreveu depois da simulação.
