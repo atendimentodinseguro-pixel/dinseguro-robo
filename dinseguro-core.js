@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.26';
+  const VERSAO = '9.27';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3040,6 +3040,18 @@
       arq.forEach(id => { const x = r[id]; if (x && x.estado !== 'fechada') { x.estado = 'fechada'; x.fechadaT = Date.now(); x.motivo = 'conversa fechada'; x.hist.push(hhmm(Date.now()) + ' conversa fechada — saiu do acompanhamento'); mudou = true; } });
       if (mudou) { gravaRG(r); desenharRegua(); }
     }, 30000);
+    // 9.27 (Stefany 19/11 17:15, Dinaldo: "o que o bot do Botmaker manda por fora não tem a ver com o robô… ele está na fase do atendimento do Botmaker"):
+    // vermelho da lista cuja última mensagem é do FLUXO DO BOT do Botmaker (sem [Dinseguro], não é passagem para atendente) → fase 'botfluxo'.
+    // Não é resposta nossa nem espera nossa: se o cliente parar no bot sem CPF, a simulação padrão sai (8.46) e ele vai para o verde.
+    setInterval(async () => { try { if (meuPapel() === 'vigia' || !faz('atendimento') || !window.dinsBmGet) return; const r = RG(); const ag = Date.now(); let n = 0;
+      for (const k of Object.keys(r)) { const x = r[k]; if (!x || n >= 4 || !['alerta', 'botfluxo'].includes(x.estado) || protegido(k)) continue; if (x.estado === 'alerta' && !/\(lista|bot passou|parou sem CPF|entrou no bot/i.test(x.motivo || '')) continue; n++;
+        const m = await window.dinsBmGet('/messages?chat-id=' + k + '&from=' + encodeURIComponent(new Date(ag - 6 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); if (!ms.length) continue;
+        const u = ms[ms.length - 1]; const tx = String((u.content && (u.content.text || u.content.type)) || ''); const uc = [...ms].reverse().find(q => q.from === 'user'); const luc = uc ? Date.parse(uc.creationTime) : 0;
+        const doBot = u.from === 'bot' && !/^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(tx) && !ESPERA_BOT.test(tx) && !/Para agilizar o seu atendimento|Identificamos que voc[êe] j[áa] passou/i.test(tx);
+        const R2 = RG(); const y = R2[k]; if (!y) continue;
+        if (doBot && y.estado === 'alerta') { y.estadoAntes = y.estado; y.estado = 'botfluxo'; y.motivo = 'no atendimento do bot do Botmaker'; y.botLuc = luc; (y.hist = y.hist || []).push(hhmm(ag) + ' 9.27: no fluxo do bot do Botmaker (não é espera nossa)'); gravaRG(R2); }
+        else if (y.estado === 'botfluxo' && !doBot) { y.estado = u.from === 'user' || ESPERA_BOT.test(tx) || /Para agilizar o seu atendimento/i.test(tx) ? 'alerta' : 'acompanhando'; y.motivo = y.estado === 'alerta' ? 'saiu do fluxo do bot — cliente esperando a gente' : 'última mensagem é nossa'; gravaRG(R2); }
+        else if (y.estado === 'botfluxo') { y.botLuc = luc; gravaRG(R2); } } } catch (e) {} }, 60000);
     // 4.07 — CLIENTE ESPERANDO PELA LISTA (Stefany 10/11 17:05, caso Alexsandra: respondeu o remarketing às 15:50, o bot só disse
     // "Estou analisando" e ninguém respondeu, porque o quadro marcava "pausada" e ela não entrou na fila).
     // A cada 30 s, olha a prévia de cada conversa na lista: última mensagem SEM o ✓ nosso (done_all/check) e com cara de espera
@@ -4237,6 +4249,7 @@
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
         if (protegido(x.hash)) return 'J';   // 5.52: NÃO MEXER fica no amarelo
+        if (x.estado === 'botfluxo') return 'B';   // 9.27
         if (x.estado === 'ativa') return 'F';
         if (x.link && ['respondido', 'acompanhando'].includes(x.estado) && (x.toques || []).some(q => !q.feito)) return 'F';   // 9.03
         // 5.51 (Stefany 17:43: "isso que tem follow-up é follow-up do robô, tem que ficar escrito ali"): tem follow-up agendado → 🟢
@@ -4264,7 +4277,7 @@
           if (/simula[çc][ãa]o padr[ãa]o|parou sem CPF|entrou no bot/i.test(mo)) return 'A2';
           return 'A'; }
       };
-      const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
+      const BL = [['R', '🔴 Responder agora', '#f87171'], ['B', '🤖 No atendimento do bot do Botmaker — parou 15 min sem CPF: o robô manda a simulação padrão', '#67e8f9'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
         ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A2', '🟠 Simulação padrão enviada — 1 h sem resposta: avisa, 01 C e fecha', '#fdba74'], ['A3', '🟤 Pedimos o CPF — 2 h sem resposta: avisa, 01 C e fecha', '#d6b08c'],
         ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['A6', '🔘 01 D sem margem — fecha com 01 k em 2 h, sem mensagem', '#cbd5e1'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
@@ -4308,6 +4321,7 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
+            if (x.estado === 'botfluxo') return 'no fluxo do bot do Botmaker' + (x.botLuc ? ' (cliente respondeu ao bot ' + hhmm(x.botLuc) + ')' : '') + ' · se parar sem CPF, simulação padrão às ' + hq((+x.botLuc || Date.now()) + 15 * M);
             { const fd = (gmCache('fechar_depois911', {}) || {})[x.hash]; if (fd) return 'cliente 01 D sem margem: retorno enviado ' + hhmm(+fd.de || 0) + ' · se não responder, fecha com 01 k às ' + hq(+fd.t || 0) + ' sem mandar mensagem'; }
             if (x.comQuem || x.humano924 || x.estado === 'humano') return 'atendente conduzindo (fora do fluxo do robô) — o robô não manda nada';
             { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
@@ -4321,7 +4335,7 @@
           const tq0 = tq; { const t2 = tq0.filter(q => !/pulado/i.test(q.st || '')); if (t2.length) tq = t2; } const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
           const qd = pend ? ((new Date(pend.quando).toDateString() !== new Date().toDateString() ? ('0' + new Date(pend.quando).getDate()).slice(-2) + '/' + ('0' + (new Date(pend.quando).getMonth() + 1)).slice(-2) + ' ' : '') + hhmm(pend.quando)) : '';
           return 'follow-up ' + env + ' de ' + tq.length + ' feito' + (pend ? (pend.quando < Date.now() - 5 * M ? ' · ⚠ ATRASADO desde ' + qd : ' · próximo ' + qd) : ' · todos feitos'); } catch (e) { return ''; } };
-      const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && !/^A/.test(k)) return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
+      const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && k !== 'B' && !/^A/.test(k)) return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
       const situacao0 = (x, k) => {
         const ao = (GM_getValue('auto_ordens', {}) || {})[x.hash];
         if (ao && x.semLink && ao.tipo === 'cpf') {
