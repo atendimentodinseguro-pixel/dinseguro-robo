@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.43';
+  const VERSAO = '9.44';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1100,6 +1100,11 @@
     /* 9.41 (Sueli 1Z6OUJ 19/11 19:51: link FACTA pronto e não saía — 'nomeCli is not defined', mesmo erro de escopo do 9.32) */
     const nomeCli = x => { try { if (typeof window.dinsNomeCli === 'function') return window.dinsNomeCli(x); } catch (e) {} return String((x && (x.nomeReal || x.nome)) || '').trim().split(/\s+/)[0].toLowerCase().replace(/^./, c => c.toUpperCase()); };
     const textoSim755 = o => window.dinsTextoSim755(o);
+    const esp = ms => new Promise(r => setTimeout(r, ms));   // 9.44 (Sueli 20:10: a abertura saiu e o link não — 'esp is not defined')
+    // 9.44: mais pontes do mesmo erro de escopo (estas funções moram em outro bloco)
+    const hhmm = t => { try { if (typeof window.dinsHhmm === 'function') return window.dinsHhmm(t); } catch (e) {} return t ? new Date(t).toTimeString().slice(0, 5) : ''; };
+    const primeiroNome = n => { try { if (typeof window.dinsPrimeiroNome === 'function') return window.dinsPrimeiroNome(n); } catch (e) {} const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
+    const LINHA_SEM_MARGEM = n => window.dinsLinhaSemMargem(n);
     window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // 9.28 (Stefany 19/11 17:17): cliente ainda no FLUXO DO BOT do Botmaker → o robô já adianta (consulta, simula, digita se aceitou, despacha sem margem na hora),
     // mas a SIMULAÇÃO e o LINK só saem quando o bot parar de interagir com ele por ~5 min (ou passar para atendente). Cache de 60 s por conversa.
@@ -2100,6 +2105,7 @@
       if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 120000);
     // 4.24 — desfecho automático do CPF sem margem (ordem do Multicorban em GM auto_ordens, estado 'desfecho').
     // Só com a tela livre: sem dins_ordem na fila, vigia parado há 2 min, nenhum desfecho rodando.
+    window.dinsLinhaSemMargem = n => LINHA_SEM_MARGEM(n); window.dinsPrimeiroNome = n => primeiroNome(n);   // 9.44: pontes (const içado na zona morta → as funções só rodam depois)
     const LINHA_SEM_MARGEM = n => 'Obrigado por mandar' + (n ? ', ' + n : '') + ' 🙏 Já consultei aqui com calma. No momento o seu benefício está sem margem disponível para um novo empréstimo, então infelizmente não conseguimos fazer uma proposta agora. Fique tranquilo(a): não foi feito nada no seu nome. Te explico abaixo 👇';
     const primeiroNome = n => { const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
     // 5.89 (Stefany 13/11 09:24 e 09:33): nome do WhatsApp só vale quando parece nome de gente (ex.: "Silvia Rubia") —
@@ -2564,6 +2570,7 @@
     const gravaFups = () => {};
     const H = 3600000, M = 60000;
     const hhmm = t => t ? new Date(t).toLocaleTimeString('pt-BR').slice(0, 5) : '';
+    window.dinsHhmm = t => hhmm(t);   // 9.44
     const dentroDoHorario = t => { const h = new Date(t).getHours(); return h >= 8 && h < 21; };
     const manhaSeguinte = t => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); };
     const TOQUES = [
