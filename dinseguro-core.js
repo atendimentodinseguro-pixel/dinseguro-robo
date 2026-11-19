@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.83';
+  const VERSAO = '8.84';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4836,7 +4836,7 @@
         for (let i = 0; i < cand.length; i += 8) { const lote = cand.slice(i, i + 8); const rs = await Promise.all(lote.map(async c => { let r = await get('/messages?chat-id=' + c.chat.chatId + '&from=' + fr); let pg = 0;   // 8.16: segue o nextPage (conversa longa vinha cortada e o sem margem/simulação não aparecia)
             while (r && r.http === 200 && r.j && r.j.nextPage && pg < 6) { const r2 = await get(String(r.j.nextPage).replace('https://api.botmaker.com/v2.0', '')); if (!r2 || r2.http !== 200) break; r = { http: 200, j: { items: ((r.j.items) || []).concat((r2.j && r2.j.items) || []), nextPage: r2.j && r2.j.nextPage } }; pg++; }
             return r; }));
-          rs.forEach((r, q) => { const c = lote[q]; const id = c.chat.chatId; if (!r || r.http !== 200) return; n++; const ms = (r.j && r.j.items) || [];
+          rs.forEach((r, q) => { const c = lote[q]; const id = c.chat.chatId; if (!r || r.http !== 200) return; n++; const ms = ((r.j && r.j.items) || []).slice().sort((a8, b8) => (Date.parse(a8.creationTime) || 0) - (Date.parse(b8.creationTime) || 0));   /* 8.84: a API nem sempre devolve em ordem de hora (Joelma 19/11) → ordena antes de decidir quem falou por último */
             let iC = -1; for (let x = ms.length - 1; x >= 0; x--) { if (ms[x].from === 'user') { iC = x; break; } }
             const dep = iC < 0 ? [] : ms.slice(iC + 1); const respondido = iC < 0 || dep.some(m => !BOTPASSA.test(T(m)));
             VI[id] = { lu: c.lastUserMessageDatetime, ok: respondido ? 1 : 0, t: ag };
