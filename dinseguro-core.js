@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.84';
+  const VERSAO = '8.85';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1916,7 +1916,7 @@
         // 7.04 (Stefany 21:28, caso Nilson 0ZMD0: já tinha mandado o CPF em 08/11, numa sessão antiga que não aparece na tela, e recebeu pedido de CPF de novo):
         // antes de pedir, procura o CPF nas mensagens antigas do cliente pelo servidor (até 120); achou → consulta de novo, sem pedir.
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { try { const jA = await apiLer(o.hash, 120); const msA = (jA && jA.newMessages) || []; let cA = '';
-            for (const m of msA) { if (m.FROM === 'me') continue; const mm = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) cA = c; } }
+            for (const m of msA) { if (m.FROM === 'me') continue; const mm = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : '').match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) cA = c; } }
             if (cA) { const O7 = GM_getValue('auto_ordens', {}) || {}; if (!(O7[o.hash] && O7[o.hash].cpf && Date.now() - (+O7[o.hash].t || 0) < 23 * 3600000)) { O7[o.hash] = { hash: o.hash, nome: o.nome || '', cpf: cA, fone: ((RG()[o.hash] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (7.04: CPF que o cliente já tinha mandado numa sessão antiga — não pedi de novo)'] }; GM_setValue('auto_ordens', O7); }
               passos.push('CPF já mandado numa sessão antiga — NÃO pedi; nova consulta aberta (7.04)'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); } } catch (e) {} }
         if (o.acao === 'pedir_cpf' && !o.msgFeita) { const cs = await cpfDoServidor(o.hash); if (cs) { passos.push('CPF já está no servidor (variável CPF) — NÃO pedi; ordem de consulta criada'); salvaProgresso({ msgFeita: 1, linhaFeita: 1, tagsFeitas: 1, notaFeita: 1 }); ordemDoCpfServidor(o.hash, o.nome, cs, 'pedido de CPF'); } }   // 6.31
@@ -2758,7 +2758,7 @@
             if (fechou || !/(^|\|)(01 D|01 I|01 k|02 |03 |05 |06 |07 )|FechouNegocio/i.test(tags)) {
               let cs = '', origem = '';
               for (let i = nm.length - 1; i >= 0; i--) { const m = nm[i]; if (humano(m)) break; if (m.FROM === 'me') continue;
-                const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
+                const mm = txt(m).replace(/\{"button"[^}]*\}/g, '').match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm) { const c = mm[2].replace(/\D/g, ''); if (cpfDigitoOk(c)) { cs = c; origem = 'CPF escrito pelo cliente'; break; } } }
               // 6.34 (Stefany 14/11 08:50, caso Jeniffer: cliente que JÁ FEZ, perguntando do dia do crédito, recebeu "Recebi o seu CPF"):
               // o CPF da variável do contato NÃO cria ordem sozinho — só o CPF que o cliente acabou de escrever.
               // 6.72 (caso Silvia R92XG 12:1x: escolheu R$ 10.000,00 no bot): a ordem do servidor leva a ÚLTIMA escolha de valor do cliente (erro 56) —
@@ -2853,7 +2853,7 @@
       try { await compararServidor(id); } catch (e) {}   // 6.36: comparação tela × servidor (só anota)
       // 5.82 (Stefany 21:13–21:16, caso Ester: o CPF estava no campo CPF das VARIÁVEIS do contato e numa NOTA de 28/10, e o robô pediu de novo)
       try { const T9 = document.body.innerText; let cv = '';
-        const iv = T9.search(/Vari[áa]veis/); if (iv >= 0) { const mm = T9.slice(iv, iv + 4000).match(/\nCPF\s*\n+\s*(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)/); if (mm) cv = mm[1].replace(/\D/g, ''); }
+        const iv = T9.search(/Vari[áa]veis/); if (iv >= 0) { const mm = T9.slice(iv, iv + 4000).match(/\nCPF\s*\n+\s*(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)/); if (mm) cv = mm[1].replace(/\D/g, ''); }
         if (!cv) { const ino = T9.search(/\nNotas\s*\n/); if (ino >= 0) { const mm2 = T9.slice(ino, ino + 8000).match(/\bCPF\s*\n*\s*(\d{3}\.\d{3}\.\d{3}-\d{2})/); if (mm2) cv = mm2[1].replace(/\D/g, ''); } }
         if (cv && cv.length === 11 && !/^(\d)\1+$/.test(cv)) { const r9 = RG(); if (r9[id] && r9[id].cpfVar !== cv && !r9[id].cpfSrv) {   /* 7.18: CPF confirmado no SERVIDOR não é trocado pelo da tela (painel atrasado = CPF de OUTRO cliente — caso Moraisvania × Jeniffer) */ r9[id].cpfVar = cv; (r9[id].hist = r9[id].hist || []).push(hhmm(Date.now()) + ' 5.82: CPF achado no painel (variáveis/notas) — não pedir de novo'); gravaRG(r9); } } } catch (e) {}
       // 5.32: (tirado) guardar o telefone do painel na régua — painel atrasado poderia gravar o telefone de OUTRO cliente (erro 105)
@@ -3056,7 +3056,7 @@
         const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || !telaPronta(h)) return;
         const fone = foneDoContato(); if (!fone) return;
         const txt = document.body.innerText;
-        const achados = [...new Set([...(txt.match(/(?<![\d.])\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(?![\d-])/g) || [])].map(z => z.replace(/\D/g, '')).filter(cpfOk))];
+        const achados = [...new Set([...(txt.match(/(?<![\d.])\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d(?![\d-])/g) || [])].map(z => z.replace(/\D/g, '')).filter(cpfOk))];
         if (!achados.length) return;
         const m = GM_getValue('zap_por_cpf', {}) || {}; let mudou = false;
         achados.forEach(c => { if (!m[c] || m[c].fone !== fone || Date.now() - m[c].t > 3600e3) { m[c] = { fone, hash: h, t: Date.now() }; mudou = true; } });
@@ -3214,11 +3214,11 @@
         const iVal = antesC.map(m => m.lado === 'cli' && VAL(m) >= 500).lastIndexOf(true);
         const valor = iVal >= 0 ? VAL(antesC[iVal]) : 0;
         const aceite = iVal >= 0 && antesC.slice(iVal).some(m => m.lado === 'cli' && /Sim desejo contratar|quero contratar/i.test(m.txt));
-        const cpfM = [...ms].reverse().find(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(m.raw));
-        const cpf = cpfM ? (cpfM.raw.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/)[0] || '').replace(/\D/g, '') : '';
+        const cpfM = [...ms].reverse().find(m => m.lado === 'cli' && /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/.test(m.raw));
+        const cpf = cpfM ? (cpfM.raw.match(/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/)[0] || '').replace(/\D/g, '') : '';
         contornoInfo = { valor, aceite, cpf };
       }
-      const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(m.raw));   // CPF mandado PELO CLIENTE
+      const temCpf = ms.some(m => m.lado === 'cli' && /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/.test(m.raw));   // CPF mandado PELO CLIENTE
       // 4.14 — HANDOFF (Stefany 10/11 18:41, caso Carmen): o bot disse "logo você será atendido(a) por um atendente humano"
       // e DEPOIS mandou outra mensagem dele (vídeo). A prévia da lista mostrava só o vídeo → ninguém pôs na fila.
       const HANDOFF_RE = /atendido\(a\) por um atendente humano|atendente humano|Estou analisando suas informa|Estamos analisando|Assim que concluir irei avisar/i;
@@ -3229,7 +3229,7 @@
       const comQuem = pessoa && (!ultCli || ms.indexOf(pessoa) > iCli) ? /\[([^\]\n]{2,40})👤\]/.exec(pessoa.raw)[1].trim() : '';   // Rômulo/Stefany falou depois do cliente
       // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
       // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
-      const CPF_RE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/;
+      const CPF_RE = /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/;
       const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const cpfSem = cpfSemRespT ? (ms[iCpf].raw.match(CPF_RE)[0] || '').replace(/\D/g, '') : '';   // 4.24: o robô consulta sozinho
@@ -4352,7 +4352,7 @@
       const e = document.querySelector('.entries');
       const t = e ? e.innerText : '';
       return {
-        cpf:  /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(t),
+        cpf:  /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/.test(t),
         link: /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin)/i.test(t),
         prop: /proposta (aprovada|criada|gerada)|Novo Cr[ée]dito Dispon/i.test(t),
         // qualquer "[Nome]" conta: mensagem nossa E nota interna. Nota interna quer dizer
@@ -4520,7 +4520,7 @@
       if ((GM_getValue('wa_bloqueados', []) || []).includes(id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
       const L = c.L, u = L && L.ult;
       const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
-      if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/.test(u.raw || ''))
+      if (u && u.lado === 'cli' && !/^\s*bolt\b/.test(u.raw || '') && !OK_V.test((u.txt || '').trim()) && !/\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/.test(u.raw || ''))
         return { acao: 'revisar', motivo: 'cliente escreveu "' + (u.txt || '').slice(0, 60) + '" e ficou sem resposta' };
       if (L && L.cpfSemRespT) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
       // 4.48 (André 11/11): cliente tinha dito "Não / Vou deixar / Muito pouco valor" e mesmo assim saiu follow-up pelo WhatsApp.
@@ -4566,7 +4566,7 @@
         const txtDe = m => { let s = typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''); try { const o = JSON.parse(s); if (o && o.button) s = o.button; } catch (e) {} return String(s || '').replace(/\s+/g, ' ').trim(); };
         const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME))).map(m => ({ lado: m.FROM === 'me' ? 'nos' : 'cli', bot: m.FROM === 'me' && /^Bot$/i.test(m.FROM_NAME || ''), txt: txtDe(m) }));
         if (!ms.length) return null;
-        const CPFRE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/;
+        const CPFRE = /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/;
         const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
         const u = ms[ms.length - 1];
         // 8.62 (Stefany 18/11 22:25, Moacir: "não teve CPF → 01 C e fechar no varredura; ela vai chamar apenas quem tem chance clara de negócio"): escreveu e ficou sem resposta, SEM CPF e SEM margem → 01 C + fechar
@@ -4615,7 +4615,7 @@
         const VOLTA = CANAL_VOLTOU865['558001912261']; const FEITO = GM_getValue('chamada_ontem866', {}) || {};
         const de = new Date(Date.now() - 2 * 864e5).toISOString(); let r = await window.dinsBmGet('/chats?from=' + de); let it = (r.j && r.j.items) || []; let pg = 0;
         while (r.j && r.j.nextPage && pg < 40) { r = await window.dinsBmGet(String(r.j.nextPage).replace(/^https?:\/\/[^/]+\/v2\.0/, '')); it = it.concat((r.j && r.j.items) || []); pg++; }
-        const ag = Date.now(); const CPFRE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/; const LK = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)|proposta (aprovada|criada|gerada)/i;
+        const ag = Date.now(); const CPFRE = /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/; const LK = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)|proposta (aprovada|criada|gerada)/i;
         const alvo = it.filter(x => { const c = x.chat || {}; const lu = Date.parse(x.lastUserMessageDatetime || '') || 0; return c.chatId && String(c.channelId || '').includes('558001912261') && lu && lu < VOLTA && !FEITO[c.chatId] && !protegido(c.chatId) && !/^(Jair|⚫️|Romulo)/.test(String(x.firstName || '').trim()) && !/CONGELADO/i.test(x.firstName || ''); });
         for (const x of alvo) { const id = x.chat.chatId; res.vistos++; const nm = String(x.firstName || '').trim(); const tg = (x.tags || []).join('|'); const q = String(x.queueId || '');
           if (/Sem_?Margem|SEM_MARGE|LOAS_Sem|01_I|01k|CLT|SERVIDOR|Servidor|NaoIdentificado|01_?D|FechouNeg/i.test(tg + '|' + q) || /^fechar_(sem_margem|loas|07)/.test(q)) { res.pulados++; continue; }
@@ -4843,7 +4843,7 @@
             // 8.15 (Stefany 18/11 10:53: "Reinaldo, Rose, um tanto de gente… tem que criar um sistema que funcione independente de mim e de você"):
             // REGRA PELO RESULTADO — quem mandou CPF tem que ter recebido simulação, sem margem ou link (ou resposta de gente). "Recebi o seu CPF,
             // já estou consultando" NÃO conta. Não recebeu em 6 min e não tem ordem andando → consulta de novo; 2 tentativas sem resultado → vermelho.
-            { let tCpf = 0, cpf5 = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) { cpf5 = mm[2].replace(/\D/g, ''); tCpf = Date.parse(m.creationTime); } }
+            { let tCpf = 0, cpf5 = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) { cpf5 = mm[2].replace(/\D/g, ''); tCpf = Date.parse(m.creationTime); } }
               if (!cpf5) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) { cpf5 = v; const u1 = ms.find(m => m.from === 'user'); tCpf = u1 ? Date.parse(u1.creationTime) : 0; } }
               if (cpf5 && tCpf && ag - tCpf > 6 * 60000 && ag - tCpf < 24 * 3600000 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') {
                 const ACOL = /Recebi o seu CPF|J[áa] tenho o seu CPF|j[áa] estou consultando|Estamos analisando|Bem-vindo de volta|Fico feliz que voc[êe] voltou/i;
@@ -4865,12 +4865,12 @@
                   VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; } } }
             // 8.32 (Julio ZMH5P 18/11: parou no fluxo do bot sem CPF às 07:09 e só recebeu mensagem automática do bot): sem CPF e sem resposta de GENTE depois da última mensagem dele → pede o CPF (1 vez a cada 12 h)
             let fez879 = false; if (iC >= 0 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') { try {   /* 8.79: vale também para quem só recebeu resposta automática do bot */
-              const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
+              const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
               const gente = dep.some(m => m.from === 'agent');
               const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
               // 8.82 (Manoel GWPAD 19/11: clicou "Encerrar agora", o bot se despediu e a conversa ficou aberta no vermelho): pediu para encerrar e o bot já se despediu → tag + fechar pela intenção (sem CPF → 01 C)
               try { const EN = GM_getValue('enc882_feito', {}) || {}; if (/encerrar agora/i.test(btn8 + ' ' + T(cU8)) && min8 > 3 && !dep.some(m => m.from === 'agent') && dep.some(m => /Se no futuro precisar de cr[ée]dito/i.test(T(m))) && !(EN[id] > ag - 12 * 3600000) && !/(^|\|)(01 D|InssFechouNegocio)/i.test((c.tags || []).join('|'))) {
-                const cpfE = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))); const itE = cpfE ? 'fechar_so' : 'fechar_01c';
+                const cpfE = ms.some(m => m.from === 'user' && /(^|\D)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(T(m))); const itE = cpfE ? 'fechar_so' : 'fechar_01c';
                 if ((GM_getValue('bm_intents_on', []) || []).includes(itE) && window.dinsBmIntent) { EN[id] = ag; for (const q in EN) if (ag - EN[q] > 7 * 864e5) delete EN[q]; GM_setValue('enc882_feito', EN); window.dinsBmIntent(id, itE).then(ri => { if (ri && ri.http >= 200 && ri.http < 300) diario(String(c.firstName || id.slice(0, 5)), 'pediu para encerrar e o bot já se despediu → ' + (cpfE ? 'fechou' : '01 C + fechou') + ' pela intenção (8.82)'); }); res.push(String(c.firstName || '') + ' (encerrar agora → fecha)'); VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; return; } } } catch (e) {}
               const tags8 = (c.tags || []).join('|');
               // 8.44 (Stefany 18/11 19:02): no lugar do pedido de CPF, UMA mensagem de valor que não pede dado nenhum (nome só se for nome de gente).
@@ -4910,7 +4910,7 @@
             const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
             const nome = String(c.firstName || '').trim();
             // CPF: digitado pelo cliente (nas mensagens dele) ou na variável CPF do bot
-            let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
+            let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
             if (!cpf) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }
             // 8.38 (Stefany 18/11 14:05: "o pessoal que pediu o encerramento… taguear e fechar, não ficar mandando mensagem"): 'Encerrar agora' → o bot já mandou a despedida;
             // o robô só coloca a tag e fecha pela intenção (sem CPF → 01 C; com CPF → só fechar). Não consulta, não manda nada.
@@ -4938,7 +4938,7 @@
             let r = await get('/messages?chat-id=' + id + '&from=' + frV); if (!r || r.http !== 200) continue; let ms = (r.j && r.j.items) || []; let pg = 0;
             while (r.j && r.j.nextPage && pg < 4) { r = await get(String(r.j.nextPage).replace('https://api.botmaker.com/v2.0', '')); if (!r || r.http !== 200) break; ms = ms.concat((r.j && r.j.items) || []); pg++; }
             const nos = ms.filter(m => m.from !== 'user').map(T).join('\n'); const cli = ms.filter(m => m.from === 'user').map(T);
-            const temCpf = cli.some(t => /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(t)) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
+            const temCpf = cli.some(t => /(^|\D)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(t)) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
             const temLink = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*joinbank|\S*queromais|\S*daycoval)|Novo Cr[ée]dito Dispon/i.test(nos);
             const desf = /01_I_|01k_|SEM_MARGEM|Sem_margem|02_|LoasSem|LoasCom|NaoIdentificado|Acima_?De_?80|Q15/i.test(tags);
             const recusou = cli.slice(-6).some(t => /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer)|sem interesse|desisto|n[ãa]o me interessa|para de (me )?mandar)/i.test(t));
