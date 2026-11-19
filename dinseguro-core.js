@@ -4535,8 +4535,9 @@
         const pediuCpf = /CPF/i.test(nos) && /(me (envie|mande|passa)|informe|número do seu CPF|seu CPF)/i.test(nos);
         // 8.55 (Stefany 18/11 20:36): varredura com mensagem SÓ para quem tem chance de negócio (mandou CPF, simulou, proposta/link, pagamento, bloqueio).
         // Quem só respondeu e não mandou CPF → NÃO tem follow-up: 01 C + fechar (intenção), mesmo que a gente tenha falado com ele.
-        if (!temCpf && ON829.includes('fechar_01c')) return { acao: 'c01', motivo: 'sem CPF (só conversa' + (nossaHumana ? ', nossa resposta' : '') + (pediuCpf ? ', CPF pedido' : '') + ') → 01 C + fechar, sem follow-up (8.55)' };
-        if (temCpf || nossaHumana) { const caso = temCpf ? 'atendimento' : (pediuCpf ? 'cpf' : 'atendimento');
+        const margTag861 = temTag(/ComMargem|01.?A/i);   // 8.61: tag de COM MARGEM (o bot achou margem pelo CPF da variável) = potencial
+        if (!temCpf && !margTag861 && ON829.includes('fechar_01c')) return { acao: 'c01', motivo: 'sem CPF (só conversa' + (nossaHumana ? ', nossa resposta' : '') + (pediuCpf ? ', CPF pedido' : '') + ') → 01 C + fechar, sem follow-up (8.55)' };
+        if (temCpf || nossaHumana || margTag861) { const caso = (temCpf || margTag861) ? 'atendimento' : (pediuCpf ? 'cpf' : 'atendimento');
           return fone.length >= 10 ? { acao: 'wa', caso, motivo: (temCpf ? 'atendimento parado (com margem)' : 'atendimento nosso sem retorno') + ' [servidor]', fone } : { acao: 'revisar', motivo: 'precisa de follow-up, mas sem telefone' }; }
         if (ON829.includes('fechar_01c') && !temCpf && !nossaHumana) return { acao: 'c01', motivo: 'só o fluxo do bot, sem CPF → 01 C + fechar (intenção)' };   // 8.29
         return null;   // só o fluxo do bot → 01 C + fechar (precisa da tela)
