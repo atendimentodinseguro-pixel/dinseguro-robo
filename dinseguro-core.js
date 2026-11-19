@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.02';
+  const VERSAO = '9.03';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3398,8 +3398,11 @@
         // também vale para quem ficou 'pausada' (cliente respondeu ontem e nós respondemos depois) e 'humano' (Rômulo/Stefany falou
         // por último) — o robô abre a conversa e só manda se a ÚLTIMA mensagem for nossa (cliente sem resposta desde então).
         const manhaTambem = ['pausada', 'humano'].includes(x.estado) && x.link;
-        if (x.estado !== 'ativa' && !manhaTambem) continue;
-        const q = x.toques.find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || q.tipo === 'manha'));
+        // 9.03 (Stefany 19/11 14:37–14:39, Maurilio/Ariana: follow-up de 10 min e 1 h vencidos sem sair — "tem API, Botmaker liberado"): o quadro trocava o estado
+        // para 'respondido'/'acompanhando' e o executor só olhava 'ativa'. Quem tem LINK e toque pendente recebe o follow-up nesses estados também.
+        const segue903 = !!x.link && Array.isArray(x.toques) && ['respondido', 'acompanhando'].includes(x.estado);
+        if (x.estado !== 'ativa' && !manhaTambem && !segue903) continue;
+        const q = (x.toques || []).find(q => !q.feito && q.quando <= agora && (!q.prox || q.prox <= agora) && (x.estado === 'ativa' || segue903 || q.tipo === 'manha'));
         if (q && (!toque || q.quando < toque.quando)) { alvo = x; toque = q; }   // 6.48: o mais atrasado primeiro (antes: o primeiro da lista)
       }
       if (!alvo) return;
@@ -3446,7 +3449,8 @@
             else { const w = Date.parse(cj.whatsAppWindowCloseDatetime || 0); if (w && w < ag + 2 * 60000) throw new Error('JANELA_VENCIDA');
               const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date((+alvo.linkT || ag) - 2 * 60000).toISOString()));
               const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
-              const cliDepois = ms.some(k => k.from === 'user' && Date.parse(k.creationTime) > (+alvo.linkT || 0) + 30000);
+              const ultCli903 = Math.max(0, ...ms.filter(k => k.from === 'user').map(k => Date.parse(k.creationTime) || 0)); const ultNos903 = Math.max(0, ...ms.filter(k => k.from !== 'user').map(k => Date.parse(k.creationTime) || 0));
+              const cliDepois = ultCli903 > (+alvo.linkT || 0) + 30000 && ultCli903 > ultNos903;   // 9.03: se nós já respondemos depois dele, o follow-up do link continua
               if (cliDepois && toque.tipo !== 'manha') { reg('não saiu: o cliente falou depois do link — é atendimento (8.96)', true); estado('pausada', 'cliente respondeu depois do link — atendimento (8.96)'); feito896 = true; }
               else { await bmEnviarTexto(alvo.hash, texto); feito896 = true; reg('enviado ' + hhmm(Date.now()) + ' pela API (8.96)', true);
                 { const r3 = RG(), x3 = r3[alvo.hash]; const q = x3 && x3.toques.find(k => k.tipo === toque.tipo); if (q) q.enviadoT = Date.now();
@@ -4187,6 +4191,7 @@
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
         if (protegido(x.hash)) return 'J';   // 5.52: NÃO MEXER fica no amarelo
         if (x.estado === 'ativa') return 'F';
+        if (x.link && ['respondido', 'acompanhando'].includes(x.estado) && (x.toques || []).some(q => !q.feito)) return 'F';   // 9.03
         // 5.51 (Stefany 17:43: "isso que tem follow-up é follow-up do robô, tem que ficar escrito ali"): tem follow-up agendado → 🟢
         { const e = ESPq[x.hash]; if (e && (e.toques || []).some(q => !q.feito)) return 'F';
           if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F';
@@ -4195,7 +4200,7 @@
         return 'A';
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
-        ['A', '🔵 Aguardando o cliente', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+        ['A', '🔵 Sem follow-up programado', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
       if (faz('atendimento')) try {
@@ -4236,7 +4241,12 @@
           return '<div style="margin-top:4px;padding:3px 6px;border-radius:6px;background:#0f172a;font-size:11px;line-height:1.35"><b>📝 O que o robô fez</b>' + D.map(d => '<div>' + hm(d.t) + ' <b>' + String(d.nome).replace(/</g, '&lt;') + '</b> — ' + String(d.txt).replace(/</g, '&lt;') + '</div>').join('') + '</div>'; } catch (e) { return ''; } })();
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
-      const situacao = (x, k) => {
+      const fu903 = x => { try { const tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) return 'follow-up: nenhum programado';
+          const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
+          const qd = pend ? ((new Date(pend.quando).toDateString() !== new Date().toDateString() ? ('0' + new Date(pend.quando).getDate()).slice(-2) + '/' + ('0' + (new Date(pend.quando).getMonth() + 1)).slice(-2) + ' ' : '') + hhmm(pend.quando)) : '';
+          return 'follow-up ' + env + ' de ' + tq.length + ' feito' + (pend ? (pend.quando < Date.now() - 5 * M ? ' · ⚠ ATRASADO desde ' + qd : ' · próximo ' + qd) : ' · todos feitos'); } catch (e) { return ''; } };
+      const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && k !== 'A') return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
+      const situacao0 = (x, k) => {
         const ao = (GM_getValue('auto_ordens', {}) || {})[x.hash];
         if (ao && x.semLink && ao.tipo === 'cpf') {
           if (ao.estado === 'com_margem') return '🤖 CPF consultado: COM margem (' + (ao.resumo || '') + ') → VIGIA: simular e mandar o link';
