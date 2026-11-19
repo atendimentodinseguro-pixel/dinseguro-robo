@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.99';
+  const VERSAO = '9.00';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2588,8 +2588,11 @@
     const POS897 = x => /01 ?D|fechou neg|esteira|pago|averb|anu[êe]ncia|desbloque|AVERBE|formaliza/i.test(String(x.motivo || '') + ' ' + String(x.fase || '') + ' ' + ((x.hist || []).slice(-4).join(' ')));
     window.dinsLimpaCaderno = (simular) => { try { const r = RG(); const ag = Date.now(); const FM = GM_getValue('fechadas888', {}) || {}; const DEL = GM_getValue('regua_del', {}) || {};   /* 8.99: o gravaRG junta com o que está gravado — para SAIR de verdade tem que marcar em regua_del (a 8.97 contava mas não tirava) */ let tirou = 0, cortou = 0, ficou = 0; const motivos = {};
         for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === 'F20QOEL8YYLQN2S6SR47' || protegido(k)) { ficou++; continue; }
-          const ult = Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0, +x.ultCliT || 0, +x.lidoT || 0);
-          const pos = POS897(x) && ag - ult < 10 * 864e5 && !/^(cancelada)$/.test(x.estado || '');
+          // 9.00 (Stefany 19/11 14:17: "a galera que já fechou, mas tem link em andamento e você tá acompanhando — não faz sentido"): pós-venda SAI do caderno também.
+          // O andamento das propostas continua guardado na esteira (lida do New Corban), que é de onde o vigia responde quando perguntarem. E 'atividade' é só o CLIENTE
+          // ter escrito ou um link nosso ter saído nas últimas 24 h — o robô reler a conversa não conta (era isso que segurava gente de 200 h no azul).
+          const ult = Math.max(+x.ultCliT || 0, +x.linkT || 0, (+x.ultCliT || +x.linkT) ? 0 : (+x.criadoT || 0));
+          const pos = false;
           const fechadaConv = !!FM[k] && !((+x.ultCliT || 0) > (+FM[k].lu || 0) + 60000);
           let sai = '';
           if (pos) { sai = ''; if ((fechadaConv || FIM897.test(x.estado || '')) && !simular && x.estado !== 'pos_venda') { x.estadoAntes = x.estado; x.estado = 'pos_venda'; x.motivo = 'pós-venda com a conversa fechada — só informação (acompanhamento externo; 8.98)'; delete x.reler; delete x.relerHist; } }
