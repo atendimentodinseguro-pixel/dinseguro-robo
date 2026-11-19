@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.55';
+  const VERSAO = '8.56';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4505,6 +4505,8 @@
         if (u.lado === 'cli' && CPFRE.test(u.txt)) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
         const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
         const cli6 = ms.filter(m => m.lado === 'cli').slice(-6).map(m => m.txt);
+        if (cli6.some(t => RECUSOU.test(t))) { const cpfR = ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)); const margR = temTag(/ComMargem|01.?A/i) || cpfR;   // 8.56 (Stefany 18/11 21:09): recusou COM margem → 01 A; sem CPF → 01 C; nunca fechar sem tag
+          const itR = margR && ON829.includes('tag_01a') ? 'tag_01a' : (!cpfR && ON829.includes('fechar_01c') ? 'fechar_01c' : ''); if (itR) return { acao: 'fecha', intent: itR, motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — ' + (itR === 'tag_01a' ? '01 A' : '01 C') + ' + fechar, sem follow-up (8.56)' }; }
         if (cli6.some(t => RECUSOU.test(t))) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — sem follow-up, fechada (8.31)' } : { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
         const fe = faseEsteira(RG()[it.id] || {});
         if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
@@ -4544,7 +4546,7 @@
           if (!d || d.acao === 'sem_leitura') { res.pulados++; continue; }
           if (d.acao === 'wa') { res.follow++; continue; } if (d.acao === 'revisar') { res.revisar++; continue; }
           if (d.acao !== 'fecha' && d.acao !== 'c01') { res.pulados++; continue; }
-          const intent = d.acao === 'c01' ? 'fechar_01c' : (/SEM MARGEM/i.test(d.motivo || '') && ON.includes('fechar_sem_margem') ? 'fechar_sem_margem' : 'fechar_so');
+          const intent = d.intent && ON.includes(d.intent) ? d.intent : d.acao === 'c01' ? 'fechar_01c' : (/SEM MARGEM/i.test(d.motivo || '') && ON.includes('fechar_sem_margem') ? 'fechar_sem_margem' : 'fechar_so');
           const ri = await window.dinsBmIntent(id, intent);
           if (ri && ri.http >= 200 && ri.http < 300) { FEITO[id] = Date.now(); d.acao === 'c01' ? res.c01++ : res.fechados++; res.lista.push(String(x.firstName || id.slice(0, 5)).slice(0, 14) + ' → ' + intent); diario('varredura', 'fechou pela intenção ' + intent + ' (8.54): ' + String(x.firstName || '') + ' — ' + String(d.motivo || '').slice(0, 60)); }
           else res.erros++;
@@ -4555,6 +4557,7 @@
       // 8.29 (Stefany 18/11 12:40: intenções testadas e ligadas): fechar / 01 C + fechar pela INTENÇÃO do Botmaker, sem abrir a tela
       try { const ON = GM_getValue('bm_intents_on', []) || []; let it = acao === 'fecha' ? 'fechar_so' : (acao === 'c01' || acao === 'classifica_fecha') ? 'fechar_01c' : '';
         if (acao === 'fecha' && /SEM MARGEM/.test(String(nota || '')) && ON.includes('fechar_sem_margem')) it = 'fechar_sem_margem';   // 8.41: tag 01 I + fecha
+        if (acao === 'fecha' && /recusou.*01 A \+ fechar/.test(String(nota || '')) && ON.includes('tag_01a')) it = 'tag_01a'; else if (acao === 'fecha' && /recusou.*01 C \+ fechar/.test(String(nota || '')) && ON.includes('fechar_01c')) it = 'fechar_01c';   // 8.56
         if (it && ON.includes(it) && window.dinsBmIntent) { const ri = await window.dinsBmIntent(hash, it); if (ri && ri.http >= 200 && ri.http < 300) { try { diario('varredura', (acao !== 'fecha' ? '01 C + fechou' : 'fechou') + ' pela intenção ' + it + ' ✓ (sem a tela)'); } catch (e) {} return 'ok'; } } } catch (e) {}
       while (localStorage.getItem('dins_ordem')) await esp(3000);
       const t0 = Date.now();
