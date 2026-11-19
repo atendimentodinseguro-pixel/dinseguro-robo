@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.16';
+  const VERSAO = '9.17';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3390,12 +3390,19 @@
     let fupRodando = false;
     async function olharFollowups() {
       if (vigiaTrava()) return;   // 4.54
-      if (fupRodando || rodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;
+      // 9.17 (19/11 16:36, Oscar: follow-up de 10 min parado 7 min — tinha TEXTO escrito na caixa de mensagem da aba do robô, porque alguém estava usando a aba):
+      // as travas de TELA (texto na caixa, tela ocupada, ordem na fila, vigia mexendo) só valem quando o toque vai sair pela tela. Com a API ligada o follow-up sai
+      // pelo id da conversa e não depende de nada disso.
+      const pelaApi917 = bmApiLigada() && !!window.dinsBmGet;
+      if (fupRodando) return;
+      if (!pelaApi917) {
+      if (rodando || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !localStorage.getItem('dins_varre_pausa'))) return;
       if (localStorage.getItem('dins_ordem')) return;                                  // desfecho na fila
       const ocup = +localStorage.getItem('dins_vigia_ocupado') || 0;
       // 4.42: o vigia marcava 'ocupado' a cada ação e segurava os toques por 2 min seguidos (caso Dalva/Lu 11/11) — agora 45 s
       if (Date.now() - ocup < 45000) return;                                           // vigia mexendo agora
       const ta = document.querySelector('textarea'); if (ta && ta.value.trim()) return; // mensagem sendo escrita
+      }
       const r = RG(); const agora = Date.now();
       let alvo = null, toque = null;
       for (const x of Object.values(r)) {
@@ -3471,6 +3478,7 @@
         } catch (e) { if (/JANELA_VENCIDA/.test(String(e && e.message))) { const r2 = RG(), x = r2[alvo.hash]; if (x) { x.toques.forEach(k => { if (!k.feito) { k.feito = Date.now(); k.st = 'pulado (janela de 24 h vencida → varredura)'; } }); x.estado = 'esgotada'; x.motivo = 'janela de 24 h vencida — follow-up pelo outro número na varredura'; gravaRG(r2); } feito896 = true; } }
         finally { fupRodando = false; }
         if (feito896) return; }
+      if (pelaApi917 && (rodando || localStorage.getItem('dins_ordem') || Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000 || String((document.querySelector('textarea') || {}).value || '').trim())) return;   // 9.17: a API não mandou → a tela só entra se estiver livre
       if (!navPega('fup')) return;
       fupRodando = true;
       try {
