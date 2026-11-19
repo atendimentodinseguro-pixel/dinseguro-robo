@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.32';
+  const VERSAO = '9.33';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3741,7 +3741,8 @@
       if ((passo === 'w40' || passo === 'p102') && bmApiLigada() && window.dinsBmGet) { const RC = GM_getValue('rr_cache', {}) || {}; const tx = k => String((RC[String(k).toLowerCase()] && RC[String(k).toLowerCase()].tx) || '').replace(/^\s*\*?\[Dinseguro\]\*?\s*/i, '');   /* 9.29: as chaves do cache são minúsculas (/w40) */
         const prontos = passo === 'w40' ? !!tx('/W40') : (!!tx('/102') && !!tx('/103'));
         if (prontos) { posRodando = true; try {
-            const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date(Date.now() - 72 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []); const nossasA = ms.filter(k => k.from !== 'user').map(k => String((k.content && k.content.text) || ''));
+            const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date((+alvo.t22 || Date.now()) - 6 * 3600000).toISOString())); let ms = ((m && m.j && m.j.items) || []); { let nx = m && m.j && m.j.nextPage, pg = 0; while (nx && pg < 8) { const m2 = await window.dinsBmGet(String(nx).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); ms = ms.concat((m2 && m2.j && m2.j.items) || []); nx = m2 && m2.j && m2.j.nextPage; pg++; } }   /* 9.33 (Patricia: a /22N (template das 15:03) ficava em outra página da API → "registro errado, parei" e ela sumiu do quadro) */
+            const nossasA = ms.filter(k => k.from !== 'user').map(k => String((k.content && k.content.text) || ''));
             if (!nossasA.some(t => SIG_22N.test(t) || /cr[ée]dito foi aprovado/i.test(t))) { marca({ parado: 1, st: 'a /22N não está neste chat (API) — registro errado, parei' }); return; }
             const nm0 = String(alvo.nome || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(nm0) ? nm0.charAt(0).toUpperCase() + nm0.slice(1).toLowerCase() : '';
             if (passo === 'w40') { if (nossasA.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat (API)' }); return; }
@@ -4433,8 +4434,8 @@
         return `<div style="margin-top:8px;font-weight:700;color:${cor}">${nome} (${g.length})</div>` + corpo;
       }).join('');
       // 9.30 (Stefany 19/11 17:20: "coloca dentro do panorama quem recebeu, para o robô saber quem é e programar certinho"): pós-pagamento no quadro, com o próximo passo e a hora
-      try { if (!minimizado) { const PO = Object.values(GM_getValue('pos_pago', {}) || {}).filter(z => z && z.t22 && !z.p102 && !z.parado && Date.now() - (+z.t22 || 0) < 3 * 864e5);
-          const passoP = z => !z.w40 ? (z.extra ? (z.extraOfereceu ? '/W40 quando responder à oferta (ou ' + hhmm(z.extra + 30 * M) + ')' : '/W40 agora') : z.verExtra ? 'cliente disse que caiu → /W40 às ' + hhmm(z.verExtra + 10 * M) : 'esperando o cliente confirmar que caiu (/W40 às ' + hhmm(z.t22 + 30 * M) + ' se não responder)') : '/102 + /103 às ' + hhmm(z.w40 + 30 * M) + ' (ou assim que responder)';
+      try { if (!minimizado) { const PO = Object.values(GM_getValue('pos_pago', {}) || {}).filter(z => z && z.t22 && !z.p102 && Date.now() - (+z.t22 || 0) < 2 * 864e5 && !/concluída/.test(z.estado || ''));   /* 9.33: quem PAROU aparece com o motivo em vermelho (antes sumia) */
+          const passoP = z => z.parado ? '⛔ PAROU: ' + String(((z.hist || []).slice(-1)[0]) || '').slice(6, 90) + ' — vigia confere' : !z.w40 ? (z.extra ? (z.extraOfereceu ? '/W40 quando responder à oferta (ou ' + hhmm(z.extra + 30 * M) + ')' : '/W40 agora') : z.verExtra ? 'cliente disse que caiu → /W40 às ' + hhmm(z.verExtra + 10 * M) : 'esperando o cliente confirmar que caiu (/W40 às ' + hhmm(z.t22 + 30 * M) + ' se não responder)') : '/102 + /103 às ' + hhmm(z.w40 + 30 * M) + ' (ou assim que responder)';
           q.innerHTML += `<div style="margin-top:8px;font-weight:700;color:#fde047${PO.length ? '' : ';opacity:.55'}">💰 Pós-pagamento — /22N → caiu → /W40 → 30 min → /102 + /103 (${PO.length})</div>` + (PO.length ? PO.map(z => `<div style="font-size:12px;margin:2px 0 2px 6px">${esc(z.nome || String(z.hash).slice(0, 6))} · ${esc(passoP(z))}${z.erro ? ' <span style="color:#fca5a5">⚠ ' + esc(String(z.erro).slice(0, 60)) + '</span>' : ''}</div>`).join('') : '<div style="font-size:11px;color:#64748b">— ninguém nesta situação agora</div>'); } } catch (e) {}
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
       // 4.16 — TABELA (Stefany 10/11 18:51: "mais organizadinho, tabelado, cronômetro… tempo para próximo contato, data do último
