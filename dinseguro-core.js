@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.56';
+  const VERSAO = '8.57';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4482,12 +4482,16 @@
     }
     // 6.26 (Stefany 13/11 16:24 "a varredura segue lenta" → "leitura pelo servidor"): decide pela conversa do SERVIDOR, sem abrir a tela.
     // Só decide 'wa' e 'revisar' (que não precisam da tela). Fechar / 01 C / chat com atendente (BOT_MUTED) / dúvida → null = abre a tela como antes.
-    async function decidirVarreduraApi(it) {
+    // 8.57 (Stefany 18/11 21:20, Josésyto: sem CPF, janela vencida, não foi fechado): conversa com o BOT MUTADO era pulada inteira.
+    // Agora o bot mutado só segura o FOLLOW-UP (wa); fechar / 01 C / revisar seguem a regra normal.
+    let mutado857 = false;
+    async function decidirVarreduraApi(it) { mutado857 = false; const d = await decidirVarreduraApi0(it); if (d && d.acao === 'wa' && mutado857) return null; return d; }
+    async function decidirVarreduraApi0(it) {
       try {
         let j = await apiLer(it.id, 40); if (!j || !j.customer) { await esp(1500); j = await apiLer(it.id, 40); } if (!j || !j.customer) return { acao: 'sem_leitura' };   // 8.24: leitura falhou → NÃO abre a tela para ler; tenta na próxima rodada
         const cu = j.customer; const lu = +cu.lastUserMessageTimeStamp || 0;
         if (!lu || Date.now() - lu < 24 * 3600000) return null;
-        if (cu.BOT_MUTED) return null;
+        if (cu.BOT_MUTED) mutado857 = true;
         if (/^(Jair|⚫️|Romulo)/.test(String(it.nome || '').trim()) || /CONGELADO/i.test(it.nome || '')) return null;
         const tags = (cu.tags || []).map(String);
         const temTag = re => tags.some(t => re.test(t));
