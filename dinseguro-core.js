@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.04';
+  const VERSAO = '9.05';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5160,6 +5160,24 @@
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
+    // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
+    // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
+    { let ocup905 = false;
+      setInterval(async () => { if (ocup905) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+        const L = GM_getValue('enc905_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('enc905_dono', { aba: ABA, t: Date.now() });
+        ocup905 = true; const ag = Date.now(); const VM = GM_getValue('valor_msg_feito', {}) || {}; const EN = GM_getValue('enc905', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
+        for (const id of Object.keys(VM)) { const t = +VM[id] || 0; if (EN[id] || ag - t < 60 * 60000 || ag - t > 20 * 3600000 || protegido(id) || id === 'F20QOEL8YYLQN2S6SR47' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
+          const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
+          const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
+          if (/^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || lu > t + 30000 || !jf || jf < ag + 2 * 60000 || /01.?A|01.?D|FechouNeg|SimulacaoEnviada/i.test(tg)) { EN[id] = { t: ag, pulou: 1 }; continue; }
+          try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!');
+            EN[id] = { t: ag }; n++; let fechou = '';
+            try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'fechar_01c'); fechou = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C e fechou ✓' : ' — ⚠️ a intenção fechar_01c não aceitou'; } else fechou = ' — ⚠️ intenção fechar_01c desligada: fechar à mão'; } catch (e) {}
+            try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'simulação padrão sem resposta em 1 h → encerrado (9.05)'); } catch (e) {}
+            diario(String(c.firstName || id.slice(0, 5)), '👋 simulação padrão sem resposta há 1 h → avisou o encerramento' + fechou + ' (9.05)');
+          } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.05 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
+        for (const k in EN) if (ag - (+EN[k].t || 0) > 30 * 864e5) delete EN[k]; GM_setValue('enc905', EN);
+      } catch (e) {} finally { ocup905 = false; } }, 5 * 60000); }
     // 8.19: o check-up antigo (lia conversa por conversa pela tela) foi substituído pela espera API (8.12–8.19) — não roda mais sozinho; window.dinsCheckup continua para uso manual
     window.dinsReler = h => { const r = RG(); let n = 0; for (const k in r) { const x = r[k]; if (!x) continue;
         if (h === 'azul' ? (['acompanhando', 'pausada', 'esgotada', 'encerrado'].includes(x.estado) && Date.now() - Math.max(+x.criadoT || 0, +x.linkT || 0, +x.ultT || 0) < 48 * 3600000) : k === h) { x.reler = 1; n++; } }
