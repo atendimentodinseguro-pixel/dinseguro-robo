@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.95';
+  const VERSAO = '8.96';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3389,6 +3389,31 @@
         const L2 = GM_getValue('fup_lock', {}) || {}; if (!L2[chave] || L2[chave].aba !== ABA_ID) return;
         const x2 = (RG() || {})[alvo.hash]; const q2 = x2 && x2.toques.find(k => k.tipo === toque.tipo); if (!q2 || q2.feito) return;   // a outra aba já mandou
       }
+      // 8.96 (Stefany 19/11 13:33, Maurilio AOQNQ: "o follow-up foi solicitado mas não chegou para ele, por quê?" — o toque de 10 min abria a conversa na TELA e
+      // exigia achar o link na tela; o link tinha saído pela API e o robô desistiu 2 vezes: "não consegui confirmar que este é o chat do cliente"):
+      // com a API ligada, o toque sai PELA API pelo id da conversa (não tem como errar de chat). Confere pela API: 01 D → concluída; tag de recusa → cancelada;
+      // cliente falou depois do link → pausa (é atendimento). Sem o texto do atalho guardado ou erro na API → caminho antigo pela tela.
+      if (bmApiLigada() && window.dinsBmGet && !protegido(alvo.hash)) { let feito896 = false; fupRodando = true;
+        try { const ag = Date.now(); const RC = GM_getValue('rr_cache', {}) || {}; const at = toque.tipo === '10' ? String(GM_getValue('atalho_conseguiu', '/bot2')).trim().toLowerCase() : '/132';
+          const texto = toque.tipo === 'manha' ? MSG_MANHA(nomeDoAlvo(alvo)) : toque.tipo === 'tarde' ? MSG_TARDE(nomeDoAlvo(alvo)) : ((RC[at] && RC[at].tx) || '');
+          if (texto) {
+            const c = await window.dinsBmGet('/chats/' + alvo.hash); const cj = (c && c.j) || {}; const tg = (cj.tags || []).join('|');
+            if (/01.?D|FechouNeg/i.test(tg)) { estado('concluída', 'cliente fechou (01 D) — visto pela API'); feito896 = true; }
+            else if (/Sem_?margem|SEM_MARGEM|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) { estado('cancelada', 'tag de recusa (API)'); feito896 = true; }
+            else { const w = Date.parse(cj.whatsAppWindowCloseDatetime || 0); if (w && w < ag + 2 * 60000) throw new Error('JANELA_VENCIDA');
+              const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date((+alvo.linkT || ag) - 2 * 60000).toISOString()));
+              const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
+              const cliDepois = ms.some(k => k.from === 'user' && Date.parse(k.creationTime) > (+alvo.linkT || 0) + 30000);
+              if (cliDepois && toque.tipo !== 'manha') { reg('não saiu: o cliente falou depois do link — é atendimento (8.96)', true); estado('pausada', 'cliente respondeu depois do link — atendimento (8.96)'); feito896 = true; }
+              else { await bmEnviarTexto(alvo.hash, texto); feito896 = true; reg('enviado ' + hhmm(Date.now()) + ' pela API (8.96)', true);
+                { const r3 = RG(), x3 = r3[alvo.hash]; const q = x3 && x3.toques.find(k => k.tipo === toque.tipo); if (q) q.enviadoT = Date.now();
+                  if (x3 && toque.tipo === '10') { const q6 = x3.toques.find(k => k.tipo === '60'); if (q6 && !q6.feito) q6.quando = Date.now() + 60 * M; }
+                  if (x3) x3.toques.forEach(k => { if (k !== q && !k.feito && (+k.quando || 0) < Date.now() + 40 * M) { k.feito = Date.now(); k.st = 'pulado (outro toque acabou de sair — 6.54)'; } });
+                  gravaRG(r3); desenharRegua(); }
+                if (toque.tipo === 'tarde' || (toque.tipo === 'manha' && !(alvo.toques || []).some(k => k.tipo === 'tarde'))) estado('esgotada', 'toques feitos — vai para a FILA-FOLLOWUP-WHATSAPP'); } } }
+        } catch (e) { if (/JANELA_VENCIDA/.test(String(e && e.message))) { const r2 = RG(), x = r2[alvo.hash]; if (x) { x.toques.forEach(k => { if (!k.feito) { k.feito = Date.now(); k.st = 'pulado (janela de 24 h vencida → varredura)'; } }); x.estado = 'esgotada'; x.motivo = 'janela de 24 h vencida — follow-up pelo outro número na varredura'; gravaRG(r2); } feito896 = true; } }
+        finally { fupRodando = false; }
+        if (feito896) return; }
       if (!navPega('fup')) return;
       fupRodando = true;
       try {
