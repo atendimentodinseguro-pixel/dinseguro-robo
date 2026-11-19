@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.77';
+  const VERSAO = '8.78';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4924,10 +4924,10 @@
       const prazo877 = () => { try { if (!faz('atendimento')) return; const ag = Date.now(); const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
           const D0 = GM_getValue('prazo877_dono', null); if (D0 && D0.aba !== ABA && ag - (+D0.t || 0) < 3 * 60000) return; GM_setValue('prazo877_dono', { aba: ABA, t: ag });
           const O = GM_getValue('auto_ordens', {}) || {}; const P = GM_getValue('prazo877', {}) || {}; let mudO = false, mudP = false;
-          for (const h in P) if (!O[h] || !LIM877[O[h].estado]) { delete P[h]; mudP = true; }
+          for (const h in P) if (h !== '__ini' && (!O[h] || !LIM877[O[h].estado])) { delete P[h]; mudP = true; }
           for (const h in O) { const o = O[h]; if (!o || !LIM877[o.estado] || ag - (+o.t || 0) > 48 * 3600000) continue;
             if (o.estado === 'gravada') continue;
-            let p = P[h]; if (!p || p.e !== o.estado) { p = P[h] = { e: o.estado, t: ag }; mudP = true; if (o.parada877) { delete o.parada877; mudO = true; } continue; }
+            let p = P[h]; if (!p || p.e !== o.estado) { p = P[h] = { e: o.estado, t: ag }; if (!P.__ini) p.av = ag;   /* 8.78: o que já estava parado ANTES de o prazo existir é passivo (o vigia confere à mão) — não enche o quadro de vermelho velho */ mudP = true; if (o.parada877) { delete o.parada877; mudO = true; } continue; }
             const min = Math.round((ag - p.t) / 60000); if (min < LIM877[o.estado] || p.av) continue;
             p.av = ag; mudP = true; const nm = o.nomeReal || o.nome || h.slice(0, 5);
             if (o.estado === 'digitando' && (o.viaApi || o.aba === 'api')) {
@@ -4941,7 +4941,7 @@
             const bancoTela = o.estado === 'ficha_ok' && !['C6', 'FACTA', 'QUALIBANK'].includes(String(o.banco || ''));
             const dica = bancoTela ? ' — a aba do ' + (o.banco || 'banco') + ' está aberta e logada? (sem ela não digita)' : o.estado === 'ficha_ok' ? ' — a API do New Corban está ligada?' : /nova|consultando/.test(o.estado) ? ' — o Multicorban está aberto e logado?' : '';
             o.parada877 = ag; mudO = true; vermelho877(o, '⏰ 8.77: ' + nm + ' parado em "' + o.estado + '" há ' + min + ' min' + dica); }
-          if (mudO) GM_setValue('auto_ordens', O); if (mudP || mudO) GM_setValue('prazo877', P); } catch (e) { try { localStorage.setItem('dins_prazo877_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} } };
+          if (!P.__ini) { P.__ini = ag; mudP = true; } if (mudO) GM_setValue('auto_ordens', O); if (mudP || mudO) GM_setValue('prazo877', P); } catch (e) { try { localStorage.setItem('dins_prazo877_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} } };
       setInterval(prazo877, 60000); window.dinsPrazo877 = prazo877;
       window.dinsPendencias = () => { try { const ag = Date.now(); const O = GM_getValue('auto_ordens', {}) || {}; const P = GM_getValue('prazo877', {}) || {};
           const verm = Object.values(RG() || {}).filter(x => x && x.estado === 'alerta').map(x => ({ h: x.hash, n: String(x.nome || '').slice(0, 18), m: String(x.motivo || '').slice(0, 110), min: x.ultCliT ? Math.round((ag - x.ultCliT) / 60000) : null })).sort((a, b) => (b.min || 0) - (a.min || 0));
