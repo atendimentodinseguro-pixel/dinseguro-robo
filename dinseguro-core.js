@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.60';
+  const VERSAO = '8.61';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4515,8 +4515,9 @@
         const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
         const cli6 = ms.filter(m => m.lado === 'cli').slice(-6).map(m => m.txt);
         if (cli6.some(t => RECUSOU.test(t))) { const cpfR = ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)); const margR = temTag(/ComMargem|01.?A/i) || cpfR;   // 8.56 (Stefany 18/11 21:09): recusou COM margem → 01 A; sem CPF → 01 C; nunca fechar sem tag
-          const itR = margR && ON829.includes('tag_01a') ? 'tag_01a' : (!cpfR && ON829.includes('fechar_01c') ? 'fechar_01c' : ''); if (itR) return { acao: 'fecha', intent: itR, motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — ' + (itR === 'tag_01a' ? '01 A' : '01 C') + ' + fechar, sem follow-up (8.56)' }; }
-        if (cli6.some(t => RECUSOU.test(t))) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — sem follow-up, fechada (8.31)' } : { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
+          // 8.61 (Stefany 18/11 21:47: "o cliente que não aceitou… tem margem e nesse caso faz follow-up"): recusou COM margem/CPF = potencial → segue para o follow-up (não fecha)
+          if (!margR && !cpfR && ON829.includes('fechar_01c')) return { acao: 'fecha', intent: 'fechar_01c', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") sem CPF — 01 C + fechar, sem follow-up (8.56)' }; }
+        if (cli6.some(t => RECUSOU.test(t)) && !(temTag(/ComMargem|01.?A/i) || ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)))) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — sem follow-up, fechada (8.31)' } : { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
         const fe = faseEsteira(RG()[it.id] || {});
         if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
         const nos = ms.filter(m => m.lado === 'nos').map(m => m.txt).join('\n');
