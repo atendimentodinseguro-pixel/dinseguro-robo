@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.97';
+  const VERSAO = '8.98';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2108,6 +2108,7 @@
           const RGe = GM_getValue('regua', {}) || {}; const hh2 = new Date().getHours(); const FE = window.dinsFaseEsteira;
           const NM = GM_getValue('nao_mexer', {}) || {};
           for (const k in RGe) { const x = RGe[k]; if (!x || !x.link || typeof FE !== 'function' || NM[k] || x.comQuem || protegido(k)) continue;   // conversa que a Stefany/Rômulo está tocando: não mexe
+            if (x.estado === 'pos_venda' || fechada888(k, x.ultCliT)) continue;   // 8.98 (Stefany 19/11 14:04): contratou e a conversa está FECHADA → acompanhamento externo; o robô só guarda a informação, não manda mensagem
             const fe = FE(k); if (!fe) continue; const nm = nomeCli(x);
             // (3) cliente disse que desbloqueou → AVERBE JA de 60 em 60 s no Autorizador (só C6), e uma linha de retorno (responde a qualquer hora)
             if (fe.fase === 'falta desbloquear' && /C6/i.test(fe.banco || '') && fe.nome && x.ultLado === 'cli' && (x.ultCliT || 0) > (x.averbarT || 0)
@@ -2591,7 +2592,7 @@
           const pos = POS897(x) && ag - ult < 10 * 864e5 && !/^(cancelada)$/.test(x.estado || '');
           const fechadaConv = !!FM[k] && !((+x.ultCliT || 0) > (+FM[k].lu || 0) + 60000);
           let sai = '';
-          if (pos) sai = '';
+          if (pos) { sai = ''; if ((fechadaConv || FIM897.test(x.estado || '')) && !simular && x.estado !== 'pos_venda') { x.estadoAntes = x.estado; x.estado = 'pos_venda'; x.motivo = 'pós-venda com a conversa fechada — só informação (acompanhamento externo; 8.98)'; delete x.reler; delete x.relerHist; } }
           else if (FIM897.test(x.estado || '')) sai = 'encerrada (' + x.estado + ')';
           else if (fechadaConv && x.estado !== 'alerta') sai = 'conversa fechada';
           else if (ag - ult > 24 * 3600000) sai = 'sem atividade há mais de 24 h';
