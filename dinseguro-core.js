@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.63';
+  const VERSAO = '8.64';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -864,7 +864,7 @@
   const humano806 = m => !!m && m.FROM === 'me' && ((m.FROM_NAME && m.FROM_NAME !== 'Bot') || /^\s*\[Dinseguro\]/.test(msgTxt806(m)));   // 8.06: mensagem nossa pela API (FROM_NAME 'Bot' + [Dinseguro]) conta como humana
   // 8.40 (Stefany 18/11 16:08: "o robô de atendimento está mandando mensagem no número suspenso"): o 0800 191 2261 (558001912261) caiu na Meta.
   // Conversa que chegou por um canal suspenso NUNCA recebe mensagem do robô — nem pela API nem pela tela (executor de ordens).
-  const CANAIS_SUSPENSOS = ['558001912261'];
+  const CANAIS_SUSPENSOS = [];   // 8.64 (Stefany 19/11 08:01: "o telefone voltou, não está mais suspenso") — 0800 191 2261 liberado de novo
   const canalCache = {};
   async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s;
       const tk = GM_getValue('bm_api_token', ''); if (!tk || !/^[A-Z0-9]{20}$/.test(String(chatId))) return false;
