@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.15';
+  const VERSAO = '9.16';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4207,10 +4207,19 @@
           if (x.estado === 'pausada' && x.link && !(x.retomarT && Date.now() - x.retomarT < 20 * 3600000)) return 'F';
           if (x.estado === 'esgotada' && x.link && !x.vencida) return 'F'; }   // 5.81: follow-ups feitos → a varredura pega quando a janela vencer (automático)
         if (['encerrado', 'concluída'].includes(x.estado)) return 'E';
-        return 'A';
+        // 9.16 (Stefany 19/11 16:31: "aguardando cliente é um status muito genérico — criar mais subdivisões para controlar melhor"): o azul virou 5 situações, cada uma com o passo da regra
+        { const mo = String(x.motivo || ''); const ao9 = (GM_getValue('auto_ordens', {}) || {})[x.hash];
+          if (x.comQuem) return 'J';
+          if (/follow-up de d[úu]vida feito|toques feitos|esgotad/i.test(mo) || x.estado === 'esgotada') return 'A5';
+          if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
+          if (x.link && !x.semLink) return 'A4';
+          if (/pedimos o CPF/i.test(mo)) return 'A3';
+          if (/simula[çc][ãa]o padr[ãa]o|parou sem CPF|entrou no bot/i.test(mo)) return 'A2';
+          return 'A'; }
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
-        ['A', '🔵 Próximo passo pela regra', '#93c5fd'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+        ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A2', '🟠 Simulação padrão enviada — 1 h sem resposta: avisa, 01 C e fecha', '#fdba74'], ['A3', '🟤 Pedimos o CPF — 2 h sem resposta: avisa, 01 C e fecha', '#d6b08c'],
+        ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
       if (faz('atendimento')) try {
@@ -4260,7 +4269,7 @@
           const tq0 = tq; { const t2 = tq0.filter(q => !/pulado/i.test(q.st || '')); if (t2.length) tq = t2; } const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
           const qd = pend ? ((new Date(pend.quando).toDateString() !== new Date().toDateString() ? ('0' + new Date(pend.quando).getDate()).slice(-2) + '/' + ('0' + (new Date(pend.quando).getMonth() + 1)).slice(-2) + ' ' : '') + hhmm(pend.quando)) : '';
           return 'follow-up ' + env + ' de ' + tq.length + ' feito' + (pend ? (pend.quando < Date.now() - 5 * M ? ' · ⚠ ATRASADO desde ' + qd : ' · próximo ' + qd) : ' · todos feitos'); } catch (e) { return ''; } };
-      const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && k !== 'A') return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
+      const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && !/^A/.test(k)) return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
       const situacao0 = (x, k) => {
         const ao = (GM_getValue('auto_ordens', {}) || {})[x.hash];
         if (ao && x.semLink && ao.tipo === 'cpf') {
