@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.72';
+  const VERSAO = '8.73';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -995,7 +995,8 @@
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
-        onload: r => res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }), onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+        onload: r => { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01)/.test(String(intent))) { try { const R = GM_getValue('regua', {}) || {}; if (R[chatId]) { R[chatId].estado = 'encerrado'; R[chatId].motivo = 'fechada pela intenção ' + intent + ' (8.73)'; (R[chatId].hist = R[chatId].hist || []).push(hhmm(Date.now()) + ' fechada pela intenção ' + intent); GM_setValue('regua', R); } } catch (e) {} }   /* 8.73 (Stefany 19/11 10:46: "a lista dele tá atrasada, vê gente que já foi fechada") */
+          res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages)/.test(String(path))) return res({ erro: 'caminho não liberado' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
@@ -4027,6 +4028,8 @@
         if (fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase) && x.estado !== 'humano' && !(x.faseFeita && x.faseFeita === fe.fase)) return 'R';   // 4.18c: com humano (Marlene/Rômulo) fica no amarelo
         if (fe && fe.fase === 'pago') return 'E';
         if (fe && fe.fase === 'recusada') return 'J';
+        if (['encerrado', 'fechada'].includes(x.estado)) return 'E';   // 8.73: fechada (intenção/tela) sai do vermelho
+        if (x.ultCliT && agora - x.ultCliT > 24 * 60 * M && x.estado === 'alerta' && !(fe && ['falta desbloquear', 'falta anuência'].includes(fe.fase))) return 'A';   // 8.73: janela de 24 h vencida = serviço da varredura, não do "responder agora"
         if (['erro', 'bloqueada', 'alerta'].includes(x.estado) || atras(x) || vermelhoCalc(x)) return 'R';
         if ((x.estado === 'humano' && protegido(x.hash)) || x.junto || (x.estado === 'acompanhando' && /01 D|acompanhar o banco/.test(x.motivo || ''))) return 'J';
         if (x.estado === 'humano') return 'R';   // 4.44: humano fora da lista → o vigia analisa o contexto (vermelho)
