@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.87';
+  const VERSAO = '8.88';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -101,6 +101,9 @@
     '041': 'Banrisul', '070': 'BRB', '004': 'Banco do Nordeste', '037': 'Banpará', '021': 'Banestes', '047': 'Banese', '290': 'PagBank', '380': 'PicPay' };
 
   const so = s => (s || '').replace(/\D/g, '');
+  // 8.88 (Stefany 19/11 12:31, Reginaldo e Railda na lista "Esperando atendimento": "por que aparecem se já estão fechados?"): conversa ENCERRADA (fila = intenção de fechar) e sem mensagem nova do cliente depois disso NÃO volta para o vermelho nem para a lista.
+  // O mapa é alimentado pela leitura da API (de 5 em 5 min) e na hora em que o robô/vigia fecha pela intenção. Cliente escreveu depois → o Botmaker reabre a conversa, ela sai do mapa e volta a aparecer.
+  const fechada888 = (id, ultCliT) => { try { const f = (GM_getValue('fechadas888', {}) || {})[id]; return !!f && Date.now() - (+f.t || 0) < 26 * 3600000 && !((+ultCliT || 0) > (+f.lu || 0) + 60000); } catch (e) { return false; } };
   // 6.22 (caso Jeferson 15:22: ficha sem UF → Daycoval parou em 'UF obrigatório'): UF pelo DDD do WhatsApp quando a ficha não traz
   const UF_DDD = {"11": "SP", "12": "SP", "13": "SP", "14": "SP", "15": "SP", "16": "SP", "17": "SP", "18": "SP", "19": "SP", "21": "RJ", "22": "RJ", "24": "RJ", "27": "ES", "28": "ES", "31": "MG", "32": "MG", "33": "MG", "34": "MG", "35": "MG", "37": "MG", "38": "MG", "41": "PR", "42": "PR", "43": "PR", "44": "PR", "45": "PR", "46": "PR", "47": "SC", "48": "SC", "49": "SC", "51": "RS", "53": "RS", "54": "RS", "55": "RS", "61": "DF", "62": "GO", "64": "GO", "63": "TO", "65": "MT", "66": "MT", "67": "MS", "68": "AC", "69": "RO", "71": "BA", "73": "BA", "74": "BA", "75": "BA", "77": "BA", "79": "SE", "81": "PE", "87": "PE", "82": "AL", "83": "PB", "84": "RN", "85": "CE", "88": "CE", "86": "PI", "89": "PI", "91": "PA", "93": "PA", "94": "PA", "92": "AM", "97": "AM", "95": "RR", "96": "AP", "98": "MA", "99": "MA"};
   const ufDoDDD = t => { const d = String(t || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); return UF_DDD[d.slice(0, 2)] || ''; };
@@ -1019,7 +1022,7 @@
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
-        onload: r => { try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+        onload: r => { try { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01[ac]$)/.test(String(intent))) { const FM = GM_getValue('fechadas888', {}) || {}; FM[chatId] = { t: Date.now(), lu: Date.now() }; GM_setValue('fechadas888', FM); } } catch (e) {} try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     // 8.76 (Stefany 19/11 11:26: "o robô e você têm que mandar mensagem pela API"): envio do VIGIA pela API do Botmaker (sem abrir a conversa na tela)
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
@@ -1312,6 +1315,7 @@
         const R = GM_getValue('regua', {}) || {};
         for (const [id, q] of Object.entries(R)) {
           if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) continue;
+          if (fechada888(id, q.ultCliT)) continue;   // 8.88: conversa já encerrada não entra na lista
           if (q.hash && q.hash !== id && /^[A-Z0-9]{16,}$/i.test(q.hash)) continue;   // 4.84: entrada com chave errada (ex.: "103") — a certa entra pela própria chave
           if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id)) continue;   // 5.07: estar na tela não tira da fila (caso Marcelo 72ND: última msg era do bot, a lista não punha e o quadro pulava)
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
@@ -2575,7 +2579,7 @@
       { let L0 = null; try { L0 = lados(); } catch (e) {}
         const voltou = L0 && L0.ult && L0.ult.lado === 'cli' && !/^\s*(ok+|obrigad|obg|brigad|am[ée]m|deus aben|👍|🙏|❤️)/i.test(L0.ult.txt || '') && !(+L0.ult.t && Date.now() - L0.ult.t > 24 * 3600000);   // 5.83 (caso Lu Tasca: "Olá" de 16/12/2025 virou vermelho): só vale mensagem das últimas 24 h
         const tagFim = tem(/^01 (I|k)/i) ? '01 I' : tem(/^02 /i) ? '02' : tem(/^03 /i) ? '03' : tem(/^07 /i) ? '07' : '';
-        if (tagFim && voltou) return { estado: 'alerta', motivo: 'cliente voltou a escrever depois do retorno (' + tagFim + '): "' + String(L0.ult.txt || '').slice(0, 40) + '"', voltouAposRetorno: 1,
+        if (tagFim && voltou && !fechada888(hAtual, L0.ult.t) && !/^\s*(tenha|tenham)\s+(um|uma)\s+([óo]tim|bo[ma]|excelente|aben)|^\s*(at[ée] (mais|logo|breve)|tchau|boa (tarde|noite)|bom dia|fica com deus|fiquem com deus)\b/i.test(L0.ult.txt || '')) return { estado: 'alerta', motivo: 'cliente voltou a escrever depois do retorno (' + tagFim + '): "' + String(L0.ult.txt || '').slice(0, 40) + '"', voltouAposRetorno: 1,
           ultCliT: (L0.ultCli && L0.ultCli.t) || 0, ultCliTxt: ((L0.ultCli && L0.ultCli.txt) || '').slice(0, 120), ultT: L0.ult.t || 0, ultLado: 'cli', temCpf: L0.temCpf, comQuem: L0.comQuem, cpfSemRespT: L0.cpfSemRespT || 0, cpfSem: L0.cpfSem || '' }; }
       if (tem(/^01 (I|k)/i)) return { estado: 'encerrado', motivo: 'sem margem — retorno dado' };
       if (tem(/^02 /i)) return { estado: 'encerrado', motivo: 'LOAS — retorno dado' };
@@ -2966,7 +2970,7 @@
           // 6.37 (14/11 09:05, caso Roberlan: lista ↔ leitura brigando — 'alerta pela lista' e 'no bot' a cada 1,5 min, o robô relia o mesmo chat sem parar
           // e os follow-ups das 08:00 nunca tinham vez): se a conversa foi LIDA depois da última mudança na lista, vale a leitura, não a prévia.
           const lidaDepois = +x.lidoT > 0 && +x.lidoT > (+x.listaT || 0);
-          if (pareceEspera && !lidaDepois && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado)) {
+          if (pareceEspera && !lidaDepois && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado) && !fechada888(x.hash, x.ultCliT)) {
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)'; x.reler = 1;   // 4.83: relê para achar CPF
             x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
           } else if (nossa && x.estado === 'alerta' && /\(lista/.test(x.motivo || '')) {
@@ -4965,6 +4969,9 @@
           GM_setValue('esp_api_fechou_venc', FV); if (nF + n01) { res.push('vencidas fechadas ' + (nF + n01)); diario('espera API', '🔒 janela vencida sem follow-up: fechou ' + nF + ' (desfecho/recusa) + ' + n01 + ' (01 C) pela intenção (8.34)'); } } } catch (e) {}
         // 8.79 (Stefany 19/11 12:03 "quadro etc."): o vermelho de "cliente esperando" SAI sozinho quando a API mostra que já respondemos, e o de cliente calado há mais de 24 h vai para a varredura.
         // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
+        try { const FM = GM_getValue('fechadas888', {}) || {}; for (const k8 in FM) if (ag - (+FM[k8].t || 0) > 30 * 3600000) delete FM[k8];
+          all.forEach(c => { const id8 = c.chat.chatId; if (/^(fechar_[a-z0-9_]+|tag_01a|tag_01c)$/.test(String(c.queueId || ''))) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
+          const R8 = RG(); let m8 = 0; for (const k8 in R8) { const x = R8[k8]; if (x && x.estado === 'alerta' && fechada888(k8, x.ultCliT) && /voltou a escrever depois do retorno|cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '')) { x.estado = 'fechada'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.88: conversa já encerrada e sem mensagem nova do cliente → saiu do vermelho'); m8++; } } if (m8) gravaRG(R8); } catch (e) {}
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
           for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
             if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
