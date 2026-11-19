@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.89';
+  const VERSAO = '8.90';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1120,6 +1120,8 @@
       if (!k) { k = Math.random().toString(36).slice(2, 8); sessionStorage.setItem('dins_aba_id', k); } return k; })();
     const PAPEIS = ['tudo', 'atendimento', 'followup', 'varredura', 'vigia'];
     const meuPapel = () => { const p = sessionStorage.getItem('dins_papel') || 'tudo'; return PAPEIS.includes(p) ? p : 'tudo'; };
+    // 8.90 (Stefany 19/11: "o vigia estava com o atendimento aberto no cliente… para quê?"): a aba do VIGIA, quando recarrega, volta para a LISTA de conversas (o Botmaker reabre sozinho a última conversa)
+    setTimeout(() => { try { if (meuPapel() === 'vigia' && /#\/chats\/[A-Z0-9]+/i.test(window.top.location.hash)) window.top.location.hash = '#/chats'; } catch (e) {} }, 6000);
     const abasVivas = () => { const o = {}; for (let i = 0; i < window.localStorage.length; i++) { const k = window.localStorage.key(i); if (!/^dins_aba_/.test(k)) continue;
       try { const v = JSON.parse(window.localStorage.getItem(k) || '{}'); if (Date.now() - (+v.t || 0) < 60000) o[k.slice(9)] = v; else if (Date.now() - (+v.t || 0) > 3600000) window.localStorage.removeItem(k); } catch (e) {} } return o; };
     const consultaViva = () => { try { return Date.now() - (+GM_getValue('mc_vivo', 0) || 0) < 10 * 60000; } catch (e) { return true; } };   // 7.29
@@ -1302,6 +1304,7 @@
         let peloQuadro = false;
         if (!esperando && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && ((!x.nossa && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) || /parou sem CPF/.test(q.motivo || ''));   /* 4.77: parado no bot entra mesmo com a última mensagem sendo do bot */ } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
+        try { if (fechada888(x.id, ((GM_getValue('regua', {}) || {})[x.id] || {}).ultCliT)) continue; } catch (e) {}   // 8.90: conversa já encerrada e sem mensagem nova não entra na lista (Reginaldo e Railda entravam pela lista da tela)
         // 4.24 (Stefany 11/11 08:17, caso Nila "Obgd"): só agradeceu/confirmou ("ok", "obrigado", "blz", 👍) → não entra na fila,
         // a não ser que o quadro (que leu a conversa inteira) tenha marcado vermelho (ex.: "ok" depois de "já te passo o valor").
         try { const q2 = (GM_getValue('regua', {}) || {})[x.id];
