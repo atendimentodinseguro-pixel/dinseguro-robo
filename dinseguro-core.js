@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.65';
+  const VERSAO = '8.66';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4554,6 +4554,27 @@
     // 8.54 (Stefany 18/11 20:35: "colocar a varredura para fechar… só a galera que não tem que fazer follow-up"): passada SÓ DE FECHAMENTO pela API.
     // Lista pela API as conversas com janela de 24 h vencida (últimos N dias), decide com a mesma regra da varredura e fecha pela INTENÇÃO
     // só o que é 'fecha' (desfecho/recusou/sem margem) ou 'c01' (só o bot, sem CPF). Follow-up (wa) e revisar ficam de fora. Nunca abre a tela, nunca manda mensagem.
+    // 8.66 (Stefany 19/11 08:20): UMA chamada receptiva para quem chegou ontem no 0800 191 2261 (suspenso) e estava no INÍCIO do atendimento — sem pedir CPF, sem follow-up depois.
+    // Quem já estava no fluxo (CPF, simulação, link, proposta) NÃO recebe esta mensagem: vai para a lista 'fluxo' (o vigia continua de onde parou).
+    window.dinsChamadaOntem = async (enviar) => { const res = { vistos: 0, enviados: 0, fluxo: [], pulados: 0, janela_fechada: 0, erros: 0, lista: [] };
+      try { const hh = new Date().getHours(); if (enviar && (hh < 8 || hh >= 21)) return { erro: 'fora do horário (8h–21h)' };
+        const VOLTA = CANAL_VOLTOU865['558001912261']; const FEITO = GM_getValue('chamada_ontem866', {}) || {};
+        const de = new Date(Date.now() - 2 * 864e5).toISOString(); let r = await window.dinsBmGet('/chats?from=' + de); let it = (r.j && r.j.items) || []; let pg = 0;
+        while (r.j && r.j.nextPage && pg < 40) { r = await window.dinsBmGet(String(r.j.nextPage).replace(/^https?:\/\/[^/]+\/v2\.0/, '')); it = it.concat((r.j && r.j.items) || []); pg++; }
+        const ag = Date.now(); const CPFRE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/; const LK = /https?:\/\/(web\.c6consig|dcy\.app|\S*facta|\S*assin|signer\.ajin|\S*qualibank|\S*queromais|\S*daycoval)|proposta (aprovada|criada|gerada)/i;
+        const alvo = it.filter(x => { const c = x.chat || {}; const lu = Date.parse(x.lastUserMessageDatetime || '') || 0; return c.chatId && String(c.channelId || '').includes('558001912261') && lu && lu < VOLTA && !FEITO[c.chatId] && !protegido(c.chatId) && !/^(Jair|⚫️|Romulo)/.test(String(x.firstName || '').trim()) && !/CONGELADO/i.test(x.firstName || ''); });
+        for (const x of alvo) { const id = x.chat.chatId; res.vistos++; const nm = String(x.firstName || '').trim(); const tg = (x.tags || []).join('|'); const q = String(x.queueId || '');
+          if (/Sem_?Margem|SEM_MARGE|LOAS_Sem|01_I|01k|CLT|SERVIDOR|Servidor|NaoIdentificado|01_?D|FechouNeg/i.test(tg + '|' + q) || /^fechar_(sem_margem|loas|07)/.test(q)) { res.pulados++; continue; }
+          const w = Date.parse(x.whatsAppWindowCloseDatetime || '') || 0; if (!w || w < ag + 2 * 60000) { res.janela_fechada++; continue; }
+          let ms = []; try { const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + de); ms = (m.j && m.j.items) || []; } catch (e) {}
+          const cpf = ms.some(m => m.from === 'user' && CPFRE.test((m.content && m.content.text) || '')); const lk = ms.some(m => m.from !== 'user' && LK.test((m.content && m.content.text) || ''));
+          if (cpf || lk || /ComMargem/i.test(tg)) { res.fluxo.push(nm.slice(0, 14) + ' (' + (lk ? 'link/proposta' : cpf ? 'mandou CPF' : 'com margem') + ')'); continue; }
+          const fn = nm.split(/\s+/)[0] || ''; const n = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
+          const txt = 'Bom dia' + (n ? ', ' + n : '') + '! ☀️ Aqui é da Dinseguro. Vi que você falou com a gente ontem e não conseguimos te responder na hora — desculpa a demora! 🙏\n\nComo posso te ajudar hoje?';
+          if (!enviar) { res.lista.push(nm.slice(0, 14)); continue; }
+          try { await bmEnviarTexto0(id, txt); FEITO[id] = Date.now(); res.enviados++; res.lista.push(nm.slice(0, 14)); diario('chamada', 'chamada receptiva (8.66, 1 só, sem follow-up): ' + nm); } catch (e) { res.erros++; }
+          GM_setValue('chamada_ontem866', FEITO); await esp(1200); }
+      } catch (e) { res.erro = String((e && e.message) || e).slice(0, 120); } return res; };
     window.dinsVarreFechar = async (dias, max) => { const res = { vistos: 0, fechados: 0, c01: 0, pulados: 0, erros: 0, follow: 0, revisar: 0, lista: [] };
       try { const ON = GM_getValue('bm_intents_on', []) || []; if (!ON.includes('fechar_so') || !ON.includes('fechar_01c')) return { erro: 'intenções fechar_so / fechar_01c desligadas' };
         const de = new Date(Date.now() - (+dias || 3) * 864e5).toISOString(); let r = await window.dinsBmGet('/chats?from=' + de); let it = (r.j && r.j.items) || []; let pg = 0;
