@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.29';
+  const VERSAO = '9.30';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4409,6 +4409,10 @@
         const corpo = k === 'E' ? '<div style="margin-top:3px;line-height:1.6">' + g.map(x => linha(x, cor, k)).join(' · ') + '</div>' : g.map(x => linha(x, cor, k)).join('');
         return `<div style="margin-top:8px;font-weight:700;color:${cor}">${nome} (${g.length})</div>` + corpo;
       }).join('');
+      // 9.30 (Stefany 19/11 17:20: "coloca dentro do panorama quem recebeu, para o robô saber quem é e programar certinho"): pós-pagamento no quadro, com o próximo passo e a hora
+      try { if (!minimizado) { const PO = Object.values(GM_getValue('pos_pago', {}) || {}).filter(z => z && z.t22 && !z.p102 && !z.parado && Date.now() - (+z.t22 || 0) < 3 * 864e5);
+          const passoP = z => !z.w40 ? (z.extra ? (z.extraOfereceu ? '/W40 quando responder à oferta (ou ' + hhmm(z.extra + 30 * M) + ')' : '/W40 agora') : z.verExtra ? 'cliente disse que caiu → /W40 às ' + hhmm(z.verExtra + 10 * M) : 'esperando o cliente confirmar que caiu (/W40 às ' + hhmm(z.t22 + 30 * M) + ' se não responder)') : '/102 + /103 às ' + hhmm(z.w40 + 30 * M) + ' (ou assim que responder)';
+          q.innerHTML += `<div style="margin-top:8px;font-weight:700;color:#fde047${PO.length ? '' : ';opacity:.55'}">💰 Pós-pagamento — /22N → caiu → /W40 → 30 min → /102 + /103 (${PO.length})</div>` + (PO.length ? PO.map(z => `<div style="font-size:12px;margin:2px 0 2px 6px">${esc(z.nome || String(z.hash).slice(0, 6))} · ${esc(passoP(z))}${z.erro ? ' <span style="color:#fca5a5">⚠ ' + esc(String(z.erro).slice(0, 60)) + '</span>' : ''}</div>`).join('') : '<div style="font-size:11px;color:#64748b">— ninguém nesta situação agora</div>'); } } catch (e) {}
       if (!lista.length) q.innerHTML = cab + '<div style="color:#94a3b8;margin-top:4px">nenhum cliente na régua</div>';
       // 4.16 — TABELA (Stefany 10/11 18:51: "mais organizadinho, tabelado, cronômetro… tempo para próximo contato, data do último
       // contato, tentativa de contato… mesmo que fique mais largo… fácil de identificar"). Botão 📊 Tabela abre por cima da tela.
