@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.24';
+  const VERSAO = '9.25';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3629,6 +3629,7 @@
     window.dinsPosPendentes = () => Object.values(POS()).filter(x => x.verExtra && !x.extra && !x.w40).map(x => ({ hash: x.hash, nome: x.nome, desde: hhmm(x.verExtra) }));
     window.dinsReguaSemLinkComLink = () => Object.values(RG()).filter(x => x.semLink && /^01 A sem link/.test(x.motivo || '')).map(x => ({ hash: x.hash, nome: x.nome }));
     window.dinsReguaDetectar = () => { try { detectarLink(); return (RG()[(window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]] || {}).semLink ? 'ainda sem link' : 'ok'; } catch (e) { return 'erro ' + e.message; } };
+    window.dinsRRVer = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return Object.keys(RC).sort(); } catch (e) { return []; } };   // 9.25: quais respostas rápidas estão guardadas
     window.dinsPosTirar = hash => { const o = POS(); delete o[hash]; gravaPOS(o); return true; };
     // detector: a conversa aberta tem a /22N ou o link de vídeo da nossa parte → registra (sem abrir nada)
     setInterval(() => {
@@ -3679,6 +3680,19 @@
       }
       if (!alvo) return;
       const marca = mud => { const o = POS(), y = o[alvo.hash]; if (!y) return; Object.assign(y, mud); y.hist.push(hhmm(Date.now()) + ' ' + passo + ': ' + (mud.st || 'ok')); gravaPOS(o); };
+      // 9.25 (Stefany 19/11 17:07, Patricia: "caiu, recebeu — você já sabe o que fazer"; a /W40 pela tela falhou 16:21 "resposta rápida não apareceu"):
+      // com a API ligada, /W40 e /102 + /103 saem PELA API com o texto guardado das respostas rápidas, sem depender da tela. Confere a /22N pelas mensagens da API.
+      if ((passo === 'w40' || passo === 'p102') && bmApiLigada() && window.dinsBmGet) { const RC = GM_getValue('rr_cache', {}) || {}; const tx = k => (RC[k] && RC[k].tx) || '';
+        const prontos = passo === 'w40' ? !!tx('/W40') : (!!tx('/102') && !!tx('/103'));
+        if (prontos) { posRodando = true; try {
+            const m = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date(Date.now() - 72 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []); const nossasA = ms.filter(k => k.from !== 'user').map(k => String((k.content && k.content.text) || ''));
+            if (!nossasA.some(t => SIG_22N.test(t) || /cr[ée]dito foi aprovado/i.test(t))) { marca({ parado: 1, st: 'a /22N não está neste chat (API) — registro errado, parei' }); return; }
+            const nm0 = String(alvo.nome || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(nm0) ? nm0.charAt(0).toUpperCase() + nm0.slice(1).toLowerCase() : '';
+            if (passo === 'w40') { if (nossasA.some(t => SIG_W40.test(t))) { marca({ w40: Date.now(), st: 'já estava no chat (API)' }); return; }
+              await bmEnviarTexto(alvo.hash, tx('/W40')); marca({ w40: Date.now(), st: 'enviada pela API (9.25)' }); diario(alvo.nome || '', 'pós-pagamento: /W40 pela API ✓ (9.25)'); return; }
+            await bmEnviarTexto(alvo.hash, (nm ? nm + ', ' : '') + tx('/102').replace(/^\s*([A-ZÁÉÍÓÚ])/, c => nm ? c.toLowerCase() : c)); await new Promise(r9 => setTimeout(r9, 2000)); await bmEnviarTexto(alvo.hash, tx('/103'));
+            marca({ p102: Date.now(), st: 'enviadas pela API (9.25)' }); diario(alvo.nome || '', 'pós-pagamento: /102 + /103 pela API ✓ (9.25)'); return;
+          } catch (e) { marca({ erro: 'API: ' + String((e && e.message) || e).slice(0, 100) }); } finally { posRodando = false; } } }
       if (!navPega('pos')) return;
       posRodando = true;
       try {
