@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.85';
+  const VERSAO = '8.86';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2005,7 +2005,7 @@
       if (pediu && lib > 0 && par > 0 && (!marg || p2 <= marg)) return { v2: brl(lib), p2: brl(p2), pediu: 1 };
       return { v2: brl(Math.floor(lib * 0.945 * 100) / 100), p2: o.parcela, pediu: 0 }; }
     function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
-      const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10) ? '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Olha a condição que consegui para você com um valor um pouco maior 👇 Se preferir outro valor, é só me falar.' : '';   /* 8.77 */
+      const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10 * 1.15) ?   /* 8.86: só explica quando o valor ficou de fato maior (Maria Cristina 19/11: R$ 1.929 x R$ 1.928 escolhidos) */ '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Olha a condição que consegui para você com um valor um pouco maior 👇 Se preferir outro valor, é só me falar.' : '';   /* 8.77 */
       const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
       const seg = '\n\n✅ Sem taxas escondidas\n✅ Você pode cancelar de graça em até 7 dias\n⭐ Nota 4,9 no Google e empresa verificada no Reclame Aqui\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.';
       if (!duas) return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉' + c10 + '\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*' + seg + '\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
