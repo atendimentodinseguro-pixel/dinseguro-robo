@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.91';
+  const VERSAO = '8.92';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5842,7 +5842,8 @@
         await sleep(1200);
         if (/outro CPF/i.test(alertas().join())) {
           await fecharAlertas();
-          if (real && !c.daSeq) { log('Conta do cliente ' + c.banco + ' ' + c.conta + '-' + c.dv + ' está em outro CPF no ' + PORTAL.nome + ' → conta aleatória da sequência (8.91, regra 19/11).'); GM_setValue(chaveRec, c.banco + '|' + c.conta + '-' + c.dv); c = seqConta(); await fecharAlertas(); continue; }
+          // 8.92 (Stefany 19/11 13:00): conta da consulta FLASH (conta certa do INSS) ou informada pelo cliente é a que vale — NUNCA troca sozinho para aleatória. Deu erro → para e chama a Stefany.
+          if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + ' → chamar a Stefany (conta da flash/cliente não se troca por aleatória).');
           if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
           log(`Conta ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv} já está em outro CPF → próxima da sequência.`);
           c = seqConta();
