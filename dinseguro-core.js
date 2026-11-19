@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.61';
+  const VERSAO = '8.62';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4355,7 +4355,7 @@
     window.dinsWaRecarregar = () => { GM_setValue('wa_recarregar', Date.now()); return 'pedido'; };
     window.dinsWaStatus = () => GM_getValue('wa_status', null);
     // 8.41: tira da fila do WhatsApp quem já recebeu o retorno de SEM MARGEM (ou tem tag de desfecho) e fecha a conversa (01 I pela intenção)
-    window.dinsWaLimparSemMargem = async (fechar = true) => { const f = GM_getValue('wa_fila', []) || []; const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel/i; const out = [];
+    window.dinsWaLimparSemMargem = async (fechar = true) => { const f = GM_getValue('wa_fila', []) || []; const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel|empr[ée]stimo n[ãa]o est[áa] dispon[ií]vel para voc[êe]/i; const out = [];
       for (const x of f.filter(y => y.estado === 'pendente')) { let j = null; try { j = await apiLer(x.hash, 60); } catch (e) {} if (!j || !j.customer) { out.push([x.nome, 'sem leitura']); continue; }
         const tags = (j.customer.tags || []).map(String); const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME)));
         let iSM = -1, iLK = -1; ms.forEach((m, i) => { if (m.FROM === 'me') { const t = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : ''); if (SM_RE.test(t)) iSM = i; if (/https?:\/\//.test(t)) iLK = i; } });
@@ -4503,6 +4503,8 @@
         if (temTag(/01.?D|Fechou.?Neg/i)) return null;
         const ON829 = GM_getValue('bm_intents_on', []) || [];
         if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'desfecho já tagueado — só fechar (intenção)' } : null;   // desfecho → fecha (8.29: pela intenção, sem a tela)
+        // 8.62 (Stefany 18/11 22:25: Leslie CLT e Lenita 07 já estavam fechadas e tagueadas): fora do perfil (CLT / servidor / não identificado sem INSS) → não é revisar; pula
+        if (temTag(/^CLT|Servidor.?Publico/i) || (temTag(/NaoIdentificado/i) && !temTag(/INSS|Inss/))) return { acao: 'pular', motivo: 'fora do perfil (CLT/servidor/não identificado) — já tratado (8.62)' };
         if ((GM_getValue('wa_bloqueados', []) || []).includes(it.id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
         const txtDe = m => { let s = typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''); try { const o = JSON.parse(s); if (o && o.button) s = o.button; } catch (e) {} return String(s || '').replace(/\s+/g, ' ').trim(); };
         const ms = (j.newMessages || []).slice().sort((a, b) => String(a.CREATION_TIME).localeCompare(String(b.CREATION_TIME))).map(m => ({ lado: m.FROM === 'me' ? 'nos' : 'cli', bot: m.FROM === 'me' && /^Bot$/i.test(m.FROM_NAME || ''), txt: txtDe(m) }));
@@ -4510,6 +4512,8 @@
         const CPFRE = /\b\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d\b/;
         const OK_V = /^(ok+|okay|obrigad[oa]s?|obg|obgd[ao]?|brigad[oa]|muito obrigad[oa]|blz|beleza|t[áa] bom|certo|entendi|valeu|am[ée]m|bom dia|boa tarde|boa noite|deus aben[çc]oe|👍|🙏|❤️|😊)[\s.!,👍🙏😊❤️]*$/i;
         const u = ms[ms.length - 1];
+        // 8.62 (Stefany 18/11 22:25, Moacir: "não teve CPF → 01 C e fechar no varredura; ela vai chamar apenas quem tem chance clara de negócio"): escreveu e ficou sem resposta, SEM CPF e SEM margem → 01 C + fechar
+        { const cpf862 = ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)); if (!cpf862 && !temTag(/ComMargem|01.?A/i) && ON829.includes('fechar_01c') && u.lado === 'cli' && !CPFRE.test(u.txt)) return { acao: 'c01', motivo: 'escreveu "' + u.txt.slice(0, 40) + '" sem CPF e sem margem → 01 C + fechar (8.62)' }; }
         if (u.lado === 'cli' && !/^\s*\{?"?button/.test(u.txt) && u.txt !== 'undefined' && !OK_V.test(u.txt) && !CPFRE.test(u.txt) && !(ms.length > 1 && ms[ms.length - 2].lado === 'nos' && ms[ms.length - 2].bot)) return { acao: 'revisar', motivo: 'cliente escreveu "' + u.txt.slice(0, 60) + '" e ficou sem resposta' };
         if (u.lado === 'cli' && CPFRE.test(u.txt)) return { acao: 'revisar', motivo: 'mandou CPF e ninguém respondeu (conferir margem antes de chamar)' };
         const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
