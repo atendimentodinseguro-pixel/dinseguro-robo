@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.03';
+  const VERSAO = '9.04';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2525,6 +2525,7 @@
       return nomeSeguro(alvo && alvo.nome);
     }
     const MSG_TARDE = nome => `${nome ? nome + ', p' : 'P'}assando rapidinho 😊 A sua proposta continua pronta, com as condições que você viu. Falta só abrir o link e fazer a selfie de segurança para o dinheiro ir para a sua conta. Se tiver qualquer dúvida ou dificuldade, me chama aqui que eu te ajudo agora.`;   // 7.32
+    const MSG_MANHA_DUV904 = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro. Ficou com mais alguma dúvida sobre a proposta que te enviei? Podemos ajudar em algo mais? É só me chamar aqui. 😊`;   // 9.04
     const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
       'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
       'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
@@ -3411,9 +3412,14 @@
       const estado = (est, motivo) => { const r2 = RG(), x = r2[alvo.hash]; x.estado = est; x.motivo = motivo; x.hist.push(hhmm(Date.now()) + ' ' + est + ': ' + motivo); gravaRG(r2); desenharRegua(); };
       // 8.38 (Stefany 18/11 14:05): proposta mandada SÓ PARA ANÁLISE (cliente não aceitou a simulação) → UM follow-up só, /132 2 h depois do link;
       // sem o 'Conseguiu acessar?' de 10 min e sem o do dia seguinte (no dia seguinte é a varredura). Quem ACEITOU segue 10 min / 60 min / manhã / tarde.
+      // 9.04 (Stefany 19/11 14:47): link SÓ PARA ANÁLISE → /132 2 h depois se o cliente não respondeu nada; e no dia seguinte, a partir das 8 h,
+      // "ficou com mais alguma dúvida? podemos ajudar em algo mais?". Sem o de 10 min e sem o da tarde.
+      let soAnalise904 = false;
       { const O38 = GM_getValue('auto_ordens', {}) || {}; const oA38 = O38[alvo.hash]; const aceitou = !!(alvo.aceite || (oA38 && oA38.aceite));
-        if (!aceitou) {
-          if (toque.tipo !== '60') { reg('pulado (só análise — 8.38: um follow-up só, /132 em 2 h)', true); return; }
+        if (!aceitou) { soAnalise904 = true;
+          if (toque.tipo === 'tarde') { reg('pulado (só análise — 9.04: /132 em 2 h + dúvida na manhã seguinte)', true); estado('esgotada', 'follow-ups da análise feitos — varredura quando a janela vencer'); return; }
+          if (toque.tipo === '10') { reg('pulado (só análise — 9.04: /132 em 2 h + dúvida na manhã seguinte)', true); return; }
+          if (toque.tipo === 'manha') { /* segue: sai com a mensagem de dúvida */ } else
           if (agora < (+alvo.linkT || 0) + 120 * M) { const r38 = RG(), x38 = r38[alvo.hash]; const q38 = x38 && x38.toques.find(k => k.tipo === '60'); if (q38) { q38.quando = (+alvo.linkT || agora) + 120 * M; gravaRG(r38); } return; } } }
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) { reg('pulado (fora de 8h–21h)', true); return; }
@@ -3441,7 +3447,7 @@
       // cliente falou depois do link → pausa (é atendimento). Sem o texto do atalho guardado ou erro na API → caminho antigo pela tela.
       if (bmApiLigada() && window.dinsBmGet && !protegido(alvo.hash)) { let feito896 = false; fupRodando = true;
         try { const ag = Date.now(); const RC = GM_getValue('rr_cache', {}) || {}; const at = toque.tipo === '10' ? String(GM_getValue('atalho_conseguiu', '/bot2')).trim().toLowerCase() : '/132';
-          const texto = toque.tipo === 'manha' ? MSG_MANHA(nomeDoAlvo(alvo)) : toque.tipo === 'tarde' ? MSG_TARDE(nomeDoAlvo(alvo)) : ((RC[at] && RC[at].tx) || '');
+          const texto = (toque.tipo === 'manha' && soAnalise904) ? MSG_MANHA_DUV904(nomeDoAlvo(alvo)) : toque.tipo === 'manha' ? MSG_MANHA(nomeDoAlvo(alvo)) : toque.tipo === 'tarde' ? MSG_TARDE(nomeDoAlvo(alvo)) : ((RC[at] && RC[at].tx) || '');
           if (texto) {
             const c = await window.dinsBmGet('/chats/' + alvo.hash); const cj = (c && c.j) || {}; const tg = (cj.tags || []).join('|');
             if (/01.?D|FechouNeg/i.test(tg)) { estado('concluída', 'cliente fechou (01 D) — visto pela API'); feito896 = true; }
@@ -4241,8 +4247,8 @@
           return '<div style="margin-top:4px;padding:3px 6px;border-radius:6px;background:#0f172a;font-size:11px;line-height:1.35"><b>📝 O que o robô fez</b>' + D.map(d => '<div>' + hm(d.t) + ' <b>' + String(d.nome).replace(/</g, '&lt;') + '</b> — ' + String(d.txt).replace(/</g, '&lt;') + '</div>').join('') + '</div>'; } catch (e) { return ''; } })();
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
-      const fu903 = x => { try { const tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) return 'follow-up: nenhum programado';
-          const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
+      const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) return 'follow-up: nenhum programado';
+          const tq0 = tq; { const t2 = tq0.filter(q => !/pulado/i.test(q.st || '')); if (t2.length) tq = t2; } const env = tq.filter(q => q.enviadoT || /enviado/i.test(q.st || '')).length; const pend = tq.filter(q => !q.feito).sort((a, b) => a.quando - b.quando)[0];
           const qd = pend ? ((new Date(pend.quando).toDateString() !== new Date().toDateString() ? ('0' + new Date(pend.quando).getDate()).slice(-2) + '/' + ('0' + (new Date(pend.quando).getMonth() + 1)).slice(-2) + ' ' : '') + hhmm(pend.quando)) : '';
           return 'follow-up ' + env + ' de ' + tq.length + ' feito' + (pend ? (pend.quando < Date.now() - 5 * M ? ' · ⚠ ATRASADO desde ' + qd : ' · próximo ' + qd) : ' · todos feitos'); } catch (e) { return ''; } };
       const situacao = (x, k) => { const b = situacao0(x, k); if (k !== 'F' && k !== 'A') return b; const f = fu903(x); return (f ? f + ' — ' : '') + String(b || '').replace(/\s*[—,-]?\s*(aguardando|aguardar) o cliente/i, ''); };   // 9.03 (Stefany 14:37: "aguardando o cliente fica muito vago — controlar quantos follow-ups já foram feitos")
