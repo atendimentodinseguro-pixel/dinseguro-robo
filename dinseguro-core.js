@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.66';
+  const VERSAO = '8.67';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4556,6 +4556,7 @@
     // só o que é 'fecha' (desfecho/recusou/sem margem) ou 'c01' (só o bot, sem CPF). Follow-up (wa) e revisar ficam de fora. Nunca abre a tela, nunca manda mensagem.
     // 8.66 (Stefany 19/11 08:20): UMA chamada receptiva para quem chegou ontem no 0800 191 2261 (suspenso) e estava no INÍCIO do atendimento — sem pedir CPF, sem follow-up depois.
     // Quem já estava no fluxo (CPF, simulação, link, proposta) NÃO recebe esta mensagem: vai para a lista 'fluxo' (o vigia continua de onde parou).
+    window.dinsChamadaIds = () => Object.keys(GM_getValue('chamada_ontem866', {}) || {});   // 8.67: ids de quem recebeu a chamada receptiva (para desligar o bot nessas conversas)
     window.dinsChamadaOntem = async (enviar) => { const res = { vistos: 0, enviados: 0, fluxo: [], pulados: 0, janela_fechada: 0, erros: 0, lista: [] };
       try { const hh = new Date().getHours(); if (enviar && (hh < 8 || hh >= 21)) return { erro: 'fora do horário (8h–21h)' };
         const VOLTA = CANAL_VOLTOU865['558001912261']; const FEITO = GM_getValue('chamada_ontem866', {}) || {};
