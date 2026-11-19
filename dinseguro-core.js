@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.93';
+  const VERSAO = '8.94';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1051,6 +1051,8 @@
         await bmEnviarTexto(chatId, String(texto)); try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
         try { const R2 = GM_getValue('regua', {}) || {}; const x2 = R2[chatId]; if (x2 && x2.estado === 'alerta') { x2.estado = 'respondido'; delete x2.reler; delete x2.relerHist; (x2.hist = x2.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: o vigia respondeu pela API → saiu do vermelho'); GM_setValue('regua', R2); } } catch (e) {}
         try { if (/simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(String(texto))) { const VM2 = GM_getValue('valor_msg_feito', {}) || {}; VM2[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM2); } } catch (e) {}
+        // 8.94 (Stefany 19/11 13:21, Maurilio AOQNQ: "veja o erro do porque não tagueou ele"): link de proposta / simulação real mandada pela API não passava pela tela, que é quem punha a 01 A → agora a tag vai pela intenção so_tag_01a (não fecha)
+        try { if (/https?:\/\/(dcy\.app|facta\.ly|\S*facta|\S*c6consig|\S*joinbank|\S*qualibank|\S*queromais)|Novo Cr[ée]dito Dispon[íi]vel|proposta de \*R\$|Valor na conta: \*R\$/i.test(String(texto)) && (GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) { const T8 = GM_getValue('tag01a_894', {}) || {}; if (!(T8[chatId] > Date.now() - 6 * 3600000)) { T8[chatId] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(chatId, 'so_tag_01a'); } } } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages)/.test(String(path))) return res({ erro: 'caminho não liberado' });
@@ -1112,7 +1114,7 @@
               const O5 = GM_getValue('auto_ordens', {}) || {}; const x5 = O5[oK.hash];
               if (x5) { x5.estado = 'feito'; x5.linkApi879 = Date.now(); (x5.hist = x5.hist || []).push(hhmm(Date.now()) + ' 8.79: mensagem + link enviados pela API do Botmaker'); GM_setValue('auto_ordens', O5); }
               diario(oK.nomeReal || oK.nome || '', 'proposta ' + (oK.banco || '') + ' Nº ' + (oK.proposta || '') + ': mensagem + LINK enviados NA HORA pela API (8.79)');
-              try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a') && window.dinsBmIntent) window.dinsBmIntent(oK.hash, 'so_tag_01a'); } catch (e) {}
+              try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a') && window.dinsBmIntent) { const T8 = GM_getValue('tag01a_894', {}) || {}; T8[oK.hash] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(oK.hash, 'so_tag_01a'); } } catch (e) {}
             } catch (e) { const O5 = GM_getValue('auto_ordens', {}) || {}; const x5 = O5[oK.hash]; if (x5) { const er = String((e && e.message) || e).slice(0, 160); x5.api879Tent = (+x5.api879Tent || 0) + 1; x5.api879Erro = er; if (x5.api879Tent >= 2 || /sem token|SUSPENSO/.test(er)) x5.api879Falhou = 1; else x5.api879Prox = Date.now() + 200000; GM_setValue('auto_ordens', O5); diario(oK.nomeReal || oK.nome || '', '⚠️ link pela API não saiu: ' + er + ' (tentativa ' + x5.api879Tent + ')'); } }
             finally { ocup790 = false; } return; } }
         const oS = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'simulada' && !x.api790T && Date.now() - (+x.tSim || 0) < 20 * 60000);
@@ -1125,6 +1127,7 @@
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
           Object.assign(x, { estado: 'sim_enviada', tSimEnv: Date.now(), notaPend790: dd + ' ' + hhmm(Date.now()) + ' [robô 7.90] ' + (x.nomeReal || x.nome || '') + ' · ' + (x.resumo || '') + ' · simulado no ' + (x.banco || '?') + ' R$ ' + x.liberado + ' ' + x.prazo + 'x R$ ' + x.parcela + ' → só a SIMULAÇÃO, enviada na hora pela API do Botmaker (proposta NÃO gravada). Aceitou (1) → grava e manda o link; 30 min sem resposta → grava e manda /parabens.' });
           (x.hist = x.hist || []).push(hhmm(Date.now()) + ' simulação enviada pela API do Botmaker (7.90)'); GM_setValue('auto_ordens', O2);
+          try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a') && window.dinsBmIntent) { const T8 = GM_getValue('tag01a_894', {}) || {}; T8[oS.hash] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(oS.hash, 'so_tag_01a'); } } catch (e) {}   // 8.94: 01 A pela API na hora da simulação
           diario(x.nomeReal || x.nome || '', 'simulação enviada NA HORA pela API do Botmaker (' + Math.round((Date.now() - (+x.t || Date.now())) / 1000) + ' s depois do CPF)');
         } catch (e) { try { console.warn('[Dinseguro] 7.90 simulação pela API falhou → tela', e); } catch (x) {} }   // falhou → continua 'simulada' e o caminho antigo (7.55) manda pela tela
         finally { ocup790 = false; } }, 3000); }
