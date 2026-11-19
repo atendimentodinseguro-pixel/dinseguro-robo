@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.27';
+  const VERSAO = '9.28';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1062,6 +1062,14 @@
         onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     // 9.15: diagnóstico — por que um link pronto ainda não saiu pela API (cada condição do bloco 8.79)
     window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
+    // 9.28 (Stefany 19/11 17:17): cliente ainda no FLUXO DO BOT do Botmaker → o robô já adianta (consulta, simula, digita se aceitou, despacha sem margem na hora),
+    // mas a SIMULAÇÃO e o LINK só saem quando o bot parar de interagir com ele por ~5 min (ou passar para atendente). Cache de 60 s por conversa.
+    const BOTF928 = {}; window.dinsBotAtivo = async id => { try { const c0 = BOTF928[id]; if (c0 && Date.now() - c0.t < 60000) return c0.v;
+        const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(Date.now() - 30 * 60000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
+        const u = ms[ms.length - 1]; let v = false;
+        if (u) { const tx = String((u.content && (u.content.text || u.content.type)) || ''); const doFluxo = (u.from === 'bot' && !/^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(tx) && !/atendente humano|Para agilizar o seu atendimento|Identificamos que voc[êe] j[áa] passou|Estou analisando/i.test(tx)) || u.from === 'user';
+          v = doFluxo && Date.now() - Date.parse(u.creationTime) < 5 * 60000 && ms.some(q => q.from === 'bot' && !/^\s*\*?\[Dinseguro/.test(String((q.content && q.content.text) || '')) && Date.now() - Date.parse(q.creationTime) < 5 * 60000); }
+        BOTF928[id] = { t: Date.now(), v }; return v; } catch (e) { return false; } };
     // 7.90 (Stefany 17/11 21:47, caso Antonio: CPF 21:41, simulou pela API 21:42, mas a simulação só saiu 21:47 — a aba estava presa em outra ordem):
     // simulação pronta → sai NA HORA pela API do Botmaker, sem esperar a fila da tela. Nota e tag vão depois, pela tela, quando ela estiver livre.
     { const EU790 = Math.random().toString(36).slice(2, 8); let ocup790 = false;
@@ -1104,7 +1112,7 @@
         // 9.15 (19/11, Oscar: link pronto 3 vezes e não saiu sozinho): um pedido antigo em 'link' esperando a leitura do extrato ('wait') era sempre o PRIMEIRO da lista
         // e dava return — segurava o link de TODOS os outros clientes. Agora quem está em 'wait' é pulado e o próximo link sai.
         { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo) && extrSync(x) !== 'wait');
-          if (oK) { const exK = extrSync(oK); if (exK === 'wait') return;
+          if (oK) { const exK = extrSync(oK); if (exK === 'wait') return; if (await window.dinsBotAtivo(oK.hash)) return;   /* 9.28: proposta pronta; o link sai quando o bot do Botmaker parar */
             if (exK) { oK.estado = 'com_margem'; oK.resumo = (oK.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oK.nomeReal || oK.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
             if (!trava870('link879_' + oK.hash, 3 * 60000)) return;
             ocup790 = true; oK.api879T = Date.now(); GM_setValue('auto_ordens', O);
@@ -1126,6 +1134,7 @@
         if (!oS) return;
         const ex = extrSync(oS); if (ex === 'wait' || ex) return;   // extrato → o caminho antigo (7.71) cuida
         if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) return;
+        if (await window.dinsBotAtivo(oS.hash)) return;   // 9.28: cliente ainda no fluxo do bot do Botmaker → simulação pronta, sai quando o bot parar (~5 min)
         ocup790 = true; oS.api790T = Date.now(); GM_setValue('auto_ordens', O);
         try { const linhaS = textoSim755(oS); await bmEnviarTexto(oS.hash, linhaS);
           const O2 = GM_getValue('auto_ordens', {}) || {}; const x = O2[oS.hash]; if (!x) return;
@@ -4277,7 +4286,7 @@
           if (/simula[çc][ãa]o padr[ãa]o|parou sem CPF|entrou no bot/i.test(mo)) return 'A2';
           return 'A'; }
       };
-      const BL = [['R', '🔴 Responder agora', '#f87171'], ['B', '🤖 No atendimento do bot do Botmaker — parou 15 min sem CPF: o robô manda a simulação padrão', '#67e8f9'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
+      const BL = [['R', '🔴 Responder agora', '#f87171'], ['B', '🤖 No atendimento do bot do Botmaker — o robô adianta (consulta/simula/digita) e entra quando o bot parar ~5 min', '#67e8f9'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
         ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A2', '🟠 Simulação padrão enviada — 1 h sem resposta: avisa, 01 C e fecha', '#fdba74'], ['A3', '🟤 Pedimos o CPF — 2 h sem resposta: avisa, 01 C e fecha', '#d6b08c'],
         ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['A6', '🔘 01 D sem margem — fecha com 01 k em 2 h, sem mensagem', '#cbd5e1'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
@@ -4321,7 +4330,7 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
-            if (x.estado === 'botfluxo') return 'no fluxo do bot do Botmaker' + (x.botLuc ? ' (cliente respondeu ao bot ' + hhmm(x.botLuc) + ')' : '') + ' · se parar sem CPF, simulação padrão às ' + hq((+x.botLuc || Date.now()) + 15 * M);
+            if (x.estado === 'botfluxo') return 'no fluxo do bot do Botmaker' + (x.botLuc ? ' (cliente respondeu ao bot ' + hhmm(x.botLuc) + ')' : '') + ' · se parar sem CPF, simulação padrão às ' + hq((+x.botLuc || Date.now()) + 5 * M) + ' · com CPF: o robô já consulta e deixa pronto';
             { const fd = (gmCache('fechar_depois911', {}) || {})[x.hash]; if (fd) return 'cliente 01 D sem margem: retorno enviado ' + hhmm(+fd.de || 0) + ' · se não responder, fecha com 01 k às ' + hq(+fd.t || 0) + ' sem mandar mensagem'; }
             if (x.comQuem || x.humano924 || x.estado === 'humano') return 'atendente conduzindo (fora do fluxo do robô) — o robô não manda nada';
             { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
@@ -5112,7 +5121,7 @@
                 res.push(nm47 + ' (análise reversa pelo telefone)'); fez879 = true; }
               else if (false && !temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
                 const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 30 * 864e5)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.46: respondeu à simulação padrão (' + String(T(cU8)).slice(0, 30) + ') → pedido de CPF, uma vez só' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (respondeu a simulação → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu a simulação padrão → pediu o CPF (8.46, uma vez só)'); } } }
-              else if (!temCpf8 && !gente && min8 > 15 && !vm882 && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) /* 9.13 (Stefany 19/11 15:49, Benedito: voltou com a 01 C antiga, pediu "Falar com atendente" e ficou 34 min só com o bot): a tag 01 C não barra mais a simulação padrão — quem trava a repetição é a marca de 30 dias */ && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
+              else if (!temCpf8 && !gente && min8 > 5 && !vm882   /* 9.28 (Stefany 17:17: "aguarda cerca de 5 minutos caso o bot não interaja") */ && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) /* 9.13 (Stefany 19/11 15:49, Benedito: voltou com a 01 C antiga, pediu "Falar com atendente" e ficou 34 min só com o bot): a tag 01 C não barra mais a simulação padrão — quem trava a repetição é a marca de 30 dias */ && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
                 VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
                 const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
                 const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro. Fiz uma *simulação gratuita* para você ver quanto dá para liberar no consignado do INSS. É tudo seguro.\n\nSeparei *duas opções* com a margem cheia do INSS:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ 24.849,95*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *R$ 23.483,45*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *abril/2027*\n\n✅ Simulação gratuita e sem compromisso\n✅ Você pode cancelar de graça em até 7 dias\n🔒 A Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Quero outro valor\n\nÉ só responder com o número 🤝';
