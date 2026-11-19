@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.25';
+  const VERSAO = '9.26';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4370,7 +4370,7 @@
       };
       q.innerHTML = minimizado ? cab : cab + BL.map(([k, nome, cor]) => {
         const g = (grupos[k] || []).sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
-        if (!g.length) return '';
+        if (!g.length) return `<div style="margin-top:8px;font-weight:700;color:${cor};opacity:.55">${nome} (0)</div><div style="font-size:11px;color:#64748b">— ninguém nesta situação agora</div>`;   // 9.26 (Stefany 19/11 17:10): todos os blocos aparecem, mesmo vazios, para todo mundo se familiarizar com os nomes e conferir a classificação
         const corpo = k === 'E' ? '<div style="margin-top:3px;line-height:1.6">' + g.map(x => linha(x, cor, k)).join(' · ') + '</div>' : g.map(x => linha(x, cor, k)).join('');
         return `<div style="margin-top:8px;font-weight:700;color:${cor}">${nome} (${g.length})</div>` + corpo;
       }).join('');
@@ -4425,7 +4425,7 @@
         <table style="width:100%;border-collapse:collapse"><thead><tr>
           <th ${th}>Cliente</th><th ${th}>Situação / o que fazer</th><th ${th}>Último contato</th><th ${th}>Esperando há</th><th ${th}>Próximo contato</th><th ${th}>Tentativas</th><th ${th}>Banco (esteira)</th>
         </tr></thead><tbody>` +
-        BL.map(([k, nome, cor]) => { const g = grupos[k] || []; if (!g.length) return '';
+        BL.map(([k, nome, cor]) => { const g = grupos[k] || []; if (!g.length) return `<tr><td colspan="7" style="padding:10px 8px 4px;font-weight:800;font-size:14px;color:${cor};opacity:.55">${nome} (0) <span style="font-weight:400;font-size:12px;color:#64748b">— ninguém nesta situação agora</span></td></tr>`;   // 9.26
           const ord = [...g].sort((a2, b2) => k === 'R' ? (a2.ultT || a2.linkT) - (b2.ultT || b2.linkT) : (b2.ultT || b2.linkT) - (a2.ultT || a2.linkT));
           return `<tr><td colspan="7" style="padding:10px 8px 4px;font-weight:800;font-size:14px;color:${cor}">${nome} (${g.length})</td></tr>` + ord.map(x => linha(x, k, cor)).join(''); }).join('') +
         '</tbody></table>';
