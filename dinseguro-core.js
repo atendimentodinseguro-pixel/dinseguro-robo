@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.90';
+  const VERSAO = '8.91';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -101,9 +101,12 @@
     '041': 'Banrisul', '070': 'BRB', '004': 'Banco do Nordeste', '037': 'Banpará', '021': 'Banestes', '047': 'Banese', '290': 'PagBank', '380': 'PicPay' };
 
   const so = s => (s || '').replace(/\D/g, '');
+  // 8.91 (Stefany 19/11 12:52, Maurilio AOQNQ: "ele não pode descartar um cliente desse" — a chave PIX dele era o TELEFONE, 11 dígitos que passam na conta do CPF; o robô consultou esse número, deu "sem benefício" e fechou):
+  const foneCara891 = d => /^[1-9][1-9]9\d{8}$/.test(String(d || '').replace(/\D/g, ''));
+  const pixTxt891 = t => /pix|chave|telefone|celular|whats|zap|contato|fone/i.test(String(t || ''));
   // 8.88 (Stefany 19/11 12:31, Reginaldo e Railda na lista "Esperando atendimento": "por que aparecem se já estão fechados?"): conversa ENCERRADA (fila = intenção de fechar) e sem mensagem nova do cliente depois disso NÃO volta para o vermelho nem para a lista.
   // O mapa é alimentado pela leitura da API (de 5 em 5 min) e na hora em que o robô/vigia fecha pela intenção. Cliente escreveu depois → o Botmaker reabre a conversa, ela sai do mapa e volta a aparecer.
-  const fechada888 = (id, ultCliT) => { try { const f = (GM_getValue('fechadas888', {}) || {})[id]; return !!f && Date.now() - (+f.t || 0) < 26 * 3600000 && !((+ultCliT || 0) > (+f.lu || 0) + 60000); } catch (e) { return false; } };
+  let FM888c = null, FM888t = 0; const fechada888 = (id, ultCliT) => { try { if (!FM888c || Date.now() - FM888t > 5000) { FM888c = GM_getValue('fechadas888', {}) || {}; FM888t = Date.now(); } const f = FM888c[id]; return !!f && Date.now() - (+f.t || 0) < 26 * 3600000 && !((+ultCliT || 0) > (+f.lu || 0) + 60000); } catch (e) { return false; } };
   // 6.22 (caso Jeferson 15:22: ficha sem UF → Daycoval parou em 'UF obrigatório'): UF pelo DDD do WhatsApp quando a ficha não traz
   const UF_DDD = {"11": "SP", "12": "SP", "13": "SP", "14": "SP", "15": "SP", "16": "SP", "17": "SP", "18": "SP", "19": "SP", "21": "RJ", "22": "RJ", "24": "RJ", "27": "ES", "28": "ES", "31": "MG", "32": "MG", "33": "MG", "34": "MG", "35": "MG", "37": "MG", "38": "MG", "41": "PR", "42": "PR", "43": "PR", "44": "PR", "45": "PR", "46": "PR", "47": "SC", "48": "SC", "49": "SC", "51": "RS", "53": "RS", "54": "RS", "55": "RS", "61": "DF", "62": "GO", "64": "GO", "63": "TO", "65": "MT", "66": "MT", "67": "MS", "68": "AC", "69": "RO", "71": "BA", "73": "BA", "74": "BA", "75": "BA", "77": "BA", "79": "SE", "81": "PE", "87": "PE", "82": "AL", "83": "PB", "84": "RN", "85": "CE", "88": "CE", "86": "PI", "89": "PI", "91": "PA", "93": "PA", "94": "PA", "92": "AM", "97": "AM", "95": "RR", "96": "AP", "98": "MA", "99": "MA"};
   const ufDoDDD = t => { const d = String(t || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); return UF_DDD[d.slice(0, 2)] || ''; };
@@ -373,6 +376,9 @@
   // Qualquer coisa fora do padrão → estado 'erro' com o motivo, e o vigia faz à mão.
   if (window.top === window && /multicorban\.com|newcorban\.com\.br/.test(location.host)) {
     const AO = () => GM_getValue('auto_ordens', {}) || {};
+    // 8.91: antes de descartar (não localizado / sem benefício), consulta o outro CPF que o cliente mandou ou que o bot guardou — nunca descarta com um número só
+    const outroCpf891 = o => { try { const tent = [].concat(o.cpfTent || [], [o.cpf]).map(so); const alt = (o.cpfAlt || []).map(so).filter(d => d && !tent.includes(d) && cpfDigitoOk(d)); if (!alt.length) return false;
+        poeAO(o.hash, { estado: 'nova', cpf: alt[0], cpfAlt: alt.slice(1), cpfTent: tent, tMc: 0 }); try { diario(o.nome || o.hash.slice(0, 5), '🔁 o CPF ' + so(o.cpf).slice(0, 3) + '… não tem benefício — o cliente mandou outro número (' + alt[0].slice(0, 3) + '…) → consulta esse antes de descartar (8.91)'); } catch (e) {} return true; } catch (e) { return false; } };
     const poeAO = (h, mud) => { const O = AO(); if (!O[h]) return; Object.assign(O[h], mud); try { const nm = O[h].nomeReal || O[h].nome; const E = { consultando: 'consultando o CPF no Multicorban', ficha_ok: 'consultou: ' + (O[h].resumo || '') + ' → vai digitar no ' + (O[h].banco || ''), digitando: 'digitando no ' + (O[h].banco || ''), gravada: 'proposta gravada ' + (O[h].banco || '') + (O[h].liberado ? ' R$ ' + O[h].liberado : ''), link: 'link da proposta pronto → vai mandar simulação + link', erro: 'PAROU: ' + String(mud.erro || '').slice(0, 90), desfecho: 'sem margem/LOAS → mensagem de retorno' }[mud.estado]; if (E) diario(nm, E); } catch (e) {} (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); };
     const zz = ms => new Promise(r => setTimeout(r, ms));
     const botaoRobo = t => [...document.querySelectorAll('button[data-a]')].find(b => b.dataset.a === t);
@@ -437,7 +443,7 @@
             if (nao2) { const f2 = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f2 && f2.click(); }
             else achouMat = /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText) || [...document.querySelectorAll('tr')].some(tr => /\bATIVO\b/.test(tr.innerText));
             await zz(600); const off2 = document.getElementById('offline'); if (off2 && !off2.checked) off2.click(); await zz(500); const c2 = document.getElementById('cpf'); if (c2 && !c2.checked) c2.click();
-            if (!achouMat) { poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
+            if (!achouMat) { if (outroCpf891(o)) return; poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
             throw new Error('achou como MATRÍCULA (o número mandado é benefício) — vigia confere');
           }
           throw new Error('CPF não localizado no Multicorban');
@@ -462,7 +468,7 @@
           const infoB = tr => { const c = [...tr.querySelectorAll('td')].map(td => td.innerText.trim()); return { mat: c.find(t => /^\d{6,11}$/.test(t) && t.replace(/^0+/, '') !== String(o.cpf || '').replace(/^0+/, '')) || ''   /* 7.63: matrícula de 7 dígitos (caso Maria Helena) — nunca pegar o CPF */, esp: String(+(c.find(t => /^\d{1,2}$/.test(t)) || 0)).padStart(2, '0'), ddb: c.find(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t)) || '', ativo: /\bATIVO\b/.test(tr.innerText), valor: c.find(t => /R\$/.test(t)) || '' }; };
           const ordData = d => d.split('/').reverse().join('');
           const ativosB = linhasB().map(infoB).filter(x => x.ativo);
-          if (!ativosB.length) { poeAO(o.hash, { estado: 'desfecho', acao: 'sem_beneficio', resumo: 'nenhum benefício ATIVO no CPF' }); return; }   // 7.54: não para mais — retorno + 07 + fecha
+          if (!ativosB.length) { if (outroCpf891(o)) return; poeAO(o.hash, { estado: 'desfecho', acao: 'sem_beneficio', resumo: 'nenhum benefício ATIVO no CPF' }); return; }   // 7.54: não para mais — retorno + 07 + fecha
           const porMat = {}; for (const x of ativosB) { const k = x.mat || ('?' + Math.random()); if (!porMat[k] || ordData(x.ddb) > ordData(porMat[k].ddb)) porMat[k] = x; }
           const unicos = Object.values(porMat);
           const consig = unicos.filter(x => ESPECIES_OK.includes(x.esp) && !['87', '88'].includes(x.esp));
@@ -1018,6 +1024,21 @@
       b.onclick = () => { const t = prompt('Cole aqui o token de integração do Zap Responder (Integrações → Integração API). Vazio = cancela.', ''); if (t === null) return; const v = String(t).trim(); if (v.length < 16) { alert('Token não salvo (vazio ou curto).'); return; } GM_setValue('zr_api_token', v); alert('Token do Zap Responder salvo neste Chrome. ✅'); b.remove(); };
       document.body.appendChild(b); } catch (e) {} }, 5000);
     window.dinsBmIntentsOn = lista => { if (Array.isArray(lista)) GM_setValue('bm_intents_on', lista.filter(x => /^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(x))); return GM_getValue('bm_intents_on', []); };   // 8.27: liga as intenções já criadas no Botmaker
+    // 8.91 (Stefany 19/11 12:53 "ele tem API e ainda erra"): sem benefício / não localizado → ANTES do retorno, o robô lê a conversa pela API (variável CPF do bot + mensagens).
+    // Achou outro CPF válido que ainda não foi consultado → volta a ordem para a consulta com ele. Sem outro → segue o retorno normal.
+    { const CHK891 = {}; setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; if (!window.dinsBmGet || !GM_getValue('bm_api_token', '')) return;
+        const O = GM_getValue('auto_ordens', {}) || {}; const o = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'desfecho' && ['sem_beneficio', 'nao_localizado'].includes(x.acao) && !x.chk891 && !CHK891[x.hash] && Date.now() - (+x.t || 0) < 6 * 3600000); if (!o) return;
+        CHK891[o.hash] = 1; const O1 = GM_getValue('auto_ordens', {}) || {}; if (!O1[o.hash] || O1[o.hash].estado !== 'desfecho') return; O1[o.hash].estado = 'desfecho_chk891'; GM_setValue('auto_ordens', O1);
+        const cand = []; try { const c = await window.dinsBmGet('/chats/' + o.hash); const v = so(String((((c && c.j) || {}).variables || {}).CPF || '')); if (cpfDigitoOk(v)) cand.push(v); } catch (e) {}
+        try { const m = await window.dinsBmGet('/messages?chat-id=' + o.hash + '&from=' + encodeURIComponent(new Date(Date.now() - 30 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []);
+          ms.filter(k => k.from === 'user').forEach(k => { const t = String((k.content && k.content.text) || ''); (t.match(/\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d/g) || []).forEach(n => { const d = so(n); if (cpfDigitoOk(d) && !cand.includes(d)) cand.push(d); }); }); } catch (e) {}
+        const tent = [].concat(o.cpfTent || [], [o.cpf]).map(so); const novo = cand.filter(d => !tent.includes(d));
+        const O2 = GM_getValue('auto_ordens', {}) || {}; const x = O2[o.hash]; if (!x) return;
+        if (novo.length) { Object.assign(x, { estado: 'nova', cpf: novo[0], cpfAlt: novo.slice(1), cpfTent: tent, t: Date.now(), tMc: 0, resumo: '' }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 8.91: ' + (x.acao === 'sem_beneficio' ? 'sem benefício' : 'não localizado') + ' no CPF ' + so(o.cpf).slice(0, 3) + '… — a conversa tem outro CPF (' + novo[0].slice(0, 3) + '…) → consulta esse antes de descartar'); delete x.acao;
+          GM_setValue('auto_ordens', O2); try { diario(x.nome || o.hash.slice(0, 5), '🔁 sem benefício no CPF consultado, mas a conversa tem outro CPF → consulta de novo antes de descartar (8.91)'); } catch (e) {} return; }
+        x.estado = 'desfecho'; x.chk891 = 1; GM_setValue('auto_ordens', O2); } catch (e) { try { const O3 = GM_getValue('auto_ordens', {}) || {}; for (const k in O3) if (O3[k] && O3[k].estado === 'desfecho_chk891') { O3[k].estado = 'desfecho'; O3[k].chk891 = 1; } GM_setValue('auto_ordens', O3); } catch (x) {} } }, 3000);
+      // nenhuma ordem fica presa em 'desfecho_chk891' (aba fechou no meio): 2 min → volta para 'desfecho'
+      setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; let m = false; for (const k in O) { const x = O[k]; if (x && x.estado === 'desfecho_chk891' && Date.now() - (+x.chk891T || (x.chk891T = Date.now())) > 120000) { x.estado = 'desfecho'; x.chk891 = 1; m = true; } else if (x && x.estado === 'desfecho_chk891' && !x.chk891T) m = true; } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 30000); }
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -1274,6 +1295,7 @@
       const antiga = ler('dins_fila', []);
       const naTela = new Set(itens.map(x => x.id));
       const fila = [];
+      let RGlista890 = null;   // 8.91: a régua é lida UMA vez por desenho da lista (antes era uma vez por conversa → robô lento)
       for (const x of itens) {
         if (ignorar.includes(x.id)) continue;
         // v3.79 (Stefany 10/11, caso Ronaldo): mensagem SEM TEXTO na lista (anúncio, arquivo, áudio) dava sig vazia;
@@ -1304,7 +1326,7 @@
         let peloQuadro = false;
         if (!esperando && !humano) { try { const q = (GM_getValue('regua', {}) || {})[x.id]; peloQuadro = !!q && q.estado === 'alerta' && ((!x.nossa && /bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) || /parou sem CPF/.test(q.motivo || ''));   /* 4.77: parado no bot entra mesmo com a última mensagem sendo do bot */ } catch (e) {} }
         if (!esperando && !peloQuadro) continue;
-        try { if (fechada888(x.id, ((GM_getValue('regua', {}) || {})[x.id] || {}).ultCliT)) continue; } catch (e) {}   // 8.90: conversa já encerrada e sem mensagem nova não entra na lista (Reginaldo e Railda entravam pela lista da tela)
+        try { if (fechada888(x.id, 0) && fechada888(x.id, ((RGlista890 || (RGlista890 = GM_getValue('regua', {}) || {}))[x.id] || {}).ultCliT)) continue; } catch (e) {}   // 8.90: conversa já encerrada e sem mensagem nova não entra na lista (Reginaldo e Railda entravam pela lista da tela)
         // 4.24 (Stefany 11/11 08:17, caso Nila "Obgd"): só agradeceu/confirmou ("ok", "obrigado", "blz", 👍) → não entra na fila,
         // a não ser que o quadro (que leu a conversa inteira) tenha marcado vermelho (ex.: "ok" depois de "já te passo o valor").
         try { const q2 = (GM_getValue('regua', {}) || {})[x.id];
@@ -3252,7 +3274,8 @@
       // 4.17 (Stefany 19:19, casos Rita/Silvio/Nelson/José Tobias): CPF mandado pelo cliente sem resposta HUMANA depois = vermelho na hora,
       // mesmo que o bot tenha falado depois (pedido de extrato etc.). "Não precisa esperar o extrato, pode cair para dentro."
       const CPF_RE = /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d\b/;
-      const iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw)).lastIndexOf(true);
+      let iCpf = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw) && !pixTxt891(m.raw)).lastIndexOf(true);   // 8.91: mensagem de PIX/telefone não é CPF
+      { const iNF = ms.map(m => m.lado === 'cli' && CPF_RE.test(m.raw) && !pixTxt891(m.raw) && !foneCara891((m.raw.match(CPF_RE) || [''])[0])).lastIndexOf(true); if (iNF >= 0 && iCpf >= 0 && foneCara891((ms[iCpf].raw.match(CPF_RE) || [''])[0])) iCpf = iNF; }   // 8.91: o último tem cara de telefone e há outro que não tem → vale o outro
       const cpfSemRespT = iCpf >= 0 && !ms.slice(iCpf + 1).some(m => m.lado === 'nos' && !m.bot) ? (ms[iCpf].t || Date.now()) : 0;
       const cpfSem = cpfSemRespT ? (ms[iCpf].raw.match(CPF_RE)[0] || '').replace(/\D/g, '') : '';   // 4.24: o robô consulta sozinho
       const nossaAntes = ((iCli > 0 ? [...ms.slice(0, iCli)].reverse().find(m => m.lado === 'nos') : null) || {}).raw || '';
@@ -4123,7 +4146,8 @@
             O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSrv, tipo: 'cpf', cpfT: +x.ultCliT, valorBot: (x.escolha && x.escolha.valor) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF do painel confirmado no servidor — 5.82/7.18)'] }; mudouO = true; continue; }
           if (!x.cpfSem || !x.cpfSemRespT || agora - x.cpfSemRespT > 23 * H || x.estado === 'humano' || protegido(x.hash) || x.comQuem) continue;
           const v = O[x.hash]; if (v && (v.cpf === x.cpfSem || !['feito', 'erro', 'com_margem', 'desfecho_ok'].includes(v.estado))) continue;
-          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: x.cpfSem, tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || (((GM_getValue('valor_nota', {}) || {})[x.hash] || {}).v) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
+          const cpfEsc891 = (x.cpfVar && cpfDigitoOk(x.cpfVar) && so(x.cpfVar) !== so(x.cpfSem)) ? so(x.cpfVar) : x.cpfSem;   // 8.91: o CPF que o bot guardou vale mais que o número digitado (que pode ser telefone/PIX)
+          O[x.hash] = { hash: x.hash, nome: x.nome, fone: x.fone, cpf: cpfEsc891, cpfAlt: [x.cpfSem, x.cpfVar].map(so).filter(d => d && d !== cpfEsc891 && cpfDigitoOk(d)), tipo: 'cpf', cpfT: x.cpfSemRespT, valorBot: (x.escolha && x.escolha.valor) || (((GM_getValue('valor_nota', {}) || {})[x.hash] || {}).v) || 0, aceite: !!(x.escolha && x.escolha.aceite), estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada (CPF mandado ' + hhmm(x.cpfSemRespT) + ')'] };
           mudouO = true;
         }
         if (mudouO) GM_setValue('auto_ordens', O);
@@ -4865,7 +4889,8 @@
             // 8.15 (Stefany 18/11 10:53: "Reinaldo, Rose, um tanto de gente… tem que criar um sistema que funcione independente de mim e de você"):
             // REGRA PELO RESULTADO — quem mandou CPF tem que ter recebido simulação, sem margem ou link (ou resposta de gente). "Recebi o seu CPF,
             // já estou consultando" NÃO conta. Não recebeu em 6 min e não tem ordem andando → consulta de novo; 2 tentativas sem resultado → vermelho.
-            { let tCpf = 0, cpf5 = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) { cpf5 = mm[2].replace(/\D/g, ''); tCpf = Date.parse(m.creationTime); } }
+            { let tCpf = 0, cpf5 = ''; for (const m of ms) { if (m.from !== 'user' || pixTxt891(T(m))) continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2]) && !(cpf5 && foneCara891(mm[2]) && !foneCara891(cpf5))) { cpf5 = mm[2].replace(/\D/g, ''); tCpf = Date.parse(m.creationTime); } }
+              { const v891 = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v891) && v891 !== cpf5) { cpf5 = v891; if (!tCpf) { const u1 = ms.find(m => m.from === 'user'); tCpf = u1 ? Date.parse(u1.creationTime) : 0; } } }   // 8.91: o CPF que o bot guardou vale mais
               if (!cpf5) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) { cpf5 = v; const u1 = ms.find(m => m.from === 'user'); tCpf = u1 ? Date.parse(u1.creationTime) : 0; } }
               if (cpf5 && tCpf && ag - tCpf > 6 * 60000 && ag - tCpf < 24 * 3600000 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') {
                 const ACOL = /Recebi o seu CPF|J[áa] tenho o seu CPF|j[áa] estou consultando|Estamos analisando|Bem-vindo de volta|Fico feliz que voc[êe] voltou/i;
@@ -4932,8 +4957,8 @@
             const tags = (c.tags || []).join('|'); if (/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado/i.test(tags)) return;
             const nome = String(c.firstName || '').trim();
             // CPF: digitado pelo cliente (nas mensagens dele) ou na variável CPF do bot
-            let cpf = ''; for (const m of ms) { if (m.from !== 'user') continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2])) cpf = mm[2].replace(/\D/g, ''); }
-            if (!cpf) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }
+            let cpf = ''; for (const m of ms) { if (m.from !== 'user' || pixTxt891(T(m))) continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2]) && !(cpf && foneCara891(mm[2]) && !foneCara891(cpf))) cpf = mm[2].replace(/\D/g, ''); }
+            { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) cpf = v; }   // 8.91: a variável do bot vale mais
             // 8.38 (Stefany 18/11 14:05: "o pessoal que pediu o encerramento… taguear e fechar, não ficar mandando mensagem"): 'Encerrar agora' → o bot já mandou a despedida;
             // o robô só coloca a tag e fecha pela intenção (sem CPF → 01 C; com CPF → só fechar). Não consulta, não manda nada.
             if (/encerrar agora/i.test(btn)) { try { const ON38 = GM_getValue('bm_intents_on', []) || []; const it38 = cpf ? 'fechar_so' : 'fechar_01c'; if (ON38.includes(it38) && window.dinsBmIntent) { window.dinsBmIntent(id, it38).then(ri => { if (ri && ri.http >= 200 && ri.http < 300) diario(nome || id.slice(0, 5), 'pediu para encerrar → ' + (cpf ? 'fechou' : '01 C + fechou') + ' pela intenção (8.38)'); }); VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; } } catch (e) {} return; }
@@ -5817,7 +5842,7 @@
         await sleep(1200);
         if (/outro CPF/i.test(alertas().join())) {
           await fecharAlertas();
-          if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + '.');
+          if (real && !c.daSeq) { log('Conta do cliente ' + c.banco + ' ' + c.conta + '-' + c.dv + ' está em outro CPF no ' + PORTAL.nome + ' → conta aleatória da sequência (8.91, regra 19/11).'); GM_setValue(chaveRec, c.banco + '|' + c.conta + '-' + c.dv); c = seqConta(); await fecharAlertas(); continue; }
           if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
           log(`Conta ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv} já está em outro CPF → próxima da sequência.`);
           c = seqConta();
