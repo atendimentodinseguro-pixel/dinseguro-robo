@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.22';
+  const VERSAO = '9.23';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4226,7 +4226,8 @@
         { const mo = String(x.motivo || ''); const ao9 = (GM_getValue('auto_ordens', {}) || {})[x.hash];
           // 9.19 (Stefany 19/11 16:50: "me traga cada status… para o robô ficar 100%"): a classificação usa o que foi FEITO (mapas gravados no envio) e o atendente da conversa (lido na API), não o motivo antigo
           const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
-          if ((gmCache('fechar_depois911', {}) || {})[x.hash]) return 'A6';   // 9.20 (Stefany 19/11 17:01): 01 D sem margem → fecha com 01 k em 2 h, sem mensagem
+          if ((gmCache('fechar_depois911', {}) || {})[x.hash]) return 'F';   // 9.23 (Stefany 17:05: "vai fechar até o horário, tem que ficar no follow-up")
+          { const EN9 = gmCache('enc905', {}) || {}; const DV9 = (DVq[x.hash] || {}); if (!x.comQuem && !x.comAg919 && ((+VMq[x.hash] && !EN9[x.hash]) || (+PCq[x.hash] && !EN9[x.hash]) || (DV9.t && !DV9.enc))) return 'F'; }   // 9.20 (Stefany 19/11 17:01): 01 D sem margem → fecha com 01 k em 2 h, sem mensagem
           if (x.comQuem || x.comAg919) return 'J';
           if (DVq[x.hash] && DVq[x.hash].t) return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
@@ -4287,9 +4288,9 @@
             { const fd = (gmCache('fechar_depois911', {}) || {})[x.hash]; if (fd) return 'cliente 01 D sem margem: retorno enviado ' + hhmm(+fd.de || 0) + ' · se não responder, fecha com 01 k às ' + hq(+fd.t || 0) + ' sem mandar mensagem'; }
             if (x.comQuem || x.comAg919 || x.estado === 'humano') return 'com atendente na conversa — o robô não manda nada (o atendente conduz)';
             { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
-              if (DVq[x.hash] && DVq[x.hash].t) return 'follow-up de dúvida feito ' + hhmm(DVq[x.hash].t) + ' (1 de 1) — a varredura fecha quando a janela vencer';
-              if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'pedimos o CPF ' + hhmm(+PCq[x.hash]) + ' (não se pede de novo) · avisa o encerramento + 01 C e fecha às ' + hq(+PCq[x.hash] + 120 * M);
-              if (+VMq[x.hash]) return 'simulação padrão enviada ' + hhmm(+VMq[x.hash]) + ' · sem resposta: avisa o encerramento + 01 C e fecha às ' + hq(+VMq[x.hash] + 60 * M); }
+              if (DVq[x.hash] && DVq[x.hash].t) return 'follow-up 1 de 2 feito ("ficou dúvida?" ' + hhmm(DVq[x.hash].t) + ') · próximo: aviso de encerramento + tag e fecha às ' + hq(+DVq[x.hash].t + 60 * M);
+              if ((+PCq[x.hash] || 0) > (+VMq[x.hash] || 0)) return 'pedimos o CPF ' + hhmm(+PCq[x.hash]) + ' (não se pede de novo) · próximo: aviso de encerramento + 01 C e fecha às ' + hq(+PCq[x.hash] + 120 * M);
+              if (+VMq[x.hash]) return 'simulação padrão enviada ' + hhmm(+VMq[x.hash]) + ' · próximo: aviso de encerramento + 01 C e fecha às ' + hq(+VMq[x.hash] + 60 * M); }
             if (/follow-up de d[úu]vida feito/i.test(mo)) return 'follow-up 1 de 1 feito — a varredura fecha quando a janela vencer';
             if (/pedimos o CPF/i.test(mo)) return 'sem follow-up (CPF não se pede de novo) · avisa o encerramento + 01 C e fecha às ' + hq(t0 + 120 * M);
             if (/simula[çc][ãa]o padr[ãa]o|01 A sem link|sem CPF/i.test(mo)) return 'próximo passo às ' + hq(t0 + 60 * M) + ': 1 h sem resposta → pergunta se ficou dúvida (ou encerra, se foi simulação padrão)';
@@ -5241,6 +5242,13 @@
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
           if (!lu || /^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
+          // 9.23 (Stefany 19/11 17:05, Cléria e Sônia: "teve o primeiro follow-up; nesse segundo já é o encerramento — avisa que encerrou, se precisar chama, e fecha tagueada"):
+          // 1 h depois do "ficou mais alguma dúvida?" sem resposta → aviso de encerramento + tag + fecha (sem CPF: fechar_01c; com CPF: fechar_so)
+          if (DV[id].t && !DV[id].enc && lu <= (+DV[id].t || 0) && ag - (+DV[id].t || 0) >= 60 * 60000) { try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa, é só chamar a gente aqui. Vai ser um prazer te atender!'); DV[id].enc = ag; n++;
+              const temCpf = !!(O[id] && O[id].cpf) || !!(c.variables && c.variables.CPF); const it9 = temCpf ? 'fechar_so' : 'fechar_01c'; let fe = '';
+              try { const ri = window.dinsBmIntent ? await window.dinsBmIntent(id, it9) : null; fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + ' + (temCpf ? 'fechou' : '01 C e fechou') + ' ✓' : ' — ⚠️ a intenção ' + it9 + ' não aceitou: fechar à mão'; } catch (e) {}
+              try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'follow-up de dúvida sem resposta em 1 h → encerrado (9.23)'); } catch (e) {}
+              diario(String(c.firstName || id.slice(0, 5)), '👋 1 h sem resposta depois do "ficou dúvida?" → avisou o encerramento' + fe + ' (9.23)'); } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.23 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } continue; }
           if ((+DV[id].lu || 0) === lu || (+VM[id] || 0) > lu || (+PC[id] || 0) > lu) continue;   // já perguntamos depois desta mensagem dele · é caso de simulação padrão (9.05) · é pedido de CPF
           const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(lu - 60000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
           const T = k => String((k && k.content && k.content.text) || ''); const AUTO = /Bem-vindo de volta|j[áa] passou por nosso autoatendimento|Para agilizar o seu atendimento|Clique em um dos bot[õo]es|logo voc[êe] ser[áa] atendido/i;
