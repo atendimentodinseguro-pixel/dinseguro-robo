@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.57';
+  const VERSAO = '8.58';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1837,10 +1837,11 @@
           const cpfVerificado = o.acao === 'pedir_cpf' && /8\.32|8\.12|espera API/.test(String(o.nota || ''));   // 8.35: pedido de CPF que a espera API já conferiu (sem CPF em lugar nenhum) também vai pela API
           const simples = (['fase_msg', 'so_tag'].includes(o.acao) || cpfVerificado) && !(o.atalhos && o.atalhos.length) && !o.atalho && !(o.trocas && o.trocas.length) && !o.soSeNossaUltima && !o.exige && !o.pularSe && !o.fechar && !o.forcar && !o.reenvio;
           const tagsO = (o.tags && o.tags.length) ? o.tags : (cpfVerificado ? ((DESFECHOS.pedir_cpf || {}).tags || []) : []);
-          const mapT = t => /^01 A/i.test(t) ? 'tag_01a' : /^01 C/i.test(t) ? 'tag_01c' : '';
+          const mapT = t => /^01 A/i.test(t) ? 'so_tag_01a' : /^01 C/i.test(t) ? 'so_tag_01c' : '';   // 8.58 (Stefany 18/11 21:38): tag_01a/tag_01c FECHAM a conversa — no meio do atendimento só intenção que tagueia SEM fechar (so_tag_*)
           const tagsOk = tagsO.every(t => mapT(t) && ON.includes(mapT(t)));
           const txt = (o.msgFeita || o.linhaFeita) ? '' : String(o.texto || o.linha || '');
-          if (simples && tagsOk && (txt || tagsO.length) && !/undefined/.test(txt) && window.dinsBmIntent) {
+          if (simples && !tagsOk && txt && !/undefined/.test(txt) && bmApiLigada()) { await bmEnviarTexto(o.hash, txt); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); passos.push('msg: pela API (8.58) — tag pela tela'); }
+          else if (simples && tagsOk && (txt || tagsO.length) && !/undefined/.test(txt) && window.dinsBmIntent) {
             if (txt) { await bmEnviarTexto(o.hash, txt); salvaProgresso({ msgFeita: 1, linhaFeita: 1 }); passos.push('msg: pela API'); }
             for (const t of tagsO) { const ri = await window.dinsBmIntent(o.hash, mapT(t)); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('intenção ' + mapT(t) + ' não aceitou'); passos.push('tag ' + t + ': pela intenção'); }
             if (cpfVerificado) { try { const E9 = ESP(); if (!E9[o.hash]) { const t9 = Date.now(); E9[o.hash] = { hash: o.hash, nome: o.nome || '', tipo: 'cpf', t0: t9, toques: novaSequencia('cpf', t9, 0), tag01C: t9 }; gravaESP(E9); } const PC9 = GM_getValue('pedir_cpf_feito', {}) || {}; PC9[o.hash] = Date.now(); GM_setValue('pedir_cpf_feito', PC9); passos.push('toques do CPF agendados'); } catch (e) {} }   // 8.35: mantém o 1 toque em 1 h + 08:00
@@ -2214,7 +2215,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: oA.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), linha: linhaA, atalhos: [], nome: oA.nome || '', fone: oA.fone || '', nota: ddA + ' ' + hhmm(Date.now()) + ' [robô 5.96] CPF recebido → mensagem de acolhimento (consultando).' }));
             return; } }
         // 7.55: SIMULAÇÃO ANTES DA DIGITAÇÃO — manda só a simulação; 15 min sem resposta → um toque; 30 min sem resposta → digita e manda /parabens
-        { const oS = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'simulada');
+        { const oS = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'simulada' && !(x.api790T && Date.now() - x.api790T < 3 * 60000));   // 8.58 (Regina RZWPT 21:36: simulação saiu 2x — API e tela ao mesmo tempo)
           if (oS) { { const ex771 = extrSync(oS); if (ex771 === 'wait') return; if (ex771) { oS.estado = 'com_margem'; oS.resumo = (oS.resumo || '') + ' · ⛔ cliente mandou ARQUIVO (extrato) → vigia confere a margem no extrato ANTES de simular (7.71)'; GM_setValue('auto_ordens', O); diario(oS.nomeReal || oS.nome || '', '⛔ mandou extrato → simulação NÃO enviada; vigia lê o extrato (7.71)'); return; } } const dS = new Date(), ddS = String(dS.getDate()).padStart(2, '0') + '/' + String(dS.getMonth() + 1).padStart(2, '0');
             if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) { oS.estado = 'erro'; oS.erro = 'simulação sem valor/parcela/prazo (7.55) → vigia'; GM_setValue('auto_ordens', O); return; }
             const linhaS = textoSim755(oS);
