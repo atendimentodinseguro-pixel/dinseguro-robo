@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.81';
+  const VERSAO = '8.82';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -997,12 +997,14 @@
       if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
-        onload: r => res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }), onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+        onload: r => { try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
     // 8.76 (Stefany 19/11 11:26: "o robô e você têm que mandar mensagem pela API"): envio do VIGIA pela API do Botmaker (sem abrir a conversa na tela)
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
         const hh = new Date().getHours(); if ((hh < 8 || hh >= 21) && !respondendoAgora) return { erro: 'fora do horário (8h–21h)' };
         await bmEnviarTexto(chatId, String(texto)); try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
+        try { const R2 = GM_getValue('regua', {}) || {}; const x2 = R2[chatId]; if (x2 && x2.estado === 'alerta') { x2.estado = 'respondido'; delete x2.reler; delete x2.relerHist; (x2.hist = x2.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: o vigia respondeu pela API → saiu do vermelho'); GM_setValue('regua', R2); } } catch (e) {}
+        try { if (/simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(String(texto))) { const VM2 = GM_getValue('valor_msg_feito', {}) || {}; VM2[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM2); } } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages)/.test(String(path))) return res({ erro: 'caminho não liberado' });
@@ -4859,11 +4861,18 @@
               const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
               const gente = dep.some(m => m.from === 'agent');
               const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
+              // 8.82 (Manoel GWPAD 19/11: clicou "Encerrar agora", o bot se despediu e a conversa ficou aberta no vermelho): pediu para encerrar e o bot já se despediu → tag + fechar pela intenção (sem CPF → 01 C)
+              try { const EN = GM_getValue('enc882_feito', {}) || {}; if (/encerrar agora/i.test(btn8 + ' ' + T(cU8)) && min8 > 3 && !dep.some(m => m.from === 'agent') && dep.some(m => /Se no futuro precisar de cr[ée]dito/i.test(T(m))) && !(EN[id] > ag - 12 * 3600000) && !/(^|\|)(01 D|InssFechouNegocio)/i.test((c.tags || []).join('|'))) {
+                const cpfE = ms.some(m => m.from === 'user' && /(^|\D)\d{3}\.?\d{3}\.?\d{3}-?\s?\d\s?\d(\D|$)/.test(T(m))); const itE = cpfE ? 'fechar_so' : 'fechar_01c';
+                if ((GM_getValue('bm_intents_on', []) || []).includes(itE) && window.dinsBmIntent) { EN[id] = ag; for (const q in EN) if (ag - EN[q] > 7 * 864e5) delete EN[q]; GM_setValue('enc882_feito', EN); window.dinsBmIntent(id, itE).then(ri => { if (ri && ri.http >= 200 && ri.http < 300) diario(String(c.firstName || id.slice(0, 5)), 'pediu para encerrar e o bot já se despediu → ' + (cpfE ? 'fechou' : '01 C + fechou') + ' pela intenção (8.82)'); }); res.push(String(c.firstName || '') + ' (encerrar agora → fecha)'); VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; return; } } } catch (e) {}
               const tags8 = (c.tags || []).join('|');
               // 8.44 (Stefany 18/11 19:02): no lugar do pedido de CPF, UMA mensagem de valor que não pede dado nenhum (nome só se for nome de gente).
               // Quem responder QUERO → aí sim o pedido de CPF (permitido).
               // 8.46 (Stefany 18/11 19:05): no lugar do "QUERO", vai a SIMULAÇÃO PADRÃO (margem cheia, com e sem carência). Respondeu escolhendo uma opção ou outro valor → pede o CPF UMA vez; não mandou → não insiste.
-              const VM = GM_getValue('valor_msg_feito', {}) || {}; const resp8 = cU8.from === 'user' && VM[id] && Date.parse(cU8.creationTime) > VM[id] && !/n[ãa]o\s+desej|n[ãa]o\s+quero|n[ãa]o\s+tenho\s+interesse|encerrar/i.test(btn8 + ' ' + T(cU8));
+              const VM = GM_getValue('valor_msg_feito', {}) || {};
+              // 8.82 (Walter 0FJCK 19/11 12:01: respondeu "1" a uma simulação mandada à mão pelo vigia e o robô não reconheceu): vale a simulação padrão que está NA CONVERSA, seja do robô ou do vigia
+              const vm882 = VM[id] || (() => { const s8 = ms.slice(0, iC).filter(m => m.from !== 'user' && /simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(T(m))).pop(); return s8 ? Date.parse(s8.creationTime) || 0 : 0; })();
+              const resp8 = cU8.from === 'user' && vm882 && Date.parse(cU8.creationTime) > vm882 && !/n[ãa]o\s+desej|n[ãa]o\s+quero|n[ãa]o\s+tenho\s+interesse|encerrar/i.test(btn8 + ' ' + T(cU8));
               const RV = GM_getValue('reverso_feito', {}) || {};
               const valBot8 = Math.max(0, ...ms.filter(m => m.from === 'bot').map(m => { const v = (T(m).match(/R\$\s*([\d.]{5,}),\d{2}/) || [])[1]; return v ? +v.replace(/\./g, '') : 0; }));
               const aceite8 = ms.some(m => m.from === 'user' && /desejo contratar|quero contratar|sim,? quero|quero esse|aceito/i.test(String((m.content && (m.content.selectedButton || m.content.text)) || ''))) && valBot8 >= 10000;
@@ -4878,7 +4887,7 @@
                 res.push(nm47 + ' (análise reversa pelo telefone)'); fez879 = true; }
               else if (false && !temCpf8 && !gente && resp8 && !(O[id] && O[id].cpf) && min8 > 0.3) {
                 const PC = GM_getValue('pedir_cpf_feito', {}) || {}; if (!(PC[id] > ag - 30 * 864e5)) { const F = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); if (!F.some(o => o.hash === id)) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome: '', nota: '8.46: respondeu à simulação padrão (' + String(T(cU8)).slice(0, 30) + ') → pedido de CPF, uma vez só' }); PC[id] = ag; GM_setValue('pedir_cpf_feito', PC); res.push(String(c.firstName || '') + ' (respondeu a simulação → pedir CPF)'); diario(String(c.firstName || id.slice(0, 5)), '🙋 respondeu a simulação padrão → pediu o CPF (8.46, uma vez só)'); } } }
-              else if (!temCpf8 && !gente && min8 > 15 && !VM[id] && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
+              else if (!temCpf8 && !gente && min8 > 15 && !vm882 && !/encerrar agora|n[ãa]o desejo|n[ãa]o quero/i.test(btn8 + ' ' + T(cU8)) && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|InssNaoInformouCPF|01 C|01 D|01 I|01k|SEM_MARGEM|Sem_margem|InssFechouNegocio|LoasSem|01_I_|01k_/i.test(tags8) && !(O[id] && O[id].cpf) && !jaFezProposta((RG() || {})[id]) && trava870('sim44_' + id, 30 * 864e5)) {   // 8.70: só uma aba manda a simulação padrão
                 VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
                 const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
                 const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro. Fiz uma *simulação gratuita* para você ver quanto dá para liberar no consignado do INSS. É tudo seguro.\n\nSeparei *duas opções* com a margem cheia do INSS:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ 24.849,95*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *R$ 23.483,45*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *abril/2027*\n\n✅ Simulação gratuita e sem compromisso\n✅ Você pode cancelar de graça em até 7 dias\n🔒 A Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Quero outro valor\n\nÉ só responder com o número 🤝';
@@ -4936,7 +4945,7 @@
         // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
           for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
-            if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
+            if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
             const u9 = +x.ultCliT || 0; if (!c9 && completo && ((u9 && ag - u9 > 24 * 3600000) || (!u9 && ag - (+x.criadoT || 0) > 24 * 3600000))) { x.estado = 'vencida'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: cliente calado há mais de 24 h → é da varredura (saiu do vermelho)'); m9++; } }
           if (m9) { gravaRG(R9); diario('quadro', '🧹 ' + m9 + ' vermelho(s) antigo(s) saíram do quadro (já respondidos ou janela vencida) — 8.79'); } } catch (e) {}
         GM_setValue('esp_api_vistos3', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
