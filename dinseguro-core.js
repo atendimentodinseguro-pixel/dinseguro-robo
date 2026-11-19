@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.01';
+  const VERSAO = '9.02';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2414,11 +2414,12 @@
     // (2) cliente apagado de propósito (reavaliar) fica marcado e um retrato velho não o traz de volta.
     const delRG = hash => { const d = GM_getValue('regua_del', {}) || {}; d[hash] = Date.now(); GM_setValue('regua_del', d); const r = GM_getValue('regua', {}) || {}; delete r[hash]; GM_setValue('regua', r); };
     const gravaRG = r => {
-      const atual = GM_getValue('regua', {}) || {}; const del = GM_getValue('regua_del', {}) || {};
+      const atual = GM_getValue('regua', {}) || {}; const del = GM_getValue('regua_del', {}) || {}; const fora902 = GM_getValue('regua_fora902', {}) || {};
       const out = {};
       for (const k of new Set([...Object.keys(atual), ...Object.keys(r)])) {
         const x = k in r ? r[k] : atual[k];
         if (del[k] && (+(x && x.criadoT) || 0) < del[k]) continue;   // apagado depois de criado → não volta
+        { const fo = fora902[k]; if (fo && x && !((+x.ultCliT || 0) > (+fo.lu || 0) + 60000) && !((+x.linkT || 0) > (+fo.t || 0))) continue; }   // 9.02: conversa FECHADA ou fora da janela (conferido na API) não volta ao caderno até o cliente escrever de novo ou sair link novo
         out[k] = x;
       }
       // 7.16: régua tinha 440 KB (histórico de 300+ linhas por cliente) → cada leitura/gravação travava a aba. Histórico: últimas 20 linhas
@@ -2587,7 +2588,8 @@
     const FIM897 = /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada)$/;
     const POS897 = x => /01 ?D|fechou neg|esteira|pago|averb|anu[êe]ncia|desbloque|AVERBE|formaliza/i.test(String(x.motivo || '') + ' ' + String(x.fase || '') + ' ' + ((x.hist || []).slice(-4).join(' ')));
     window.dinsLimpaCaderno = (simular) => { try { const r = RG(); const ag = Date.now(); const FM = GM_getValue('fechadas888', {}) || {}; const DEL = GM_getValue('regua_del', {}) || {};   /* 8.99: o gravaRG junta com o que está gravado — para SAIR de verdade tem que marcar em regua_del (a 8.97 contava mas não tirava) */ let tirou = 0, cortou = 0, ficou = 0; const motivos = {};
-        for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === 'F20QOEL8YYLQN2S6SR47' || protegido(k)) { ficou++; continue; }
+        for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === 'F20QOEL8YYLQN2S6SR47') { ficou++; continue; }
+          if (protegido(k)) { if (FIM897.test(x.estado || '')) { motivos['encerrada (protegido)'] = (motivos['encerrada (protegido)'] || 0) + 1; tirou++; if (!simular) { delete r[k]; DEL[k] = ag; } } else ficou++; continue; }   /* 9.02 (Stefany 19/11 14:37: "se tiver gente que já está encerrado ali, está errado") — tirar do caderno não mexe no cliente */
           // 9.00 (Stefany 19/11 14:17: "a galera que já fechou, mas tem link em andamento e você tá acompanhando — não faz sentido"): pós-venda SAI do caderno também.
           // O andamento das propostas continua guardado na esteira (lida do New Corban), que é de onde o vigia responde quando perguntarem. E 'atividade' é só o CLIENTE
           // ter escrito ou um link nosso ter saído nas últimas 24 h — o robô reler a conversa não conta (era isso que segurava gente de 200 h no azul).
@@ -2606,6 +2608,18 @@
         return { ficou, tirou, motivos, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // roda sozinho de 30 em 30 min, numa aba só (não na do vigia)
     setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa897_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 40 * 60000) return; GM_setValue('limpa897_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCaderno(false); } catch (e) {} }, 30 * 60000);
+    // 9.02 (Stefany 19/11 14:37: "quero ver se todo mundo que está ali está dentro da janela de 24 horas e com atendimento aberto"):
+    // confere CADA cliente do caderno direto na API do Botmaker. Fechada (fila fechar_* ou sem fila e sem atendente) ou janela vencida → sai e só volta
+    // quando o cliente escrever de novo (ou sair link novo). Roda a cada 10 min numa aba só; window.dinsLimpaCadernoApi(true) só mostra.
+    window.dinsLimpaCadernoApi = async (simular) => { try { if (!window.dinsBmGet) return { erro: 'sem API' }; const r = RG(); const ag = Date.now(); const FO = GM_getValue('regua_fora902', {}) || {}; const sai = []; let ok = 0, semResp = 0;
+        for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
+          let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
+          const q = String(j.queueId || ''); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId); const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
+          if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
+        if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
+        return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
+    setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa902_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 15 * 60000) return; GM_setValue('limpa902_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCadernoApi(false); } catch (e) {} }, 10 * 60000);
+    setTimeout(() => { try { if (meuPapel() !== 'vigia') window.dinsLimpaCadernoApi(false); } catch (e) {} }, 120000);
     // 3.94 — RESUMO por cliente (Stefany 10/11 15:12: "bem resumidinho… para eu saber qual foi a sua interpretação")
     // dinsReguaResumo('HASH', 'texto curto') — aparece no quadro embaixo do nome.
     window.dinsReguaResumo = (hash, texto) => { const r = RG(), x = r[hash]; if (!x) return false; x.resumo = String(texto || '').slice(0, 220); x.hist.push(hhmm(Date.now()) + ' resumo: ' + x.resumo); gravaRG(r); desenharRegua(); return true; };
