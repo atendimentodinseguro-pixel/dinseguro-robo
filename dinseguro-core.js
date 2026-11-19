@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.19';
+  const VERSAO = '9.20';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4222,6 +4222,7 @@
         { const mo = String(x.motivo || ''); const ao9 = (GM_getValue('auto_ordens', {}) || {})[x.hash];
           // 9.19 (Stefany 19/11 16:50: "me traga cada status… para o robô ficar 100%"): a classificação usa o que foi FEITO (mapas gravados no envio) e o atendente da conversa (lido na API), não o motivo antigo
           const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
+          if ((gmCache('fechar_depois911', {}) || {})[x.hash]) return 'A6';   // 9.20 (Stefany 19/11 17:01): 01 D sem margem → fecha com 01 k em 2 h, sem mensagem
           if (x.comQuem || x.comAg919) return 'J';
           if (DVq[x.hash] && DVq[x.hash].t) return 'A5';
           if (ao9 && ao9.estado === 'sim_enviada') return 'A1';
@@ -4237,7 +4238,7 @@
       };
       const BL = [['R', '🔴 Responder agora', '#f87171'], ['F', '🟢 Follow-up do robô', '#86efac'], ['J', '🟡 Precisa de alguém junto', '#fbbf24'],
         ['A1', '🟣 Simulação real enviada — 30 min sem resposta o robô digita e manda o link', '#c4b5fd'], ['A2', '🟠 Simulação padrão enviada — 1 h sem resposta: avisa, 01 C e fecha', '#fdba74'], ['A3', '🟤 Pedimos o CPF — 2 h sem resposta: avisa, 01 C e fecha', '#d6b08c'],
-        ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
+        ['A', '🔵 Respondemos — 1 h sem resposta: pergunta se ficou dúvida', '#93c5fd'], ['A4', '🔷 Link enviado sem follow-up pendente — conferir', '#7dd3fc'], ['A5', '⚫ Follow-ups feitos — a varredura fecha quando a janela vencer', '#9ca3af'], ['A6', '🔘 01 D sem margem — fecha com 01 k em 2 h, sem mensagem', '#cbd5e1'], ['E', '⚪ Encerrados hoje', '#94a3b8']];
       // 4.20 — CONTORNO AUTOMÁTICO: passou de 15 min → ordem para o Multicorban (ficha) e o New Corban (digitação).
       // O robô para em "Pronto (liberado R$ X)": quem grava e manda o link é o vigia.
       if (faz('atendimento')) try {
@@ -4279,6 +4280,7 @@
       const minimizado = q.dataset.min === '1';
       const esc = t => String(t || '').replace(/</g, '&lt;');
       const fu903 = x => { try { let tq = (x.toques && x.toques.length ? x.toques : ((ESPq[x.hash] || {}).toques || [])); if (!tq.length) { const t0 = Math.max(+x.ultT || 0, +x.criadoT || 0) || Date.now(); const mo = String(x.motivo || ''); const hq = t => hhmm(t) + (t < Date.now() - 5 * M ? ' ⚠ atrasado' : '');
+            { const fd = (gmCache('fechar_depois911', {}) || {})[x.hash]; if (fd) return 'cliente 01 D sem margem: retorno enviado ' + hhmm(+fd.de || 0) + ' · se não responder, fecha com 01 k às ' + hq(+fd.t || 0) + ' sem mandar mensagem'; }
             if (x.comQuem || x.comAg919 || x.estado === 'humano') return 'com atendente na conversa — o robô não manda nada (o atendente conduz)';
             { const VMq = gmCache('valor_msg_feito', {}) || {}, PCq = gmCache('pedir_cpf_feito', {}) || {}, DVq = gmCache('duv907', {}) || {};
               if (DVq[x.hash] && DVq[x.hash].t) return 'follow-up de dúvida feito ' + hhmm(DVq[x.hash].t) + ' (1 de 1) — a varredura fecha quando a janela vencer';
