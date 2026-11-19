@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.71';
+  const VERSAO = '8.72';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -535,6 +535,7 @@
             if (o.contaFix && typeof o.contaFix === 'object') { const put2 = (k, v) => { if (!v) return; ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; };
               put2('banco', o.contaFix.banco); put2('agencia', o.contaFix.agencia); put2('conta', o.contaFix.conta); put2('tipo_conta', o.contaFix.tipo_conta); put2('conta_origem', 'informada pelo cliente no chat (vigia)'); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             if (o.bancoStefany) { const put3 = (k, v) => { ta.value = new RegExp('^' + k + ':.*$', 'm').test(ta.value) ? ta.value.replace(new RegExp('^' + k + ':.*$', 'm'), k + ': ' + v) : ta.value + '\n' + k + ': ' + v; }; const bS = String(o.bancoStefany).toUpperCase().trim(); put3('banco_ordem_stefany', bS); put3('banco_destino', bS.split(/\s+/)[0]); if (/90\s*DIAS|CAR[EÊ]NCIA/.test(bS)) put3('prazo_ordem_stefany', 'CARENCIA 90 DIAS');   /* 7.26 (Rosa 16/11): 'FACTA 90 DIAS' → banco FACTA + carência */ ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 6.27: banco mandado pela Stefany (extra.bancoStefany)
+            if (o.carencia) { const kC = 'carencia'; ta.value = /^carencia:.*$/m.test(ta.value) ? ta.value.replace(/^carencia:.*$/m, kC + ': ' + o.carencia) : ta.value + '\n' + kC + ': ' + o.carencia; ta.dispatchEvent(new Event('input', { bubbles: true })); }   // 8.72 (Sandra 19/11: escolheu a opção 2 = com carência): o vigia manda carencia na ordem
             const sv0 = botaoRobo('Salvar ficha'); if (sv0) sv0.click(); await zz(2500);
             // 7.70 (caso Washington HQ2X9 13:39): a ficha salvava DEPOIS da conferência → 'a ficha salva não é a do cliente'. Espera até 12 s pela ficha certa.
             let f3 = GM_getValue('ficha_atual', null); for (let i = 0; i < 10 && !(f3 && String(f3.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')); i++) { await zz(1000); if (i === 4 && sv0) sv0.click(); f3 = GM_getValue('ficha_atual', null); }
