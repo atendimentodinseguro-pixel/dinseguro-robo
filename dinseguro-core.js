@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.36';
+  const VERSAO = '9.37';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -767,6 +767,12 @@
       const at = L.filter(x => ['awaiting_formalization', 'in_progress'].includes(x.stage) && !/CANCEL|REPROV|PAGO/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 30 * 864e5)
         .sort((a, b) => (Date.parse(String(b.dates.created_at).replace(' ', 'T')) || 0) - (Date.parse(String(a.dates.created_at).replace(' ', 'T')) || 0));
       if (!at.length) return { nada: 1 };
+      // 9.37 (Stefany 19/11 18:18: "pode ser proposta antiga já reprovada — reprovado, faz outra; se mudou o valor, faz outra"): reprovada/cancelada já fica de fora (acima);
+      // proposta ativa com VALOR diferente do que vamos fazer agora (parcela fora de 2% ou outro prazo) não conta — faz outra e avisa que a antiga continua aberta.
+      const parcO = num((o.ficha || {}).parcela) || num(o.parcela) || 0; const pzO = +(o.prazo || (o.ficha || {}).prazo || 0) || 0;
+      const igual = x => { const pp = x.proposal || {}; const pc = +pp.installment_amount || 0; if (parcO > 0 && pc > 0 && Math.abs(pc - parcO) / parcO > 0.02) return false; if (pzO && +pp.term && +pp.term !== pzO) return false; return true; };
+      const atIg = at.filter(igual); if (!atIg.length) return { nada: 1, antigas: at.map(x => String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' R$ ' + brl(+((x.proposal || {}).released_amount || 0))).join('; ') };
+      at.length = 0; at.push(...atIg);
       const bN = String(o.banco || '').toUpperCase().replace(/\s/g, ''); const mesmo = at.find(x => String(((x.proposal || {}).bank || {}).name || '').toUpperCase().replace(/\s/g, '').indexOf(bN) >= 0 && /^https?:\/\//.test(String((x.bank_reference || {}).formalization_link || '')));
       if (mesmo) { const pp = mesmo.proposal || {}; return { adota: { link: mesmo.bank_reference.formalization_link, proposta: String(mesmo.bank_reference.proposal_number || ''), propNc: mesmo.id, liberado: brl(+pp.released_amount), parcela: brl(+pp.installment_amount), prazo: String(pp.term || ''), adotada936: 1 } }; }
       const x = at[0]; return { outra: String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' (' + String((x.bank_reference || {}).bank_status || x.stage) + ', de ' + String((x.dates || {}).created_at || '').slice(0, 10) + ', R$ ' + brl(+((x.proposal || {}).released_amount || 0)) + ')' }; } catch (e) { return null; } }
@@ -775,7 +781,7 @@
       const r = await jaTemProp936(o); const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y || y.estado !== 'ficha_ok') return; y.chk936 = Date.now();
       if (r && r.adota) { Object.assign(y, r.adota, { estado: 'link', erro: '' }); (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: já tinha proposta ativa no ' + y.banco + ' (Nº ' + r.adota.proposta + ') → reaproveita o link, sem digitar outra'); }
       else if (r && r.outra) { y.estado = 'erro'; y.erro = '9.36: já tem proposta em andamento — ' + r.outra + ' → NÃO digitei outra; vigia decide (reenviar o link dela ou cancelar)'; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + y.erro); try { diario(y.nomeReal || y.nome || '', '⛔ ' + y.erro); } catch (e) {} }
-      else (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: New Corban sem proposta ativa → segue a digitação');
+      else { (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: New Corban sem proposta ativa' + (r && r.antigas ? ' com o mesmo valor (antiga com valor diferente continua aberta: ' + r.antigas + ' — vigia vê se cancela)' : '') + ' → segue a digitação'); if (r && r.antigas) { y.antigas937 = r.antigas; try { diario(y.nomeReal || y.nome || '', '⚠️ 9.37: valor mudou → digitando proposta nova; a antiga continua aberta: ' + r.antigas); } catch (e) {} } }
       GM_setValue('auto_ordens', O2); } catch (e) {} }, 4000);
   async function ncDigitaOrdem(o) {
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
