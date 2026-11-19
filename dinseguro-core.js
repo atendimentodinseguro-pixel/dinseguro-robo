@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.20';
+  const VERSAO = '9.21';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2419,12 +2419,16 @@
     // (2) cliente apagado de propósito (reavaliar) fica marcado e um retrato velho não o traz de volta.
     const delRG = hash => { const d = GM_getValue('regua_del', {}) || {}; d[hash] = Date.now(); GM_setValue('regua_del', d); const r = GM_getValue('regua', {}) || {}; delete r[hash]; GM_setValue('regua', r); };
     const gravaRG = r => {
-      const atual = GM_getValue('regua', {}) || {}; const del = GM_getValue('regua_del', {}) || {}; const fora902 = GM_getValue('regua_fora902', {}) || {};
+      const atual = GM_getValue('regua', {}) || {}; const del = GM_getValue('regua_del', {}) || {}; const fora902 = GM_getValue('regua_fora902', {}) || {}; const fm921 = GM_getValue('fechadas888', {}) || {};
       const out = {};
       for (const k of new Set([...Object.keys(atual), ...Object.keys(r)])) {
         const x = k in r ? r[k] : atual[k];
         if (del[k] && (+(x && x.criadoT) || 0) < del[k]) continue;   // apagado depois de criado → não volta
-        { const fo = fora902[k]; if (fo && x && !((+x.ultCliT || 0) > (+fo.t || 0) - 60000) && !((+x.linkT || 0) > (+fo.t || 0))) continue; }   /* 9.10: só volta se o cliente escreveu DEPOIS da hora em que saiu (Sandra/Oton/J Guilherme voltavam: a hora lida da tela não batia com a da API) */   // 9.02: conversa FECHADA ou fora da janela (conferido na API) não volta ao caderno até o cliente escrever de novo ou sair link novo
+        // 9.21 (Stefany 19/11 17:02: "quem já está com atendimento fechado/encerrado não é para ficar na lista — erro clássico"; Monica e Oscar voltaram 16:58):
+        // a entrada criada pela TELA (2747, 'semLink') vinha com linkT = agora e passava pela trava. Agora: conversa fechada (fechadas888) ou fora da janela (fora902)
+        // só volta se o CLIENTE escreveu depois, ou se saiu um LINK DE VERDADE depois (link preenchido, não 'semLink').
+        { const fo = fora902[k] || fm921[k]; const linkNovo = x && x.link && !x.semLink && (+x.linkT || 0) > (+(fo && fo.t) || 0);
+          if (fo && x && !((+x.ultCliT || 0) > Math.max(+fo.t || 0, +fo.lu || 0) - 60000) && !linkNovo) continue; }   /* 9.10: só volta se o cliente escreveu DEPOIS da hora em que saiu (Sandra/Oton/J Guilherme voltavam: a hora lida da tela não batia com a da API) */   // 9.02: conversa FECHADA ou fora da janela (conferido na API) não volta ao caderno até o cliente escrever de novo ou sair link novo
         out[k] = x;
       }
       // 7.16: régua tinha 440 KB (histórico de 300+ linhas por cliente) → cada leitura/gravação travava a aba. Histórico: últimas 20 linhas
