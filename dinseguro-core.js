@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.94';
+  const VERSAO = '8.95';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4606,7 +4606,7 @@
         if (temTag(/01.?D|Fechou.?Neg/i)) return null;
         // 8.80 (Stefany 19/11 10:54, robô da VARREDURA com 91 na lista: "quem já está com a conversa encerrada não precisa"): a varredura só pega conversa com a janela vencida E ainda ABERTA.
         // Já encerrada (fila = intenção de fechar: fechar_* / tag_01a / tag_01c) → pula: não manda follow-up, não reabre, não conta.
-        try { if (window.dinsBmGet && bmApiLigada()) { const rq880 = await window.dinsBmGet('/chats/' + it.id); const q880 = String((rq880 && rq880.j && rq880.j.queueId) || ''); if (/^(fechar_[a-z0-9_]+|tag_01a|tag_01c)$/.test(q880)) return { acao: 'pular', motivo: 'já encerrada (' + q880 + ') — não é da varredura (8.80)' }; } } catch (e) {}
+        try { if (window.dinsBmGet && bmApiLigada()) { const rq880 = await window.dinsBmGet('/chats/' + it.id); const q880 = String((rq880 && rq880.j && rq880.j.queueId) || ''); if (/^fechar_[a-z0-9_]+$/.test(q880)) return { acao: 'pular', motivo: 'já encerrada (' + q880 + ') — não é da varredura (8.80)' }; } } catch (e) {}
         const ON829 = GM_getValue('bm_intents_on', []) || [];
         if (temTag(/^0?1.?[IK]\b|^0?[237].?[A-Z]|Acima.?De.?80|Sem.?margem|Nao.?Atende|Fora.?Perfil/i)) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'desfecho já tagueado — só fechar (intenção)' } : null;   // desfecho → fecha (8.29: pela intenção, sem a tela)
         // 8.62 (Stefany 18/11 22:25: Leslie CLT e Lenita 07 já estavam fechadas e tagueadas): fora do perfil (CLT / servidor / não identificado sem INSS) → não é revisar; pula
@@ -5002,7 +5002,7 @@
         // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
         try { const FM = GM_getValue('fechadas888', {}) || {}; for (const k8 in FM) if (ag - (+FM[k8].t || 0) > 30 * 3600000) delete FM[k8];
           all.forEach(c => { const id8 = c.chat.chatId; const q8 = String(c.queueId || ''); const desf8 = /Sem_?margem|SEM_MARGEM|01_I_|01k_|LoasSem|LoasCom|LOAS_Sem|NaoIdentificado|Acima_?De_?80/i.test((c.tags || []).join('|'));   /* 8.89: fechada pela tela fica SEM fila e sem atendente (Reginaldo 8OIEQ) — com tag de retorno dado, conta como encerrada */
-            if (/^(fechar_[a-z0-9_]+|tag_01a|tag_01c)$/.test(q8) || (!q8 && !c.agentId && desf8)) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
+            if (/^fechar_[a-z0-9_]+$/.test(q8) || (!q8 && !c.agentId && desf8)) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
           const R8 = RG(); let m8 = 0; for (const k8 in R8) { const x = R8[k8]; if (x && x.estado === 'alerta' && fechada888(k8, x.ultCliT) && /voltou a escrever depois do retorno|cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '')) { x.estado = 'fechada'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.88: conversa já encerrada e sem mensagem nova do cliente → saiu do vermelho'); m8++; } } if (m8) gravaRG(R8); } catch (e) {}
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
           for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
