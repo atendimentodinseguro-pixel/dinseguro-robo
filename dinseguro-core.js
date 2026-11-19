@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.68';
+  const VERSAO = '8.69';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4842,7 +4842,7 @@
                 VM[id] = ag; for (const q in VM) if (ag - VM[q] > 30 * 864e5) delete VM[q]; GM_setValue('valor_msg_feito', VM);
                 const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const n44 = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
                 const txt44 = 'Oi' + (n44 ? ', ' + n44 : '') + '! 😊 Aqui é da Dinseguro. Fiz uma *simulação gratuita* para você ver quanto dá para liberar no consignado do INSS. É tudo seguro.\n\nSeparei *duas opções* com a margem cheia do INSS:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ 24.849,95*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *R$ 23.483,45*\n📆 108x de *R$ 567,34*\n🗓️ 1ª parcela: *abril/2027*\n\n✅ Simulação gratuita e sem compromisso\n✅ Você pode cancelar de graça em até 7 dias\n🔒 A Dinseguro não cobra nada adiantado e nunca pede a senha do seu banco nem do Meu INSS.\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Quero outro valor\n\nÉ só responder com o número 🤝';
-                bmEnviarTexto(id, txt44).then(() => diario(String(c.firstName || id.slice(0, 5)), '💬 simulação padrão enviada (8.46) — parou no bot sem CPF há ' + Math.round(min8) + ' min')).catch(e => { diario(String(c.firstName || id.slice(0, 5)), '⚠️ mensagem de valor não saiu (8.44): ' + String((e && e.message) || e).slice(0, 90)); });
+                bmEnviarTexto(id, txt44).then(() => { diario(String(c.firstName || id.slice(0, 5)), '💬 simulação padrão enviada (8.46) — parou no bot sem CPF há ' + Math.round(min8) + ' min'); try { if ((GM_getValue('bm_intents_on', []) || []).includes('so_tag_01c') && !/InssNaoInformouCPF|01.?C/i.test((c.tags || []).join('|'))) window.dinsBmIntent(id, 'so_tag_01c'); } catch (e) {} })   // 8.69 (Stefany 19/11 09:12, Evelane: "não foi tagueado"): junto com a simulação padrão, tag 01 C SEM fechar (so_tag_01c).catch(e => { diario(String(c.firstName || id.slice(0, 5)), '⚠️ mensagem de valor não saiu (8.44): ' + String((e && e.message) || e).slice(0, 90)); });
                 res.push(String(c.firstName || '') + ' (mensagem de valor)'); } } catch (e) {} }
             if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
             if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
