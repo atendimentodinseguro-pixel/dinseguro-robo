@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.09';
+  const VERSAO = '9.10';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2419,7 +2419,7 @@
       for (const k of new Set([...Object.keys(atual), ...Object.keys(r)])) {
         const x = k in r ? r[k] : atual[k];
         if (del[k] && (+(x && x.criadoT) || 0) < del[k]) continue;   // apagado depois de criado → não volta
-        { const fo = fora902[k]; if (fo && x && !((+x.ultCliT || 0) > (+fo.lu || 0) + 60000) && !((+x.linkT || 0) > (+fo.t || 0))) continue; }   // 9.02: conversa FECHADA ou fora da janela (conferido na API) não volta ao caderno até o cliente escrever de novo ou sair link novo
+        { const fo = fora902[k]; if (fo && x && !((+x.ultCliT || 0) > (+fo.t || 0) - 60000) && !((+x.linkT || 0) > (+fo.t || 0))) continue; }   /* 9.10: só volta se o cliente escreveu DEPOIS da hora em que saiu (Sandra/Oton/J Guilherme voltavam: a hora lida da tela não batia com a da API) */   // 9.02: conversa FECHADA ou fora da janela (conferido na API) não volta ao caderno até o cliente escrever de novo ou sair link novo
         out[k] = x;
       }
       // 7.16: régua tinha 440 KB (histórico de 300+ linhas por cliente) → cada leitura/gravação travava a aba. Histórico: últimas 20 linhas
