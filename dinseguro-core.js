@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.30';
+  const VERSAO = '9.31';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2644,6 +2644,24 @@
               const R8 = RG(); if (R8[k] && !!R8[k].humano924 !== hum) { R8[k].humano924 = hum; gravaRG(R8); } }
             else if (!j.agentId) { const R8 = RG(); if (R8[k] && R8[k].humano924) { R8[k].humano924 = false; if (!simular) gravaRG(R8); } } } catch (e) {}
           if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
+        // 9.31 (Stefany 19/11 17:29: "vai ficar gente dentro do atendimento com o chat ativo e sem a devida classificação"): toda conversa ABERTA e na janela
+        // que ainda não está no caderno entra, já classificada pela última mensagem: cliente → vermelho; fluxo do bot do Botmaker → 🤖; nossa → acompanhando.
+        // "Não sou aposentado" (fila AUTONOMO) ou encerramento do bot ("Vamos encerrar este atendimento") → amarelo "encerrar pela regra" (07 / 01 C) até a Stefany liberar o fechamento automático.
+        let novos931 = 0; try { if (!simular) { let rr = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); let pg = 0; const todas = [];
+            while (rr && rr.j && pg < 10) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
+            const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || R3[id] || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue; const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
+              if (!(jf > ag) || /^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))) continue;
+              if (FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;
+              const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
+              const tx = String((u.content && (u.content.text || u.content.type)) || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; let est, mot;
+              if (/AUTONOMO|CLT|SERVIDOR/i.test(q + '|' + tg) || ms.some(k => k.from === 'user' && /^\s*n[ãa]o sou\s*$/i.test(String((k.content && (k.content.text || k.content.selectedButton)) || '')))) { est = 'humano'; mot = 'não é do INSS (autônomo/CLT) — encerrar pela regra: 07 + fechar'; }
+              else if (u.from !== 'user' && /Vamos encerrar este atendimento|Se no futuro precisar de cr[ée]dito/i.test(tx)) { est = 'humano'; mot = 'cliente encerrou no bot — encerrar pela regra: tag (01 C sem CPF) + fechar'; }
+              else if (u.from === 'user') { est = 'alerta'; mot = 'cliente esperando resposta (entrou pela conferência 9.31)'; }
+              else if (u.from === 'bot' && !/^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(tx)) { est = 'botfluxo'; mot = 'no atendimento do bot do Botmaker'; }
+              else { est = 'acompanhando'; mot = 'última mensagem é nossa'; }
+              R3[id] = { hash: id, nome: String(c.firstName || id.slice(0, 6)), estado: est, motivo: mot, toques: [], hist: [hhmm(ag) + ' 9.31: entrou pela conferência das conversas abertas — ' + mot], criadoT: ag, ultCliT: lu, botLuc: lu, junto: est === 'humano' ? mot : undefined };
+              novos931++; }
+            if (novos931) { gravaRG(R3); diario('caderno', '🔎 9.31: ' + novos931 + ' conversa(s) aberta(s) fora do caderno entraram já classificadas'); } } } catch (e) {}
         if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
         return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa902_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 15 * 60000) return; GM_setValue('limpa902_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCadernoApi(false); } catch (e) {} }, 10 * 60000);
