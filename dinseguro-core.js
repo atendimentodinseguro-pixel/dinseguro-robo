@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.00';
+  const VERSAO = '9.01';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2597,7 +2597,7 @@
           let sai = '';
           if (pos) { sai = ''; if ((fechadaConv || FIM897.test(x.estado || '')) && !simular && x.estado !== 'pos_venda') { x.estadoAntes = x.estado; x.estado = 'pos_venda'; x.motivo = 'pós-venda com a conversa fechada — só informação (acompanhamento externo; 8.98)'; delete x.reler; delete x.relerHist; } }
           else if (FIM897.test(x.estado || '')) sai = 'encerrada (' + x.estado + ')';
-          else if (fechadaConv && x.estado !== 'alerta') sai = 'conversa fechada';
+          else if (fechadaConv) sai = 'conversa fechada';   // 9.01 (Stefany 19/11 14:21: "se estiver fechado, a gente não manda e ele não fica controlado ali — só os ativos")
           else if (ag - ult > 24 * 3600000) sai = 'sem atividade há mais de 24 h';
           if (sai) { motivos[sai] = (motivos[sai] || 0) + 1; tirou++; if (!simular) { delete r[k]; DEL[k] = ag; } continue; }
           ficou++; if (!simular && (x.hist || []).length > 15) { x.hist = x.hist.slice(-15); cortou++; } }
@@ -5056,13 +5056,14 @@
         // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
         try { const FM = GM_getValue('fechadas888', {}) || {}; for (const k8 in FM) if (ag - (+FM[k8].t || 0) > 30 * 3600000) delete FM[k8];
           all.forEach(c => { const id8 = c.chat.chatId; const q8 = String(c.queueId || ''); const desf8 = /Sem_?margem|SEM_MARGEM|01_I_|01k_|LoasSem|LoasCom|LOAS_Sem|NaoIdentificado|Acima_?De_?80/i.test((c.tags || []).join('|'));   /* 8.89: fechada pela tela fica SEM fila e sem atendente (Reginaldo 8OIEQ) — com tag de retorno dado, conta como encerrada */
-            if (/^fechar_[a-z0-9_]+$/.test(q8) || (!q8 && !c.agentId && desf8)) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
+            if (/^fechar_[a-z0-9_]+$/.test(q8) || (!q8 && !c.agentId)) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
           const R8 = RG(); let m8 = 0; for (const k8 in R8) { const x = R8[k8]; if (x && x.estado === 'alerta' && fechada888(k8, x.ultCliT) && /voltou a escrever depois do retorno|cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '')) { x.estado = 'fechada'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.88: conversa já encerrada e sem mensagem nova do cliente → saiu do vermelho'); m8++; } } if (m8) gravaRG(R8); } catch (e) {}
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
           for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
             if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
             const u9 = +x.ultCliT || 0; if (!c9 && completo && ((u9 && ag - u9 > 24 * 3600000) || (!u9 && ag - (+x.criadoT || 0) > 24 * 3600000))) { x.estado = 'vencida'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: cliente calado há mais de 24 h → é da varredura (saiu do vermelho)'); m9++; } }
           if (m9) { gravaRG(R9); diario('quadro', '🧹 ' + m9 + ' vermelho(s) antigo(s) saíram do quadro (já respondidos ou janela vencida) — 8.79'); } } catch (e) {}
+        try { if (window.dinsLimpaCaderno) window.dinsLimpaCaderno(false); } catch (e) {}   // 9.01: caderno limpo a cada leitura da API
         GM_setValue('esp_api_vistos3', VI); localStorage.setItem('dins_esp_api_tick', JSON.stringify({ t: ag, chats: all.length, lidos: n, acoes: res.length }));
         window.dinsEsperaRes = res; if (res.length) diario('espera API', res.length + ' cliente(s) esperando: ' + res.slice(0, 6).join(', '));
       } catch (e) { try { localStorage.setItem('dins_esp_api_erro', new Date().toTimeString().slice(0, 8) + ' ' + String((e && e.message) || e).slice(0, 200)); } catch (_) {} }
