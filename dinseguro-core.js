@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '8.92';
+  const VERSAO = '8.93';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5843,6 +5843,7 @@
         if (/outro CPF/i.test(alertas().join())) {
           await fecharAlertas();
           // 8.92 (Stefany 19/11 13:00): conta da consulta FLASH (conta certa do INSS) ou informada pelo cliente é a que vale — NUNCA troca sozinho para aleatória. Deu erro → para e chama a Stefany.
+          if (real && !c.poupanca) { c.poupanca = 1; log('Conta ' + c.banco + ' ' + c.conta + '-' + c.dv + ' recusada (outro CPF) no INCLUIR → segue com a mesma numeração e vai como CONTA POUPANÇA INDIVIDUAL na liberação (8.93).'); incluiu = jaTem(); if (incluiu) break; continue; }
           if (real) throw new Error('A conta do cliente (' + c.banco + ' ' + c.conta + '-' + c.dv + ') está cadastrada para outro CPF no ' + PORTAL.nome + ' → chamar a Stefany (conta da flash/cliente não se troca por aleatória).');
           if (c.daSeq) GM_setValue('conta_seq', c.seq + 1);
           log(`Conta ${c.banco} ag ${c.agencia} cc ${c.conta}-${c.dv} já está em outro CPF → próxima da sequência.`);
@@ -5895,7 +5896,17 @@
       const al = alertas().join(' | ');
       if (/j[áa] cadastrado para outro CPF/i.test(al)) {
         await fecharAlertas();
-        if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no ' + PORTAL.nome + '.');
+        // 8.93 (Stefany 19/11 13:14, caso Maurilio AOQNQ: "muda de conta corrente para CONTA POUPANÇA INDIVIDUAL, mas a numeração deixa a numeração certa — quando acontecer isso, sempre"):
+        // conta do cliente (flash ou informada) recusada por "outro CPF" no PRÓXIMO → MESMA conta, tipo POUPANÇA INDIVIDUAL, e PRÓXIMO de novo. Só se recusar de novo → para e chama a Stefany.
+        if (real && !/POUPAN/i.test(valorSel(sels[2]) || '')) {
+          log('Conta ' + c.banco + ' ' + c.conta + '-' + c.dv + ' recusada (outro CPF) → mesma numeração como CONTA POUPANÇA INDIVIDUAL (8.93, regra da Stefany 19/11).');
+          await escolher(sels[2], /CONTA POUPAN[ÇC]A INDIVIDUAL/); await sleep(800);
+          await clicar(/^SALVAR$/).catch(() => {}); await sleep(1500); await fecharAlertas();
+          await clicar(/^PRÓXIMO$/); await sleep(1500);
+          const al2 = alertas().join(' | ');
+          if (!/j[áa] cadastrado para outro CPF/i.test(al2)) { await semErro('Dados complementares'); await esperar(() => /GERAR PROPOSTAS/.test(document.body.innerText), 20000); log('Dados complementares ok (conta poupança individual). Resumo pronto.', 'ok'); return; }
+          await fecharAlertas(); }
+        if (real) throw new Error('A conta do cliente está cadastrada para outro CPF no ' + PORTAL.nome + ' (também como poupança) → chamar a Stefany.');
         GM_setValue('conta_recusada_' + so(f.cpf), c.banco + '|' + c.conta + '-' + c.dv);
         throw new Error('Conta já usada em outro CPF (só apareceu no PRÓXIMO). Anotei e na próxima vai a numeração da sequência: rode "Fazer tudo" de novo.');
       }
