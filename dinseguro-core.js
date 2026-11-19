@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.11';
+  const VERSAO = '9.12';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5849,6 +5849,9 @@
       card.click(); await sleep(1500);
       // autorização de consulta do benefício (SMS ao cliente), como a Stefany faz
       if (alertas().join() .match(/Consulta dados do benef/i) || botaoTxt(/OK, ENVIAR/)) {
+        // 9.12 (Stefany 19/11 15:18, Patricia MKMO7: "tem que só colocar o telefone do cliente e colocar para enviar — sempre foi feito assim"): o aviso veio com o telefone em branco e o robô ficou parado
+        try { const dl = [...document.querySelectorAll('mat-dialog-container, .cdk-overlay-pane')].find(d => /Confirme o n[úu]mero de telefone/i.test(d.innerText || '')); const ti = dl && dl.querySelector('input');
+          if (ti && so(ti.value).length < 10) { let t9 = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (t9.length === 10 && /[6-9]/.test(t9[2])) t9 = t9.slice(0, 2) + '9' + t9.slice(2); if (t9.length >= 10) { await digitar(ti, t9); await sleep(600); log('Telefone do cliente preenchido no aviso de autorização.'); } } } catch (e) {}
         const env = botaoTxt(/OK, ENVIAR/); if (env) { env.click(); await sleep(2500); await fecharAlertas(); log('SMS de autorização enviado ao cliente.'); }
         // 7.43 (Stefany 16/11 17:49: "é só clicar lá em enviar e seguir o baile, não precisa esperar a autorização"; caso Luciene: o robô reabria o card e CANCELAVA a janela)
         for (let k = 0; k < 3 && !/Produtos Dispon[íi]veis/.test(document.body.innerText); k++) {
@@ -5862,6 +5865,8 @@
         const h = [...document.querySelectorAll('div,span,h5,h6,button')].find(e => vis(e) && e.children.length < 4 && /^Empréstimo Consignado$/.test(tx(e)));
         if (h) h.click(); p = await esperar(() => { const x = document.getElementById('margemconsignado'); return vis(x) && x; }, 10000);
       }
+      // 9.12 (Patricia 19/11 15:21): cliente que JÁ TEM contrato no Daycoval → o painel abre com as abas Refin / Margem / Port; a de dinheiro novo é "Margem"
+      if (!p) { const ab = [...document.querySelectorAll('button.nav-link, [role=tab], .mat-tab-label')].find(e => vis(e) && /^\s*Margem\s*$/i.test(tx(e))); if (ab) { ab.click(); log('Aba "Margem" aberta (cliente com contrato no Daycoval).'); p = await esperar(() => { const x = document.getElementById('margemconsignado'); return vis(x) && x; }, 10000); } }
       if (!p) throw new Error('Painel Empréstimo Consignado/Margem não abriu');
       const s = p.querySelectorAll('mat-select');
       const esp = String(f.especie || '').padStart(2, '0');
