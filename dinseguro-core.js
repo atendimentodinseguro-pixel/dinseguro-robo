@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.93';
+  const VERSAO = '9.94';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -103,7 +103,17 @@
   // 9.75 (Stefany 20/11 14:40–14:46: "consulta sempre nos dois… se a margem for diferente, usa a menor"): consulta no FullConsig pela sessão aberta no Chrome,
   // sem tela (POST consulta/validaConsultaOffline: 1º pelo CPF → lista de benefícios; 2º por benefício com nb=true → espécie e Margem Disponível).
   function fcPost975(b) { return new Promise(res => { try { GM_xmlhttpRequest({ method: 'POST', url: 'https://sistema.fullconsig.com.br/consulta/validaConsultaOffline', timeout: 45000, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' }, data: new URLSearchParams(b).toString(),
-      onload: r => { try { res(JSON.parse(r.responseText)); } catch (e) { res(null); } }, onerror: () => res(null), ontimeout: () => res(null) }); } catch (e) { res(null); } }); }
+      onload: r => { try { const j = JSON.parse(r.responseText); GM_setValue('fc_ok994', Date.now()); res(j); } catch (e) { fcCaiu994(r); res(null); } }, onerror: () => res(null), ontimeout: () => res(null) }); } catch (e) { res(null); } }); }
+  // 9.94 (Stefany 20/11 20:08: FullConsig deslogou e as consultas voltavam vazias sem ninguém saber): resposta HTML/login → avisa no diário (1x a cada 30 min) e pede para a aba do FullConsig logar
+  function fcCaiu994(r) { try { const tx = String((r && r.responseText) || ''); if (!/senha|login|<html/i.test(tx)) return; GM_setValue('fc_login994', Date.now()); const u = +GM_getValue('fc_aviso994', 0) || 0;
+      if (Date.now() - u > 30 * 60000) { GM_setValue('fc_aviso994', Date.now()); try { diario('FullConsig', '🔴 FullConsig DESLOGADO — as consultas estão saindo só pelo Multicorban. A aba do FullConsig tenta logar sozinha (dados salvos do Chrome); se não conseguir, vigia/Stefany entra (9.94)'); } catch (e) {} } } catch (e) {} }
+  // 9.94: na aba do FullConsig, tela de login com usuário e senha já preenchidos pelo Chrome → clica em Login (não digita nada). No máximo 1 vez a cada 5 min.
+  try { if (location.host === 'sistema.fullconsig.com.br') { setInterval(() => { try { const pw = document.querySelector('input[type=password]'); if (!pw) return; const u = document.querySelector('input[type=text], input[type=email], input[name*=login i]');
+        const cheio = el => { try { return !!el && (!!el.value || el.matches(':-webkit-autofill') || el.matches(':autofill')); } catch (e) { return !!(el && el.value); } };
+        if (!cheio(pw) || !cheio(u)) return; const ult = +sessionStorage.getItem('dins_fc_login') || 0; if (Date.now() - ult < 5 * 60000) return; sessionStorage.setItem('dins_fc_login', Date.now());
+        const b = [...document.querySelectorAll('button, input[type=submit]')].find(x => /login|entrar/i.test(x.innerText || x.value || '')); if (b) { b.click(); try { diario('FullConsig', '🔑 FullConsig estava deslogado → cliquei em Login com os dados salvos do Chrome (9.94)'); } catch (e) {} } } catch (e) {} }, 20000);
+      // mantém a sessão viva: abre a home a cada 20 min se a aba estiver parada na home
+      setInterval(() => { try { if (/\/home\/home/.test(location.pathname)) fetch('/home/home', { credentials: 'include' }).catch(() => {}); } catch (e) {} }, 20 * 60000); } } catch (e) {}
   async function fcBeneficios975(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); if (c.length !== 11) return null; const fm = c.slice(0, 3) + '.' + c.slice(3, 6) + '.' + c.slice(6, 9) + '-' + c.slice(9);
     const j = await fcPost975({ consulta: 'inss', id_data_campanha: '', valor: fm, valorTelefone: '', telefone: 'false' }); if (!j || !j.consulta) return null; const P = new DOMParser();
     const ler = html => { const d = P.parseFromString(html || '', 'text/html'); d.querySelectorAll('style,script').forEach(e => e.remove()); const tx = (d.body.textContent || '').replace(/\s+/g, ' ');
