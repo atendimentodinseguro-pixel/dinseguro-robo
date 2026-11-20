@@ -53,7 +53,10 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.90';
+  const VERSAO = '9.91';
+  // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
+  try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
+    nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -64,12 +67,12 @@
       try { if (+vr > +(GM_getValue('versao_nova', 0) || 0)) GM_setValue('versao_nova', vr); } catch (e) {}   // 9.71: avisa as outras abas que existe versão mais nova
       // 7.79 (17/11: a aba [VARREDURA] recarregava a cada versão nova NO MEIO da rodada e a rodada nunca terminava): varrendo → só recarrega quando a rodada acabar
       if (/botmaker/.test(location.host) && Date.now() - (+sessionStorage.getItem('dins_varrendo') || 0) < 3 * 60000) { localStorage.setItem('dins_recarregar_depois', '1'); return; }
-      if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 3) return;
+      if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 6) return;   /* 9.91: 3 → 6 por hora (20/11: a aba do robô ficou presa na versão antiga) */
       try { const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && (['consultando', 'digitando', 'pronto', 'gravando', 'link'].includes(o.estado) || (o.estado === 'gravada' && !o.aguardaLista)) && Date.now() - (+o.t || 0) < 3 * 3600000)) return; } catch (e) {}   // 7.83 (17/11 16:20, Nilson IY680: a aba da FACTA recarregou entre 'gravada' e o link): gravada/link também seguram, e a ordem pode ter até 3 h (o.t é a hora em que ela nasceu)
       const ta = document.querySelector('textarea'); if (ta && ta.value && ta.value.trim()) return;
       if (+localStorage.getItem('dins_vigia_trava') > Date.now() || (/botmaker/.test(location.host) && sessionStorage.getItem('dins_papel') === 'vigia')) return;   // aba do vigia: quem recarrega é o vigia
       n.push(Date.now()); sessionStorage.setItem('dins_auto_reload', JSON.stringify(n)); console.log('[Dinseguro] versão nova ' + vr + ' (rodando ' + VERSAO + ') → recarregando');
-      TOPW.location.reload(); } catch (e) {} }, 10 * 60000); } } catch (e) {}
+      TOPW.location.reload(); } catch (e) {} }, 5 * 60000); } } catch (e) {}
   // 6.92 (caso Agnaldo 16:34: o Chrome TRADUZIU o portal do Daycoval e os ícones viraram 'cor_da_borda'/'adicionar_círculo' → o robô não achou 'Editar Tabela').
   // Marca a página como não traduzível em todos os sites que o robô opera.
   try { const de = document.documentElement; de.setAttribute('translate', 'no'); de.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const mt = document.createElement('meta'); mt.name = 'google'; mt.content = 'notranslate'; document.head.appendChild(mt); } } catch (e) {}
@@ -1171,6 +1174,19 @@
         // 8.94 (Stefany 19/11 13:21, Maurilio AOQNQ: "veja o erro do porque não tagueou ele"): link de proposta / simulação real mandada pela API não passava pela tela, que é quem punha a 01 A → agora a tag vai pela intenção so_tag_01a (não fecha)
         try { if (/https?:\/\/(dcy\.app|facta\.ly|\S*facta|\S*c6consig|\S*joinbank|\S*qualibank|\S*queromais)|Novo Cr[ée]dito Dispon[íi]vel|proposta de \*R\$|Valor na conta: \*R\$/i.test(String(texto)) && !/Separei \*duas op[çc][õo]es\* com a margem cheia/i.test(String(texto)) /* 9.66 (Stefany 20/11 12:13, Dinaldo WK1Z0): simulação PADRÃO (sem CPF) é 01 C, não 01 A */ && (GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) { const T8 = GM_getValue('tag01a_894', {}) || {}; if (!(T8[chatId] > Date.now() - 6 * 3600000)) { T8[chatId] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(chatId, 'so_tag_01a'); } } } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
+    // 9.91 (6) atalhos do vigia: ler a conversa pela API e o texto do /n30 salvo
+    window.dinsBmLer = async (h, n) => { try { const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(Date.now() - 48 * 3600000).toISOString())); const it = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)).slice(-(n || 15));
+        return it.map(k => new Date(k.creationTime).toLocaleTimeString('pt-BR').slice(0, 5) + ' ' + (k.from === 'user' ? 'CLIENTE' : k.from) + ': ' + String((k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '').slice(0, 300)).join('\n'); } catch (e) { return 'erro: ' + e; } };
+    window.dinsTextoN30 = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC['/n30'] && RC['/n30'].tx) || ''; } catch (e) { return ''; } };
+    // 9.91 (3) pedido parado na mesma etapa → amarelo do vigia (caso Sônia: ficou em 'reverso_conferir' e ninguém viu). Uma vez por pedido.
+    setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; { const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return; }   /* fora do horário o pedido pode esperar de propósito */ const O = GM_getValue('auto_ordens', {}) || {}; const SN = GM_getValue('parado991', {}) || {}; const ag = Date.now(); let mud = false, mudO = false;
+        const LIM = { reverso_conferir: 20, desfecho: 20, com_margem: 20, ficha_ok: 20, sim_resp: 20, nova: 40 };
+        for (const h in O) { const o = O[h]; if (!o || !LIM[o.estado]) { if (SN[h]) { delete SN[h]; mud = true; } continue; } const sig = o.estado + '|' + (o.hist || []).length;
+          if (!SN[h] || SN[h].sig !== sig) { SN[h] = { sig, t: ag }; mud = true; continue; }
+          if (!SN[h].av && ag - SN[h].t > LIM[o.estado] * 60000) { SN[h].av = 1; mud = true; o.erro = 'pedido parado em "' + o.estado + '" há ' + LIM[o.estado] + ' min (9.91) — vigia confere'; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 9.91: parado em ' + o.estado + ' → vigia'); o.estado = 'erro'; mudO = true;
+            try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛠️ pedido parado em "' + sig.split('|')[0] + '" há ' + LIM[sig.split('|')[0]] + ' min → amarelo do vigia (9.91)'); } catch (e) {} } }
+        for (const h in SN) if (!O[h]) { delete SN[h]; mud = true; }
+        if (mudO) GM_setValue('auto_ordens', O); if (mud) GM_setValue('parado991', SN); } catch (e) {} }, 60000);
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages|events|sessions)/.test(String(path))) return res({ erro: 'caminho não liberado' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
@@ -2783,7 +2799,7 @@
           if (sai) { motivos[sai] = (motivos[sai] || 0) + 1; tirou++; if (!simular) { delete r[k]; DEL[k] = ag; } continue; }
           ficou++; if (!simular && (x.hist || []).length > 15) { x.hist = x.hist.slice(-15); cortou++; } }
         if (!simular) { for (const d in DEL) if (ag - (+DEL[d] || 0) > 20 * 864e5) delete DEL[d]; GM_setValue('regua_del', DEL); gravaRG(r); try { const O = GM_getValue('auto_ordens', {}) || {}; let n = 0; for (const h in O) { const o = O[h]; if (!o || (ag - (+o.t || 0) > 3 * 864e5 && !['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link'].includes(o.estado))) { delete O[h]; n++; } else if ((o.hist || []).length > 15) o.hist = o.hist.slice(-15); } GM_setValue('auto_ordens', O); motivos['pedidos com mais de 3 dias (fora do caderno)'] = n; } catch (e) {}
-          try { diario('caderno', '🧹 limpeza 8.97: ficaram ' + ficou + ', saíram ' + tirou + ' (' + Object.entries(motivos).map(([a, b]) => b + ' ' + a).join(', ') + ')'); } catch (e) {} try { desenharRegua(); } catch (e) {} }
+          if (tirou) try { diario('caderno', '🧹 limpeza 8.97: ficaram ' + ficou + ', saíram ' + tirou + ' (' + Object.entries(motivos).map(([a, b]) => b + ' ' + a).join(', ') + ')'); } catch (e) {} try { desenharRegua(); } catch (e) {} }
         return { ficou, tirou, motivos, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // roda sozinho de 30 em 30 min, numa aba só (não na do vigia)
     setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa897_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 40 * 60000) return; GM_setValue('limpa897_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCaderno(false); } catch (e) {} }, 30 * 60000);
