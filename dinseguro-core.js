@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.62';
+  const VERSAO = '9.63';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -863,7 +863,7 @@
         // 9.61: + 'biometria do agente certificado … vencida' (C6 20/11 11:17) → também pula para o próximo banco
     // 9.59 (Stefany 20/11 11:01, Claudio 624KB: FACTA "valor abaixo do mínimo aceito" e ficou em erro): valor não atinge o mínimo do banco → tenta o próximo banco
         // (C6 → FACTA → QUALIBANK, cada um uma vez; invalidez abaixo de 58 não vai para a Qualibank). Sem banco sobrando → erro como antes.
-        else if (/abaixo do m[íi]nimo|valor m[íi]nimo|m[íi]nimo aceito|menor que o m[íi]nimo|biometria do agente/i.test(m) && !o.op2Car948 && (() => { const tent = [].concat(o.tentMin959 || [], o.banco); const inv = INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58;
+        else if (/abaixo do m[íi]nimo|valor m[íi]nimo|m[íi]nimo aceito|menor que o m[íi]nimo|biometria do agente|fora da pol[íi]tica/i.test(m) && !o.op2Car948 && (() => { const tent = [].concat(o.tentMin959 || [], o.banco); const inv = INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58;
             const prox = ['C6', 'FACTA', 'QUALIBANK'].find(b => !tent.includes(b) && !(b === 'QUALIBANK' && inv)); if (!prox) return false;
             const O7 = GM_getValue('auto_ordens', {}) || {}; const x7 = O7[o.hash]; if (x7) { x7.ficha = Object.assign({}, x7.ficha || {}, { banco_destino: prox, banco_ordem_stefany: '' }); GM_setValue('auto_ordens', O7); }
             poe(o.hash, { estado: 'ficha_ok', banco: prox, tentMin959: tent, erro: '' }, o.banco + ': valor abaixo do mínimo do banco → tenta no ' + prox + ' (9.59)'); try { diario(o.nomeReal || o.nome || '', o.banco + ' não aceita valor tão baixo → tenta no ' + prox + ' (9.59)'); } catch (x) {} return true; })()) {}
@@ -2754,6 +2754,7 @@
               const hum = !!u && u.from === 'agent' && /^\s*\*?\[(R[ôo]mulo|Stefany|Marlene)[^\]]*\]/i.test(tx) && !/Dei uma olhada no seu caso|Manual Exclusivo|Esse guia foi criado/i.test(tx);
               const R8 = RG(); if (R8[k] && !!R8[k].humano924 !== hum) { R8[k].humano924 = hum; gravaRG(R8); } }
             else if (!j.agentId) { const R8 = RG(); if (R8[k] && R8[k].humano924) { R8[k].humano924 = false; if (!simular) gravaRG(R8); } } } catch (e) {}
+          { const AO963 = GM_getValue('auto_ordens', {}) || {}; if (AO963[k] && AO963[k].estado === 'erro' && !venc) { ok++; continue; } }   // 9.63: ordem em ERRO não some do caderno (fica para o vigia)
           if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
         // 9.31 (Stefany 19/11 17:29: "vai ficar gente dentro do atendimento com o chat ativo e sem a devida classificação"): toda conversa ABERTA e na janela
         // que ainda não está no caderno entra, já classificada pela última mensagem: cliente → vermelho; fluxo do bot do Botmaker → 🤖; nossa → acompanhando.
@@ -5399,6 +5400,15 @@
           const verm = Object.values(RG() || {}).filter(x => x && x.estado === 'alerta').map(x => ({ h: x.hash, n: String(x.nome || '').slice(0, 18), m: String(x.motivo || '').slice(0, 110), min: x.ultCliT ? Math.round((ag - x.ultCliT) / 60000) : null })).sort((a, b) => (b.min || 0) - (a.min || 0));
           const ord = Object.values(O).filter(o => o && ag - (+o.t || 0) < 48 * 3600000 && (LIM877[o.estado] || ['com_margem', 'erro'].includes(o.estado)) && !(o.estado === 'com_margem' && ag - (+o.t || 0) > 12 * 3600000)).map(o => ({ h: o.hash, n: String(o.nomeReal || o.nome || '').slice(0, 18), e: o.estado, b: o.banco || '', min: P[o.hash] ? Math.round((ag - P[o.hash].t) / 60000) : Math.round((ag - (+o.t || 0)) / 60000), parada: o.parada877 ? 1 : 0, m: String(o.erro || o.resumo || '').slice(-90) }));
           return { hora: hhmm(ag), daycoval: dayc881(), vermelho: verm, ordens: ord }; } catch (e) { return { erro: String((e && e.message) || e) }; } }; }
+    // 9.63 (Stefany 20/11 11:55, Paula X7VCD: Daycoval "fora da política", ficou em erro e SUMIU do esperando atendimento — "tem que ficar às claras… uma fase de atuação sua"):
+    // toda ordem em ERRO (últimas 12 h) vira AMARELO no caderno com o motivo: "🛠️ VIGIA: <erro>". Não some até o vigia resolver (ordem sair do erro).
+    setInterval(() => { try { if (meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {}; const R = RG(); let mud = false; const ag = Date.now();
+        for (const h in O) { const o = O[h]; if (!o || o.estado !== 'erro' || ag - (+o.t || 0) > 12 * 3600000 || protegido(h)) continue; const mot = '🛠️ VIGIA: o robô não conseguiu — ' + String(o.erro || 'erro').slice(0, 110) + (o.banco ? ' (' + o.banco + ')' : '');
+          const x = R[h]; if (x && x.estado === 'humano' && x.motivo === mot) continue;
+          R[h] = Object.assign(x || { hash: h, nome: String(o.nome || o.nomeReal || h.slice(0, 6)), toques: [], hist: [], criadoT: ag }, { estado: 'humano', motivo: mot, junto: mot });
+          (R[h].hist = R[h].hist || []).push(hhmm(ag) + ' 9.63: ' + mot); mud = true; try { diario(o.nomeReal || o.nome || h.slice(0, 5), mot + ' → amarelo para o vigia (9.63)'); } catch (e) {} }
+        for (const h in R) { const x = R[h]; if (x && x.estado === 'humano' && /^🛠️ VIGIA/.test(x.motivo || '') && !(O[h] && O[h].estado === 'erro')) { x.estado = 'acompanhando'; x.motivo = 'vigia resolveu o erro'; mud = true; } }
+        if (mud) gravaRG(R); } catch (e) {} }, 60000);
     // 9.60 (Stefany 20/11 11:03, Claudio 624KB "nem tagueado foi e mandou CPF… sempre taguear"): todo CPF consultado COM margem leva a 01 A na hora
     // (so_tag_01a, só tag — não espera a simulação sair; vale também para quem parou em erro/contorno/extrato). Uma vez por cliente a cada 6 h.
     setInterval(async () => { try { if (meuPapel() === 'vigia' || !bmApiLigada() || !window.dinsBmIntent) return; if (!(GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) return;
