@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.63';
+  const VERSAO = '9.64';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5427,9 +5427,8 @@
           await esp(4000); const nm = primeiroNome(o.nomeReal || '');
           await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem baixa (abaixo de R$ 100,00) — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏');
           marca({ estado: 'aguarda_extrato', ex958T: Date.now() }, '9.58: margem < R$ 50 → fluxo Extrato de empréstimo + aviso pela API');
-          diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '📄 margem abaixo de R$ 50 → pedi o extrato de empréstimo (fluxo + mensagem pela API) e desligo o bot (9.58)');
-          for (let i = 0; i < 30 && localStorage.getItem('dins_ordem'); i++) await esp(2000);
-          if (!localStorage.getItem('dins_ordem')) localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nada_bot', quem: 'robo', t: Date.now() }));
+          diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '📄 margem abaixo de R$ 50 → pedi o extrato de empréstimo (fluxo + mensagem pela API) (o fluxo já desliga o bot) (9.58/9.64)');
+          // 9.64 (Stefany 20/11 12:06): o fluxo 'Extrato de empréstimo' já desliga o bot sozinho → não abre a tela para clicar no ⏻
         } catch (e) { marca({ ex958Tent: (+o.ex958Tent || 0) + 1 }, '⚠️ 9.58: ' + String((e && e.message) || e).slice(0, 100)); }
       } catch (e) {} finally { ocup958 = false; } }, 10000); }
     // 8.18 (18/11 11:20: 26 'sem margem' parados — o envio pela API dentro do intervalo 7.90 não rodava e a fila da tela estava cheia de toques):
