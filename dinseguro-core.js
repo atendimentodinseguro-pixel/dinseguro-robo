@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.85';
+  const VERSAO = '9.88';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2787,6 +2787,12 @@
         return { ficou, tirou, motivos, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // roda sozinho de 30 em 30 min, numa aba só (não na do vigia)
     setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa897_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 40 * 60000) return; GM_setValue('limpa897_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCaderno(false); } catch (e) {} }, 30 * 60000);
+    // 9.88 (Stefany 20/11 19:24–19:33: "a API não diz se está encerrada… veja outro método"): a LISTA de conversas da tela do Botmaker só mostra conversa ABERTA
+    // (Audilene, Marinho, Pérola, Joseane, Evam: encerradas → fora da lista; as 15 abertas → na lista). A cada 1 min guarda os ids da lista (sem filtro, ≥3 itens).
+    setInterval(() => { try { if (meuPapel() === 'vigia') return; const chipF = [...document.querySelectorAll('.MuiChip-root')].some(c => /^Usu[áa]rio/i.test((c.innerText || '').trim())); if (chipF) return;
+        const ids = [...document.querySelectorAll('.customer-item')].map(ci => (ci.parentElement || {}).id).filter(x => /^[A-Z0-9]{20}$/.test(x || '')); if (ids.length < 3) return;
+        GM_setValue('lista_viva988', { t: Date.now(), ids }); } catch (e) {} }, 60000);
+    window.dinsListaViva = () => { const L = GM_getValue('lista_viva988', null); return L ? { min: Math.round((Date.now() - L.t) / 60000), n: L.ids.length } : 'sem leitura'; };
     // 9.02 (Stefany 19/11 14:37: "quero ver se todo mundo que está ali está dentro da janela de 24 horas e com atendimento aberto"):
     // confere CADA cliente do caderno direto na API do Botmaker. Fechada (fila fechar_* ou sem fila e sem atendente) ou janela vencida → sai e só volta
     // quando o cliente escrever de novo (ou sair link novo). Roda a cada 10 min numa aba só; window.dinsLimpaCadernoApi(true) só mostra.
@@ -2794,7 +2800,11 @@
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
-          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; const fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
+          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
+          // 9.88: fora da lista de conversas abertas da tela em 2 leituras com 4+ min de diferença (e o cliente não escreveu nos últimos 5 min) → encerrada
+          try { if (!fech985 && !venc) { const LV = GM_getValue('lista_viva988', null); const R7 = RG(); const x7 = R7[k];
+              if (LV && ag - LV.t < 3 * 60000 && x7) { if (LV.ids.includes(k)) { if (x7.foraLista988) { delete x7.foraLista988; if (!simular) gravaRG(R7); } }
+                else if (ag - lu > 5 * 60000) { if (!x7.foraLista988) { x7.foraLista988 = ag; if (!simular) gravaRG(R7); } else if (ag - x7.foraLista988 >= 4 * 60000) fech985 = true; } } } } catch (e) {}
           // 9.55 (Stefany 20/11 10:35 "caderno todo desatualizado"): estas 3 tinham sumido no 9.22 → 'venc is not defined' derrubava a conferência a cada 10 min
           try { const R9 = RG(); if (R9[k] && !!R9[k].comAg919 !== !!j.agentId) { R9[k].comAg919 = !!j.agentId; if (!simular) gravaRG(R9); } } catch (e) {}   // 9.19
           // 9.24 (Stefany 19/11 17:06, Edna: "se é coisa que o robô entende, dentro do fluxo, pode mandar; se não é o fluxo, fica no amarelo"): o que decide é QUEM conduz —
