@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.68';
+  const VERSAO = '9.69';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -809,8 +809,11 @@
       if (bl && bl._bloq) throw new Error('API ' + o.banco + ': a tabela que serve (' + bl.table_name + ', R$ ' + brl(+bl.released_amount) + ') NÃO está liberada — liberar em Tabelas e Comissões do New Corban');
       const mot = (res.simulations || []).map(s => s.rejection_reason).filter(Boolean)[0] || res.message || 'nenhuma tabela liberada que sirva';
       throw new Error('API ' + o.banco + ': sem oferta — ' + String(mot).slice(0, 140)); }
-    if (pedido > 0 && +of.released_amount < pedido) throw new Error(`⛔ Liberado R$ ${brl(+of.released_amount)} abaixo do pedido R$ ${brl(pedido)} (API ${o.banco})`);
+    // 9.69 (Stefany 20/11 12:55, Djanira 7XSKL: pediu R$ 30 mil, a margem dá R$ 25.084,67 e o robô parou em erro): margem não alcança o valor pedido →
+    // SIMULA com o que a margem dá (máximo) e segue o fluxo normal (simulação → aceite → digita → link). O valor pedido sai da ficha para não travar a gravação.
+    let abaixo969 = false; if (pedido > 0 && +of.released_amount < pedido) { if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) abaixo969 = true; else throw new Error(`⛔ Liberado R$ ${brl(+of.released_amount)} abaixo do pedido R$ ${brl(pedido)} (API ${o.banco})`); }
     const dados = { liberado: brl(+of.released_amount), parcela: brl(+of.installment), prazo: String(of.term || f.prazo || 108), nomeReal: f.nome || o.nomeReal, tabelaApi: of.table_name };
+    if (abaixo969) { dados.ficha = Object.assign({}, f, { valor: '', parcela: brl(+of.installment) }); dados.pedido969 = brl(pedido); }
     // 7.55: quem ainda NÃO aceitou recebe só a SIMULAÇÃO (não grava)
     if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) return { simulada: 1, dados };
     // conta: mesma hierarquia da tela (6191-6205): ficha com conta → ficha sem conta (deriva da agência) → aleatória Caixa (quem ainda não aceitou) → para
