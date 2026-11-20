@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.86';
+  const VERSAO = '9.85';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2794,11 +2794,7 @@
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
-          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
-          // 9.86 (Stefany 20/11 19:16, Audilene M2HIO: o bot do Botmaker respondeu "Este atendimento está encerrado" no fluxo de representante legal e ela ficou no caderno como 🤖):
-          // última mensagem é do BOT encerrando o atendimento e o cliente não escreveu depois → fechada, sai do caderno e o robô não olha mais
-          if (!fech985 && !venc && /^(botfluxo|acompanhando|respondido|ativa)$/.test(x.estado || '')) { try { const m6 = await window.dinsBmGet('/messages?chat-id=' + k + '&from=' + encodeURIComponent(new Date(ag - 26 * 3600000).toISOString())); const it6 = ((m6 && m6.j && m6.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u6 = it6[it6.length - 1];
-              if (u6 && u6.from !== 'user' && /Este atendimento est[áa] encerrado|atendimento (foi )?encerrado/i.test(String((u6.content && u6.content.text) || ''))) fech985 = true; } catch (e) {} }
+          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; const fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
           // 9.55 (Stefany 20/11 10:35 "caderno todo desatualizado"): estas 3 tinham sumido no 9.22 → 'venc is not defined' derrubava a conferência a cada 10 min
           try { const R9 = RG(); if (R9[k] && !!R9[k].comAg919 !== !!j.agentId) { R9[k].comAg919 = !!j.agentId; if (!simular) gravaRG(R9); } } catch (e) {}   // 9.19
           // 9.24 (Stefany 19/11 17:06, Edna: "se é coisa que o robô entende, dentro do fluxo, pode mandar; se não é o fluxo, fica no amarelo"): o que decide é QUEM conduz —
