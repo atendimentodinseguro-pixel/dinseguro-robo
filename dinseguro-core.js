@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.75';
+  const VERSAO = '9.76';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -466,6 +466,8 @@
             else achouMat = /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText) || [...document.querySelectorAll('tr')].some(tr => /\bATIVO\b/.test(tr.innerText));
             await zz(600); const off2 = document.getElementById('offline'); if (off2 && !off2.checked) off2.click(); await zz(500); const c2 = document.getElementById('cpf'); if (c2 && !c2.checked) c2.click();
             if (!achouMat) { if (outroCpf891(o)) return; { let fc = null; try { fc = await fcBeneficios975(o.cpf); } catch (e) {} const bom = (fc || []).filter(b => ESPECIES_OK.includes(b.esp) && (b.margem || 0) >= 25).sort((a, b) => b.margem - a.margem)[0];   /* 9.75: não está no Multicorban → olha o FullConsig */
+              const loas = !bom && (fc || []).find(b => LOAS.includes(b.esp) && b.margem != null);   // 9.76: só LOAS no FullConsig → mesmo desfecho de LOAS do Multicorban (≥ R$ 400 com margem, abaixo sem)
+              if (loas) { poeAO(o.hash, { estado: 'desfecho', acao: loas.margem >= 400 ? 'loas_com' : 'loas_sem', resumo: 'esp ' + loas.esp + ' (LOAS) margem R$ ' + brl(loas.margem) + ' — achado só no FullConsig (9.76)' }); return; }
               if (bom) { poeAO(o.hash, { estado: 'com_margem', resumo: '🛠️ só no FullConsig: benefício …' + String(bom.nb).slice(-4) + ' esp ' + bom.esp + ' margem R$ ' + brl(bom.margem) + ' (o Multicorban não localizou) → VIGIA monta a ficha (9.75)' }); try { diario(o.nome || o.hash.slice(0, 5), '🔎 Multicorban não achou; FullConsig achou esp ' + bom.esp + ' margem R$ ' + brl(bom.margem) + ' → vigia (9.75)'); } catch (e) {} return; } }
               poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
             throw new Error('achou como MATRÍCULA (o número mandado é benefício) — vigia confere');
