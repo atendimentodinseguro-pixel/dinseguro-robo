@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.88';
+  const VERSAO = '9.89';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1172,7 +1172,7 @@
         try { if (/https?:\/\/(dcy\.app|facta\.ly|\S*facta|\S*c6consig|\S*joinbank|\S*qualibank|\S*queromais)|Novo Cr[ée]dito Dispon[íi]vel|proposta de \*R\$|Valor na conta: \*R\$/i.test(String(texto)) && !/Separei \*duas op[çc][õo]es\* com a margem cheia/i.test(String(texto)) /* 9.66 (Stefany 20/11 12:13, Dinaldo WK1Z0): simulação PADRÃO (sem CPF) é 01 C, não 01 A */ && (GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) { const T8 = GM_getValue('tag01a_894', {}) || {}; if (!(T8[chatId] > Date.now() - 6 * 3600000)) { T8[chatId] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(chatId, 'so_tag_01a'); } } } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
-      if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages)/.test(String(path))) return res({ erro: 'caminho não liberado' });
+      if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages|events|sessions)/.test(String(path))) return res({ erro: 'caminho não liberado' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
         onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); },
         onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
