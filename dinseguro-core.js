@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.84';
+  const VERSAO = '9.85';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2794,7 +2794,8 @@
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
-          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;   // 9.55 (Stefany 20/11 10:35 "caderno todo desatualizado"): estas 3 tinham sumido no 9.22 → 'venc is not defined' derrubava a conferência a cada 10 min
+          const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; const fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
+          // 9.55 (Stefany 20/11 10:35 "caderno todo desatualizado"): estas 3 tinham sumido no 9.22 → 'venc is not defined' derrubava a conferência a cada 10 min
           try { const R9 = RG(); if (R9[k] && !!R9[k].comAg919 !== !!j.agentId) { R9[k].comAg919 = !!j.agentId; if (!simular) gravaRG(R9); } } catch (e) {}   // 9.19
           // 9.24 (Stefany 19/11 17:06, Edna: "se é coisa que o robô entende, dentro do fluxo, pode mandar; se não é o fluxo, fica no amarelo"): o que decide é QUEM conduz —
           // última mensagem nossa saiu do robô/vigia (fluxo: simulação, proposta, link, resposta padrão) → o robô segue a régua, mesmo com atendente na conversa;
@@ -2807,7 +2808,7 @@
           // 9.84 (Stefany 20/11 15:48: "às vezes tem gente ali que não atualizou corretamente"): vermelho de cliente que JÁ foi respondido (pela tela, por atendente
           // ou pelo WhatsApp do Botmaker, sem passar pela API do robô) ficava vermelho. A conferência agora olha as mensagens: tem resposta nossa depois da
           // última mensagem do cliente → sai do vermelho ('respondido'). E o contrário: cliente escreveu depois da nossa última → volta para o vermelho.
-          try { if (!simular && !fech && !venc) { const R4 = RG(); const x4 = R4[k]; if (x4 && !protegido(k)) {
+          try { if (!simular && !fech985 && !venc) { const R4 = RG(); const x4 = R4[k]; if (x4 && !protegido(k)) {
               const lastU = lu || 0; const precisa = x4.estado === 'alerta' || (lastU > (+x4.ultCliT || 0) + 60000 && !/^(alerta|humano|botfluxo)$/.test(x4.estado || ''));
               if (precisa) { const m4 = await window.dinsBmGet('/messages?chat-id=' + k + '&from=' + encodeURIComponent(new Date(ag - 26 * 3600000).toISOString())); const it4 = ((m4 && m4.j && m4.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
                 const uU = [...it4].reverse().find(m => m.from === 'user'); const uN = [...it4].reverse().find(m => m.from !== 'user' && String((m.content && m.content.text) || '').trim().length > 15);
@@ -2815,7 +2816,7 @@
                 if (x4.estado === 'alerta' && tN > tU && tN) { x4.estado = 'respondido'; delete x4.reler; (x4.hist = x4.hist || []).push(hhmm(ag) + ' 9.84: conferência viu resposta nossa às ' + hhmm(tN) + ' → saiu do vermelho'); x4.ultCliT = tU || x4.ultCliT; gravaRG(R4); n984s++; }
                 else if (x4.estado !== 'alerta' && tU > tN && tU > (+x4.ultCliT || 0) + 60000 && ag - tU > 3 * 60000) { x4.estado = 'alerta'; x4.motivo = 'cliente escreveu às ' + hhmm(tU) + ' e ninguém respondeu (conferência 9.84)'; x4.ultCliT = tU; (x4.hist = x4.hist || []).push(hhmm(ag) + ' 9.84: cliente escreveu e ficou sem resposta → vermelho'); gravaRG(R4); n984v++; } } } } } catch (e) {}
           { const AO963 = GM_getValue('auto_ordens', {}) || {}; if (AO963[k] && AO963[k].estado === 'erro' && !venc) { ok++; continue; } }   // 9.63: ordem em ERRO não some do caderno (fica para o vigia)
-          if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
+          if (fech985 || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech985 ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech985 ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
         // 9.31 (Stefany 19/11 17:29: "vai ficar gente dentro do atendimento com o chat ativo e sem a devida classificação"): toda conversa ABERTA e na janela
         // que ainda não está no caderno entra, já classificada pela última mensagem: cliente → vermelho; fluxo do bot do Botmaker → 🤖; nossa → acompanhando.
         // "Não sou aposentado" (fila AUTONOMO) ou encerramento do bot ("Vamos encerrar este atendimento") → amarelo "encerrar pela regra" (07 / 01 C) até a Stefany liberar o fechamento automático.
