@@ -28,6 +28,12 @@
       return { setTimeout: (fn, ms, ...a) => marca(fn, ms, a, 0), setInterval: (fn, ms, ...a) => marca(fn, ms, a, 1), clearTimeout: tira, clearInterval: tira };
     } catch (e) { return N; }
   })();
+  // 9.54 (Stefany 20/11 10:33: "não sei se é a página que fica sem ação e ele para"): o Chrome CONGELA/descarta aba parada em segundo plano
+  // (Economia de memória/energia) — aí nem o Worker do 7.14 roda. Segura um Web Lock para sempre (aba com lock não é congelada) e,
+  // depois do primeiro clique na página, um som inaudível (aba "tocando áudio" não é descartada).
+  try { if (navigator.locks && !window.__dins954) { window.__dins954 = 1; navigator.locks.request('dins_viva_' + location.host + '_' + Math.random().toString(36).slice(2), () => new Promise(() => {})); } } catch (e) {}
+  try { if (!window.__dins954a) { window.__dins954a = 1; const liga = () => { try { const A = new (window.AudioContext || window.webkitAudioContext)(); const o = A.createOscillator(), g = A.createGain(); g.gain.value = 0.0001; o.frequency.value = 20; o.connect(g); g.connect(A.destination); o.start(); window.__dinsAudio954 = A; } catch (e) {} };
+    window.addEventListener('pointerdown', function f() { window.removeEventListener('pointerdown', f, true); liga(); }, true); } } catch (e) {}
   try {
     const _gGet = GM_getValue, _gSet = GM_setValue, SNAP = new Map();
     const JUNTA = /^(regua|espera|espera_hist|auto_ordens|pos_pago|nao_interferir|retorno_feito|golpe_feito|tag_audit|depois_resp|valor_nota|hist_expandido)$/;
@@ -47,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.53';
+  const VERSAO = '9.54';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -4052,7 +4058,7 @@
     async function olharPrioridade() {
       if (vigiaTrava() || prioRodando || faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
-      const hh = new Date().getHours(); if (hh < 8 || hh >= 21 || [0, 6].includes(new Date().getDay())) return;
+      const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;   // 9.54: fim de semana também
       const ta0 = document.querySelector('textarea'); if (ta0 && ta0.value.trim()) return;
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
@@ -4614,8 +4620,8 @@
     };
     const VARRE_MAX_RODADA = 500;
     // Horário da varredura (Stefany, 07/11 20:51): de 2 em 2 horas, das 8h às 16h.
-    const HORAS_VARREDURA = [8, 10, 12, 14, 16];
-    const HORA_FIM = 16;
+    const HORAS_VARREDURA = [8, 10, 12, 14, 16, 18, 20];   // 9.54 (Stefany 20/11 10:33: "ele tem que trabalhar direto"): 8h–21h, todo dia
+    const HORA_FIM = 20;
     const NAO_MEXER = ['Romulo', 'Jair', '⚫️'];
 
     // ⚠️⚠️ 3.56 (07/11 19:28) — SEGUNDO motivo de a varredura não resolver nada.
@@ -5028,7 +5034,7 @@
     //  • FATIAS: a cada 5 conversas abertas, pausa de 2 min (robô do atendimento e vigia trabalham); com cliente esperando a pausa estica;
     //  • CURSOR: a rodada guarda o que já fez (GM varre_cursor); recarregou/travou → retoma sozinha do mesmo ponto até as 17h;
     //  • versão nova do robô só entra entre rodadas: localStorage dins_recarregar_depois='1' → recarrega quando a rodada acabar.
-    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 17, WA_LOTE = 40;   // 8.22 (Stefany 18/11 11:37): sem o teto de 10 por hora
+    const VARRE_FATIA = 5, VARRE_PAUSA = 2 * 60000, VARRE_LIMITE_H = 21, WA_LOTE = 40;   // 8.22 (Stefany 18/11 11:37): sem o teto de 10 por hora
     async function varrerJanelaVencida(forcarExecucao, retomar) {
       if (varrendo || rodando || fupRodando) return;
       if (!GM_getValue('varredura_ligada', true)) return;
@@ -5884,7 +5890,7 @@
       // WhatsApp continua com a cadência de sempre (4 a 6 min entre mensagens, no máximo 10 por hora). Liga/desliga: dinsVarreContinua(1/0).
       const continua = !!GM_getValue('varre_continua', false);
       if (continua ? (d.getHours() < 8 || d.getHours() > HORA_FIM) : !HORAS_VARREDURA.includes(d.getHours())) return;
-      if (d.getDay() === 0 || d.getDay() === 6) return;          // sábado e domingo, não
+      // 9.54: sábado e domingo também (Stefany 20/11: trabalhar direto)
       const marca = d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + '-' + d.getHours() + (continua ? '-' + Math.floor(d.getMinutes() / 20) : '');
       if (GM_getValue('varredura_ultima_hora', '') === marca) return;
       // 4.71: se o robô está ocupado (fechando conversa, toque, desfecho), espera a próxima volta — antes a hora era marcada
@@ -7622,8 +7628,7 @@
 
     function dentroDoHorario() {
       const d = new Date();
-      if (d.getDay() === 0 || d.getDay() === 6) return false;
-      return d.getHours() >= 8 && d.getHours() <= 16;
+      return d.getHours() >= 8 && d.getHours() <= 20;   // 9.54: todo dia, 8h–20h59
     }
 
     async function mandar(item) {
