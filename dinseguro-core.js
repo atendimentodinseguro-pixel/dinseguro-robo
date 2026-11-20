@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.57';
+  const VERSAO = '9.58';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -534,6 +534,9 @@
           else if (mot === 'ESPECIE_FORA') acao = 'especie_fora';   // 5.15 (Stefany 12/11 11:23, caso Euraci esp 31): espécie não consignável → /07 + tag 07 + fechar, sem perguntar ao vigia   // 5.00: LOAS com margem ≥ R$ 400 → mensagem padrão + 02 A + fechar
           // 7.98 (Stefany 17/11 22:52, caso Nozeli: sem margem e o robô não pôs a Q15): sem margem de empréstimo + RMC ou RCC > 0 → tag Q15 (LOAS nunca leva Q15)
           const q15 = acao === 'sem_margem' && [ficha.rmc, ficha.rcc].some(v => (num(String(v || '').split('(')[0]) || 0) > 0);
+          // 9.58 (Stefany 20/11 10:59–11:01, caso Claudio 624KB margem R$ 25,44): margem de R$ 25 a R$ 49,99 → SIMULA normal e, quando o cliente aceita, NÃO digita:
+          // pede o EXTRATO DE EMPRÉSTIMO para confirmar a margem (fluxo 'Extrato de empréstimo' pela API → mensagem avisando → desliga o bot).
+          if (!acao && mg != null && mg >= 25 && mg < 50 && !mot) poeAO(o.hash, { ex50: 1 });   // simula normal; na hora de DIGITAR para e pede o extrato
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo: resumo + (q15 ? ' · cartão: RMC ' + (ficha.rmc || '—') + ' / RCC ' + (ficha.rcc || '—') + ' → Q15' : ''), q15 });
           else if (!mot) {
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
@@ -600,7 +603,7 @@
       // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
       const fixo = String(sessionStorage.getItem('dins_nc_fixo') || '').toLowerCase().split(/[ ,]+/).filter(Boolean);
       const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' };
-      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
+      const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
       const pag = pg0[o.banco];
       if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
       if (!new RegExp('[?&]p=' + pag + '\\b').test(location.search)) { if (!sessionStorage.getItem('dins_auto_nav')) { sessionStorage.setItem('dins_auto_nav', '1'); location.href = location.origin + '/?p=' + pag; } return; }
@@ -846,7 +849,7 @@
           if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
-      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
+      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
       /* 9.48 (Anesio 4SDTF 19/11 23:04: escolheu a opção 2 (carência), vigia pôs bancoStefany 'FACTA 90 DIAS' e a API digitou C6 opção 1 mesmo assim): com bancoStefany diferente do banco a API NÃO digita — fica para a tela/vigia */
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
@@ -1079,7 +1082,7 @@
       // nenhuma ordem fica presa em 'desfecho_chk891' (aba fechou no meio): 2 min → volta para 'desfecho'
       setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; let m = false; for (const k in O) { const x = O[k]; if (x && x.estado === 'desfecho_chk891' && Date.now() - (+x.chk891T || (x.chk891T = Date.now())) > 120000) { x.estado = 'desfecho'; x.chk891 = 1; m = true; } else if (x && x.estado === 'desfecho_chk891' && !x.chk891T) m = true; } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 30000); }
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
-      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent))) return res({ erro: 'chat ou intenção inválidos' });
+      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !(/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent)) || ['Extrato de empréstimo'].includes(String(intent)))) return res({ erro: 'chat ou intenção inválidos' });   // 9.58: + fluxo 'Extrato de empréstimo'
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
         onload: r => { try { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01[ac]$)/.test(String(intent))) { const FM = GM_getValue('fechadas888', {}) || {}; FM[chatId] = { t: Date.now(), lu: Date.now() }; GM_setValue('fechadas888', FM); } } catch (e) {} try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
@@ -5389,6 +5392,21 @@
           const verm = Object.values(RG() || {}).filter(x => x && x.estado === 'alerta').map(x => ({ h: x.hash, n: String(x.nome || '').slice(0, 18), m: String(x.motivo || '').slice(0, 110), min: x.ultCliT ? Math.round((ag - x.ultCliT) / 60000) : null })).sort((a, b) => (b.min || 0) - (a.min || 0));
           const ord = Object.values(O).filter(o => o && ag - (+o.t || 0) < 48 * 3600000 && (LIM877[o.estado] || ['com_margem', 'erro'].includes(o.estado)) && !(o.estado === 'com_margem' && ag - (+o.t || 0) > 12 * 3600000)).map(o => ({ h: o.hash, n: String(o.nomeReal || o.nome || '').slice(0, 18), e: o.estado, b: o.banco || '', min: P[o.hash] ? Math.round((ag - P[o.hash].t) / 60000) : Math.round((ag - (+o.t || 0)) / 60000), parada: o.parada877 ? 1 : 0, m: String(o.erro || o.resumo || '').slice(-90) }));
           return { hora: hhmm(ag), daycoval: dayc881(), vermelho: verm, ordens: ord }; } catch (e) { return { erro: String((e && e.message) || e) }; } }; }
+    // 9.58: margem abaixo de R$ 50 → 1) fluxo 'Extrato de empréstimo' (API) 2) mensagem avisando que pedimos o extrato para confirmar a margem 3) desliga o bot (ordem nada_bot). Fica 'aguarda_extrato' (o vigia lê o extrato).
+    { let ocup958 = false;
+      setInterval(async () => { if (ocup958) return; try { if (meuPapel() === 'vigia' || !bmApiLigada() || !window.dinsBmIntent) return; const L = GM_getValue('ex958_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('ex958_dono', { aba: ABA, t: Date.now() });
+        const O = GM_getValue('auto_ordens', {}) || {}; { const k = Object.keys(O).find(h => { const x = O[h]; return x && x.ex50 && !x.ex50Ok && x.estado === 'ficha_ok' && (x.aceite || x.simGravar || x.aceitouSim); }); if (k) { O[k].estado = 'extrato_50'; (O[k].hist = O[k].hist || []).push(hhmm(Date.now()) + ' 9.58: aceitou, mas margem < R$ 50 → não digita, pede extrato'); GM_setValue('auto_ordens', O); } }
+        const o = Object.values(O).find(x => x && x.estado === 'extrato_50' && !protegido(x.hash) && (+x.ex958Tent || 0) < 3); if (!o) return; ocup958 = true;
+        const marca = (campos, txt) => { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[o.hash]) { Object.assign(O2[o.hash], campos); (O2[o.hash].hist = O2[o.hash].hist || []).push(hhmm(Date.now()) + ' ' + txt); GM_setValue('auto_ordens', O2); } };
+        try { const ri = await window.dinsBmIntent(o.hash, 'Extrato de empréstimo'); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('fluxo Extrato de empréstimo não aceitou (' + ((ri && (ri.http || ri.erro)) || '?') + ')');
+          await esp(4000); const nm = primeiroNome(o.nomeReal || '');
+          await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem abaixo de R$ 50,00 — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏');
+          marca({ estado: 'aguarda_extrato', ex958T: Date.now() }, '9.58: margem < R$ 50 → fluxo Extrato de empréstimo + aviso pela API');
+          diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '📄 margem abaixo de R$ 50 → pedi o extrato de empréstimo (fluxo + mensagem pela API) e desligo o bot (9.58)');
+          for (let i = 0; i < 30 && localStorage.getItem('dins_ordem'); i++) await esp(2000);
+          if (!localStorage.getItem('dins_ordem')) localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: 'nada_bot', quem: 'robo', t: Date.now() }));
+        } catch (e) { marca({ ex958Tent: (+o.ex958Tent || 0) + 1 }, '⚠️ 9.58: ' + String((e && e.message) || e).slice(0, 100)); }
+      } catch (e) {} finally { ocup958 = false; } }, 10000); }
     // 8.18 (18/11 11:20: 26 'sem margem' parados — o envio pela API dentro do intervalo 7.90 não rodava e a fila da tela estava cheia de toques):
     // remetente PRÓPRIO do sem margem pela API, a cada 20 s, sem depender de trava nem da tela. Sem o /n30 guardado → texto padrão.
     { let ocup818 = false;
@@ -6466,7 +6484,7 @@
         try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
           if (r && r.link && Date.now() - Date.parse(r.quando) < 60 * 60000) { const O = AOd(); const q = Object.values(O).find(x => x && x.tipo === 'cpf' && ['com_margem', 'erro'].includes(x.estado) && cp(x.cpf) === cp(r.cpf) && /DAYCOVAL/.test(x.resumo || x.erro || '') && x.propD !== r.proposta);
             if (q) { poeAOd(q.hash, { estado: 'link', link: r.link, proposta: r.proposta, liberado: r.liberado, parcela: r.parcela, prazo: r.prazo || '108', banco: 'DAYCOVAL', bancoConta: '', propD: r.proposta }); return; } } } catch (e) {}
-        const o = Object.values(AOd()).find(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
+        const o = Object.values(AOd()).find(x => x && x.tipo === 'cpf' && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && x.banco === 'DAYCOVAL' && x.ficha && x.ficha.cpf);
         if (!o) return;
         autoD = true;
         try {
