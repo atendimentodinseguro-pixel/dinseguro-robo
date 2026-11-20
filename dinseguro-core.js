@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.52';
+  const VERSAO = '9.53';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1077,6 +1077,23 @@
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
         onload: r => { try { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01[ac]$)/.test(String(intent))) { const FM = GM_getValue('fechadas888', {}) || {}; FM[chatId] = { t: Date.now(), lu: Date.now() }; GM_setValue('fechadas888', FM); } } catch (e) {} try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+    // 9.53 (Stefany 20/11 10:22, foto "Trabalhando" TJL0G: simulação padrão às 10:20 e a conversa FECHOU com tag_01c — "tem intenção de tag sem fechar… crie uma regra para todas"):
+    // REGRA ÚNICA para toda intenção que FECHA sem ser desfecho (tag_01a, tag_01c, fechar_01c, fechar_so): antes de disparar, lê as últimas mensagens pela API.
+    // Conversa VIVA = nossa última mensagem (< 3 h) é simulação/oferta/link/pergunta esperando resposta, OU o cliente escreveu há < 30 min
+    // → troca pela intenção que só TAGUEIA (tag_01a→so_tag_01a; tag_01c/fechar_01c→so_tag_01c; fechar_so→não faz nada). Desfechos (fechar_sem_margem*, loas, 07) seguem normais.
+    { const orig953 = window.dinsBmIntent;
+      const VIVA953 = /Valor na conta|Quero a op[cç][aã]o|[ÉE] s[oó] responder|Simula[cç][aã]o gratuita|proposta de \*?R\$|https?:\/\/|me (manda|envia)|\?\s*(\S{0,3})?\s*$/i;
+      window.dinsBmIntent = async (chatId, intent) => { try {
+        if (/^(tag_01[ac]|fechar_01c|fechar_so)$/.test(String(intent)) && window.dinsBmGet) {
+          const m = await window.dinsBmGet('/messages?chat-id=' + chatId + '&from=' + encodeURIComponent(new Date(Date.now() - 3 * 3600000).toISOString()));
+          const ms = ((m && m.j && m.j.items) || []); const T = x => String((x.content && x.content.text) || x.text || '');
+          const ult = ms[ms.length - 1]; const ultCli = [...ms].reverse().find(x => x.from === 'user');
+          const nossaViva = ult && ult.from !== 'user' && Date.now() - Date.parse(ult.creationTime || 0) < 2 * 3600000 && VIVA953.test(T(ult)) && !/encerr|[ée] s[oó] chamar|grande abra[cç]o|[àa] disposi[cç][aã]o/i.test(T(ult));
+          const cliRecente = ultCli && Date.now() - Date.parse(ultCli.creationTime || 0) < 30 * 60000;
+          if (nossaViva || cliRecente) { const troca = intent === 'tag_01a' ? 'so_tag_01a' : intent === 'fechar_so' ? '' : 'so_tag_01c';
+            try { diario(chatId.slice(0, 5), '9.53: ' + intent + ' NÃO fechou — conversa viva (' + (nossaViva ? 'nossa oferta/pergunta esperando resposta' : 'cliente escreveu há < 30 min') + ')' + (troca ? ' → ' + troca + ' (só tag)' : ' → nada')); } catch (e) {}
+            if (!troca) return { http: 204, pulado953: 1 }; intent = troca; } }
+      } catch (e) {} return orig953(chatId, intent); }; }
     // 8.76 (Stefany 19/11 11:26: "o robô e você têm que mandar mensagem pela API"): envio do VIGIA pela API do Botmaker (sem abrir a conversa na tela)
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
