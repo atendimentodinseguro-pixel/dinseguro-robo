@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.60';
+  const VERSAO = '9.61';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -860,9 +860,10 @@
         else poe(o.hash, Object.assign({ estado: 'gravada', aguardaLista: 1, tGrav: Date.now() }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' — link vem em seguida');
       } catch (e) { const m = String(e.message || e).slice(0, 200);
         if (e.tecnico) poe(o.hash, { estado: 'ficha_ok', apiFalhou: 1, erroApi: m }, 'API falhou (' + m.slice(0, 60) + ') → digita pela TELA');
-        // 9.59 (Stefany 20/11 11:01, Claudio 624KB: FACTA "valor abaixo do mínimo aceito" e ficou em erro): valor não atinge o mínimo do banco → tenta o próximo banco
+        // 9.61: + 'biometria do agente certificado … vencida' (C6 20/11 11:17) → também pula para o próximo banco
+    // 9.59 (Stefany 20/11 11:01, Claudio 624KB: FACTA "valor abaixo do mínimo aceito" e ficou em erro): valor não atinge o mínimo do banco → tenta o próximo banco
         // (C6 → FACTA → QUALIBANK, cada um uma vez; invalidez abaixo de 58 não vai para a Qualibank). Sem banco sobrando → erro como antes.
-        else if (/abaixo do m[íi]nimo|valor m[íi]nimo|m[íi]nimo aceito|menor que o m[íi]nimo/i.test(m) && !o.op2Car948 && (() => { const tent = [].concat(o.tentMin959 || [], o.banco); const inv = INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58;
+        else if (/abaixo do m[íi]nimo|valor m[íi]nimo|m[íi]nimo aceito|menor que o m[íi]nimo|biometria do agente/i.test(m) && !o.op2Car948 && (() => { const tent = [].concat(o.tentMin959 || [], o.banco); const inv = INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58;
             const prox = ['C6', 'FACTA', 'QUALIBANK'].find(b => !tent.includes(b) && !(b === 'QUALIBANK' && inv)); if (!prox) return false;
             const O7 = GM_getValue('auto_ordens', {}) || {}; const x7 = O7[o.hash]; if (x7) { x7.ficha = Object.assign({}, x7.ficha || {}, { banco_destino: prox, banco_ordem_stefany: '' }); GM_setValue('auto_ordens', O7); }
             poe(o.hash, { estado: 'ficha_ok', banco: prox, tentMin959: tent, erro: '' }, o.banco + ': valor abaixo do mínimo do banco → tenta no ' + prox + ' (9.59)'); try { diario(o.nomeReal || o.nome || '', o.banco + ' não aceita valor tão baixo → tenta no ' + prox + ' (9.59)'); } catch (x) {} return true; })()) {}
