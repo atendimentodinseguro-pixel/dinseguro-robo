@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.83';
+  const VERSAO = '9.84';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2790,7 +2790,7 @@
     // 9.02 (Stefany 19/11 14:37: "quero ver se todo mundo que está ali está dentro da janela de 24 horas e com atendimento aberto"):
     // confere CADA cliente do caderno direto na API do Botmaker. Fechada (fila fechar_* ou sem fila e sem atendente) ou janela vencida → sai e só volta
     // quando o cliente escrever de novo (ou sair link novo). Roda a cada 10 min numa aba só; window.dinsLimpaCadernoApi(true) só mostra.
-    window.dinsLimpaCadernoApi = async (simular) => { try { if (!window.dinsBmGet) return { erro: 'sem API' }; const r = RG(); const ag = Date.now(); const FO = GM_getValue('regua_fora902', {}) || {}; const sai = []; let ok = 0, semResp = 0;
+    window.dinsLimpaCadernoApi = async (simular) => { try { if (!window.dinsBmGet) return { erro: 'sem API' }; const r = RG(); const ag = Date.now(); const FO = GM_getValue('regua_fora902', {}) || {}; const sai = []; let ok = 0, semResp = 0; let n984s = 0, n984v = 0;
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
@@ -2804,6 +2804,16 @@
               const hum = !!u && u.from === 'agent' && /^\s*\*?\[(R[ôo]mulo|Stefany|Marlene)[^\]]*\]/i.test(tx) && !/Dei uma olhada no seu caso|Manual Exclusivo|Esse guia foi criado/i.test(tx);
               const R8 = RG(); if (R8[k] && !!R8[k].humano924 !== hum) { R8[k].humano924 = hum; gravaRG(R8); } }
             else if (!j.agentId) { const R8 = RG(); if (R8[k] && R8[k].humano924) { R8[k].humano924 = false; if (!simular) gravaRG(R8); } } } catch (e) {}
+          // 9.84 (Stefany 20/11 15:48: "às vezes tem gente ali que não atualizou corretamente"): vermelho de cliente que JÁ foi respondido (pela tela, por atendente
+          // ou pelo WhatsApp do Botmaker, sem passar pela API do robô) ficava vermelho. A conferência agora olha as mensagens: tem resposta nossa depois da
+          // última mensagem do cliente → sai do vermelho ('respondido'). E o contrário: cliente escreveu depois da nossa última → volta para o vermelho.
+          try { if (!simular && !fech && !venc) { const R4 = RG(); const x4 = R4[k]; if (x4 && !protegido(k)) {
+              const lastU = lu || 0; const precisa = x4.estado === 'alerta' || (lastU > (+x4.ultCliT || 0) + 60000 && !/^(alerta|humano|botfluxo)$/.test(x4.estado || ''));
+              if (precisa) { const m4 = await window.dinsBmGet('/messages?chat-id=' + k + '&from=' + encodeURIComponent(new Date(ag - 26 * 3600000).toISOString())); const it4 = ((m4 && m4.j && m4.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime));
+                const uU = [...it4].reverse().find(m => m.from === 'user'); const uN = [...it4].reverse().find(m => m.from !== 'user' && String((m.content && m.content.text) || '').trim().length > 15);
+                const tU = uU ? Date.parse(uU.creationTime) : 0; const tN = uN ? Date.parse(uN.creationTime) : 0;
+                if (x4.estado === 'alerta' && tN > tU && tN) { x4.estado = 'respondido'; delete x4.reler; (x4.hist = x4.hist || []).push(hhmm(ag) + ' 9.84: conferência viu resposta nossa às ' + hhmm(tN) + ' → saiu do vermelho'); x4.ultCliT = tU || x4.ultCliT; gravaRG(R4); n984s++; }
+                else if (x4.estado !== 'alerta' && tU > tN && tU > (+x4.ultCliT || 0) + 60000 && ag - tU > 3 * 60000) { x4.estado = 'alerta'; x4.motivo = 'cliente escreveu às ' + hhmm(tU) + ' e ninguém respondeu (conferência 9.84)'; x4.ultCliT = tU; (x4.hist = x4.hist || []).push(hhmm(ag) + ' 9.84: cliente escreveu e ficou sem resposta → vermelho'); gravaRG(R4); n984v++; } } } } } catch (e) {}
           { const AO963 = GM_getValue('auto_ordens', {}) || {}; if (AO963[k] && AO963[k].estado === 'erro' && !venc) { ok++; continue; } }   // 9.63: ordem em ERRO não some do caderno (fica para o vigia)
           if (fech || venc) { sai.push(String(x.nome || k).slice(0, 18) + (fech ? ' (fechada)' : ' (janela vencida)')); if (!simular) FO[k] = { t: ag, lu, m: fech ? 'fechada' : 'janela' }; } else { ok++; if (FO[k] && !simular) delete FO[k]; } }
         // 9.31 (Stefany 19/11 17:29: "vai ficar gente dentro do atendimento com o chat ativo e sem a devida classificação"): toda conversa ABERTA e na janela
@@ -2832,9 +2842,11 @@
               const it = /não é do INSS/i.test(mt) ? 'fechar_07' : /cliente encerrou no bot/i.test(mt) ? (x.cpf ? 'fechar_so' : 'fechar_01c') : ''; if (!it || !ON956.includes(it)) continue;
               const ri = await window.dinsBmIntent(k, it); if (ri && ri.http >= 200 && ri.http < 300 && !ri.pulado953) { const R6 = RG(); if (R6[k]) { R6[k].estado = 'fechada'; (R6[k].hist = R6[k].hist || []).push(hhmm(ag) + ' 9.56: encerrada pela regra → ' + it + ' (API)'); gravaRG(R6); } n956++; } }
             if (n956) diario('caderno', '✅ 9.56: ' + n956 + ' amarelo(s) "encerrar pela regra" fechado(s) pela intenção'); } } catch (e) {}
+        if (!simular) { GM_setValue('conf902_t', ag); if (n984s || n984v) { try { diario('caderno', '🔄 9.84 conferência: ' + n984s + ' saíram do vermelho (já respondidos), ' + n984v + ' voltaram para o vermelho (cliente sem resposta)'); } catch (e) {} } }
         if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
-        return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
-    setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa902_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 15 * 60000) return; GM_setValue('limpa902_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCadernoApi(false); } catch (e) {} }, 10 * 60000);
+        return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, respondidos984: n984s, vermelhos984: n984v, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
+    setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa902_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 8 * 60000) return; GM_setValue('limpa902_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCadernoApi(false); } catch (e) {} }, 5 * 60000);   // 9.84: de 10 em 10 → de 5 em 5 min
+    window.dinsCadernoConferido = () => { const t = +GM_getValue('conf902_t', 0) || 0; return t ? hhmm(t) + ' (há ' + Math.round((Date.now() - t) / 60000) + ' min)' : 'nunca'; };
     setTimeout(() => { try { if (meuPapel() !== 'vigia') window.dinsLimpaCadernoApi(false); } catch (e) {} }, 120000);
     // 3.94 — RESUMO por cliente (Stefany 10/11 15:12: "bem resumidinho… para eu saber qual foi a sua interpretação")
     // dinsReguaResumo('HASH', 'texto curto') — aparece no quadro embaixo do nome.
