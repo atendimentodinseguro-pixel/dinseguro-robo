@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.55';
+  const VERSAO = '9.56';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2763,6 +2763,14 @@
               R3[id] = { hash: id, nome: String(c.firstName || id.slice(0, 6)), estado: est, motivo: mot, toques: [], hist: [hhmm(ag) + ' 9.31: entrou pela conferência das conversas abertas — ' + mot], criadoT: ag, ultCliT: lu, botLuc: lu, junto: est === 'humano' ? mot : undefined };
               novos931++; }
             if (novos931) { gravaRG(R3); diario('caderno', '🔎 9.31: ' + novos931 + ' conversa(s) aberta(s) fora do caderno entraram já classificadas'); } } } catch (e) {}
+        // 9.56 (Stefany 20/11 10:44–10:47: "bora colocar esse robô para trabalhar… você pediu a intenção e não sabe usar cada uma no seu momento?"):
+        // o amarelo "encerrar pela regra" (bot já se despediu / não é do INSS) não espera gente — fecha pela intenção certa
+        // (sem CPF → fechar_01c; com CPF → fechar_so; não é INSS → fechar_07). A trava 9.53 (conversa viva não fecha) continua valendo.
+        try { if (!simular) { const ON956 = GM_getValue('bm_intents_on', []) || []; const R5 = RG(); let n956 = 0;
+            for (const k in R5) { const x = R5[k]; if (!x || x.estado !== 'humano' || protegido(k) || k === 'F20QOEL8YYLQN2S6SR47') continue; const mt = String(x.junto || x.motivo || '');
+              const it = /não é do INSS/i.test(mt) ? 'fechar_07' : /cliente encerrou no bot/i.test(mt) ? (x.cpf ? 'fechar_so' : 'fechar_01c') : ''; if (!it || !ON956.includes(it)) continue;
+              const ri = await window.dinsBmIntent(k, it); if (ri && ri.http >= 200 && ri.http < 300 && !ri.pulado953) { const R6 = RG(); if (R6[k]) { R6[k].estado = 'fechada'; (R6[k].hist = R6[k].hist || []).push(hhmm(ag) + ' 9.56: encerrada pela regra → ' + it + ' (API)'); gravaRG(R6); } n956++; } }
+            if (n956) diario('caderno', '✅ 9.56: ' + n956 + ' amarelo(s) "encerrar pela regra" fechado(s) pela intenção'); } } catch (e) {}
         if (!simular) { for (const k in FO) if (ag - (+FO[k].t || 0) > 20 * 864e5) delete FO[k]; GM_setValue('regua_fora902', FO); gravaRG(RG()); if (sai.length) { try { diario('caderno', '🧹 9.02 conferido na API: ficaram ' + ok + ' abertos na janela; saíram ' + sai.length + ': ' + sai.join(', ').slice(0, 300)); } catch (e) {} try { desenharRegua(); } catch (e) {} } }
         return { abertosNaJanela: ok, sairam: sai, semResposta: semResp, simulado: !!simular }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     setInterval(() => { try { if (meuPapel() === 'vigia') return; const L = GM_getValue('limpa902_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 15 * 60000) return; GM_setValue('limpa902_dono', { aba: ABA, t: Date.now() }); window.dinsLimpaCadernoApi(false); } catch (e) {} }, 10 * 60000);
