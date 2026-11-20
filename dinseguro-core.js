@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.51';
+  const VERSAO = '9.52';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -3567,7 +3567,7 @@
       /* 9.51 (Stefany 19/11 23:27, Anesio 4SDTF: link 23:14, toque de 10 min pulado às 23:24 "fora de 8h–21h" — mas ele tinha escrito às 23:01): fora do horário,
          quem escreveu há menos de 60 min ainda recebe o toque (regra: fora de 8h–21h só para quem acabou de escrever). */
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) {
-        let recente951 = false; try { if (window.dinsBmGet) { const c9 = await window.dinsBmGet('/chats/' + alvo.hash); const lu9 = Date.parse(((c9 && c9.j) || {}).lastUserMessageDatetime || 0); recente951 = lu9 > 0 && Date.now() - lu9 < 60 * M; } } catch (e) {}
+        let recente951 = false; try { if (window.dinsBmGet) { const c9 = await window.dinsBmGet('/chats/' + alvo.hash); const lu9 = Date.parse(((c9 && c9.j) || {}).lastUserMessageDatetime || 0); recente951 = lu9 > 0 && Date.now() - lu9 < 60 * M && !soAnalise904; } } catch (e) {}   /* só cliente que ACEITOU a simulação/proposta (alta intenção) — Stefany 23:31 */
         if (!recente951) { reg('pulado (fora de 8h–21h)', true); return; } }
       if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
