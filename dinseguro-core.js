@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.49';
+  const VERSAO = '9.50';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -844,7 +844,7 @@
       /* 9.48 (Anesio 4SDTF 19/11 23:04: escolheu a opção 2 (carência), vigia pôs bancoStefany 'FACTA 90 DIAS' e a API digitou C6 opção 1 mesmo assim): com bancoStefany diferente do banco a API NÃO digita — fica para a tela/vigia */
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
-      try { if (o.aceite || o.simGravar) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
+      try { if ((o.aceite || o.simGravar) && !o.op2Car948) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
         const r = await ncDigitaOrdem(o);
         if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
         else if (r.link) poe(o.hash, Object.assign({ estado: 'link', link: r.link }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' R$ ' + r.dados.liberado + ' — link na hora');
@@ -2153,13 +2153,13 @@
           if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
           else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
-            /* 9.48 (Anesio 4SDTF 19/11 23:02: escolheu a opção 2 e ficou parado esperando o vigia; o vigia pôs bancoStefany e a API digitou o C6 da opção 1): o robô digita SOZINHO a FACTA 90 DIAS
-               (banco + carência na ficha, que é o que a API lê para escolher a tabela "90 DIAS"). Invalidez abaixo de 60 não cabe na FACTA → continua com o vigia. */
-            const fy = y.ficha || {}; const invY = INVALIDEZ.includes(String(fy.especie || '').padStart(2, '0')) && (+fy.idade || 0) < 60;
-            if (!invY && y.ficha) { y.ficha = Object.assign({}, fy, { banco_destino: 'FACTA', banco_ordem_stefany: 'FACTA', prazo_ordem_stefany: 'CARENCIA 90 DIAS', carencia: '90 DIAS' });
-              Object.assign(y, { estado: 'ficha_ok', banco: 'FACTA', bancoStefany: '', carencia: '90 DIAS', op2Car948: 1, aceite: 'opção 2 (carência 90 dias)', aceitouSim: 1, simGravar: 1, apiFalhou: 0, t: Date.now(), resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 → robô digita FACTA 90 DIAS e manda o link (9.48)' });
-              diario(nmR, 'escolheu a opção 2 (carência) → robô digita FACTA 90 DIAS sozinho (9.48)'); }
-            else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: invalidez abaixo de 60 não cabe na FACTA — escolher o banco da carência (9.48)' }); diario(nmR, '🔴 escolheu a opção 2 (carência), invalidez < 60 → vigia (9.48)'); } }
+            /* 9.50 (Stefany 19/11 23:19: "a regra é a mesma do sem carência… a preferência era do C6 mesmo, ele tá certo, só faltou colocar carência"): opção 2 = MESMO banco
+               que a regra escolheu (C6, FACTA, Qualibank…), só que na tabela COM carência de 90 dias. O robô digita sozinho e manda o link. Sem exceção de invalidez. */
+            const fy = y.ficha || {};
+            if (y.ficha) { y.ficha = Object.assign({}, fy, { prazo_ordem_stefany: 'CARENCIA 90 DIAS', carencia: '90 DIAS' });
+              Object.assign(y, { estado: 'ficha_ok', bancoStefany: '', carencia: '90 DIAS', op2Car948: 1, aceite: 'opção 2 (carência 90 dias)', aceitouSim: 1, simGravar: 1, apiFalhou: 0, t: Date.now(), resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 → robô digita no ' + (y.banco || '?') + ' COM carência 90 dias e manda o link (9.50)' });
+              diario(nmR, 'escolheu a opção 2 (carência) → robô digita no ' + (y.banco || '?') + ' com carência 90 dias (9.50)'); }
+            else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: ordem sem ficha (9.50)' }); diario(nmR, '🔴 escolheu a opção 2, ordem sem ficha → vigia (9.50)'); } }
           else if (/^\s*(3|3️⃣|n[ãa]o desejo|n[ãa]o quero)\s*[.!]?\s*$/i.test(ult)) {
             y.estado = 'sim_resp'; const nm3 = nomeCli(y); const DS = GM_getValue('desisti_resp', {}) || {}; DS[y.hash] = Date.now(); GM_setValue('desisti_resp', DS);
             window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm3 ? nm3 + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que não ficou bom? 🙏 Às vezes é o valor, a parcela ou alguma dúvida sobre segurança, e quase sempre dá para ajustar do jeito que fica bom para você.\n\nSe quiser, me diz o valor que você precisa que eu simulo de novo, sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
