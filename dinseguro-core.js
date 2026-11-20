@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.64';
+  const VERSAO = '9.65';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5216,7 +5216,8 @@
         const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return janAberta(c) && ag - lu > 8 * 60000 && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
           .sort((a, b) => Date.parse(b.lastUserMessageDatetime) - Date.parse(a.lastUserMessageDatetime)).slice(0, 200);
         const fr = encodeURIComponent(new Date(ag - 30 * 3600000).toISOString());
-        const BOTPASSA = /atendente humano|Estou analisando suas informa|logo voc[êe] ser[áa] atendid|Aguarde um momento|nos envie uma mensagem de texto ou um [áa]udio|Bem-vindo de volta|Fico feliz que voc[êe] voltou|Nosso hor[áa]rio de atendimento|Estamos analisando aguarde/i;
+        // 9.65 (Stefany 20/11 12:10, Dinaldo WK1Z0: parou no bot ontem 17:13, o recontato automático "[Rômulo] Dei uma olhada no seu caso" + áudio contou como resposta e ninguém mais falou com ele): esse recontato NÃO é resposta
+        const BOTPASSA = /Dei uma olhada no seu caso|atendente humano|Estou analisando suas informa|logo voc[êe] ser[áa] atendid|Aguarde um momento|nos envie uma mensagem de texto ou um [áa]udio|Bem-vindo de volta|Fico feliz que voc[êe] voltou|Nosso hor[áa]rio de atendimento|Estamos analisando aguarde/i;
         const T = m => String((m && m.content && (m.content.text || '')) || '');
         const O = GM_getValue('auto_ordens', {}) || {}; const SM = (() => { try { return JSON.parse(localStorage.getItem('dins_sem_margem') || '{}'); } catch (e) { return {}; } })();
         for (let i = 0; i < cand.length; i += 8) { const lote = cand.slice(i, i + 8); const rs = await Promise.all(lote.map(async c => { let r = await get('/messages?chat-id=' + c.chat.chatId + '&from=' + fr); let pg = 0;   // 8.16: segue o nextPage (conversa longa vinha cortada e o sem margem/simulação não aparecia)
@@ -5224,7 +5225,7 @@
             return r; }));
           rs.forEach((r, q) => { const c = lote[q]; const id = c.chat.chatId; if (!r || r.http !== 200) return; n++; const ms = ((r.j && r.j.items) || []).slice().sort((a8, b8) => (Date.parse(a8.creationTime) || 0) - (Date.parse(b8.creationTime) || 0));   /* 8.84: a API nem sempre devolve em ordem de hora (Joelma 19/11) → ordena antes de decidir quem falou por último */
             let iC = -1; for (let x = ms.length - 1; x >= 0; x--) { if (ms[x].from === 'user') { iC = x; break; } }
-            const dep = iC < 0 ? [] : ms.slice(iC + 1); const respondido = iC < 0 || dep.some(m => !BOTPASSA.test(T(m)));
+            const dep = iC < 0 ? [] : ms.slice(iC + 1); const respondido = iC < 0 || dep.some(m => T(m).trim() && !BOTPASSA.test(T(m)));   // 9.65: áudio/mídia sem texto do bot não conta como resposta
             VI[id] = { lu: c.lastUserMessageDatetime, ok: respondido ? 1 : 0, t: ag };
             // 8.15 (Stefany 18/11 10:53: "Reinaldo, Rose, um tanto de gente… tem que criar um sistema que funcione independente de mim e de você"):
             // REGRA PELO RESULTADO — quem mandou CPF tem que ter recebido simulação, sem margem ou link (ou resposta de gente). "Recebi o seu CPF,
