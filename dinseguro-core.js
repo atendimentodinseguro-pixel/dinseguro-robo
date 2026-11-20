@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.97';
+  const VERSAO = '9.98';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2883,6 +2883,7 @@
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
               if (!voltou995 && FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;   // 9.96 (Em Nome De Jesus N7ZT8: escreveu 20:28, saiu do caderno 20:31 como 'fechada' e a marca de saída segurava a volta)
               try { const e9 = FCH990 && FCH990[id]; if (e9 && e9.close && e9.close > e9.reab && e9.close >= (Date.parse(c.lastUserMessageDatetime || '') || 0)) continue; } catch (e) {}   // 9.90
+              if (voltou995) { try { delete FO[id]; GM_setValue('regua_fora902', FO); const FM8 = GM_getValue('fechadas888', {}) || {}; if (FM8[id]) { delete FM8[id]; GM_setValue('fechadas888', FM8); } const DL8 = GM_getValue('regua_del', {}) || {}; if (DL8[id]) { delete DL8[id]; GM_setValue('regua_del', DL8); } } catch (e) {} }   // 9.98: tira as marcas de saída/fechada para o gravaRG deixar voltar
               const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
               const tx = String((u.content && (u.content.text || u.content.type)) || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; let est, mot;
               if (/AUTONOMO|CLT|SERVIDOR/i.test(q + '|' + tg) || ms.some(k => k.from === 'user' && /^\s*n[ãa]o sou\s*$/i.test(String((k.content && (k.content.text || k.content.selectedButton)) || '')))) { est = 'humano'; mot = 'não é do INSS (autônomo/CLT) — encerrar pela regra: 07 + fechar'; }
