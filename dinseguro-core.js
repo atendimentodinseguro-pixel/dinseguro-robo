@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.98';
+  const VERSAO = '9.99';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2846,7 +2846,8 @@
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
           const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
           try { const e9 = FCH990 && FCH990[k]; if (!fech985 && e9 && e9.close && e9.close > e9.reab && e9.close >= lu) fech985 = true; } catch (e) {}   // 9.90: evento conversation-close da API
-          try { const e9 = FCH990 && FCH990[k]; if (fech985 && e9 && e9.close && lu > e9.close + 30000) fech985 = false; } catch (e) {}   // 9.95 (Stefany 20/11 20:34): encerrou e o cliente mandou mensagem DEPOIS → volta para o acompanhamento (tag/fila antiga não vale)
+          try { const e9 = FCH990 && FCH990[k]; if (fech985 && e9 && e9.close && lu > e9.close + 30000) fech985 = false; } catch (e) {}
+          try { const V9 = GM_getValue('voltou999', {}) || {}; const e9 = FCH990 && FCH990[k]; if (V9[k] && e9 && e9.close > (+V9[k] || 0) + 30000) { delete V9[k]; GM_setValue('voltou999', V9); } } catch (e) {}   // 9.99: encerrou de novo depois da volta → marca sai   // 9.95 (Stefany 20/11 20:34): encerrou e o cliente mandou mensagem DEPOIS → volta para o acompanhamento (tag/fila antiga não vale)
           // 9.88: fora da lista de conversas abertas da tela em 2 leituras com 4+ min de diferença (e o cliente não escreveu nos últimos 5 min) → encerrada
           try { if (!fech985 && !venc) { const LV = GM_getValue('lista_viva988', null); const R7 = RG(); const x7 = R7[k];
               if (LV && ag - LV.t < 3 * 60000 && x7) { if (LV.ids.includes(k)) { if (x7.foraLista988) { delete x7.foraLista988; if (!simular) gravaRG(R7); } }
@@ -2883,6 +2884,7 @@
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
               if (!voltou995 && FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;   // 9.96 (Em Nome De Jesus N7ZT8: escreveu 20:28, saiu do caderno 20:31 como 'fechada' e a marca de saída segurava a volta)
               try { const e9 = FCH990 && FCH990[id]; if (e9 && e9.close && e9.close > e9.reab && e9.close >= (Date.parse(c.lastUserMessageDatetime || '') || 0)) continue; } catch (e) {}   // 9.90
+              if (voltou995) { try { const V9 = GM_getValue('voltou999', {}) || {}; V9[id] = luC995; GM_setValue('voltou999', V9); } catch (e) {} }
               if (voltou995) { try { delete FO[id]; GM_setValue('regua_fora902', FO); const FM8 = GM_getValue('fechadas888', {}) || {}; if (FM8[id]) { delete FM8[id]; GM_setValue('fechadas888', FM8); } const DL8 = GM_getValue('regua_del', {}) || {}; if (DL8[id]) { delete DL8[id]; GM_setValue('regua_del', DL8); } } catch (e) {} }   // 9.98: tira as marcas de saída/fechada para o gravaRG deixar voltar
               const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
               const tx = String((u.content && (u.content.text || u.content.type)) || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; let est, mot;
@@ -5478,6 +5480,7 @@
         // Vermelho velho não é só sujeira: cada um manda o robô reler a conversa na tela e atrasa o que é de verdade.
         try { const FM = GM_getValue('fechadas888', {}) || {}; for (const k8 in FM) if (ag - (+FM[k8].t || 0) > 30 * 3600000) delete FM[k8];
           all.forEach(c => { const id8 = c.chat.chatId; const q8 = String(c.queueId || ''); const desf8 = /Sem_?margem|SEM_MARGEM|01_I_|01k_|LoasSem|LoasCom|LOAS_Sem|NaoIdentificado|Acima_?De_?80/i.test((c.tags || []).join('|'));   /* 8.89: fechada pela tela fica SEM fila e sem atendente (Reginaldo 8OIEQ) — com tag de retorno dado, conta como encerrada */
+            const V9 = GM_getValue('voltou999', {}) || {}; const lu8 = Date.parse(c.lastUserMessageDatetime || '') || 0; if (V9[id8] && lu8 >= (+V9[id8] || 0)) { if (FM[id8]) delete FM[id8]; } else   // 9.99 (Em Nome De Jesus N7ZT8: voltou e a fila antiga fechar_01c punha ele de novo como fechado → a limpeza 8.97 tirava)
             if (/^fechar_[a-z0-9_]+$/.test(q8) || (!q8 && !c.agentId)) FM[id8] = { t: ag, lu: Date.parse(c.lastUserMessageDatetime || '') || 0 }; else if (FM[id8] && ag - (+FM[id8].t || 0) > 3 * 60000) delete FM[id8]; }); GM_setValue('fechadas888', FM);
           const R8 = RG(); let m8 = 0; for (const k8 in R8) { const x = R8[k8]; if (x && x.estado === 'alerta' && fechada888(k8, x.ultCliT) && /voltou a escrever depois do retorno|cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '')) { x.estado = 'fechada'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.88: conversa já encerrada e sem mensagem nova do cliente → saiu do vermelho'); m8++; } } if (m8) gravaRG(R8); } catch (e) {}
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
