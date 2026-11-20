@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.72';
+  const VERSAO = '9.73';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1038,9 +1038,10 @@
         const has = !!j && ms.some(m => m.FROM !== 'me' && (Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0) > t0); RESP773[x.hash] = { t: Date.now(), pend: false, has: j ? has : 'wait' }; }).catch(() => { RESP773[x.hash] = { t: Date.now(), pend: false, has: 'wait' }; }); }
       return 'wait'; }
     const EXTR771 = {};
-    function extrSync(o) { if (!o || o.extratoOk) return false; const c = EXTR771[o.hash];
+    // 9.73 (Stefany 20/11 13:59): o link de quem mandou extrato espera o VIGIA conferir a margem no máximo 15 min — passou disso, o robô manda o link mesmo assim.
+    function extrSync(o) { if (!o || o.extratoOk) return false; try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (T9[o.hash] && Date.now() - T9[o.hash] > 15 * 60000) { if (!T9['_log_' + o.hash]) { T9['_log_' + o.hash] = 1; GM_setValue('ex771_espera', T9); try { diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '⏱️ extrato esperou 15 min sem o vigia → manda o link assim mesmo (9.73)'); } catch (e) {} } return false; } } catch (e) {} const c = EXTR771[o.hash];
       if (c && Date.now() - c.t < 3 * 60000) return c.pend ? 'wait' : c.has;
-      if (!c || !c.pend) { EXTR771[o.hash] = { t: Date.now(), pend: true, has: false }; extratoNaoLido(o).then(h => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: h }; }).catch(() => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: false }; }); }
+      if (!c || !c.pend) { EXTR771[o.hash] = { t: Date.now(), pend: true, has: false }; extratoNaoLido(o).then(h => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: h }; if (h) { try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (!T9[o.hash]) { T9[o.hash] = Date.now(); for (const k in T9) if (!/^_log_/.test(k) && Date.now() - T9[k] > 3 * 864e5) { delete T9[k]; delete T9['_log_' + k]; } GM_setValue('ex771_espera', T9); } } catch (e) {} } }).catch(() => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: false }; }); }
       return 'wait'; }
     window.dinsApiLer = apiLer; try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsApiLer = apiLer; } catch (e) {}
     const API_PLACAR = { lidas: 0, puladas: 0, falhas: 0 }; window.dinsApiPlacar = () => API_PLACAR;
