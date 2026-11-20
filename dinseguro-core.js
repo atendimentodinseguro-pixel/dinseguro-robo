@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.71';
+  const VERSAO = '9.72';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2796,6 +2796,7 @@
     // dinsReguaResumo('HASH', 'texto curto') — aparece no quadro embaixo do nome.
     window.dinsReguaResumo = (hash, texto) => { const r = RG(), x = r[hash]; if (!x) return false; x.resumo = String(texto || '').slice(0, 220); x.hist.push(hhmm(Date.now()) + ' resumo: ' + x.resumo); gravaRG(r); desenharRegua(); return true; };
     // cliente com atendente humano: fica no quadro, o robô não manda nada. dinsReguaHumano('HASH', 'Stefany', 'resumo')
+    window.dinsReguaTiraJunto = hash => { const r = RG(), x = r[hash]; if (!x || !x.junto) return false; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 9.72: vigia tirou do amarelo (' + String(x.junto).slice(0, 60) + ')'); delete x.junto; gravaRG(r); try { desenharRegua(); } catch (e) {} return true; };   // 9.72 (Stefany 20/11 13:19)
     window.dinsReguaHumano = (hash, quem, texto) => { const r = RG(); let x = r[hash]; if (!x) { window.dinsLinkEnviado(hash, '', Date.now(), '', ''); return window.dinsReguaHumano(hash, quem, texto); } x.estado = 'humano'; x.motivo = 'com ' + quem + ' — robô não manda nada'; if (texto) x.resumo = String(texto).slice(0, 220); x.hist.push(hhmm(Date.now()) + ' humano: ' + quem); gravaRG(r); desenharRegua(); return true; };
     // 3.95 — TODA conversa da janela de 24h entra no quadro (Stefany 10/11 15:14: "não vai entrar só em quem tem link…
     // ele tem que estar lá e tem que estar mensurado… a gente fez as tentativas que cabia para ele").
@@ -5415,7 +5416,7 @@
           const x = R[h]; if (x && x.estado === 'humano' && x.motivo === mot) continue;
           R[h] = Object.assign(x || { hash: h, nome: String(o.nome || o.nomeReal || h.slice(0, 6)), toques: [], hist: [], criadoT: ag }, { estado: 'humano', motivo: mot, junto: mot });
           (R[h].hist = R[h].hist || []).push(hhmm(ag) + ' 9.63: ' + mot); mud = true; try { diario(o.nomeReal || o.nome || h.slice(0, 5), mot + ' → amarelo para o vigia (9.63)'); } catch (e) {} }
-        for (const h in R) { const x = R[h]; if (x && x.estado === 'humano' && /^🛠️ VIGIA/.test(x.motivo || '') && !(O[h] && O[h].estado === 'erro')) { x.estado = 'acompanhando'; x.motivo = 'vigia resolveu o erro'; mud = true; } }
+        for (const h in R) { const x = R[h]; if (x && /^🛠️ VIGIA/.test(x.junto || x.motivo || '') && !(O[h] && O[h].estado === 'erro')) { if (x.estado === 'humano') x.estado = 'acompanhando'; if (/^🛠️ VIGIA/.test(x.motivo || '')) x.motivo = 'vigia resolveu o erro'; delete x.junto; mud = true; } }   // 9.72: o 'junto' (amarelo) sai junto
         if (mud) gravaRG(R); } catch (e) {} }, 60000);
     // 9.60 (Stefany 20/11 11:03, Claudio 624KB "nem tagueado foi e mandou CPF… sempre taguear"): todo CPF consultado COM margem leva a 01 A na hora
     // (so_tag_01a, só tag — não espera a simulação sair; vale também para quem parou em erro/contorno/extrato). Uma vez por cliente a cada 6 h.
