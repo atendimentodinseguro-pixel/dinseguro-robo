@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.70';
+  const VERSAO = '9.71';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -61,6 +61,7 @@
     setInterval(async () => { try {
       const t = await (await fetch('https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?t=' + Date.now(), { cache: 'no-store' })).text();
       const vr = (t.match(/const VERSAO = '([\d.]+)'/) || [])[1]; if (!vr || vr === VERSAO) return;
+      try { if (+vr > +(GM_getValue('versao_nova', 0) || 0)) GM_setValue('versao_nova', vr); } catch (e) {}   // 9.71: avisa as outras abas que existe versão mais nova
       // 7.79 (17/11: a aba [VARREDURA] recarregava a cada versão nova NO MEIO da rodada e a rodada nunca terminava): varrendo → só recarrega quando a rodada acabar
       if (/botmaker/.test(location.host) && Date.now() - (+sessionStorage.getItem('dins_varrendo') || 0) < 3 * 60000) { localStorage.setItem('dins_recarregar_depois', '1'); return; }
       if (localStorage.getItem('dins_ordem')) return; const n = JSON.parse(sessionStorage.getItem('dins_auto_reload') || '[]').filter(x => Date.now() - x < 3600000); if (n.length >= 3) return;
@@ -841,8 +842,10 @@
     if (d.status !== 'completed' || !d.result || /fail|erro/i.test(d.result.flag || '')) throw new Error('não gravou (API ' + o.banco + '): ' + String((d.error && (d.error.message || JSON.stringify(d.error))) || (d.result && d.result.message) || d.status).slice(0, 160));
     return { dados: Object.assign(dados, { proposta: String(d.bank_external_id || d.result.bank_external_id || ''), propNc: d.proposal_id || null, bancoConta: (bc === '104' && ct === '111113') ? '' : (NOME_BANCO[bc] || '') }), link: d.result.formalization_link || '' }; }
   // laço: UMA aba (trava em GM) pega ordens 'ficha_ok' de C6/FACTA/QUALIBANK quando a API está ligada; C6 sem link → busca o link na proposta (até 25 min)
-  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg/i.test(location.host)) { const EU = Math.random().toString(36).slice(2, 8); let ocupApi = false;
+  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg|fullconsig/i.test(location.host)) { const EU = Math.random().toString(36).slice(2, 8); let ocupApi = false;
     setInterval(async () => { if (ocupApi || !dinsApiLigada()) return;
+      // 9.71 (Djanira 20/11 13:01: a correção 9.70 não pegou — a digitação pela API rodou numa aba com versão VELHA, ex.: FullConsig/Daycoval que não recarregam): aba desatualizada não pega ordem
+      try { if (+(GM_getValue('versao_nova', 0) || 0) > +VERSAO) return; } catch (e) {}
       try { const L = GM_getValue('nc_api_dono', null); if (L && L.id !== EU && Date.now() - (+L.t || 0) < 20000) return; GM_setValue('nc_api_dono', { id: EU, t: Date.now() }); } catch (e) { return; }
       const O0 = GM_getValue('auto_ordens', {}) || {};
       const poe = (h, mud, txt) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return; Object.assign(O[h], mud); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + (mud.estado || '') + ' (API 7.86)' + (mud.erro ? ': ' + mud.erro : '')); GM_setValue('auto_ordens', O); if (txt) { try { diario(O[h].nomeReal || O[h].nome, txt); } catch (e) {} } };
