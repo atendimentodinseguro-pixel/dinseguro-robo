@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.96';
+  const VERSAO = '9.97';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2878,7 +2878,7 @@
         // "Não sou aposentado" (fila AUTONOMO) ou encerramento do bot ("Vamos encerrar este atendimento") → amarelo "encerrar pela regra" (07 / 01 C) até a Stefany liberar o fechamento automático.
         let novos931 = 0; try { if (!simular) { let rr = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); let pg = 0; const todas = [];
             while (rr && rr.j && pg < 10) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
-            const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || R3[id] || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue; const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
+            const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || (R3[id] && !FIM897.test(R3[id].estado || '')) || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue;   /* 9.97: registro antigo FECHADO não impede a volta (Em Nome De Jesus N7ZT8) — a regra 9.95 abaixo decide */ const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
               const luC995 = Date.parse(c.lastUserMessageDatetime || '') || 0; const e995 = FCH990 && FCH990[id]; const voltou995 = !!(e995 && e995.close && luC995 > e995.close + 30000);   // 9.95: escreveu depois de encerrada → entra de novo
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
               if (!voltou995 && FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;   // 9.96 (Em Nome De Jesus N7ZT8: escreveu 20:28, saiu do caderno 20:31 como 'fechada' e a marca de saída segurava a volta)
