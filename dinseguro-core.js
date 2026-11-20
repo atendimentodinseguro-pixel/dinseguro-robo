@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.89';
+  const VERSAO = '9.90';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2796,11 +2796,21 @@
     // 9.02 (Stefany 19/11 14:37: "quero ver se todo mundo que está ali está dentro da janela de 24 horas e com atendimento aberto"):
     // confere CADA cliente do caderno direto na API do Botmaker. Fechada (fila fechar_* ou sem fila e sem atendente) ou janela vencida → sai e só volta
     // quando o cliente escrever de novo (ou sair link novo). Roda a cada 10 min numa aba só; window.dinsLimpaCadernoApi(true) só mostra.
-    window.dinsLimpaCadernoApi = async (simular) => { try { if (!window.dinsBmGet) return { erro: 'sem API' }; const r = RG(); const ag = Date.now(); const FO = GM_getValue('regua_fora902', {}) || {}; const sai = []; let ok = 0, semResp = 0; let n984s = 0, n984v = 0;
+    window.dinsLimpaCadernoApi = async (simular) => { try { if (!window.dinsBmGet) return { erro: 'sem API' }; const r = RG(); const ag = Date.now(); const FO = GM_getValue('regua_fora902', {}) || {}; const sai = []; let ok = 0, semResp = 0; let n984s = 0, n984v = 0; let FCH990 = null;
+        // 9.90 (Stefany 20/11 19:41: "em eventos mostra conversa encerrada, puxa na API"): /sessions?include-events=true traz o evento 'conversation-close'.
+        // Fechada = teve 'conversation-close' e DEPOIS dele não houve mensagem do cliente nem reabertura (notification-sent, agent-action, agent-assigned, conversation-open).
+        // Conferido com a tela em 20/11 19:43: Marinho, Pérola, Joseane, Audilene, Evam fechadas; José Pinheiro e Vitória fecharam e reabriram (mensagem nossa depois) → abertas.
+        try { FCH990 = {}; let g9 = await window.dinsBmGet('/sessions?from=' + encodeURIComponent(new Date(ag - 30 * 3600000).toISOString()) + '&include-events=true'); let pg9 = 0; const ses = [];
+          while (g9 && g9.http === 200 && g9.j) { ses.push(...(g9.j.items || [])); if (!g9.j.nextPage || pg9 >= 15) break; g9 = await window.dinsBmGet(String(g9.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg9++; }
+          if (!ses.length) FCH990 = null;
+          for (const s9 of ses) { const id9 = String(s9.id || '').split('_')[0]; if (!id9) continue; const e9 = FCH990[id9] || (FCH990[id9] = { close: 0, reab: 0 });
+            for (const ev of (s9.events || [])) { const t9 = Date.parse(ev.creationTime) || 0; if (ev.name === 'conversation-close') e9.close = Math.max(e9.close, t9); else if (/^(notification-sent|agent-action|agent-assigned|assigned-agent|conversation-open|session-start)$/.test(ev.name || '')) e9.reab = Math.max(e9.reab, t9); } }
+        } catch (e) { FCH990 = null; }
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
           const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
+          try { const e9 = FCH990 && FCH990[k]; if (!fech985 && e9 && e9.close && e9.close > e9.reab && e9.close >= lu) fech985 = true; } catch (e) {}   // 9.90: evento conversation-close da API
           // 9.88: fora da lista de conversas abertas da tela em 2 leituras com 4+ min de diferença (e o cliente não escreveu nos últimos 5 min) → encerrada
           try { if (!fech985 && !venc) { const LV = GM_getValue('lista_viva988', null); const R7 = RG(); const x7 = R7[k];
               if (LV && ag - LV.t < 3 * 60000 && x7) { if (LV.ids.includes(k)) { if (x7.foraLista988) { delete x7.foraLista988; if (!simular) gravaRG(R7); } }
@@ -2835,6 +2845,7 @@
             const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || R3[id] || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue; const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
               if (!(jf > ag) || /^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))) continue;
               if (FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;
+              try { const e9 = FCH990 && FCH990[id]; if (e9 && e9.close && e9.close > e9.reab && e9.close >= (Date.parse(c.lastUserMessageDatetime || '') || 0)) continue; } catch (e) {}   // 9.90
               const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
               const tx = String((u.content && (u.content.text || u.content.type)) || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; let est, mot;
               if (/AUTONOMO|CLT|SERVIDOR/i.test(q + '|' + tg) || ms.some(k => k.from === 'user' && /^\s*n[ãa]o sou\s*$/i.test(String((k.content && (k.content.text || k.content.selectedButton)) || '')))) { est = 'humano'; mot = 'não é do INSS (autônomo/CLT) — encerrar pela regra: 07 + fechar'; }
