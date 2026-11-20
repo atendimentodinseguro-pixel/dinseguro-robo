@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.92';
+  const VERSAO = '9.93';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -654,7 +654,7 @@
       const cpfOk = x => x && String(x.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '');
       if (!cpfOk(f) && cpfOk(o.ficha)) { f = o.ficha; GM_setValue('ficha_atual', f); }   // 5.18: usa a ficha guardada na ordem
       if (!cpfOk(f)) { poeAO(o.hash, { estado: 'erro', erro: 'a ficha atual não é a do cliente (outra ficha foi salva no meio)' }); return; }
-      ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'digitando' });
+      ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'digitando' }); try { const VP = GM_getValue('video_aval_pend', {}) || {}; if (o && o.hash && !VP[o.hash]) { VP[o.hash] = Date.now(); GM_setValue('video_aval_pend', VP); } } catch (e) {}   // 9.93
       if (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim) && !f.aleatoria_ok) { f.aleatoria_ok = 1; GM_setValue('ficha_atual', f); }   // 5.17: simulação + link, ainda não aceitou → sem banco = Caixa aleatória
       try {
         const antes = logRobo().length;
@@ -898,7 +898,7 @@
       const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
       /* 9.48 (Anesio 4SDTF 19/11 23:04: escolheu a opção 2 (carência), vigia pôs bancoStefany 'FACTA 90 DIAS' e a API digitou C6 opção 1 mesmo assim): com bancoStefany diferente do banco a API NÃO digita — fica para a tela/vigia */
       if (!o) return;
-      ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
+      ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API'); try { const VP = GM_getValue('video_aval_pend', {}) || {}; if (o && o.hash && !VP[o.hash]) { VP[o.hash] = Date.now(); GM_setValue('video_aval_pend', VP); } } catch (e) {}   // 9.93
       try { if ((o.aceite || o.simGravar) && !o.op2Car948) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
         const r = await ncDigitaOrdem(o);
         if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
@@ -1142,7 +1142,7 @@
       // nenhuma ordem fica presa em 'desfecho_chk891' (aba fechou no meio): 2 min → volta para 'desfecho'
       setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; let m = false; for (const k in O) { const x = O[k]; if (x && x.estado === 'desfecho_chk891' && Date.now() - (+x.chk891T || (x.chk891T = Date.now())) > 120000) { x.estado = 'desfecho'; x.chk891 = 1; m = true; } else if (x && x.estado === 'desfecho_chk891' && !x.chk891T) m = true; } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 30000); }
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
-      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !(/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent)) || ['Extrato de empréstimo'].includes(String(intent)))) return res({ erro: 'chat ou intenção inválidos' });   // 9.58: + fluxo 'Extrato de empréstimo'
+      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !(/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent)) || ['Extrato de empréstimo', 'Video de avaliação'].includes(String(intent)))) return res({ erro: 'chat ou intenção inválidos' });   // 9.58: + fluxo 'Extrato de empréstimo'
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
         onload: r => { try { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01[ac]$)/.test(String(intent))) { const FM = GM_getValue('fechadas888', {}) || {}; FM[chatId] = { t: Date.now(), lu: Date.now() }; GM_setValue('fechadas888', FM); } } catch (e) {} try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
@@ -1187,6 +1187,15 @@
             try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛠️ pedido parado em "' + sig.split('|')[0] + '" há ' + LIM[sig.split('|')[0]] + ' min → amarelo do vigia (9.91)'); } catch (e) {} } }
         for (const h in SN) if (!O[h]) { delete SN[h]; mud = true; }
         if (mudO) GM_setValue('auto_ordens', O); if (mud) GM_setValue('parado991', SN); } catch (e) {} }, 60000);
+    // 9.93 (Stefany 20/11 19:51: "quando iniciar a digitação… manda também os vídeos de depoimento do Flow para tranquilizar o cliente"):
+    // começou a digitação → dispara o fluxo 'Video de avaliação' pela API, uma vez por cliente (30 dias), 8h–21h, fora dos chats protegidos.
+    setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const VP = GM_getValue('video_aval_pend', {}) || {}; const ks = Object.keys(VP); if (!ks.length) return;
+        const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return; const FE = GM_getValue('video_aval_feito', {}) || {}; const ag = Date.now();
+        for (const k in FE) if (ag - (+FE[k] || 0) > 30 * 864e5) delete FE[k];
+        for (const h of ks) { const t0 = +VP[h] || ag; delete VP[h]; GM_setValue('video_aval_pend', VP);
+          if (FE[h] || h === 'F20QOEL8YYLQN2S6SR47' || (typeof protegido === 'function' && protegido(h)) || ag - t0 > 2 * 3600000) continue;
+          FE[h] = ag; GM_setValue('video_aval_feito', FE);
+          const r = await window.dinsBmIntent(h, 'Video de avaliação'); try { diario(h.slice(0, 5), '🎬 vídeos de depoimento (fluxo Video de avaliação) enviados ao começar a digitação → ' + ((r && (r.http || r.erro)) || '?') + ' (9.93)'); } catch (e) {} break; } } catch (e) {} }, 30000);
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
       if (!/^\/(whatsapp\/templates|channels|intents|notifications\/campaigns|notifications\/sent-results|chats|messages|events|sessions)/.test(String(path))) return res({ erro: 'caminho não liberado' });
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
