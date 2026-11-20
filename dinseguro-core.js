@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.46';
+  const VERSAO = '9.47';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -2066,6 +2066,7 @@
         if (o.nota && !o.notaFeita && GM_getValue('nota_on', 0) !== 1) { try { const ON = GM_getValue('auto_ordens', {}) || {}; if (ON[o.hash]) { (ON[o.hash].hist = ON[o.hash].hist || []).push('nota (não escrita no chat — 8.53): ' + String(o.nota).slice(0, 300)); GM_setValue('auto_ordens', ON); } } catch (e) {} salvaProgresso({ notaFeita: 1 }); passos.push('nota desligada (8.53)'); }   // 8.53 (Stefany 18/11 20:06: "pode desligar a nota") — o resumo fica guardado no robô
         if (o.nota && !o.notaFeita && !(o.pularSe && passos.some(x => /já tinha saído/.test(x)))) { await garante(); passos.push(await addNota(o.nota)); salvaProgresso({ notaFeita: 1 }); }
         if (d.fechar || o.fechar) { const jf879 = (() => { try { return ((GM_getValue('auto_ordens', {}) || {})[o.hash] || {}).fechouIntent || ''; } catch (e) { return ''; } })(); if (jf879) passos.push('já fechada pela intenção ' + jf879 + ' (8.79: sem fechar em dobro)'); else { await garante(); passos.push(await fecharConversa()); limparFiltro(); } }   // 8.01 (Nozeli 17/11 22:55: a tag Q15 pelo so_tag deixou a conversa aberta) — ordem com fechar:true fecha no fim
+        else if (d.fluxo && o.acao === 'anuncio_sem_bot') { passos.push('flow rodando — conversa fica ABERTA para o cliente seguir no bot (9.47)'); }
         else if (d.fluxo) { await esp(8000); try { passos.push('o flow não fechou → ' + await fecharConversa()); limparFiltro(); } catch (e) { passos.push('fechada pelo flow'); } }   // 7.30 (Stefany 16/11 16:25: marcou 07, mandou a mensagem e não fechou — ela fechou à mão)
         grava('ok');
         // v3.80: conversa recusada/fechada não recebe follow-up de link que tenha ficado agendado
@@ -5376,6 +5377,23 @@
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
     setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 5 * 60000);
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
+    // 9.47 (Stefany 19/11 21:51, Arthemio 710AJ: entrou pelo anúncio às 21:47 sem escrever, o bot não respondeu e ninguém rodou o flow — a espera pela API só olha depois de 8 min e para às 21h):
+    // a cada 1 min, 24 h (foi o cliente que chamou): conversa cuja ÚNICA mensagem recente é a do anúncio (cliente, sem texto e sem botão), há mais de 90 s e sem nada depois
+    // → flow "Inicio do atendimento" na hora (uma vez por conversa; marca anuncio_flow_feito).
+    let anun947Rod = false;
+    setInterval(async () => { try { if (anun947Rod || meuPapel() === 'vigia' || !faz('atendimento') || !window.dinsBmGet) return; if (localStorage.getItem('dins_ordem')) return; anun947Rod = true;
+      const ag = Date.now(); const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 20 * 60000).toISOString())); if (!r || r.http !== 200) return;
+      const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NM = GM_getValue('nao_mexer', {}) || {};
+      const cs = ((r.j && r.j.items) || []).filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); const id = c.chat && c.chat.chatId; return id && !AF[id] && !NM[id] && id !== 'F20QOEL8YYLQN2S6SR47' && !protegido(id) && !c.agentId && ag - lu > 90000 && ag - lu < 20 * 60000; });
+      for (const c of cs.slice(0, 6)) { const id = c.chat.chatId; const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 6 * 3600000).toISOString())); if (!m || m.http !== 200) continue;
+        const ms = ((m.j && m.j.items) || []).slice().sort((a, b) => (Date.parse(a.creationTime) || 0) - (Date.parse(b.creationTime) || 0)); const u = ms[ms.length - 1]; if (!u || u.from !== 'user') continue;
+        const ct = u.content || {}; if (String(ct.text || '').trim() || ct.selectedButton || (ct.type && ct.type !== 'text')) continue;   // só a mensagem VAZIA do anúncio (sem texto, sem botão, sem arquivo)
+        if (ms.slice(-4, -1).some(x => x.from !== 'user' && ag - (Date.parse(x.creationTime) || 0) < 30 * 60000)) continue;   // alguém (bot ou nós) falou há pouco → não é o caso
+        AF[id] = ag; for (const q in AF) if (!/#n$/.test(q) && ag - AF[q] > 7 * 864e5) delete AF[q]; GM_setValue('anuncio_flow_feito', AF);
+        localStorage.setItem('dins_ordem', JSON.stringify({ hash: id, acao: 'anuncio_sem_bot', quem: 'robo', t: ag }));
+        try { diario(String(c.firstName || id.slice(0, 5)), '📣 entrou pelo anúncio sem escrever e o bot não respondeu → flow Inicio do atendimento (9.47, ' + Math.round((ag - Date.parse(c.lastUserMessageDatetime)) / 1000) + ' s depois)'); } catch (e) {}
+        return; }
+    } catch (e) {} finally { anun947Rod = false; } }, 60000);
     // 9.11: fechamento adiado do cliente 01 D sem margem (2 h depois do retorno). Cliente escreveu depois do retorno → não fecha (é atendimento; o vigia responde).
     setInterval(async () => { try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet || !window.dinsBmIntent) return; const L = GM_getValue('fd911_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('fd911_dono', { aba: ABA, t: Date.now() });
       const FD = GM_getValue('fechar_depois911', {}) || {}; const ag = Date.now(); let mud = false;
