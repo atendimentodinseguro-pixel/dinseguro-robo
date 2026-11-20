@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.95';
+  const VERSAO = '9.96';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2881,7 +2881,7 @@
             const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || R3[id] || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue; const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
               const luC995 = Date.parse(c.lastUserMessageDatetime || '') || 0; const e995 = FCH990 && FCH990[id]; const voltou995 = !!(e995 && e995.close && luC995 > e995.close + 30000);   // 9.95: escreveu depois de encerrada → entra de novo
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
-              if (FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;
+              if (!voltou995 && FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;   // 9.96 (Em Nome De Jesus N7ZT8: escreveu 20:28, saiu do caderno 20:31 como 'fechada' e a marca de saída segurava a volta)
               try { const e9 = FCH990 && FCH990[id]; if (e9 && e9.close && e9.close > e9.reab && e9.close >= (Date.parse(c.lastUserMessageDatetime || '') || 0)) continue; } catch (e) {}   // 9.90
               const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
               const tx = String((u.content && (u.content.text || u.content.type)) || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; let est, mot;
