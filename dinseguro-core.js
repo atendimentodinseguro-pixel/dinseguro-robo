@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.59';
+  const VERSAO = '9.60';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5398,6 +5398,14 @@
           const verm = Object.values(RG() || {}).filter(x => x && x.estado === 'alerta').map(x => ({ h: x.hash, n: String(x.nome || '').slice(0, 18), m: String(x.motivo || '').slice(0, 110), min: x.ultCliT ? Math.round((ag - x.ultCliT) / 60000) : null })).sort((a, b) => (b.min || 0) - (a.min || 0));
           const ord = Object.values(O).filter(o => o && ag - (+o.t || 0) < 48 * 3600000 && (LIM877[o.estado] || ['com_margem', 'erro'].includes(o.estado)) && !(o.estado === 'com_margem' && ag - (+o.t || 0) > 12 * 3600000)).map(o => ({ h: o.hash, n: String(o.nomeReal || o.nome || '').slice(0, 18), e: o.estado, b: o.banco || '', min: P[o.hash] ? Math.round((ag - P[o.hash].t) / 60000) : Math.round((ag - (+o.t || 0)) / 60000), parada: o.parada877 ? 1 : 0, m: String(o.erro || o.resumo || '').slice(-90) }));
           return { hora: hhmm(ag), daycoval: dayc881(), vermelho: verm, ordens: ord }; } catch (e) { return { erro: String((e && e.message) || e) }; } }; }
+    // 9.60 (Stefany 20/11 11:03, Claudio 624KB "nem tagueado foi e mandou CPF… sempre taguear"): todo CPF consultado COM margem leva a 01 A na hora
+    // (so_tag_01a, só tag — não espera a simulação sair; vale também para quem parou em erro/contorno/extrato). Uma vez por cliente a cada 6 h.
+    setInterval(async () => { try { if (meuPapel() === 'vigia' || !bmApiLigada() || !window.dinsBmIntent) return; if (!(GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) return;
+        const L = GM_getValue('tag960_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('tag960_dono', { aba: ABA, t: Date.now() });
+        const O = GM_getValue('auto_ordens', {}) || {}; const T8 = GM_getValue('tag01a_894', {}) || {}; const ag = Date.now();
+        const o = Object.values(O).find(x => x && x.tipo === 'cpf' && x.ficha && !(x.ficha.recusa) && x.estado !== 'desfecho' && !/^desfecho/.test(x.estado || '') && !protegido(x.hash) && ag - (+x.t || 0) < 6 * 3600000 && !(T8[x.hash] > ag - 6 * 3600000)); if (!o) return;
+        T8[o.hash] = ag; GM_setValue('tag01a_894', T8); const ri = await window.dinsBmIntent(o.hash, 'so_tag_01a');
+        if (ri && ri.http >= 200 && ri.http < 300) diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '🏷️ com margem → 01 A (so_tag_01a) na hora da consulta (9.60)'); } catch (e) {} }, 15000);
     // 9.58: margem abaixo de R$ 50 → 1) fluxo 'Extrato de empréstimo' (API) 2) mensagem avisando que pedimos o extrato para confirmar a margem 3) desliga o bot (ordem nada_bot). Fica 'aguarda_extrato' (o vigia lê o extrato).
     { let ocup958 = false;
       setInterval(async () => { if (ocup958) return; try { if (meuPapel() === 'vigia' || !bmApiLigada() || !window.dinsBmIntent) return; const L = GM_getValue('ex958_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 60000) return; GM_setValue('ex958_dono', { aba: ABA, t: Date.now() });
