@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.61';
+  const VERSAO = '9.62';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -536,7 +536,7 @@
           const q15 = acao === 'sem_margem' && [ficha.rmc, ficha.rcc].some(v => (num(String(v || '').split('(')[0]) || 0) > 0);
           // 9.58 (Stefany 20/11 10:59–11:01, caso Claudio 624KB margem R$ 25,44): margem de R$ 25 a R$ 49,99 → SIMULA normal e, quando o cliente aceita, NÃO digita:
           // pede o EXTRATO DE EMPRÉSTIMO para confirmar a margem (fluxo 'Extrato de empréstimo' pela API → mensagem avisando → desliga o bot).
-          if (!acao && mg != null && mg >= 25 && mg < 50 && !mot) poeAO(o.hash, { ex50: 1 });   // simula normal; na hora de DIGITAR para e pede o extrato
+          if (!acao && mg != null && mg >= 25 && mg < 100 && !mot) poeAO(o.hash, { ex50: 1 });   // 9.62 (Stefany 20/11 11:46): limite subiu de R$ 50 para R$ 100   // simula normal; na hora de DIGITAR para e pede o extrato
           if (acao) poeAO(o.hash, { estado: 'desfecho', acao, nomeReal: ficha.nome, resumo: resumo + (q15 ? ' · cartão: RMC ' + (ficha.rmc || '—') + ' / RCC ' + (ficha.rcc || '—') + ' → Q15' : ''), q15 });
           else if (!mot) {
             // 4.73 (Stefany 11/11 17:21, caso João Carlos: "quero que o robô faça sozinho… com as regras certas"):
@@ -5415,7 +5415,7 @@
         const marca = (campos, txt) => { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[o.hash]) { Object.assign(O2[o.hash], campos); (O2[o.hash].hist = O2[o.hash].hist || []).push(hhmm(Date.now()) + ' ' + txt); GM_setValue('auto_ordens', O2); } };
         try { const ri = await window.dinsBmIntent(o.hash, 'Extrato de empréstimo'); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('fluxo Extrato de empréstimo não aceitou (' + ((ri && (ri.http || ri.erro)) || '?') + ')');
           await esp(4000); const nm = primeiroNome(o.nomeReal || '');
-          await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem abaixo de R$ 50,00 — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏');
+          await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem baixa (abaixo de R$ 100,00) — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏');
           marca({ estado: 'aguarda_extrato', ex958T: Date.now() }, '9.58: margem < R$ 50 → fluxo Extrato de empréstimo + aviso pela API');
           diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '📄 margem abaixo de R$ 50 → pedi o extrato de empréstimo (fluxo + mensagem pela API) e desligo o bot (9.58)');
           for (let i = 0; i < 30 && localStorage.getItem('dins_ordem'); i++) await esp(2000);
