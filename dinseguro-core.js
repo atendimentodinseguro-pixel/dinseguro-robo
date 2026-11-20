@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.47';
+  const VERSAO = '9.48';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -840,7 +840,8 @@
           if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
-      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
+      const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
+      /* 9.48 (Anesio 4SDTF 19/11 23:04: escolheu a opção 2 (carência), vigia pôs bancoStefany 'FACTA 90 DIAS' e a API digitou C6 opção 1 mesmo assim): com bancoStefany diferente do banco a API NÃO digita — fica para a tela/vigia */
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API');
       try { if (o.aceite || o.simGravar) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
@@ -1180,7 +1181,10 @@
         const ex = extrSync(oS); if (ex === 'wait' || ex) return;   // extrato → o caminho antigo (7.71) cuida
         if (!oS.liberado || !oS.parcela || !oS.prazo || /undefined/.test(String(oS.liberado) + oS.parcela + oS.prazo)) return;
         if (await window.dinsBotAtivo(oS.hash)) return;   // 9.28: cliente ainda no fluxo do bot do Botmaker → simulação pronta, sai quando o bot parar (~5 min)
-        ocup790 = true; oS.api790T = Date.now(); GM_setValue('auto_ordens', O);
+        /* 9.48 (Anesio 4SDTF 19/11 23:00: simulação DUPLICADA com 1 s de diferença — duas abas acharam a mesma ordem antes de qualquer uma gravar api790T): trava ENTRE ABAS + relê a ordem na hora */
+        if (!trava870('sim790_' + oS.hash, 10 * 60000)) return;
+        { const Ok = GM_getValue('auto_ordens', {}) || {}; const xk = Ok[oS.hash]; if (!xk || xk.estado !== 'simulada' || xk.api790T) return; xk.api790T = Date.now(); GM_setValue('auto_ordens', Ok); }
+        ocup790 = true; oS.api790T = Date.now();
         try { const linhaS = textoSim755(oS); await bmEnviarTexto(oS.hash, linhaS);
           /* 9.45 (José Pinheiro GMVVS 19/11 20:13 e 20:16: simulação DUPLICADA — a mensagem saiu pela API, um erro logo depois deixou a ordem em 'simulada' e a tela mandou de novo): marca como enviada NA MESMA HORA, antes de qualquer outra coisa */
           try { const O9 = GM_getValue('auto_ordens', {}) || {}; if (O9[oS.hash]) { O9[oS.hash].estado = 'sim_enviada'; O9[oS.hash].tSimEnv = Date.now(); GM_setValue('auto_ordens', O9); } } catch (e9) {}
