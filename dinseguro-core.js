@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.73';
+  const VERSAO = '9.74';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5418,6 +5418,7 @@
           R[h] = Object.assign(x || { hash: h, nome: String(o.nome || o.nomeReal || h.slice(0, 6)), toques: [], hist: [], criadoT: ag }, { estado: 'humano', motivo: mot, junto: mot });
           (R[h].hist = R[h].hist || []).push(hhmm(ag) + ' 9.63: ' + mot); mud = true; try { diario(o.nomeReal || o.nome || h.slice(0, 5), mot + ' → amarelo para o vigia (9.63)'); } catch (e) {} }
         for (const h in R) { const x = R[h]; if (x && /^🛠️ VIGIA/.test(x.junto || x.motivo || '') && !(O[h] && O[h].estado === 'erro')) { if (x.estado === 'humano') x.estado = 'acompanhando'; if (/^🛠️ VIGIA/.test(x.motivo || '')) x.motivo = 'vigia resolveu o erro'; delete x.junto; mud = true; } }   // 9.72: o 'junto' (amarelo) sai junto
+        for (const h in R) { const x = R[h]; if (x && x.junto && /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada)$/.test(x.estado || '')) { delete x.junto; mud = true; } }   // 9.74 (Evam Q5CLE fechado pela 9.56 continuou no amarelo): conversa encerrada não fica no amarelo
         if (mud) gravaRG(R); } catch (e) {} }, 60000);
     // 9.60 (Stefany 20/11 11:03, Claudio 624KB "nem tagueado foi e mandou CPF… sempre taguear"): todo CPF consultado COM margem leva a 01 A na hora
     // (so_tag_01a, só tag — não espera a simulação sair; vale também para quem parou em erro/contorno/extrato). Uma vez por cliente a cada 6 h.
