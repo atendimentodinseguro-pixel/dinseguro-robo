@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.82';
+  const VERSAO = '9.83';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -1048,7 +1048,7 @@
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
     // 8.10 (Elias DX7HR 18/11 10:23: voltou pelo anúncio sem CPF; o robô achou o CPF de setembro e disse "Recebi o seu CPF") → texto certo para CPF de conversa antiga
     const cpfAntigo810 = x => /7\.04|, pedido de CPF\)|follow-up de CPF/i.test(((x && x.hist) || []).join(' '));
-    function ordemDoCpfServidor(h, nome, cs, origem) { try { if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
+    function ordemDoCpfServidor(h, nome, cs, origem) { try { liberaReverso983(h, cs); if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
         O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; r9[h].cpfSrv = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
@@ -1105,6 +1105,12 @@
           onerror: () => res(''), ontimeout: () => res('') }); } catch (e) { res(''); } }); }
     async function reverso847(fone) { const f = foneDe847(fone); if (!f) return { cpf: '', fonte: 'sem telefone' }; let c = await ncPorFone847(f); if (c) return { cpf: c, fonte: 'New Corban' }; c = await fcPorFone847(f); if (c) return { cpf: c, fonte: 'FullConsig' }; return { cpf: '', fonte: 'não achou' }; }
     window.dinsReversoTeste = async fone => { const r = await reverso847(fone); return { fonte: r.fonte, cpf: r.cpf ? '***' + r.cpf.slice(-5) : '' }; };
+    // 9.83 (Stefany 20/11 15:40, caso Sônia TCB5K: CPF achado pelo telefone deu sem margem → pediu o CPF; ela mandou o MESMO CPF às 15:38 e ninguém respondeu — a ordem ficou parada em 'reverso_conferir'):
+    // cliente mandou o CPF dela → mesmo CPF: solta o desfecho guardado (vira ordem normal); CPF diferente: apaga a ordem do telefone para abrir consulta nova
+    function liberaReverso983(h, cs) { try { const O = GM_getValue('auto_ordens', {}) || {}; const x = O[h]; if (!x || x.estado !== 'reverso_conferir' || !cs) return false;
+      if (String(x.cpf || '') === String(cs)) { delete x.reverso; x.estado = 'desfecho'; x.t = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 9.83: cliente confirmou o mesmo CPF → mandando o desfecho'); }
+      else { delete O[h]; } GM_setValue('auto_ordens', O); try { diario(x.nome || h.slice(0, 5), '🔎 cliente mandou o CPF depois do pedido de conferência → ' + (String(x.cpf) === String(cs) ? 'mesmo CPF, desfecho liberado' : 'CPF diferente, consulta nova') + ' (9.83)'); } catch (e) {} return true; } catch (e) { return false; } }
+    window.dinsLiberaReverso = liberaReverso983;
     // resultado negativo de ordem achada pelo telefone → não manda desfecho: pede o CPF uma vez para confirmar
     setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; const x = Object.values(O).find(y => y && y.reverso && y.estado === 'desfecho' && !y.revConf); if (!x) return;
       x.revConf = 1; x.estado = 'reverso_conferir'; (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 8.47: o CPF achado pelo telefone deu ' + (x.acao || 'desfecho') + ' → não mandei o desfecho, pedi o CPF para confirmar'); GM_setValue('auto_ordens', O);
@@ -3074,6 +3080,7 @@
               if (cs && outroV) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), '🔴 mandou o CPF mas clicou "Outro valor" sem dizer qual → vigia pergunta o valor (6.72)'); API_ADIA[id] = Date.now() + 30 * 60000; return false; }
               if (cs && Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) { API_ADIA[id] = Date.now() + 10 * 60000; return false; }   // 7.29: sem Multicorban aqui → deixa para o navegador do atendimento
               if (cs) { try { const SM = JSON.parse(localStorage.getItem('dins_sem_margem') || '{}'); if (SM[id] && Date.now() - SM[id] < 30 * 86400000) { diario(((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim(), 'já recebeu SEM MARGEM pelo extrato (vigia) → não reabre consulta (7.66)'); API_ADIA[id] = Date.now() + 6 * 3600000; return false; } } catch (e) {} }
+              if (cs) liberaReverso983(id, cs);
               if (cs) { const O = GM_getValue('auto_ordens', {}) || {}; const nome = ((j.customer.FIRST_NAME || '') + ' ' + (j.customer.LAST_NAME || '')).trim();
                 O[id] = { hash: id, nome, cpf: cs, fone: String(j.customer.WHATSAPP_CURATED_NUM || '').replace(/\D/g, ''), /* 6.60 (caso Rosalda CTTAM: 'sem o WhatsApp do chat na ficha') */ tipo: 'cpf', cpfT: Date.now(), valorBot: vEsc, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada pelo SERVIDOR (6.32' + (vEsc ? ', valor escolhido no bot R$ ' + vEsc : '') + ': ' + origem + ', sem abrir a conversa)'] };
                 GM_setValue('auto_ordens', O); API_PLACAR.ordens = (API_PLACAR.ordens || 0) + 1; API_ADIA[id] = Date.now() + 10 * 60000; diario(nome, 'achou o CPF (' + origem + ') → abriu a consulta'); return false; }
