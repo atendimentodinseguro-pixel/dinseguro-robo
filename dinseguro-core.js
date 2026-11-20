@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.94';
+  const VERSAO = '9.95';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2846,6 +2846,7 @@
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
           const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = fech || fechada888(k, lu);   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
           try { const e9 = FCH990 && FCH990[k]; if (!fech985 && e9 && e9.close && e9.close > e9.reab && e9.close >= lu) fech985 = true; } catch (e) {}   // 9.90: evento conversation-close da API
+          try { const e9 = FCH990 && FCH990[k]; if (fech985 && e9 && e9.close && lu > e9.close + 30000) fech985 = false; } catch (e) {}   // 9.95 (Stefany 20/11 20:34): encerrou e o cliente mandou mensagem DEPOIS → volta para o acompanhamento (tag/fila antiga não vale)
           // 9.88: fora da lista de conversas abertas da tela em 2 leituras com 4+ min de diferença (e o cliente não escreveu nos últimos 5 min) → encerrada
           try { if (!fech985 && !venc) { const LV = GM_getValue('lista_viva988', null); const R7 = RG(); const x7 = R7[k];
               if (LV && ag - LV.t < 3 * 60000 && x7) { if (LV.ids.includes(k)) { if (x7.foraLista988) { delete x7.foraLista988; if (!simular) gravaRG(R7); } }
@@ -2878,7 +2879,8 @@
         let novos931 = 0; try { if (!simular) { let rr = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); let pg = 0; const todas = [];
             while (rr && rr.j && pg < 10) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
             const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || R3[id] || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue; const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
-              if (!(jf > ag) || /^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))) continue;
+              const luC995 = Date.parse(c.lastUserMessageDatetime || '') || 0; const e995 = FCH990 && FCH990[id]; const voltou995 = !!(e995 && e995.close && luC995 > e995.close + 30000);   // 9.95: escreveu depois de encerrada → entra de novo
+              if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
               if (FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;
               try { const e9 = FCH990 && FCH990[id]; if (e9 && e9.close && e9.close > e9.reab && e9.close >= (Date.parse(c.lastUserMessageDatetime || '') || 0)) continue; } catch (e) {}   // 9.90
               const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); const ms = ((m && m.j && m.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u = ms[ms.length - 1]; if (!u) continue;
