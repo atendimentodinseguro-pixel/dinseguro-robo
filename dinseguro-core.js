@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.67';
+  const VERSAO = '9.68';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5279,7 +5279,8 @@
               const RV = GM_getValue('reverso_feito', {}) || {};   // 9.57 (Stefany 20/11 10:54, "Trabalhando" TJL0G respondeu "1" e "Sim" à simulação padrão e ficou 27 min sem resposta): a análise reversa de ANTES da simulação não trava a resposta DEPOIS dela
               const valBot8 = Math.max(0, ...ms.filter(m => m.from === 'bot').map(m => { const v = (T(m).match(/R\$\s*([\d.]{5,}),\d{2}/) || [])[1]; return v ? +v.replace(/\./g, '') : 0; }));
               const aceite8 = ms.some(m => m.from === 'user' && /desejo contratar|quero contratar|sim,? quero|quero esse|aceito/i.test(String((m.content && (m.content.selectedButton || m.content.text)) || ''))) && valBot8 >= 10000;
-              if (!temCpf8 && !gente && (resp8 || aceite8) && !(RV[id] && !(resp8 && RV[id] < vm882)) && !(O[id] && O[id].cpf) && min8 > 0.3 && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|01 D|InssFechouNegocio|Sem_margem|SEM_MARGEM|01_I_|01k_/i.test(tags8)) {
+              const temBen967 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\d(\D|$)|(^|\D)\d{10}(\D|$)/.test(T(m))) || !!(O[id] && (O[id].cpf || O[id].matricula));   // 9.68: quem já mandou o número do BENEFÍCIO também não recebe pedido de CPF
+              if (!temCpf8 && !temBen967 && !gente && (resp8 || aceite8) && !(RV[id] && !(resp8 && RV[id] < vm882)) && !(O[id] && O[id].cpf) && min8 > 0.3 && !/(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|01 D|InssFechouNegocio|Sem_margem|SEM_MARGEM|01_I_|01k_/i.test(tags8)) {
                 RV[id] = ag; for (const q in RV) if (ag - RV[q] > 30 * 864e5) delete RV[q]; GM_setValue('reverso_feito', RV);
                 const nm47 = String(c.firstName || '').trim(); const v47 = (String(T(cU8)).match(/(\d{1,3}(?:\.\d{3})+|\d{4,6})(?:,\d{2})?/) || [])[1]; const vEsc47 = aceite8 ? valBot8 : (v47 ? +v47.replace(/\./g, '') : 0);
                 reverso847((c.chat && c.chat.contactId) || c.contactId).then(r => { try {
