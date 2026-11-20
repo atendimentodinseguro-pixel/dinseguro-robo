@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.81';
+  const VERSAO = '9.82';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -5258,9 +5258,9 @@
         try { const R0 = RG(); let mud0 = false; const fech = new Set(all.filter(c => !janAberta(c)).map(c => c.chat.chatId));
           for (const k in R0) { const x = R0[k]; if (x && x.estado === 'alerta' && fech.has(k)) { x.estado = 'vencida'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.19: janela de 24 h fechada → é do varredor (saiu do vermelho)'); mud0 = true; } }
           if (mud0) gravaRG(R0); } catch (e) {}
-        // 9.81 (Stefany 20/11 15:12): bot DESLIGADO na conversa → entra na hora (15 s); bot ligado → 2 min; a rodada passou de 5 em 5 min para 1 em 1 min
+        // 9.81 (Stefany 20/11 15:12): bot DESLIGADO na conversa → entra na hora (15 s); bot ligado → 8 min (Stefany 15:12: com o bot ligado, continua esperando 8 min); a rodada passou de 5 em 5 min para 1 em 1 min
         // 9.80 (Stefany 20/11 15:09, 'Em nome de Jesus' N7ZT8: respondeu '3' às 14:53 e o robô só pediu o CPF às 15:04): espera 2 min (era 8) depois da última mensagem do cliente
-        const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return janAberta(c) && ag - lu > (c.isBotMuted ? 15000 : 2 * 60000) && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
+        const cand = all.filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); return janAberta(c) && ag - lu > (c.isBotMuted ? 15000 : 8 * 60000) && !(VI[c.chat.chatId] && VI[c.chat.chatId].lu === c.lastUserMessageDatetime && VI[c.chat.chatId].ok); })
           .sort((a, b) => Date.parse(b.lastUserMessageDatetime) - Date.parse(a.lastUserMessageDatetime)).slice(0, 200);
         const fr = encodeURIComponent(new Date(ag - 30 * 3600000).toISOString());
         // 9.65 (Stefany 20/11 12:10, Dinaldo WK1Z0: parou no bot ontem 17:13, o recontato automático "[Rômulo] Dei uma olhada no seu caso" + áudio contou como resposta e ninguém mais falou com ele): esse recontato NÃO é resposta
