@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.74';
+  const VERSAO = '9.75';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -97,6 +97,19 @@
     '32','33','34','37','38','41','42','43','44','45','46','49','51','52','54','55','56','57','58','59',
     '72','78','82','83','89','92','93'];
   const LOAS = ['87', '88'];
+  // 9.75 (Stefany 20/11 14:40–14:46: "consulta sempre nos dois… se a margem for diferente, usa a menor"): consulta no FullConsig pela sessão aberta no Chrome,
+  // sem tela (POST consulta/validaConsultaOffline: 1º pelo CPF → lista de benefícios; 2º por benefício com nb=true → espécie e Margem Disponível).
+  function fcPost975(b) { return new Promise(res => { try { GM_xmlhttpRequest({ method: 'POST', url: 'https://sistema.fullconsig.com.br/consulta/validaConsultaOffline', timeout: 45000, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' }, data: new URLSearchParams(b).toString(),
+      onload: r => { try { res(JSON.parse(r.responseText)); } catch (e) { res(null); } }, onerror: () => res(null), ontimeout: () => res(null) }); } catch (e) { res(null); } }); }
+  async function fcBeneficios975(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); if (c.length !== 11) return null; const fm = c.slice(0, 3) + '.' + c.slice(3, 6) + '.' + c.slice(6, 9) + '-' + c.slice(9);
+    const j = await fcPost975({ consulta: 'inss', id_data_campanha: '', valor: fm, valorTelefone: '', telefone: 'false' }); if (!j || !j.consulta) return null; const P = new DOMParser();
+    const ler = html => { const d = P.parseFromString(html || '', 'text/html'); d.querySelectorAll('style,script').forEach(e => e.remove()); const tx = (d.body.textContent || '').replace(/\s+/g, ' ');
+      const m = (tx.match(/Margem Dispon[íi]vel[^R]{0,30}R\$\s?([\d.,]+)/i) || [])[1]; const esp = (tx.match(/\b(\d{1,2}) - [A-ZÇÃÉÍÓÚÂÊÔ]{4}/) || [])[1];
+      return { esp: esp ? esp.padStart(2, '0') : '', margem: m ? parseFloat(m.replace(/\./g, '').replace(',', '.')) : null }; };
+    const nbs = [...P.parseFromString(j.consulta, 'text/html').querySelectorAll('[onclick]')].map(b => (String(b.getAttribute('onclick')).match(/consultar_nb\('(\d+)'\)/) || [])[1]).filter(Boolean);
+    if (!nbs.length) { const r = ler(j.consulta); return (r.esp || r.margem != null) ? [Object.assign({ nb: String(j.nb || '').replace(/\D/g, '') }, r)] : []; }
+    const out = []; for (const nb of nbs.slice(0, 4)) { const j2 = await fcPost975({ valor: nb, nb: 'true', id_data_campanha: '' }); if (j2 && j2.consulta) out.push(Object.assign({ nb: String(nb) }, ler(j2.consulta))); } return out; }
+  try { window.dinsFcBeneficios = async cpf => { const r = await fcBeneficios975(cpf); return (r || []).map(b => ({ nb: '…' + String(b.nb).slice(-4), esp: b.esp, margem: b.margem })); }; } catch (e) {}
 
   // A janela de fim de semana (Stefany, 07/11/2026 14:55) foi REVOGADA por ela em
   // 08/11/2026 10:18: abaixo de R$ 6 mil vai para a Qualibank todos os dias.
@@ -452,7 +465,9 @@
             if (nao2) { const f2 = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f2 && f2.click(); }
             else achouMat = /Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText) || [...document.querySelectorAll('tr')].some(tr => /\bATIVO\b/.test(tr.innerText));
             await zz(600); const off2 = document.getElementById('offline'); if (off2 && !off2.checked) off2.click(); await zz(500); const c2 = document.getElementById('cpf'); if (c2 && !c2.checked) c2.click();
-            if (!achouMat) { if (outroCpf891(o)) return; poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
+            if (!achouMat) { if (outroCpf891(o)) return; { let fc = null; try { fc = await fcBeneficios975(o.cpf); } catch (e) {} const bom = (fc || []).filter(b => ESPECIES_OK.includes(b.esp) && (b.margem || 0) >= 25).sort((a, b) => b.margem - a.margem)[0];   /* 9.75: não está no Multicorban → olha o FullConsig */
+              if (bom) { poeAO(o.hash, { estado: 'com_margem', resumo: '🛠️ só no FullConsig: benefício …' + String(bom.nb).slice(-4) + ' esp ' + bom.esp + ' margem R$ ' + brl(bom.margem) + ' (o Multicorban não localizou) → VIGIA monta a ficha (9.75)' }); try { diario(o.nome || o.hash.slice(0, 5), '🔎 Multicorban não achou; FullConsig achou esp ' + bom.esp + ' margem R$ ' + brl(bom.margem) + ' → vigia (9.75)'); } catch (e) {} return; } }
+              poeAO(o.hash, { estado: 'desfecho', acao: 'nao_localizado', resumo: 'CPF não localizado (CPF e matrícula)' }); return; }
             throw new Error('achou como MATRÍCULA (o número mandado é benefício) — vigia confere');
           }
           throw new Error('CPF não localizado no Multicorban');
@@ -525,6 +540,15 @@
         const ficha = textoParaFicha(ta.value);
         if (o.tipo === 'cpf') {   // 4.24: só a consulta do CPF (não digita)
           const num = t => { const n = parseFloat(String(t || '').replace(/[^\d,\-]/g, '').replace(',', '.')); return isNaN(n) ? null : n; };
+          // 9.75: confere no FullConsig — mesmo benefício com margem menor lá → usa a MENOR; outro benefício atendido com margem que o Multicorban não mostrou → vigia
+          { let fc = null; try { fc = await fcBeneficios975(o.cpf); } catch (e) {}
+            if (fc && fc.length) { const benMC = String(ficha.beneficio || '').replace(/\D/g, '').replace(/^0+/, ''); const igual = fc.find(b => String(b.nb).replace(/^0+/, '') === benMC); const mMC = num(ficha.margem);
+              if (igual && igual.margem != null && mMC != null && igual.margem < mMC - 0.01) { ficha.margem = brl(igual.margem); const pq = num(ficha.parcela); if (pq != null && pq > igual.margem) ficha.parcela = brl(Math.max(0, igual.margem - 0.01));
+                ta.value = ta.value.replace(/^margem:.*$/m, 'margem: ' + ficha.margem); if (pq != null && pq > igual.margem) ta.value = ta.value.replace(/^parcela:.*$/m, 'parcela: ' + ficha.parcela); ta.dispatchEvent(new Event('input', { bubbles: true }));
+                try { diario(ficha.nome || o.nome || '', '⚖️ margem: Multicorban R$ ' + brl(mMC) + ' x FullConsig R$ ' + brl(igual.margem) + ' → usa a MENOR (9.75)'); } catch (e) {} }
+              const motMC = (ficha.recusa || '').split('|')[0]; const outro = fc.filter(b => String(b.nb).replace(/^0+/, '') !== benMC && ESPECIES_OK.includes(b.esp) && (b.margem || 0) >= 25).sort((a, b) => b.margem - a.margem)[0];
+              if (outro && (motMC || outro.margem > (num(ficha.margem) || 0) + 20)) { poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: '🛠️ FullConsig: benefício …' + String(outro.nb).slice(-4) + ' esp ' + outro.esp + ' margem R$ ' + brl(outro.margem) + ' que o Multicorban não usou (Multicorban: esp ' + (ficha.especie || '?') + ' margem R$ ' + (ficha.margem || '?') + (motMC ? ' ' + motMC : '') + ') → VIGIA (9.75)' });
+                try { diario(ficha.nome || o.nome || '', '🔎 FullConsig achou outro benefício esp ' + outro.esp + ' margem R$ ' + brl(outro.margem) + ' → vigia (9.75)'); } catch (e) {} return; } } }
           const mg = num(ficha.margem), mot = (ficha.recusa || '').split('|')[0];
           const resumo = 'esp ' + (ficha.especie || '?') + ', ' + (ficha.idade || '?') + 'a, margem R$ ' + (ficha.margem || '?');
           let acao = '';
