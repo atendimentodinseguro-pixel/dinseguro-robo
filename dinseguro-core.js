@@ -47,7 +47,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.48';
+  const VERSAO = '9.49';
   function saudAgora() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
@@ -853,7 +853,7 @@
         if (e.tecnico) poe(o.hash, { estado: 'ficha_ok', apiFalhou: 1, erroApi: m }, 'API falhou (' + m.slice(0, 60) + ') → digita pela TELA');
         // 8.07 (Maria da Silva 18/11 09:13: a regra 8.03 mandou para a FACTA, mas a tabela Smart 1 (até R$ 5 mil) não está liberada no New Corban → ficou parada):
         // FACTA recusou por tabela não liberada / sem oferta → tenta a QUALIBANK (reserva), uma vez; invalidez abaixo de 58 não vai para a Qualibank
-        else if (o.banco === 'FACTA' && !o.reservaQuali && /N[ÃA]O est[áa] liberada|sem oferta|Prazo de \d+ meses n[ãa]o dispon/i.test(m) && !(INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58)) {
+        else if (o.banco === 'FACTA' && !o.reservaQuali && !o.op2Car948 && /N[ÃA]O est[áa] liberada|sem oferta|Prazo de \d+ meses n[ãa]o dispon/i.test(m) && !(INVALIDEZ.includes(String((o.ficha || {}).especie || '').padStart(2, '0')) && (+(o.ficha || {}).idade || 0) < 58)) {
           const O7 = GM_getValue('auto_ordens', {}) || {}; const x7 = O7[o.hash]; if (x7) { x7.ficha = Object.assign({}, x7.ficha || {}, { banco_destino: 'QUALIBANK', banco_ordem_stefany: '', carencia: '' }); GM_setValue('auto_ordens', O7); }
           poe(o.hash, { estado: 'ficha_ok', banco: 'QUALIBANK', reservaQuali: 1, erro: '' }, 'FACTA recusou (' + m.slice(0, 70) + ') → reserva QUALIBANK (8.07)'); try { diario(o.nomeReal || o.nome || '', 'FACTA recusou (' + m.slice(0, 50) + ') → tenta na Qualibank (8.07)'); } catch (x) {} }
         else { let ad = null; if (/j[áa] foi enviada com dados diferentes/i.test(m)) { try { ad = await adota887(o); } catch (x) {} }
@@ -2153,7 +2153,13 @@
           if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
           else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
-            Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: digitar FACTA 90 DIAS e mandar o link (7.55)' }); diario(nmR, '🔴 escolheu a opção 2 (carência) → vigia digita (7.55)'); }
+            /* 9.48 (Anesio 4SDTF 19/11 23:02: escolheu a opção 2 e ficou parado esperando o vigia; o vigia pôs bancoStefany e a API digitou o C6 da opção 1): o robô digita SOZINHO a FACTA 90 DIAS
+               (banco + carência na ficha, que é o que a API lê para escolher a tabela "90 DIAS"). Invalidez abaixo de 60 não cabe na FACTA → continua com o vigia. */
+            const fy = y.ficha || {}; const invY = INVALIDEZ.includes(String(fy.especie || '').padStart(2, '0')) && (+fy.idade || 0) < 60;
+            if (!invY && y.ficha) { y.ficha = Object.assign({}, fy, { banco_destino: 'FACTA', banco_ordem_stefany: 'FACTA', prazo_ordem_stefany: 'CARENCIA 90 DIAS', carencia: '90 DIAS' });
+              Object.assign(y, { estado: 'ficha_ok', banco: 'FACTA', bancoStefany: '', carencia: '90 DIAS', op2Car948: 1, aceite: 'opção 2 (carência 90 dias)', aceitouSim: 1, simGravar: 1, apiFalhou: 0, t: Date.now(), resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 → robô digita FACTA 90 DIAS e manda o link (9.48)' });
+              diario(nmR, 'escolheu a opção 2 (carência) → robô digita FACTA 90 DIAS sozinho (9.48)'); }
+            else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu a OPÇÃO 2 (carência 90 dias) → VIGIA: invalidez abaixo de 60 não cabe na FACTA — escolher o banco da carência (9.48)' }); diario(nmR, '🔴 escolheu a opção 2 (carência), invalidez < 60 → vigia (9.48)'); } }
           else if (/^\s*(3|3️⃣|n[ãa]o desejo|n[ãa]o quero)\s*[.!]?\s*$/i.test(ult)) {
             y.estado = 'sim_resp'; const nm3 = nomeCli(y); const DS = GM_getValue('desisti_resp', {}) || {}; DS[y.hash] = Date.now(); GM_setValue('desisti_resp', DS);
             window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm3 ? nm3 + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que não ficou bom? 🙏 Às vezes é o valor, a parcela ou alguma dúvida sobre segurança, e quase sempre dá para ajustar do jeito que fica bom para você.\n\nSe quiser, me diz o valor que você precisa que eu simulo de novo, sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
