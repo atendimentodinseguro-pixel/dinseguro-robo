@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.02';
+  const VERSAO = '10.03';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2963,6 +2963,10 @@
         const ant = L.ult; // só agradeceu/confirmou depois da nossa mensagem (regra 19) → não é espera
         return Object.assign({ estado: 'acompanhando', motivo: 'cliente só disse "' + ant.txt.slice(0, 20) + '" — não precisa responder' }, ex);
       }
+      // 10.03 (Stefany 21/11 00:12, Silvio Morais ZQDQP: clicou "Encerrar agora" no bot, o bot se despediu e o robô tratou como "parou sem CPF" — só tagueou, não fechou):
+      // cliente encerrou no bot e não escreveu depois → amarelo "encerrar pela regra" → a 9.56 põe a 01 C e fecha pela intenção (fechar_01c)
+      if (L && L.ultCli && /encerrar agora/i.test(L.ultCli.txt || '') && L.ult && L.ult.lado === 'nos' && !L.cpfSemRespT)
+        return Object.assign({ estado: 'humano', motivo: 'cliente encerrou no bot — encerrar pela regra: tag (01 C sem CPF) + fechar', junto: 'cliente encerrou no bot — encerrar pela regra: tag (01 C sem CPF) + fechar' }, ex);
       if (L && L.cpfSemRespT)
         return Object.assign({ estado: 'alerta', motivo: 'mandou CPF às ' + hhmm(L.cpfSemRespT) + ' e ninguém respondeu → consultar e atender (não esperar extrato)' }, ex);
       if (L && L.semCpfT && (L.escolha || (L.ult && L.ult.lado === 'nos')) && Date.now() - L.semCpfT >= 10 * 60000 && Date.now() - L.semCpfT < 23 * 3600000 && !ex.vencida && !tem(/^01 C/i) && !tem(/^01 A/i))
