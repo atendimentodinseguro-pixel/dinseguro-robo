@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.33';   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
+  const VERSAO = '10.34';   // 10.34 (Reinaldo 21/11 09:26): o religar do bot (10.28) pula quem tem proposta/link ativo — o fluxo do bot mandou 'sem margem' para cliente com proposta pendente (margem reservada).
+  // 10.33:   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
   // 10.32:   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
   // 10.31:   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
   // 10.30:   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
@@ -5758,6 +5759,7 @@
     setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !faz('followup')) return; const ag = Date.now(); const FT = GM_getValue('religar_feito1028', {}) || {};
         const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 12 * 3600000).toISOString())); const it = (r && r.j && r.j.items) || []; const LB = GM_getValue('religar_bot1028', {}) || {}; let n = 0;
         for (const c of it) { const id = c.chatId || (c.chat || {}).chatId; if (!id || c.isBotMuted !== true || !/^fechar_/.test(String(c.queueId || '')) || c.agentId || protegido(id)) continue;
+            { const RG34 = GM_getValue('regua', {}) || {}; const x34 = RG34[id]; const O34 = (GM_getValue('auto_ordens', {}) || {})[id]; if ((x34 && x34.link && !x34.semLink && ag - (+x34.linkT || 0) < 72 * 3600000) || (O34 && (O34.proposta || O34.num || /^(link|desfecho|pronto|gravada)$/.test(O34.estado || '')))) continue; }   // 10.34 (Reinaldo 21/11 09:26): quem tem PROPOSTA/LINK ativo fica com o bot desligado — o fluxo do bot consultava a margem (já reservada pela proposta) e mandava 'sem margem'
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; if (FT[id] && FT[id] >= lu) continue; FT[id] = ag; LB[id] = ag; n++; }
         for (const k in FT) if (ag - FT[k] > 3 * 864e5) delete FT[k]; GM_setValue('religar_feito1028', FT); if (n) GM_setValue('religar_bot1028', LB); } catch (e) {} }, 5 * 60000);
     // 10.30 (Stefany 21/11 09:46 confirmou, caso Tejo): SIMULAÇÃO ABAIXO DE R$ 5 MIL sem resposta (não digita sem confirmação, 7.67) tinha ZERO follow-up.
