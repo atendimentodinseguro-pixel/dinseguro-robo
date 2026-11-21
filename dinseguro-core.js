@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.47';   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
+  const VERSAO = '10.48';   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
+  // 10.47 —   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
   // 10.46 —   // 10.46 (Ivanildo): link do robô pela API entra na régua na hora; 'sem fila e sem atendente' não tira mais do caderno.
   // 10.45 —   // 10.45: CPF que só recebeu o 'sem margem' automático do fluxo do bot (fila SEM_MARGEM_BOT) é consultado pelo robô em 6 min (antes ficava sem ordem).
   // 10.44 —   // 10.44 (Stefany 21/11 13:00, Euuuu): depois do aviso "estou encerrando", 3 min depois confere se a conversa fechou; se não, fecha (01 C sem CPF / fechar_so com CPF).
@@ -5780,6 +5781,15 @@
           } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ follow-up de dúvida (9.07) não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
         for (const k in DV) if (ag - (+DV[k].v || 0) > 3 * 864e5) delete DV[k]; GM_setValue('duv907', DV);
       } catch (e) {} finally { ocup907 = false; } }, 5 * 60000); }
+    // 10.48 (Stefany 21/11 14:04 'fluxo aumentou', Luiz Carlos X2ZC6 / Edna QW0W3: 'não digitei: sem o WhatsApp do chat na ficha'): ordem criada sem o fone
+    // (caminhos 8.15 e 'CPF mandado') → a cada 20 s pega o número pelo contactId do chat na API; a que parou por isso volta para 'nova' e segue sozinha.
+    setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !faz('atendimento')) return; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
+        for (const id of Object.keys(O)) { const x = O[id]; if (!x || x.fone || n >= 3 || !/^[A-Z0-9]{20}$/.test(id)) continue;
+          const parou = x.estado === 'com_margem' && /sem o WhatsApp do chat/.test(String(x.resumo || '')); if (!(x.estado === 'nova' || parou) || Date.now() - (+x.t || 0) > 6 * 3600000) continue;
+          const g = await window.dinsBmGet('/chats/' + id); const c = String((g && g.j && g.j.chat && g.j.chat.contactId) || ''); n++; if (!/^55\d{10,11}$/.test(c)) continue;
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[id]; if (!y || y.fone) continue; y.fone = c; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 10.48: WhatsApp pego pelo chat');
+          if (parou) { y.estado = 'nova'; y.t = Date.now(); y.resumo = String(y.resumo || '').replace(/ · não digitei: sem o WhatsApp do chat na ficha/, ''); } GM_setValue('auto_ordens', O2); try { diario(y.nomeReal || y.nome || id.slice(0, 5), '📱 10.48: ordem sem WhatsApp → número pego no chat' + (parou ? ' e a ordem voltou a andar' : '')); } catch (e) {} }
+      } catch (e) {} }, 20000);
     // 10.44 (Stefany 21/11 13:00, foto Euuuu NA4VB: "esse caso tem que fechar · ensina o robô"): toda mensagem "estou encerrando o seu atendimento" fica anotada;
     // 3 min depois o robô confere pela API — se a conversa NÃO está numa fila fechar_* (a intenção falhou, foi trocada por só-tag ou não saiu), fecha:
     // sem CPF → fechar_01c; com CPF → fechar_so. Cliente escreveu depois do aviso, atendente na conversa ou protegido → não fecha.
