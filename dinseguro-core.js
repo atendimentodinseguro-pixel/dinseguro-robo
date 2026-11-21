@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.29';   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
+  const VERSAO = '10.30';   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
+  // 10.29:   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
   // 10.28:   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
   // 10.27:   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
   // 10.26:   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
@@ -5719,7 +5720,7 @@
         const L = GM_getValue('duv907_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('duv907_dono', { aba: ABA, t: Date.now() });
         ocup907 = true; const ag = Date.now(); const R = GM_getValue('regua', {}) || {}; const DV = GM_getValue('duv907', {}) || {}; const VM = GM_getValue('valor_msg_feito', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
         for (const id of Object.keys(R)) { const x = R[id]; if (n >= 2) break; if (!x || protegido(id) || id === '__TESTE_LIBERADO_1022__' || /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada|alerta|humano)$/.test(x.estado || '') || (x.link && !x.semLink)) continue;
-          if (O[id] && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link', 'desfecho'].includes(O[id].estado)) continue;
+          if (O[id] && (['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link', 'desfecho'].includes(O[id].estado) || O[id].semPar767)) continue;   // 10.30: simulação < R$ 5 mil tem régua própria
           if (DV[id] && ag - (+DV[id].v || 0) < 20 * 60000) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
@@ -5756,6 +5757,34 @@
         for (const c of it) { const id = c.chatId || (c.chat || {}).chatId; if (!id || c.isBotMuted !== true || !/^fechar_/.test(String(c.queueId || '')) || c.agentId || protegido(id)) continue;
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; if (FT[id] && FT[id] >= lu) continue; FT[id] = ag; LB[id] = ag; n++; }
         for (const k in FT) if (ag - FT[k] > 3 * 864e5) delete FT[k]; GM_setValue('religar_feito1028', FT); if (n) GM_setValue('religar_bot1028', LB); } catch (e) {} }, 5 * 60000);
+    // 10.30 (Stefany 21/11 09:46 confirmou, caso Tejo): SIMULAÇÃO ABAIXO DE R$ 5 MIL sem resposta (não digita sem confirmação, 7.67) tinha ZERO follow-up.
+    // Agora: 1 h depois da simulação → "ficou com alguma dúvida sobre a simulação?"; dia seguinte a partir das 08:00 → último toque;
+    // 2 h depois do último sem resposta → aviso de encerramento + 01 A (so_tag_01a) + fecha (fechar_so). Cliente escreveu depois da simulação → para (é atendimento).
+    { let ocup1030 = false;
+      setInterval(async () => { if (ocup1030) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+        const L = GM_getValue('sim5k1030_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('sim5k1030_dono', { aba: ABA, t: Date.now() });
+        ocup1030 = true; const ag = Date.now(); const O = GM_getValue('auto_ordens', {}) || {}; const S = GM_getValue('sim5k1030', {}) || {}; let n = 0;
+        for (const id of Object.keys(O)) { const x = O[id]; if (n >= 3) break; if (!x || x.estado !== 'sim_enviada' || !x.semPar767 || protegido(id) || id === '__TESTE_LIBERADO_1022__') continue;
+          const tS = +x.tSimEnv || +x.tSim || +x.semPar767 || 0; if (!tS || ag - tS > 48 * 3600000) continue; const st = S[id] = S[id] || {}; if (st.fim) continue;
+          let etapa = null; const m8 = new Date(tS); m8.setDate(m8.getDate() + 1); m8.setHours(8, 0, 0, 0);
+          if (!st.d1 && ag - tS >= 60 * 60000) etapa = 'd1'; else if (st.d1 && !st.d2 && ag >= m8.getTime() && ag - st.d1 >= 60 * 60000) etapa = 'd2'; else if (st.d2 && ag - st.d2 >= 2 * 3600000) etapa = 'enc';
+          if (!etapa) continue;
+          const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue;
+          const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const q = String(c.queueId || '');
+          if (lu > tS + 30000 || /^fechar_/.test(q) || c.agentId) { st.fim = ag; st.mot = lu > tS + 30000 ? 'cliente respondeu' : 'fechada/atendente'; continue; }
+          if (!jf || jf < ag + 2 * 60000) { st.fim = ag; st.mot = 'janela vencida (varredura)'; continue; }
+          try { const mN = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 60 * 60000).toISOString())); if (((mN && mN.j && mN.j.items) || []).some(k => k.from !== 'user' && /^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(String((k.content || {}).text || '')))) continue; } catch (e) {}   // 10.27: nada de 2 mensagens seguidas
+          const fn = String(x.nomeReal || '').trim().split(/\s+/)[0] || ''; const nm = fn ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : ''; const val = String(x.liberado || '').trim();
+          try {
+            if (etapa === 'd1') { await bmEnviarTexto(id, (nm ? nm + ', f' : 'F') + 'icou com alguma dúvida sobre a simulação? 😊 Se quiser, eu te explico o valor e as parcelas certinho. É só me responder aqui.'); st.d1 = ag; }
+            else if (etapa === 'd2') { await bmEnviarTexto(id, saudAgora() + (nm ? ', ' + nm : '') + '! ☀️ Passando uma última vez sobre a sua simulação' + (val ? ' de *R$ ' + val + '*' : '') + '. Se ainda tiver interesse, é só me responder aqui que eu já preparo tudo para você 🤝'); st.d2 = ag; }
+            else { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!'); st.enc = ag; st.fim = ag; let fe = '';
+              try { if (window.dinsBmIntent) { await window.dinsBmIntent(id, 'so_tag_01a'); const ri = await window.dinsBmIntent(id, 'fechar_so'); fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 A e fechou ✓' : ' — ⚠️ fechar_so não aceitou'; } } catch (e) {}
+              try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'simulação < R$ 5 mil sem resposta → encerrado (10.30)'); } catch (e) {} st.mot = 'encerrado' + fe; }
+            n++; diario(String(x.nomeReal || x.nome || id.slice(0, 5)), '🧾 simulação < R$ 5 mil sem resposta → ' + (etapa === 'd1' ? '"ficou com alguma dúvida?" (1 h)' : etapa === 'd2' ? 'último toque (manhã)' : 'encerramento ' + (st.mot || '')) + ' (10.30)');
+          } catch (e) { diario(String(x.nomeReal || id.slice(0, 5)), '⚠️ follow-up 10.30 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
+        for (const k in S) if (!O[k] || ag - (+S[k].d1 || +S[k].fim || ag) > 5 * 864e5) delete S[k]; GM_setValue('sim5k1030', S);
+      } catch (e) {} finally { ocup1030 = false; } }, 5 * 60000); }
     // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
     // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
     { let ocup905 = false;
