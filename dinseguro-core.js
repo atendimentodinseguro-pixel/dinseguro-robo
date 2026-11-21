@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.09';
+  const VERSAO = '10.10';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -5470,7 +5470,7 @@
               if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
             // 10.04 (Stefany 21/11 00:14, Em Nome De Jesus N7ZT8: voltou pelo menu "Crédito INSS" e ficou no vermelho): sem CPF e já recebeu a simulação padrão → o robô pede o CPF (modelo dele), 1x a cada 20 h
             if (!cpf && !ordemViva && !/[?]/.test(tx) ) {   /* 10.09: atendimento 24 h — quem escreveu e está esperando é respondido a qualquer hora (regra 22g, Stefany 10/11 19:21); só os toques proativos ficam em 8h–21h */ try { const VM4 = GM_getValue('valor_msg_feito', {}) || {}; const PC4 = GM_getValue('pedir_cpf_feito', {}) || {};
-                if (VM4[id] && !(PC4[id] > ag - 20 * 3600000) && window.dinsFilaVigia) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome, nota: '10.04: voltou sem CPF depois da simulação padrão (' + (tx || btn || tipo).slice(0, 40) + ') → pedido de CPF' }); PC4[id] = ag; GM_setValue('pedir_cpf_feito', PC4); res.push(nome + ' (pedido de CPF)'); diario(nome || id.slice(0, 5), '📨 voltou sem CPF → pedi o CPF (10.04)'); return; } } catch (e) {} }
+                if (VM4[id] && !(PC4[id] > ag - 20 * 3600000) && window.dinsFilaVigia) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, forcar: true, nome, nota: '10.04: voltou sem CPF depois da simulação padrão (' + (tx || btn || tipo).slice(0, 40) + ') → pedido de CPF' }); PC4[id] = ag; GM_setValue('pedir_cpf_feito', PC4); res.push(nome + ' (pedido de CPF)'); diario(nome || id.slice(0, 5), '📨 voltou sem CPF → pedi o CPF (10.04)'); return; } } catch (e) {} }
             /* 8.79: o pedido de CPF do 8.12 (cliente do anúncio sem CPF) SAIU — primeiro contato recebe a simulação padrão (bloco acima); o que sobrar vira vermelho */
             // o resto (pergunta, arquivo sem CPF, áudio, cliente com ordem parada…) → vermelho para o vigia
             if (ordemViva && !['feito', 'erro', 'desfecho_ok', 'com_margem', 'sim_enviada', 'link'].includes(ordem.estado) && !ordem.parada877) return;   // a ordem está andando (8.77: parada além do prazo não conta)
