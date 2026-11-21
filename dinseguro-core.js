@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.11';
+  const VERSAO = '10.12';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
