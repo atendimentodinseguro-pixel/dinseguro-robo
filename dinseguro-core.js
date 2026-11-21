@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.32';   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
+  const VERSAO = '10.33';   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
+  // 10.32:   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
   // 10.31:   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
   // 10.30:   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
   // 10.29:   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
@@ -2602,7 +2603,7 @@
             if (dt > 22 * 3600000 || (dt > 2 * 3600000 && !x.chkOkT)) { x.estado = 'erro'; x.erro = 'simulação enviada às ' + hhmm(x.tSimEnv) + ' e não deu para confirmar a resposta (7.55) → vigia'; GM_setValue('auto_ordens', O); continue; }
             if (!okH || !lido) continue;
             // 7.67 (Stefany 17/11 12:42): proposta ABAIXO de R$ 5.000 → sem confirmação do cliente NÃO digita nem manda /parabens (segue só os toques; aceite → digita)
-            if (dt >= 30 * 60000) { const v767 = parseFloat(String(x.liberado || '').replace(/\./g, '').replace(',', '.')) || 0; if (v767 > 0 && v767 < 5000) { if (!x.semPar767) { x.semPar767 = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta, mas R$ ' + x.liberado + ' < 5 mil → NÃO digita sem confirmação (7.67)'); GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', 'simulação abaixo de R$ 5 mil sem resposta → não digita sem o cliente confirmar (7.67)'); } continue; } }
+            if (dt >= 30 * 60000) { const v767 = parseFloat(String(x.liberado || '').replace(/\./g, '').replace(',', '.')) || 0; if ((v767 > 0 && v767 < 5000) || x.reverso) { if (!x.semPar767) {   /* 10.33 (Stefany 21/11 09:50, Janilsa): CPF achado pelo telefone (análise reversa) — o cliente NÃO mandou o CPF → sem aceite não digita nem manda /parabens; segue a régua 10.30 */ x.semPar767 = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta, mas R$ ' + x.liberado + ' < 5 mil → NÃO digita sem confirmação (7.67)'); GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', 'simulação abaixo de R$ 5 mil sem resposta → não digita sem o cliente confirmar (7.67)'); } continue; } }
             if (dt >= 30 * 60000) { const r773 = respSync(x); if (r773 === 'wait') continue; if (r773) { x.estado = 'com_margem'; x.resumo = (x.resumo || '') + ' · cliente respondeu à simulação (visto na hora dos 30 min) → VIGIA responde (7.73)'; GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', '🔴 respondeu à simulação → não digitou; vigia responde (7.73)'); continue; } }
             if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
@@ -5769,7 +5770,8 @@
         for (const id of Object.keys(O)) { const x = O[id]; if (n >= 3) break; if (!x || x.estado !== 'sim_enviada' || !x.semPar767 || protegido(id) || id === '__TESTE_LIBERADO_1022__') continue;
           const tS = +x.tSimEnv || +x.tSim || +x.semPar767 || 0; if (!tS || ag - tS > 48 * 3600000) continue; const st = S[id] = S[id] || {}; if (st.fim) continue;
           let etapa = null; const m8 = new Date(tS); m8.setDate(m8.getDate() + 1); m8.setHours(8, 0, 0, 0);
-          { const DV32 = (GM_getValue('duv907', {}) || {})[id]; if (!st.d1 && DV32 && (+DV32.t || 0) > tS) st.d1 = +DV32.t; }   // 10.32: a dúvida (9.07) já perguntou → conta como o 1º toque
+          { const DV32 = (GM_getValue('duv907', {}) || {})[id]; if (!st.d1 && DV32 && (+DV32.t || 0) > tS) st.d1 = +DV32.t; }
+          if (!st.d1 && !st.chk33 && ag - tS >= 60 * 60000) { st.chk33 = 1; try { const mC = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(tS).toISOString())); const k33 = ((mC && mC.j && mC.j.items) || []).filter(k => k.from !== 'user' && /conseguiu ver as op[çc][õo]es|ficou (mais )?alguma d[úu]vida/i.test(String((k.content || {}).text || ''))).pop(); if (k33) st.d1 = Date.parse(k33.creationTime) || ag; } catch (e) {} }   // 10.33: o 'conseguiu ver as opções?' já mandado conta como o 1º toque   // 10.32: a dúvida (9.07) já perguntou → conta como o 1º toque
           if (!st.d1 && ag - tS >= 60 * 60000) etapa = 'd1'; else if (st.d1 && !st.d2 && ag >= m8.getTime() && ag - st.d1 >= 60 * 60000) etapa = 'd2'; else if (st.d2 && ag - st.d2 >= 2 * 3600000) etapa = 'enc';
           if (!etapa) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue;
