@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.17';
+  const VERSAO = '10.18';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -1064,7 +1064,12 @@
         const cs = String(vv.CPF || vv.cpf || vv.Cpf || '').replace(/\D/g, ''); return (cs.length === 11 && !/^(\d)\1+$/.test(cs)) ? cs : ''; } catch (e) { return ''; } }
     // 8.10 (Elias DX7HR 18/11 10:23: voltou pelo anúncio sem CPF; o robô achou o CPF de setembro e disse "Recebi o seu CPF") → texto certo para CPF de conversa antiga
     const cpfAntigo810 = x => /7\.04|, pedido de CPF\)|follow-up de CPF/i.test(((x && x.hist) || []).join(' '));
-    function ordemDoCpfServidor(h, nome, cs, origem) { try { liberaReverso983(h, cs); if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
+    function ordemDoCpfServidor(h, nome, cs, origem) { try { liberaReverso983(h, cs);
+      // 10.18 (Stefany 21/11 01:57, Tatiana 3JRR7 × Y4OU2: o mesmo CPF chegou por OUTRO número com proposta pronta de 4 h antes — "se o link estiver ativo, claro"):
+      // mesmo CPF com link enviado há menos de 24 h em outra conversa e proposta não cancelada/reprovada → reaproveita o link nesta conversa (estado 'link'), sem consultar nem digitar de novo
+      try { const O0 = GM_getValue('auto_ordens', {}) || {}; if (!(O0[h] && O0[h].cpf === cs)) { const irma = Object.values(O0).find(o => o && o.hash !== h && o.cpf === cs && o.link && /^(feito|link|link_enviado|gravada)$/.test(o.estado || '') && Date.now() - (+o.t || 0) < 24 * 3600000 && !/cancel|reprov|recus|expir/i.test(String((o.status || '') + ' ' + (o.statusBanco || '') + ' ' + (o.erro || ''))));
+          if (irma) { const nova = Object.assign({}, irma, { hash: h, nome: nome || irma.nome || '', fone: ((RG()[h] || {}).fone || ''), estado: 'link', t: Date.now(), hist: [hhmm(Date.now()) + ' 10.18: mesmo CPF da conversa ' + irma.hash.slice(0, 5) + ' com link ativo (' + (irma.banco || '?') + ') → reenvia o mesmo link aqui, sem nova proposta'] });
+            delete nova.msgApi; delete nova.linkEnv; O0[h] = nova; GM_setValue('auto_ordens', O0); try { diario(nome || h.slice(0, 5), '🔁 mesmo CPF por outro número → reenviei o link ativo (10.18)'); } catch (e) {} return true; } } } catch (e) {} if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
         O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] };   /* 10.13: valor pedido antes do CPF */ GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; r9[h].cpfSrv = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
