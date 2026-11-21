@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.27';   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
+  const VERSAO = '10.28';   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
+  // 10.27:   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
   // 10.26:   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
   // 10.25:   // 10.25 (Stefany 21/11 09:15 'pode fazer o follow-up de manhã com todos'): follow-up de dúvida (9.07) e encerramento do pedido de CPF (9.08) valem até 24 h — quem ficou da noite recebe de manhã.
   // 10.24:   // 10.24 (Stefany 21/11 09:08 'por que ainda falta gente receber follow-up', Em Nome De Jesus/Ulisses): o encerramento 9.05/9.08 pulava quem JÁ tinha sido encerrado antes (marca EN por conversa, 30 dias) — agora só pula se o encerramento foi DEPOIS do pedido atual. E o 'ficou mais alguma dúvida?' (9.07) passa a valer até 16 h depois da nossa resposta (antes 10 h: quem respondemos à noite ficava sem follow-up de manhã).
@@ -1025,7 +1026,7 @@
   async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} return r942; }
   // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
   // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
-  function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true) return;
+  function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true || /^fechar_/.test(String(r.j.queueId || ''))) return;   /* 10.28: encerrada não desliga */
     const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 15000); }
   window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
   function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
@@ -1650,6 +1651,14 @@
     if (/prender|reativar|ligar o bot|ativar o bot/i.test(dica()) && !/desligar|apagar/i.test(dica())) return 'bot já estava desligado';
     bt.click(); await new Promise(r => setTimeout(r, 1500));
     return /prender|reativar/i.test(dica()) ? 'bot desligado (9.42)' : 'bot: cliquei no ⏻ (9.42)'; }
+  // 10.28 (Stefany 21/11 09:27: "quando encerra sem margem você está deixando o chat bloqueado?"): conversa ENCERRADA fica com o bot LIGADO de novo,
+  // para o cliente que voltar a escrever ser atendido pelo bot (antes ficava com o bot desligado e sem resposta).
+  async function ligaBotTela1028() { const bt = [...document.querySelectorAll('header.chats-toolbar button, #bm-chats-bar button')].find(b => /power_settings_new/.test(b.innerText || ''));
+    if (!bt) return 'bot: botão ⏻ não achado';
+    const dica = () => String(bt.title || bt.getAttribute('aria-label') || '') + ' ' + String((bt.parentElement && (bt.parentElement.title || bt.parentElement.getAttribute('aria-label'))) || '');
+    if (/desligar|apagar/i.test(dica()) && !/prender|reativar/i.test(dica())) return 'bot já estava ligado';
+    bt.click(); await new Promise(r => setTimeout(r, 1500));
+    return /desligar|apagar/i.test(dica()) ? 'bot religado (10.28)' : 'bot: cliquei no ⏻ para religar (10.28)'; }
   const DESFECHOS = {
     sem_margem:       { atalho: '/n30', tags: ['01 I - INSS Sem margem 2026'], fechar: true },
     sem_margem_k:     { atalho: '/n30', tags: ['01 k SEM Margem Nao Rodar Whats'], fechar: true },
@@ -1681,7 +1690,8 @@
     // 4.97 (Stefany 12/11 09:15 "pode ensinar ele"; casos Vania 11/11 21:35 e Gladimir 12/11 07:14): entrou pelo anúncio e o bot não respondeu → flow "Inicio do atendimento"
     anuncio_sem_bot:  { fluxo: 'Inicio do atendimento', tags: [], fechar: false },
     so_tag:           { atalho: null,   tags: [], fechar: false },
-    nada_bot:         { atalho: null,   tags: [], fechar: false },   // 9.42: só abre a conversa e desliga o bot (⏻)
+    nada_bot:         { atalho: null,   tags: [], fechar: false },
+    religar_bot:      { atalho: null,   tags: [], fechar: false },   // 10.28: só abre a conversa encerrada e religa o bot (⏻)   // 9.42: só abre a conversa e desliga o bot (⏻)
     // 4.79: mensagem da fase da esteira (documento / desbloqueio / anuência) — o.linha + o.atalhos, sem tag, sem fechar
     fase_msg:         { atalho: null,   tags: [], fechar: false },
     // 4.78: cliente parado no bot sem CPF → mensagem pedindo o CPF (o.texto) + 01 C (a espera de CPF 1h/08h nasce sozinha)
@@ -2168,7 +2178,8 @@
         if (o.acao === 'pedir_cpf' && !o.texto && !o.msgFeita) throw new Error('pedido de CPF sem texto — não marquei como feito (6.98)');
         await abrir(o.hash);                               passos.push('abriu');
         // 9.42: quem nós atendemos fica com o bot DESLIGADO (menos quando a ação é rodar um flow, que precisa do bot)
-        if (!d.fluxo) { try { passos.push(await desligaBotTela942()); } catch (e) { passos.push('bot: ' + String((e && e.message) || e).slice(0, 40)); } }
+        if (o.acao === 'religar_bot') { try { passos.push(await ligaBotTela1028()); } catch (e) { passos.push('bot: ' + String((e && e.message) || e).slice(0, 40)); } grava('ok'); localStorage.removeItem('dins_ordem'); try { diario(o.nome || o.hash.slice(0, 5), passos.filter(p => /bot/.test(p)).join(' · ') + ' — conversa encerrada (10.28)'); } catch (e) {} return; }
+        if (!d.fluxo && !d.fechar) { try { passos.push(await desligaBotTela942()); } catch (e) { passos.push('bot: ' + String((e && e.message) || e).slice(0, 40)); } }   // 10.28: ordem que ENCERRA não desliga o bot
         if (o.acao === 'nada_bot') { grava('ok'); localStorage.removeItem('dins_ordem'); try { diario(o.nome || o.hash.slice(0, 5), passos.filter(p => /bot/.test(p)).join(' · ') || 'bot conferido'); } catch (e) {} return; }
         // 4.33 (Silvania 11/11: /n30 saiu duas vezes, 09:37 e 09:43): o mesmo desfecho no mesmo chat não manda a mensagem
         // de novo em 12 h — vale para ordem repetida, cópia velha da ordem ou desfecho automático em cima do manual.
@@ -2403,6 +2414,9 @@
         try { const DB = GM_getValue('desligar_bot942', {}) || {}; const NMb = GM_getValue('nao_mexer', {}) || {};
           for (const k of Object.keys(DB)) { delete DB[k]; GM_setValue('desligar_bot942', DB); if (k === '__TESTE_LIBERADO_1022__' || NMb[k] || protegido(k)) continue;
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'nada_bot', quem: 'robo', t: Date.now() })); return; } } catch (e) {}
+        // 10.28: conversas encerradas com o bot desligado → abre e religa (uma por vez)
+        try { const LB = GM_getValue('religar_bot1028', {}) || {}; for (const k of Object.keys(LB)) { delete LB[k]; GM_setValue('religar_bot1028', LB); if (k === '__TESTE_LIBERADO_1022__' || protegido(k)) continue;
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'religar_bot', quem: 'robo', t: Date.now() })); return; } } catch (e) {}
           for (const k in RGv) { if (true) break;   /* 8.79: pedido de CPF antigo DESLIGADO (regra 19/11: CPF só depois da resposta à simulação padrão) — ocupava a fila da tela à toa */ const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k) || jaFezProposta(x)) continue;   // 6.35: 01 D/pago nunca recebe pedido de CPF
             // 5.12 (Stefany 12/11 11:11, caso Marcelo 72ND: mandou o CPF 10:30, o robô pediu o CPF de novo 10:37): CPF já recebido → nunca pedir.
@@ -5731,6 +5745,12 @@
           } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ follow-up de dúvida (9.07) não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
         for (const k in DV) if (ag - (+DV[k].v || 0) > 3 * 864e5) delete DV[k]; GM_setValue('duv907', DV);
       } catch (e) {} finally { ocup907 = false; } }, 5 * 60000); }
+    // 10.28: a cada 5 min (aba de follow-up), procura pela API conversas ENCERRADAS (fila fechar_*) nas últimas 12 h com o bot desligado → fila para religar
+    setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !faz('followup')) return; const ag = Date.now(); const FT = GM_getValue('religar_feito1028', {}) || {};
+        const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 12 * 3600000).toISOString())); const it = (r && r.j && r.j.items) || []; const LB = GM_getValue('religar_bot1028', {}) || {}; let n = 0;
+        for (const c of it) { const id = c.chatId || (c.chat || {}).chatId; if (!id || c.isBotMuted !== true || !/^fechar_/.test(String(c.queueId || '')) || c.agentId || protegido(id)) continue;
+          const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; if (FT[id] && FT[id] >= lu) continue; FT[id] = ag; LB[id] = ag; n++; }
+        for (const k in FT) if (ag - FT[k] > 3 * 864e5) delete FT[k]; GM_setValue('religar_feito1028', FT); if (n) GM_setValue('religar_bot1028', LB); } catch (e) {} }, 5 * 60000);
     // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
     // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
     { let ocup905 = false;
