@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.22';   // 10.22 (Stefany 21/11 02:19 'pode tirar do teste chat Rômulo também'): o chat de teste F20QOEL deixou de ser protegido (33 travas trocadas por um marcador que não casa com nenhum chat)
+  const VERSAO = '10.23';   // 10.22 (Stefany 21/11 02:19 'pode tirar do teste chat Rômulo também'): o chat de teste F20QOEL deixou de ser protegido (33 travas trocadas por um marcador que não casa com nenhum chat)
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -1200,6 +1200,7 @@
     window.dinsValorNota = (h, v, car) => { try { const VN = GM_getValue('valor_nota', {}) || {}; VN[h] = { v: +v, t: Date.now(), car: car ? 1 : 0 }; GM_setValue('valor_nota', VN); return VN[h]; } catch (e) { return String(e); } };
     window.dinsBmLer = async (h, n) => { try { const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(Date.now() - 48 * 3600000).toISOString())); const it = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)).slice(-(n || 15));
         return it.map(k => new Date(k.creationTime).toLocaleTimeString('pt-BR').slice(0, 5) + ' ' + (k.from === 'user' ? 'CLIENTE' : k.from) + ': ' + String((k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '').slice(0, 300)).join('\n'); } catch (e) { return 'erro: ' + e; } };
+    window.dinsTextoAtalho = at => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC[at] && RC[at].tx) || ''; } catch (e) { return ''; } };   // 10.23
     window.dinsTextoN30 = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC['/n30'] && RC['/n30'].tx) || ''; } catch (e) { return ''; } };
     // 9.91 (3) pedido parado na mesma etapa → amarelo do vigia (caso Sônia: ficou em 'reverso_conferir' e ninguém viu). Uma vez por pedido.
     setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; { const hh = new Date().getHours(); if (hh < 8 || hh >= 21) { GM_setValue('parado991', {}); return; } }   /* fora do horário o pedido pode esperar de propósito */ const O = GM_getValue('auto_ordens', {}) || {}; const SN = GM_getValue('parado991', {}) || {}; const ag = Date.now(); let mud = false, mudO = false;
@@ -1300,7 +1301,14 @@
                 : bnK ? 'Pronto' + (nmK ? ', ' + nmK : '') + '! 😊 A sua proposta de *R$ ' + oK.liberado + '* em ' + oK.prazo + 'x de *R$ ' + oK.parcela + '* já está pronta. Segue abaixo 👇'
                 : textoSim755(oK);
               if (!oK.api879Abre) { await bmEnviarTexto(oK.hash, abreK); const Oa = GM_getValue('auto_ordens', {}) || {}; if (Oa[oK.hash]) { Oa[oK.hash].api879Abre = Date.now(); GM_setValue('auto_ordens', Oa); } await esp(1500); }
-              await bmEnviarTexto(oK.hash, '👉 Para conferir todos os detalhes e confirmar, é só tocar no link abaixo *pelo celular*:\n' + oK.link + (bnK ? '\n\nO valor cai na sua conta do *' + oK.bancoConta + '*.' : '') + '\n\n🔒 Nada é concluído sem a sua confirmação. Qualquer dúvida, é só me chamar aqui 🤝');
+              // 10.23 (Stefany 21/11 02:30: "tem mensagem fixa para envio de link quando aceita proposta ou envia como parabéns — precisa corrigir"): o link sai no MODELO FIXO
+              // /bn54n (cliente aceitou) ou /parabens (sem aceite), com as mesmas trocas da tela ({NOME}, {VALOR}, {BANCO}, "Cola link"). Sem o modelo salvo → texto antigo.
+              let fixo = ''; try { const RC10 = GM_getValue('rr_cache', {}) || {}; const at10 = (oK.aceite || oK.aceitouSim) ? '/bn54n' : '/parabens'; let tpl = String((RC10[at10] && RC10[at10].tx) || '');
+                if (tpl) { const tr10 = at10 === '/bn54n' ? [['{NOME}', nmK || ''], ['{VALOR}', 'R$ ' + oK.liberado], ['{BANCO}', oK.bancoConta || ''], ['colar link', oK.link], ['cola link', oK.link]] : [['{NOME}', nmK ? nmK + ',' : ''], ['Cola link', oK.link], ['colar link', oK.link]];
+                  for (const [de, para] of tr10) tpl = tpl.replace(new RegExp(String(de).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), para);
+                  tpl = tpl.replace(/R\$\s*R\$/g, 'R$'); if (!/\{NOME\}|\{VALOR\}|\{BANCO\}|col(a|ar) (o )?link/i.test(tpl) && tpl.includes(oK.link)) fixo = tpl; } } catch (e) {}
+              if (fixo) await bmEnviarTexto(oK.hash, fixo);
+              else await bmEnviarTexto(oK.hash, '👉 Para conferir todos os detalhes e confirmar, é só tocar no link abaixo *pelo celular*:\n' + oK.link + (bnK ? '\n\nO valor cai na sua conta do *' + oK.bancoConta + '*.' : '') + '\n\n🔒 Nada é concluído sem a sua confirmação. Qualquer dúvida, é só me chamar aqui 🤝');
               const O5 = GM_getValue('auto_ordens', {}) || {}; const x5 = O5[oK.hash];
               if (x5) { x5.estado = 'feito'; x5.linkApi879 = Date.now(); (x5.hist = x5.hist || []).push(hhmm(Date.now()) + ' 8.79: mensagem + link enviados pela API do Botmaker'); GM_setValue('auto_ordens', O5); }
               diario(oK.nomeReal || oK.nome || '', 'proposta ' + (oK.banco || '') + ' Nº ' + (oK.proposta || '') + ': mensagem + LINK enviados NA HORA pela API (8.79)');
