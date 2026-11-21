@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
+  const VERSAO = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
+  const VERSAO_10_54_NOTA = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
   const VERSAO_10_53_NOTA = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
   const VERSAO_10_52_NOTA = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
   const VERSAO_10_51_NOTA = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
@@ -2866,6 +2867,8 @@
         if (link && !ant.link) { ant.link = link; delete ant.semLink; (ant.hist = ant.hist || []).push(hhmm(Date.now()) + ' link completado (7.17)'); gravaRG(r); try { desenharRegua(); } catch (e) {} }
         return;
       }
+      // 10.55 (Severino E7C4D 21/11: o MESMO link reenviado pelo vigia às 17:50 recriou a régua → "Conseguiu acessar?" e "será cancelada" saíram DUAS vezes): reenvio do mesmo link mantém a régua que já existe
+      if (ant && link && ant.link && String(ant.link) === String(link) && Date.now() - (+ant.criadoT || 0) < 36 * 60 * M) { (ant.hist = ant.hist || []).push(hhmm(Date.now()) + ' mesmo link reenviado — régua mantida, sem toques novos (10.55)'); gravaRG(r); try { desenharRegua(); } catch (e) {} return; }
       r[hash] = { hash, criadoT: Date.now(), fone: fone || (ant && ant.fone) || '', nome: (ant && ant.nome) || nome || '', link: link || '', linkT: t,
         estado: 'ativa', motivo: '', toques: TOQUES.map(x => ({ tipo: x.tipo, quando: x.tipo === '60' ? t + 70 * M : x.dt(t), feito: 0, st: '' })),
         tent: 0, hist: [hhmm(Date.now()) + ' régua criada (link ' + hhmm(t) + ')'] };
