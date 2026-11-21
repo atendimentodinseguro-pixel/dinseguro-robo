@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.26';   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
+  const VERSAO = '10.27';   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
+  // 10.26:   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
   // 10.25:   // 10.25 (Stefany 21/11 09:15 'pode fazer o follow-up de manhã com todos'): follow-up de dúvida (9.07) e encerramento do pedido de CPF (9.08) valem até 24 h — quem ficou da noite recebe de manhã.
   // 10.24:   // 10.24 (Stefany 21/11 09:08 'por que ainda falta gente receber follow-up', Em Nome De Jesus/Ulisses): o encerramento 9.05/9.08 pulava quem JÁ tinha sido encerrado antes (marca EN por conversa, 30 dias) — agora só pula se o encerramento foi DEPOIS do pedido atual. E o 'ficou mais alguma dúvida?' (9.07) passa a valer até 16 h depois da nossa resposta (antes 10 h: quem respondemos à noite ficava sem follow-up de manhã).
   // 10.23:   // 10.22 (Stefany 21/11 02:19 'pode tirar do teste chat Rômulo também'): o chat de teste F20QOEL deixou de ser protegido (33 travas trocadas por um marcador que não casa com nenhum chat)
@@ -3790,6 +3791,13 @@
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
       if (toque.tipo === 'manha' && new Date(toque.quando).toDateString() !== new Date(agora).toDateString()) {   /* 7.99 (Stefany 17/11 22:52: "se o computador ligar 9, 10, tem que acompanhar o horário que ligar"): o toque das 08:00 sai quando o computador ligar, no MESMO dia (8h–21h); só é pulado se ficou de um dia anterior */ reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
+      // 10.27 (Stefany 21/11 09:20, Djanira: "duas mensagens em menos de 3 minutos no follow-up, por quê?" — o vigia mandou às 09:16 e o /132 atrasado saiu às 09:19):
+      // antes de qualquer toque do link, confere pela API se saiu mensagem NOSSA (vigia/robô, não o bot) na última 1 h. Se saiu: o toque espera 1 h depois dela (o da manhã/tarde é dado como feito).
+      try { if (window.dinsBmGet) { const m27 = await window.dinsBmGet('/messages?chat-id=' + alvo.hash + '&from=' + encodeURIComponent(new Date(Date.now() - 60 * M).toISOString()));
+          const nos27 = ((m27 && m27.j && m27.j.items) || []).filter(k => k.from !== 'user' && /^\s*\*?\[(Dinseguro|R[ôo]mulo|Stefany)/.test(String((k.content || {}).text || ''))).map(k => Date.parse(k.creationTime) || 0).sort((a, b) => b - a);
+          if (nos27.length && Date.now() - nos27[0] < 60 * M) { const r27 = RG(), x27 = r27[alvo.hash]; const q27 = x27 && (x27.toques || []).find(k => k.tipo === toque.tipo && !k.feito);
+            if (q27) { if (['manha', 'tarde'].includes(toque.tipo)) { q27.feito = Date.now(); q27.st = 'pulado (10.27: mensagem nossa às ' + hhmm(nos27[0]) + ')'; } else q27.quando = nos27[0] + 60 * M; gravaRG(r27); }
+            diario(alvo.nome, 'toque do link ' + toque.tipo + ': adiado/pulado — saiu mensagem nossa às ' + hhmm(nos27[0]) + ' (10.27: nada de 2 mensagens seguidas)'); return; } } } catch (e) {}
       // 4.19 — TRAVA ENTRE ABAS (Stefany 19:30 "Duplicou": o "Conseguiu acessar?" do José Tobias saiu 2x às 19:27, porque duas
       // abas/janelas do Botmaker com o robô pegaram o mesmo toque). Quem vai mandar reserva o toque no armazenamento comum,
       // espera e confere se a reserva é dele; a outra aba desiste.
