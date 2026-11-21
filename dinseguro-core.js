@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.08';
+  const VERSAO = '10.09';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2270,7 +2270,6 @@
           { const txt = cli.filter(t => !/^__(audio|media|image|video|file|document)__$/i.test(t) && !/^\[?(audio|m[íi]dia|image|imagem|video|arquivo)\]?$/i.test(t)); if (txt.length) cli = txt; }
           const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || !(y.estado === 'sim_enviada' || y.estado === 'com_margem')) continue;
           if (!cli.length) { y.chkOkT = Date.now(); if (y.estado === 'com_margem' && !y.respLidaT) y.respLidaT = Date.now();   /* 10.08: resposta antiga já tratada pelo vigia não é relida (Sirley FVNVK) */ GM_setValue('auto_ordens', O2); continue; }
-          if (y.estado === 'com_margem') { const hh7 = new Date().getHours(); const tU7 = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); if ((hh7 < 8 || hh7 >= 21) && Date.now() - tU7 > 30 * 60000) continue; }   // 10.07: de madrugada só quem acabou de escrever
           try { y.respLidaT = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); } catch (e) {}   // 10.07: não relê a mesma resposta
           let ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80);
           // 10.06 (Stefany 21/11 00:32: "o robô entende só 1 e 2, não dá para ficar mais esperto?"): traduz a resposta do cliente para 1 / 2 / "não desejo" antes das regras
@@ -5470,7 +5469,7 @@
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
               if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
             // 10.04 (Stefany 21/11 00:14, Em Nome De Jesus N7ZT8: voltou pelo menu "Crédito INSS" e ficou no vermelho): sem CPF e já recebeu a simulação padrão → o robô pede o CPF (modelo dele), 1x a cada 20 h
-            if (!cpf && !ordemViva && !/[?]/.test(tx) && ((h4 => h4 >= 8 && h4 < 21)(new Date().getHours()) || min <= 30)) {   /* fora das 8h–21h só se o cliente acabou de escrever */ try { const VM4 = GM_getValue('valor_msg_feito', {}) || {}; const PC4 = GM_getValue('pedir_cpf_feito', {}) || {};
+            if (!cpf && !ordemViva && !/[?]/.test(tx) ) {   /* 10.09: atendimento 24 h — quem escreveu e está esperando é respondido a qualquer hora (regra 22g, Stefany 10/11 19:21); só os toques proativos ficam em 8h–21h */ try { const VM4 = GM_getValue('valor_msg_feito', {}) || {}; const PC4 = GM_getValue('pedir_cpf_feito', {}) || {};
                 if (VM4[id] && !(PC4[id] > ag - 20 * 3600000) && window.dinsFilaVigia) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome, nota: '10.04: voltou sem CPF depois da simulação padrão (' + (tx || btn || tipo).slice(0, 40) + ') → pedido de CPF' }); PC4[id] = ag; GM_setValue('pedir_cpf_feito', PC4); res.push(nome + ' (pedido de CPF)'); diario(nome || id.slice(0, 5), '📨 voltou sem CPF → pedi o CPF (10.04)'); return; } } catch (e) {} }
             /* 8.79: o pedido de CPF do 8.12 (cliente do anúncio sem CPF) SAIU — primeiro contato recebe a simulação padrão (bloco acima); o que sobrar vira vermelho */
             // o resto (pergunta, arquivo sem CPF, áudio, cliente com ordem parada…) → vermelho para o vigia
