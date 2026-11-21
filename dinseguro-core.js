@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '9.99';
+  const VERSAO = '10.00';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2263,7 +2263,8 @@
         for (const x of pend) { const j = await apiLer(x.hash, 15); if (!j || !Array.isArray(j.newMessages)) continue;
           const T = m => Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0;
           const tx = m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || '')); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/^\s*bolt\s*/i, '').trim(); };
-          const cli = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > (+x.tSimEnv || 0) + 3000).map(tx).filter(Boolean);
+          let cli = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > (+x.tSimEnv || 0) + 3000).sort((m1, m2) => T(m1) - T(m2)).map(tx).filter(Boolean);   // 10.00 (Tatiana Y4OU2 21:15: mandou 2 áudios e '1' — o robô leu o áudio como resposta e parou): em ordem de hora, e a resposta é o último TEXTO (áudio/mídia só conta se não houver texto)
+          { const txt = cli.filter(t => !/^__(audio|media|image|video|file|document)__$/i.test(t) && !/^\[?(audio|m[íi]dia|image|imagem|video|arquivo)\]?$/i.test(t)); if (txt.length) cli = txt; }
           const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || y.estado !== 'sim_enviada') continue;
           if (!cli.length) { y.chkOkT = Date.now(); GM_setValue('auto_ordens', O2); continue; }
           const ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
