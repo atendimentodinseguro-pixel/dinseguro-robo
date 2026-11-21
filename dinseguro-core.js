@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.19';
+  const VERSAO = '10.20';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -108,7 +108,8 @@
   function fcCaiu994(r) { try { const tx = String((r && r.responseText) || ''); if (!/senha|login|<html/i.test(tx)) return; GM_setValue('fc_login994', Date.now()); const u = +GM_getValue('fc_aviso994', 0) || 0;
       if (Date.now() - u > 30 * 60000) { GM_setValue('fc_aviso994', Date.now()); try { diario('FullConsig', '🔴 FullConsig DESLOGADO — as consultas estão saindo só pelo Multicorban. A aba do FullConsig tenta logar sozinha (dados salvos do Chrome); se não conseguir, vigia/Stefany entra (9.94)'); } catch (e) {} } } catch (e) {} }
   // 9.94: na aba do FullConsig, tela de login com usuário e senha já preenchidos pelo Chrome → clica em Login (não digita nada). No máximo 1 vez a cada 5 min.
-  try { if (location.host === 'sistema.fullconsig.com.br') { setInterval(() => { try { const pw = document.querySelector('input[type=password]'); if (!pw) return; const u = document.querySelector('input[type=text], input[type=email], input[name*=login i]');
+  try { if (location.host === 'sistema.fullconsig.com.br') { setInterval(() => { try { { const bS = [...document.querySelectorAll('button, a')].find(x => /encerrar a outra sess[ãa]o/i.test(x.innerText || '')); if (bS) { const u0 = +sessionStorage.getItem('dins_fc_sess') || 0; if (Date.now() - u0 > 60000) { sessionStorage.setItem('dins_fc_sess', Date.now()); bS.click(); try { diario('FullConsig', '🔑 "Sessão ativa em outro computador" → encerrei a outra e entrei (10.20, autorizado pela Stefany 21/11 02:04)'); } catch (e) {} } return; } }   /* 10.20 (Stefany 21/11 02:04 'sempre'): tela de sessão ativa → encerra a outra e entra */
+        const pw = document.querySelector('input[type=password]'); if (!pw) return; const u = document.querySelector('input[type=text], input[type=email], input[name*=login i]');
         const cheio = el => { try { return !!el && (!!el.value || el.matches(':-webkit-autofill') || el.matches(':autofill')); } catch (e) { return !!(el && el.value); } };
         if (!cheio(pw) || !cheio(u)) return; const ult = +sessionStorage.getItem('dins_fc_login') || 0; if (Date.now() - ult < 5 * 60000) return; sessionStorage.setItem('dins_fc_login', Date.now());
         const b = [...document.querySelectorAll('button, input[type=submit]')].find(x => /login|entrar/i.test(x.innerText || x.value || '')); if (b) { b.click(); try { diario('FullConsig', '🔑 FullConsig estava deslogado → cliquei em Login com os dados salvos do Chrome (9.94)'); } catch (e) {} } } catch (e) {} }, 20000);
