@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.39';   // 10.39 (Stefany 21/11 10:14–10:16): escolheu menos de R$ 10 mil → procedimento 8.10 completo: mensagem com 1️⃣ o máximo e 2️⃣ um valor da tabela + resposta rápida 'Simulação 10 a 18 mil'.
+  const VERSAO = '10.40';   // 10.40 (Stefany 21/11 10:17): negociação (cliente escolheu menos de R$ 10 mil) vai para o VIGIA no vermelho, com o máximo já simulado — o vigia manda o 8.10.
+  // 10.39:   // 10.39 (Stefany 21/11 10:14–10:16): escolheu menos de R$ 10 mil → procedimento 8.10 completo: mensagem com 1️⃣ o máximo e 2️⃣ um valor da tabela + resposta rápida 'Simulação 10 a 18 mil'.
   // 10.38:   // 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): cliente que escolhe menos de R$ 10 mil recebe a simulação do MÁXIMO, com a oferta de valor menor a partir de R$ 10 mil.
   // 10.37:   // 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): sem aba do portal Daycoval viva há 10 min (ou desligado) → C6, inclusive invalidez 40–52.
   // 10.36:   // 10.36 (Stefany 21/11 10:06, Fabio 'Sempre'): CPF recebido sem o número do WhatsApp na API → usa o contactId do chat; e o 'ficou mais alguma dúvida?' (9.07) não sai para quem ainda espera a nossa resposta (ordem com_margem/sim parada).
@@ -1346,9 +1347,10 @@
         ocup790 = true; oS.api790T = Date.now();
         try { const linhaS = textoSim755(oS);
           /* 10.39 (Stefany 21/11 10:14 'lembra': procedimento 8.10): cliente que escolheu MENOS de R$ 10 mil → mensagem com 1️⃣ o máximo · 2️⃣ um valor da tabela de R$ 10 a 20 mil + a resposta rápida "Simulação 10 a 18 mil" (a tabela). A tabela é imagem: sai pela tela (fila do vigia). */
-          if (+oS.contorno10 > 0 && typeof window.dinsFilaVigia === 'function') { const O39 = GM_getValue('auto_ordens', {}) || {}; if (O39[oS.hash]) { O39[oS.hash].estado = 'sim_enviada'; O39[oS.hash].tSimEnv = Date.now(); O39[oS.hash].contorno1039 = Date.now(); (O39[oS.hash].hist = O39[oS.hash].hist || []).push(hhmm(Date.now()) + ' 10.39: contorno — máximo + tabela 10 a 20 mil'); GM_setValue('auto_ordens', O39); }
-            window.dinsFilaVigia({ hash: oS.hash, acao: 'fase_msg', quem: 'robo', permitido: true, forcar: true, linha: linhaS, atalhos: ['Simulação 10 a 18 mil|1'], tags: ['01 A - Inss Com Margem - SEM 87 E 88'], nome: oS.nome || '', nota: 'robô 10.39: escolheu R$ ' + brl(+oS.contorno10) + ' (abaixo de 10 mil) → máximo R$ ' + oS.liberado + ' + tabela 10 a 20 mil' });
-            diario(oS.nomeReal || oS.nome || '', '🧾 escolheu menos de R$ 10 mil → máximo + tabela 10 a 20 mil (10.39)'); return; }
+          if (+oS.contorno10 > 0) {   // 10.40 (Stefany 21/11 10:17 'esses casos de negociação vêm para você, o robô te manda'): NEGOCIAÇÃO é do vigia — o robô só simula o máximo e passa para o vermelho
+            const O39 = GM_getValue('auto_ordens', {}) || {}; if (O39[oS.hash]) { O39[oS.hash].estado = 'erro'; O39[oS.hash].erro = 'NEGOCIAÇÃO → vigia: escolheu R$ ' + brl(+oS.contorno10) + ' (abaixo de 10 mil) · máximo R$ ' + oS.liberado + ' em ' + (oS.prazo || 108) + 'x de R$ ' + oS.parcela + ' (' + (oS.banco || '') + ') → mandar o 8.10 (opções + tabela 10 a 18 mil)'; O39[oS.hash].contorno1039 = Date.now(); (O39[oS.hash].hist = O39[oS.hash].hist || []).push(hhmm(Date.now()) + ' 10.40: negociação → vigia'); GM_setValue('auto_ordens', O39); }
+            try { const R40 = GM_getValue('regua', {}) || {}; const x40 = R40[oS.hash] = R40[oS.hash] || { hash: oS.hash, nome: oS.nome || '', criadoT: Date.now(), toques: [], hist: [] }; x40.estado = 'alerta'; x40.motivo = '🤝 NEGOCIAÇÃO (vigia): escolheu R$ ' + brl(+oS.contorno10) + ' · máximo R$ ' + oS.liberado + ' → opções + tabela 10 a 18 mil (8.10)'; (x40.hist = x40.hist || []).push(hhmm(Date.now()) + ' 10.40: negociação → vigia'); GM_setValue('regua', R40); } catch (e) {}
+            diario(oS.nomeReal || oS.nome || '', '🤝 escolheu menos de R$ 10 mil → NEGOCIAÇÃO passada para o vigia (10.40)'); return; }
           await bmEnviarTexto(oS.hash, linhaS);
           /* 9.45 (José Pinheiro GMVVS 19/11 20:13 e 20:16: simulação DUPLICADA — a mensagem saiu pela API, um erro logo depois deixou a ordem em 'simulada' e a tela mandou de novo): marca como enviada NA MESMA HORA, antes de qualquer outra coisa */
           try { const O9 = GM_getValue('auto_ordens', {}) || {}; if (O9[oS.hash]) { O9[oS.hash].estado = 'sim_enviada'; O9[oS.hash].tSimEnv = Date.now(); GM_setValue('auto_ordens', O9); } } catch (e9) {}
