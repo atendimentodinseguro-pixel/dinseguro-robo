@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.01';
+  const VERSAO = '10.02';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -1190,7 +1190,7 @@
     window.dinsTextoN30 = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC['/n30'] && RC['/n30'].tx) || ''; } catch (e) { return ''; } };
     // 9.91 (3) pedido parado na mesma etapa → amarelo do vigia (caso Sônia: ficou em 'reverso_conferir' e ninguém viu). Uma vez por pedido.
     setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; { const hh = new Date().getHours(); if (hh < 8 || hh >= 21) { GM_setValue('parado991', {}); return; } }   /* fora do horário o pedido pode esperar de propósito */ const O = GM_getValue('auto_ordens', {}) || {}; const SN = GM_getValue('parado991', {}) || {}; const ag = Date.now(); let mud = false, mudO = false;
-        const LIM = { reverso_conferir: 20, desfecho: 20, com_margem: 20, ficha_ok: 20, sim_resp: 20, nova: 40 };
+        const LIM = { reverso_conferir: 20, desfecho: 20, ficha_ok: 20, nova: 40 };   /* 10.02: com_margem/sim_resp = esperando o CLIENTE responder a simulação, não é pedido parado (Sirley FVNVK caiu no amarelo à toa) */
         for (const h in O) { const o = O[h]; if (!o || !LIM[o.estado]) { if (SN[h]) { delete SN[h]; mud = true; } continue; } const sig = o.estado + '|' + (o.hist || []).length;
           if (!SN[h] || SN[h].sig !== sig) { SN[h] = { sig, t: ag }; mud = true; continue; }
           if (!SN[h].av && ag - SN[h].t > LIM[o.estado] * 60000) { SN[h].av = 1; mud = true; o.erro = 'pedido parado em "' + o.estado + '" há ' + LIM[o.estado] + ' min (9.91) — vigia confere'; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 9.91: parado em ' + o.estado + ' → vigia'); o.estado = 'erro'; mudO = true;
