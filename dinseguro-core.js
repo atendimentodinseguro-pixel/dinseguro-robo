@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.44';   // 10.44 (Stefany 21/11 13:00, Euuuu): depois do aviso "estou encerrando", 3 min depois confere se a conversa fechou; se não, fecha (01 C sem CPF / fechar_so com CPF).
+  const VERSAO = '10.45';   // 10.45: CPF que só recebeu o 'sem margem' automático do fluxo do bot (fila SEM_MARGEM_BOT) é consultado pelo robô em 6 min (antes ficava sem ordem).
+  // 10.44 —   // 10.44 (Stefany 21/11 13:00, Euuuu): depois do aviso "estou encerrando", 3 min depois confere se a conversa fechou; se não, fecha (01 C sem CPF / fechar_so com CPF).
   // 10.43 —   // 10.43 (Stefany 21/11 12:02, contato 'Euuuuuuuuuuu': 'Eu não é nome'): todos os pontos que usam o nome do WhatsApp rejeitam letra repetida 3x (Euuuu, Lulu), palavras que não são nome (Eu, Ok, Sim, Oi…) — aí cumprimenta sem nome.
   // 10.42:   // 10.42 (Patricia GD4RY 21/11 11:19, C6 REPROVADA): invalidez 40–52 com o Daycoval indisponível volta para o vigia — o C6 reprova essa faixa (6.74); os demais seguem para o C6.
   // 10.41:   // 10.41 (Stefany 21/11 10:17): na negociação a faixa vai de R$ 10 mil até o máximo do cliente (não passa de R$ 20 mil); máximo abaixo de R$ 10 mil → simulação normal do máximo.
@@ -5462,7 +5463,7 @@
                 const RESULT = /Novo Cr[ée]dito Dispon[íi]vel|Valor na conta|n[ãa]o h[áa] margem|sem margem|margem dispon[íi]vel|LOAS|n[ãa]o consigo liberar|https?:\/\/\S*(facta|dcy\.app|join|c6|quali|nuvidio|bit\.ly)|Op[çc][ãa]o 1|extrato de empr[ée]stimo.*(margem|valor)/i;
                 const depC = ms.filter(m => Date.parse(m.creationTime) > tCpf && m.from !== 'user');
                 const oR = O[id]; const resultadoOrdem = oR && oR.cpf === cpf5 && ['desfecho', 'desfecho_enviado', 'desfecho_ok', 'sim_enviada', 'link', 'feito'].includes(oR.estado) && ag - (+oR.t || 0) < 24 * 3600000;   // 8.16: a ordem já deu resultado → não reconsulta
-                const teve = resultadoOrdem || depC.some(m => RESULT.test(T(m)) || (m.from === 'agent' && T(m).replace(/\*?\[Dinseguro\]\*?/g, '').trim().length > 15 && !ACOL.test(T(m))));
+                const teve = resultadoOrdem || depC.some(m => (RESULT.test(T(m)) && !(m.from === 'bot' && /^\s*No momento, o seu benef[íi]cio est[áa] sem margem/i.test(T(m)))) ||   /* 10.45 (Rogerio EXW70 / Antonello XUXM4 21/11): o 'sem margem' automático do FLUXO do bot não conta como resultado — o robô consulta no Multicorban e dá o retorno dele */ (m.from === 'agent' && T(m).replace(/\*?\[Dinseguro\]\*?/g, '').trim().length > 15 && !ACOL.test(T(m))));
                 const tags5 = (c.tags || []).join('|'); const desf5 = /(^|\|)(02 |03 |05 |06 |07 )|NaoIdentificado|Sem_margem|01 I/i.test(tags5);
                 const o5 = O[id]; const andando = o5 && ['nova', 'consultando', 'ficha_ok', 'digitando', 'simulada'].includes(o5.estado) && ag - (+o5.t || 0) < 20 * 60000;
                 if (andando) VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag };   // confere de novo na próxima volta
