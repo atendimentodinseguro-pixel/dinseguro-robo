@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.15';
+  const VERSAO = '10.16';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2859,7 +2859,11 @@
           for (const s9 of ses) { const id9 = String(s9.id || '').split('_')[0]; if (!id9) continue; const e9 = FCH990[id9] || (FCH990[id9] = { close: 0, reab: 0 });
             for (const ev of (s9.events || [])) { const t9 = Date.parse(ev.creationTime) || 0; if (ev.name === 'conversation-close') e9.close = Math.max(e9.close, t9); else if (/^(notification-sent|agent-action|agent-assigned|assigned-agent|conversation-open|session-start)$/.test(ev.name || '')) e9.reab = Math.max(e9.reab, t9); } }
         } catch (e) { FCH990 = null; }
-        try { if (FCH990 && !simular) GM_setValue('fch990', { t: ag, m: FCH990 }); } catch (e) {}   // 10.01: uma regra só — o mapa de eventos da API vale para todas as limpezas
+        try { if (FCH990 && !simular) GM_setValue('fch990', { t: ag, m: FCH990 }); } catch (e) {}
+        try { if (FCH990 && !simular) { const PL = GM_getValue('prot_lib1016', {}) || {}; const NI = GM_getValue('nao_interferir', []) || []; const NM = GM_getValue('nao_mexer', {}) || {}; let mudP = false;
+            for (const id of new Set([...NAO_INTERFERIR_PADRAO, ...NI, ...Object.keys(NM)])) { if (id === 'F20QOEL8YYLQN2S6SR47' || PL[id]) continue; const e0 = FCH990[id]; const desde = (NM[id] && (+NM[id].t || +NM[id])) || 0;
+              if (e0 && e0.close && e0.close > desde) { PL[id] = ag; mudP = true; try { diario(id.slice(0, 5), '🔓 conversa encerrada → saiu da proteção; se voltar, atendimento normal (10.16)'); } catch (e) {} } }
+            if (mudP) GM_setValue('prot_lib1016', PL); } } catch (e) {}   // 10.16   // 10.01: uma regra só — o mapa de eventos da API vale para todas as limpezas
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
@@ -3082,14 +3086,15 @@
     // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
-    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0', '76Q6E8N6OJ8M4FJWI3GS', 'GYHPCFWP8SS8MG9ACP0G'];   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
+    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0', 'GYHPCFWP8SS8MG9ACP0G'];   /* 10.16 (Stefany 21/11 01:34 'tira ele'): José Tobias ⚫️ 76Q6E saiu da proteção */   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
     const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^⚫/, /^romulo\b/i, /^jair\b/i];   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
     // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
     window.dinsEhProtegido = h => protegido(h);   // 9.32: ponte para o bloco de envio pela API
-    const protegido = h => { try { if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
+    const protegido = h => { try { if (h !== 'F20QOEL8YYLQN2S6SR47' && (gmCache('prot_lib1016', {}) || {})[h]) return false;   /* 10.16 (Stefany 21/11 01:33): proteção vale só até a conversa ENCERRAR; o cliente voltou → atendimento normal (o chat de teste continua sempre protegido) */
+      if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
       const x = (gmCache('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
       const it = (JSON.parse(localStorage.getItem('dins_fila') || '[]') || []).find(f => f && (f.id === h || f.hash === h)); return !!(it && nomeProtegido(it.nome)); } catch (e) { return false; } };
     window.dinsProtegido = h => protegido(h);
