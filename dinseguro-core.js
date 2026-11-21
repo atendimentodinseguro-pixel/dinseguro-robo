@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.12';
+  const VERSAO = '10.13';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -1065,7 +1065,7 @@
     // 8.10 (Elias DX7HR 18/11 10:23: voltou pelo anúncio sem CPF; o robô achou o CPF de setembro e disse "Recebi o seu CPF") → texto certo para CPF de conversa antiga
     const cpfAntigo810 = x => /7\.04|, pedido de CPF\)|follow-up de CPF/i.test(((x && x.hist) || []).join(' '));
     function ordemDoCpfServidor(h, nome, cs, origem) { try { liberaReverso983(h, cs); if (jaFezProposta(RG()[h])) return false; if (Date.now() - (+GM_getValue('mc_vivo', 0) || 0) > 10 * 60000) return false;   /* 7.29 */ const O = GM_getValue('auto_ordens', {}) || {}; if (O[h] && O[h].cpf && Date.now() - (+O[h].t || 0) < 23 * 3600000) return false;
-        O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] }; GM_setValue('auto_ordens', O);
+        O[h] = { hash: h, nome: nome || '', cpf: cs, fone: ((RG()[h] || {}).fone || ''), tipo: 'cpf', cpfT: Date.now(), valorBot: (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: false, estado: 'nova', t: Date.now(), hist: [hhmm(Date.now()) + ' ordem criada (CPF da variável do servidor — 6.31, ' + origem + ')'] };   /* 10.13: valor pedido antes do CPF */ GM_setValue('auto_ordens', O);
         try { const r9 = RG(); if (r9[h]) { r9[h].cpfVar = cs; r9[h].cpfVarSrv = 1; r9[h].cpfSrv = cs; (r9[h].hist = r9[h].hist || []).push(hhmm(Date.now()) + ' 6.31: CPF achado no SERVIDOR — não pedir de novo'); gravaRG(r9); } } catch (e) {}
         return true; } catch (e) { return false; } }
     async function apiLer(id, n) { try { const L = APIW && APIW.__dinsMsgReq; if (!L || Date.now() - L.t > 40 * 60000) return null;
@@ -1188,6 +1188,8 @@
         try { if (/https?:\/\/(dcy\.app|facta\.ly|\S*facta|\S*c6consig|\S*joinbank|\S*qualibank|\S*queromais)|Novo Cr[ée]dito Dispon[íi]vel|proposta de \*R\$|Valor na conta: \*R\$/i.test(String(texto)) && !/Separei \*duas op[çc][õo]es\* com a margem cheia/i.test(String(texto)) /* 9.66 (Stefany 20/11 12:13, Dinaldo WK1Z0): simulação PADRÃO (sem CPF) é 01 C, não 01 A */ && (GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) { const T8 = GM_getValue('tag01a_894', {}) || {}; if (!(T8[chatId] > Date.now() - 6 * 3600000)) { T8[chatId] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(chatId, 'so_tag_01a'); } } } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
     // 9.91 (6) atalhos do vigia: ler a conversa pela API e o texto do /n30 salvo
+    // 10.13: o vigia grava o valor que o cliente pediu antes de mandar o CPF (quando o CPF chegar, a consulta já sai nesse valor)
+    window.dinsValorNota = (h, v, car) => { try { const VN = GM_getValue('valor_nota', {}) || {}; VN[h] = { v: +v, t: Date.now(), car: car ? 1 : 0 }; GM_setValue('valor_nota', VN); return VN[h]; } catch (e) { return String(e); } };
     window.dinsBmLer = async (h, n) => { try { const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(Date.now() - 48 * 3600000).toISOString())); const it = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)).slice(-(n || 15));
         return it.map(k => new Date(k.creationTime).toLocaleTimeString('pt-BR').slice(0, 5) + ' ' + (k.from === 'user' ? 'CLIENTE' : k.from) + ': ' + String((k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '').slice(0, 300)).join('\n'); } catch (e) { return 'erro: ' + e; } };
     window.dinsTextoN30 = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC['/n30'] && RC['/n30'].tx) || ''; } catch (e) { return ''; } };
@@ -5468,6 +5470,9 @@
             if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
               if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
+            // 10.13 (Nilton FCFOL 22:27 "15mil em 108X 1 paguem abr/27"): sem CPF e pediu um valor → guarda o valor (e se quer carência) para quando o CPF chegar
+            if (!cpf) { try { let vq = 0, carq = 0; for (const m of ms) { if (m.from !== 'user') continue; const tm = T(m); const v0 = valorPedido1004(tm); if (v0 >= 500) { vq = v0; carq = /abr|abril|car[êe]ncia|90 dias|pagar depois/i.test(tm) ? 1 : 0; } }
+                if (vq) { const VN = GM_getValue('valor_nota', {}) || {}; if (!VN[id] || VN[id].v !== vq) { VN[id] = { v: vq, t: ag, car: carq }; GM_setValue('valor_nota', VN); diario(nome || id.slice(0, 5), 'pediu R$ ' + brl(vq) + (carq ? ' com carência' : '') + ' antes do CPF → guardei o valor (10.13)'); } } } catch (e) {} }
             // 10.04 (Stefany 21/11 00:14, Em Nome De Jesus N7ZT8: voltou pelo menu "Crédito INSS" e ficou no vermelho): sem CPF e já recebeu a simulação padrão → o robô pede o CPF (modelo dele), 1x a cada 20 h
             if (!cpf && !ordemViva && !/[?]/.test(tx) ) {   /* 10.09: atendimento 24 h — quem escreveu e está esperando é respondido a qualquer hora (regra 22g, Stefany 10/11 19:21); só os toques proativos ficam em 8h–21h */ try { const VM4 = GM_getValue('valor_msg_feito', {}) || {}; const PC4 = GM_getValue('pedir_cpf_feito', {}) || {};
                 if (VM4[id] && !(PC4[id] > ag - 20 * 3600000) && window.dinsFilaVigia) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, forcar: true, nome, nota: '10.04: voltou sem CPF depois da simulação padrão (' + (tx || btn || tipo).slice(0, 40) + ') → pedido de CPF' }); PC4[id] = ag; GM_setValue('pedir_cpf_feito', PC4); res.push(nome + ' (pedido de CPF)'); diario(nome || id.slice(0, 5), '📨 voltou sem CPF → pedi o CPF (10.04)'); return; } } catch (e) {} }
