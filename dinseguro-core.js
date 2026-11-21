@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.43';   // 10.43 (Stefany 21/11 12:02, contato 'Euuuuuuuuuuu': 'Eu não é nome'): todos os pontos que usam o nome do WhatsApp rejeitam letra repetida 3x (Euuuu, Lulu), palavras que não são nome (Eu, Ok, Sim, Oi…) — aí cumprimenta sem nome.
+  const VERSAO = '10.44';   // 10.44 (Stefany 21/11 13:00, Euuuu): depois do aviso "estou encerrando", 3 min depois confere se a conversa fechou; se não, fecha (01 C sem CPF / fechar_so com CPF).
+  // 10.43 —   // 10.43 (Stefany 21/11 12:02, contato 'Euuuuuuuuuuu': 'Eu não é nome'): todos os pontos que usam o nome do WhatsApp rejeitam letra repetida 3x (Euuuu, Lulu), palavras que não são nome (Eu, Ok, Sim, Oi…) — aí cumprimenta sem nome.
   // 10.42:   // 10.42 (Patricia GD4RY 21/11 11:19, C6 REPROVADA): invalidez 40–52 com o Daycoval indisponível volta para o vigia — o C6 reprova essa faixa (6.74); os demais seguem para o C6.
   // 10.41:   // 10.41 (Stefany 21/11 10:17): na negociação a faixa vai de R$ 10 mil até o máximo do cliente (não passa de R$ 20 mil); máximo abaixo de R$ 10 mil → simulação normal do máximo.
   // 10.40:   // 10.40 (Stefany 21/11 10:17): negociação (cliente escolheu menos de R$ 10 mil) vai para o VIGIA no vermelho, com o máximo já simulado — o vigia manda o 8.10.
@@ -1038,7 +1039,7 @@
   window.dinsCanalSuspenso = canalSuspenso;
   window.dinsLibera865 = (h, on = true) => { const L = GM_getValue('libera865', {}) || {}; if (on) L[h] = Date.now(); else delete L[h]; GM_setValue('libera865', L); delete canalCache[h]; return Object.keys(L).length; };   // 8.71 (Stefany 19/11 09:37: os de ontem do 0800 que mandaram CPF → consultar e retornar)
   window.dinsBmApiOn = on => { if (on !== undefined) GM_setValue('bm_api_on', on ? 1 : 0); return GM_getValue('bm_api_on', 1); };   // chave geral do envio pela API (0 = desligado em todas as abas deste Chrome)
-  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} return r942; }
+  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} try { if (/estou encerrando o seu atendimento/i.test(String(texto))) { const E44 = GM_getValue('enc1044', {}) || {}; E44[chatId] = Date.now(); GM_setValue('enc1044', E44); } } catch (e) {} return r942; }
   // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
   // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
   function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true || /^fechar_/.test(String(r.j.queueId || ''))) return;   /* 10.28: encerrada não desliga */
@@ -5771,6 +5772,20 @@
           } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ follow-up de dúvida (9.07) não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
         for (const k in DV) if (ag - (+DV[k].v || 0) > 3 * 864e5) delete DV[k]; GM_setValue('duv907', DV);
       } catch (e) {} finally { ocup907 = false; } }, 5 * 60000); }
+    // 10.44 (Stefany 21/11 13:00, foto Euuuu NA4VB: "esse caso tem que fechar · ensina o robô"): toda mensagem "estou encerrando o seu atendimento" fica anotada;
+    // 3 min depois o robô confere pela API — se a conversa NÃO está numa fila fechar_* (a intenção falhou, foi trocada por só-tag ou não saiu), fecha:
+    // sem CPF → fechar_01c; com CPF → fechar_so. Cliente escreveu depois do aviso, atendente na conversa ou protegido → não fecha.
+    setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !window.dinsBmIntent || !faz('followup')) return; const ag = Date.now(); const E = GM_getValue('enc1044', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let mud = 0;
+        for (const id of Object.keys(E)) { const t = +E[id] || 0; if (ag - t > 6 * 3600000) { delete E[id]; mud = 1; continue; } if (ag - t < 3 * 60000) continue;
+          if (protegido(id)) { delete E[id]; mud = 1; continue; }
+          const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue;
+          const q = String(c.queueId || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0;
+          delete E[id]; mud = 1;
+          if (/^fechar_/.test(q) || c.agentId || lu > t + 5000) continue;
+          const it = (O[id] && O[id].cpf) ? 'fechar_so' : 'fechar_01c'; const ON = GM_getValue('bm_intents_on', []) || [];
+          if (!ON.includes(it)) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ 10.44: avisou o encerramento mas a conversa não fechou e a intenção ' + it + ' está desligada — fechar à mão'); continue; }
+          const ri = await window.dinsBmIntent(id, it); diario(String(c.firstName || id.slice(0, 5)), '🔒 10.44: avisou o encerramento e a conversa continuava aberta (fila ' + (q || '—') + ') → ' + it + ((ri && ri.http >= 200 && ri.http < 300) ? ' ✓' : ' ⚠️ não aceitou')); }
+        if (mud) GM_setValue('enc1044', E); } catch (e) {} }, 2 * 60000);
     // 10.28: a cada 5 min (aba de follow-up), procura pela API conversas ENCERRADAS (fila fechar_*) nas últimas 12 h com o bot desligado → fila para religar
     setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !faz('followup')) return; const ag = Date.now(); const FT = GM_getValue('religar_feito1028', {}) || {};
         const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 12 * 3600000).toISOString())); const it = (r && r.j && r.j.items) || []; const LB = GM_getValue('religar_bot1028', {}) || {}; let n = 0;
