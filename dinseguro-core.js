@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.38';   // 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): cliente que escolhe menos de R$ 10 mil recebe a simulação do MÁXIMO, com a oferta de valor menor a partir de R$ 10 mil.
+  const VERSAO = '10.39';   // 10.39 (Stefany 21/11 10:14–10:16): escolheu menos de R$ 10 mil → procedimento 8.10 completo: mensagem com 1️⃣ o máximo e 2️⃣ um valor da tabela + resposta rápida 'Simulação 10 a 18 mil'.
+  // 10.38:   // 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): cliente que escolhe menos de R$ 10 mil recebe a simulação do MÁXIMO, com a oferta de valor menor a partir de R$ 10 mil.
   // 10.37:   // 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): sem aba do portal Daycoval viva há 10 min (ou desligado) → C6, inclusive invalidez 40–52.
   // 10.36:   // 10.36 (Stefany 21/11 10:06, Fabio 'Sempre'): CPF recebido sem o número do WhatsApp na API → usa o contactId do chat; e o 'ficou mais alguma dúvida?' (9.07) não sai para quem ainda espera a nossa resposta (ordem com_margem/sim parada).
   // 10.35:   // 10.35 (Stefany 21/11 10:04): desfeita a 10.34 (o 'sem margem' do 76Q6E foi teste dela, não problema do fluxo) — o religar do bot volta a valer para todas as encerradas.
@@ -1343,7 +1344,12 @@
         if (!trava870('sim790_' + oS.hash, 10 * 60000)) return;
         { const Ok = GM_getValue('auto_ordens', {}) || {}; const xk = Ok[oS.hash]; if (!xk || xk.estado !== 'simulada' || xk.api790T) return; xk.api790T = Date.now(); GM_setValue('auto_ordens', Ok); }
         ocup790 = true; oS.api790T = Date.now();
-        try { const linhaS = textoSim755(oS); await bmEnviarTexto(oS.hash, linhaS);
+        try { const linhaS = textoSim755(oS);
+          /* 10.39 (Stefany 21/11 10:14 'lembra': procedimento 8.10): cliente que escolheu MENOS de R$ 10 mil → mensagem com 1️⃣ o máximo · 2️⃣ um valor da tabela de R$ 10 a 20 mil + a resposta rápida "Simulação 10 a 18 mil" (a tabela). A tabela é imagem: sai pela tela (fila do vigia). */
+          if (+oS.contorno10 > 0 && typeof window.dinsFilaVigia === 'function') { const O39 = GM_getValue('auto_ordens', {}) || {}; if (O39[oS.hash]) { O39[oS.hash].estado = 'sim_enviada'; O39[oS.hash].tSimEnv = Date.now(); O39[oS.hash].contorno1039 = Date.now(); (O39[oS.hash].hist = O39[oS.hash].hist || []).push(hhmm(Date.now()) + ' 10.39: contorno — máximo + tabela 10 a 20 mil'); GM_setValue('auto_ordens', O39); }
+            window.dinsFilaVigia({ hash: oS.hash, acao: 'fase_msg', quem: 'robo', permitido: true, forcar: true, linha: linhaS, atalhos: ['Simulação 10 a 18 mil|1'], tags: ['01 A - Inss Com Margem - SEM 87 E 88'], nome: oS.nome || '', nota: 'robô 10.39: escolheu R$ ' + brl(+oS.contorno10) + ' (abaixo de 10 mil) → máximo R$ ' + oS.liberado + ' + tabela 10 a 20 mil' });
+            diario(oS.nomeReal || oS.nome || '', '🧾 escolheu menos de R$ 10 mil → máximo + tabela 10 a 20 mil (10.39)'); return; }
+          await bmEnviarTexto(oS.hash, linhaS);
           /* 9.45 (José Pinheiro GMVVS 19/11 20:13 e 20:16: simulação DUPLICADA — a mensagem saiu pela API, um erro logo depois deixou a ordem em 'simulada' e a tela mandou de novo): marca como enviada NA MESMA HORA, antes de qualquer outra coisa */
           try { const O9 = GM_getValue('auto_ordens', {}) || {}; if (O9[oS.hash]) { O9[oS.hash].estado = 'sim_enviada'; O9[oS.hash].tSimEnv = Date.now(); GM_setValue('auto_ordens', O9); } } catch (e9) {}
           const O2 = GM_getValue('auto_ordens', {}) || {}; const x = O2[oS.hash]; if (!x) return;
@@ -2300,6 +2306,7 @@
       return { v2: brl(Math.floor(lib * 0.945 * 100) / 100), p2: o.parcela, pediu: 0 }; }
     window.dinsTextoSim755 = o => textoSim755(o);   // 9.41: ponte (function é içada)
     function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+      if (+o.contorno10 > 0) return (nm ? nm + ', s' : 'S') + 'eparei umas opções melhores para você 😊\n\n1️⃣ Valor máximo liberado: *R$ ' + o.liberado + '* em ' + (o.prazo || 108) + 'x de *R$ ' + o.parcela + '*\n2️⃣ Ou escolha um valor da tabela abaixo, entre *R$ 10 mil e R$ 20 mil*\n\nÉ só me responder com a opção ou o valor que eu já preparo a sua proposta! 👇';   // 10.39: procedimento 8.10
       const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10 * 1.15) ?   /* 8.86: só explica quando o valor ficou de fato maior (Maria Cristina 19/11: R$ 1.929 x R$ 1.928 escolhidos) */ '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Consegui liberar para você *até R$ ' + o.liberado + '* 👇 Se preferir um valor menor, a partir de R$ 10 mil, é só me falar.' : '';   /* 8.77 */
       const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
       const seg = '\n\n✅ Sem taxas escondidas\n✅ Você pode cancelar de graça em até 7 dias\n⭐ Nota 4,9 no Google e empresa verificada no Reclame Aqui\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.';
