@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.31';   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
+  const VERSAO = '10.32';   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
+  // 10.31:   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
   // 10.30:   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
   // 10.29:   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
   // 10.28:   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
@@ -5745,7 +5746,7 @@
               try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'fechar_01c'); fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C e fechou ✓' : ' — ⚠️ a intenção fechar_01c não aceitou'; } else fe = ' — ⚠️ intenção fechar_01c desligada: fechar à mão'; } catch (e) {}
               try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'simulação padrão (vigia) sem resposta em 1 h → encerrado (9.14)'); } catch (e) {}
               diario(String(c.firstName || id.slice(0, 5)), '👋 simulação padrão sem resposta há 1 h → avisou o encerramento' + fe + ' (9.14)'); } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.14 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } continue; }
-          const fn = String(c.firstName || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn) && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não|pastor)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
+          const fn = String((O[id] && O[id].nomeReal) || c.firstName || '').trim().split(/\s+/)[0] || ''; const nm = /^[A-Za-zÀ-ÿ]{3,15}$/.test(fn)   /* 10.32 (Stefany 21/11 09:49, 'Tejo porque?'): nome REAL da consulta primeiro — o nome do WhatsApp pode ser sobrenome/apelido */ && !/^(cliente|usuario|usuário|whatsapp|dinseguro|inss|teste|oi|ola|olá|sim|nao|não|pastor)$/i.test(fn) ? fn.charAt(0).toUpperCase() + fn.slice(1).toLowerCase() : '';
           try { await bmEnviarTexto(id, (nm ? nm + ', f' : 'F') + 'icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.'); DV[id].lu = lu; DV[id].t = ag; n++;
             diario(String(c.firstName || id.slice(0, 5)), '💬 1 h sem resposta depois da nossa resposta → perguntou "ficou mais alguma dúvida?" pela API (9.07)');
             try { const R2 = GM_getValue('regua', {}) || {}; if (R2[id]) { R2[id].motivo = 'follow-up de dúvida feito ' + hhmm(ag) + ' (1 de 1) — a varredura fecha quando a janela vencer'; (R2[id].hist = R2[id].hist || []).push(hhmm(ag) + ' 9.07: follow-up de dúvida enviado'); gravaRG(R2); } } catch (e) {}
@@ -5768,6 +5769,7 @@
         for (const id of Object.keys(O)) { const x = O[id]; if (n >= 3) break; if (!x || x.estado !== 'sim_enviada' || !x.semPar767 || protegido(id) || id === '__TESTE_LIBERADO_1022__') continue;
           const tS = +x.tSimEnv || +x.tSim || +x.semPar767 || 0; if (!tS || ag - tS > 48 * 3600000) continue; const st = S[id] = S[id] || {}; if (st.fim) continue;
           let etapa = null; const m8 = new Date(tS); m8.setDate(m8.getDate() + 1); m8.setHours(8, 0, 0, 0);
+          { const DV32 = (GM_getValue('duv907', {}) || {})[id]; if (!st.d1 && DV32 && (+DV32.t || 0) > tS) st.d1 = +DV32.t; }   // 10.32: a dúvida (9.07) já perguntou → conta como o 1º toque
           if (!st.d1 && ag - tS >= 60 * 60000) etapa = 'd1'; else if (st.d1 && !st.d2 && ag >= m8.getTime() && ag - st.d1 >= 60 * 60000) etapa = 'd2'; else if (st.d2 && ag - st.d2 >= 2 * 3600000) etapa = 'enc';
           if (!etapa) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue;
