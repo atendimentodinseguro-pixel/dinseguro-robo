@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.25';   // 10.25 (Stefany 21/11 09:15 'pode fazer o follow-up de manhã com todos'): follow-up de dúvida (9.07) e encerramento do pedido de CPF (9.08) valem até 24 h — quem ficou da noite recebe de manhã.
+  const VERSAO = '10.26';   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
+  // 10.25:   // 10.25 (Stefany 21/11 09:15 'pode fazer o follow-up de manhã com todos'): follow-up de dúvida (9.07) e encerramento do pedido de CPF (9.08) valem até 24 h — quem ficou da noite recebe de manhã.
   // 10.24:   // 10.24 (Stefany 21/11 09:08 'por que ainda falta gente receber follow-up', Em Nome De Jesus/Ulisses): o encerramento 9.05/9.08 pulava quem JÁ tinha sido encerrado antes (marca EN por conversa, 30 dias) — agora só pula se o encerramento foi DEPOIS do pedido atual. E o 'ficou mais alguma dúvida?' (9.07) passa a valer até 16 h depois da nossa resposta (antes 10 h: quem respondemos à noite ficava sem follow-up de manhã).
   // 10.23:   // 10.22 (Stefany 21/11 02:19 'pode tirar do teste chat Rômulo também'): o chat de teste F20QOEL deixou de ser protegido (33 travas trocadas por um marcador que não casa com nenhum chat)
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
@@ -1008,7 +1009,7 @@
   // 8.70 (Stefany 19/11 09:17, Chung: "Recebi o seu CPF" saiu 2x — duas abas do robô ao mesmo tempo): trava entre abas (localStorage é síncrono no mesmo site)
   function trava870(chave, ms) { try { const k = 'dins_trava870_' + chave; const v = +localStorage.getItem(k) || 0; if (Date.now() - v < (ms || 10 * 60000)) return false; localStorage.setItem(k, String(Date.now())); return true; } catch (e) { return true; } }
   const canalCache = {};
-  const CANAL_VOLTOU865 = { '558001912261': Date.parse('2026-11-19T11:00:00Z') };   // 8.65: voltou 19/11 08:00 (Brasília)
+  const CANAL_VOLTOU865 = {};   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): a trava 8.65 (só quem escreveu depois de 19/11 08:00) saiu — ela bloqueava conversas novas do 0800 quando a API não trazia lastUserMessageDatetime (caso Djanira)   // 8.65: voltou 19/11 08:00 (Brasília)
   async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s; let lu865 = 0;
       const tk = GM_getValue('bm_api_token', ''); if (!tk || !/^[A-Z0-9]{20}$/.test(String(chatId))) return false;
       const ch = await new Promise(r0 => { try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats/' + chatId, timeout: 15000, headers: { 'access-token': tk, Accept: 'application/json' },
