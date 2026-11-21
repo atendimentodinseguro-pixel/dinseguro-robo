@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.30';   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
+  const VERSAO = '10.31';   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
+  // 10.30:   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
   // 10.29:   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
   // 10.28:   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
   // 10.27:   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
@@ -2606,7 +2607,7 @@
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
             if (dt >= 15 * 60000 && !x.fupSim) { x.fupSim = Date.now(); GM_setValue('auto_ordens', O); const nmF = nomeCli(x);
               localStorage.setItem('dins_ordem', JSON.stringify({ hash: x.hash, acao: 'fase_msg', quem: 'robo', t: Date.now(), exige: 'Novo Cr[ée]dito Dispon[íi]vel|Valor na conta', /* 7.59: sem soSeNossaUltima — a trava 'falamos há menos de 2 h' engolia o toque (caso João FAWBI 08:22); a resposta do cliente já é conferida pelo servidor */ nome: x.nome || '',
-                linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder *1* ou *2* que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
+                linha: (nmF ? nmF + ', c' : 'C') + 'onseguiu ver as opções que eu separei? 😊\n\nSe uma delas ficou boa para você, é só responder 1️⃣ ou 2️⃣ que eu já deixo tudo pronto. Se quiser outro valor ou tiver qualquer dúvida, me fala aqui que eu te ajudo. 🔒 Nada é feito sem a sua confirmação.', atalhos: [] }));
               diario(nmF || x.hash.slice(0, 5), '15 min sem resposta à simulação → toque (7.55)'); return; }
           } }
         const oL = Object.values(O).find(x => x.tipo === 'cpf' && x.estado === 'link' && (x.api879Falhou || !bmApiLigada()));   // 8.79: com a API ligada o link sai por ela; a tela só entra se a API falhar
