@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.03';
+  const VERSAO = '10.04';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -169,6 +169,9 @@
   // ⚠️ O BMG saiu em 05/11: tudo que ia para ele vai para a FACTA.
   // 6.49 (Stefany 14/11 09:49 "não faz uma anotação do que viu… parece perdido"): DIÁRIO DO ROBÔ — o que ele leu, decidiu e fez, com hora.
   // Aparece no quadro ("📝 O que o robô fez") e em __R.dinsDiario().
+  // 10.04: valor em reais que o cliente pediu ("R$ 3.000", "3 mil", "15mil", "3000 reais") → número; 0 se não achou
+  function valorPedido1004(t) { try { const s0 = String(t || '').toLowerCase(); let m = s0.match(/(\d{1,3}(?:[.\s]\d{3})+|\d+)(?:,\d{2})?\s*(mil|k)\b/); if (m) { const n = +m[1].replace(/[.\s]/g, ''); return n < 1000 ? n * 1000 : n; }
+      m = s0.match(/r\$\s*(\d{1,3}(?:[.\s]\d{3})+|\d{3,6})(?:,\d{2})?/) || s0.match(/(\d{1,3}(?:\.\d{3})+|\d{4,6})(?:,\d{2})?\s*(reais|conto)/); if (m) return +m[1].replace(/[.\s]/g, ''); } catch (e) {} return 0; }
   function diario(nome, txt) { try { const D = GM_getValue('diario', []) || []; const ult = D[D.length - 1]; const linha = { t: Date.now(), nome: String(nome || '').slice(0, 24), txt: String(txt || '').slice(0, 140) };
       if (ult && ult.nome === linha.nome && ult.txt === linha.txt && linha.t - ult.t < 10 * 60000) return; D.push(linha); GM_setValue('diario', D.slice(-60)); } catch (e) {} }
   // 6.44 (Stefany 14/11 09:47: "vamos deixar o Daycoval pra gente consertar depois. Pode fazer no C6"): Daycoval desligado → C6
@@ -2283,6 +2286,8 @@
             y.estado = 'sim_resp'; const nm3 = nomeCli(y); const DS = GM_getValue('desisti_resp', {}) || {}; DS[y.hash] = Date.now(); GM_setValue('desisti_resp', DS);
             window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm3 ? nm3 + ', a' : 'A') + 'ntes de você ir, posso te perguntar o que não ficou bom? 🙏 Às vezes é o valor, a parcela ou alguma dúvida sobre segurança, e quase sempre dá para ajustar do jeito que fica bom para você.\n\nSe quiser, me diz o valor que você precisa que eu simulo de novo, sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
             diario(nmR, 'respondeu "não desejo" à simulação → perguntei o motivo (7.55)'); }
+          else if (valorPedido1004(ult) >= 500) { const vp = valorPedido1004(ult); Object.assign(y, { estado: 'ficha_ok', valorVigia: vp, aceite: false, aceitouSim: 0, simGravar: 0, t: Date.now() }); if (y.ficha && typeof y.ficha === 'object') y.ficha.valor = brl(vp); else if (typeof y.ficha === 'string') y.ficha = /^valor:/m.test(y.ficha) ? y.ficha.replace(/^valor:.*$/m, 'valor: ' + brl(vp)) : y.ficha + '\nvalor: ' + brl(vp);
+            (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 10.04: pediu R$ ' + brl(vp) + ' → simula de novo nesse valor (acima da margem: manda o máximo e espera o aceite)'); diario(nmR, 'pediu R$ ' + brl(vp) + ' → nova simulação (10.04)'); }   // 10.04 (Stefany 21/11 00:14, Marcus/Tejo ONJNJ pediu R$ 3.000 e ficou no vermelho)
           else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · respondeu à simulação: "' + y.respSim + '" → VIGIA responde (7.55)' }); diario(nmR, '🔴 respondeu à simulação → vigia (7.55)'); }
           GM_setValue('auto_ordens', O2);
         }
@@ -5453,6 +5458,9 @@
             if (cpf && !ordemViva && !(SM[id] && ag - SM[id] < 30 * 86400000) && !/01_I_INSS_Sem_margem|Sem_margem/i.test(tags)) {
               let criou = false; try { criou = !!ordemDoCpfServidor(id, nome, cpf, 'espera API 8.12: mandou CPF/extrato no fluxo do bot e ninguém respondeu há ' + min + ' min'); } catch (e) {}
               if (criou) { res.push(nome + ' (consulta)'); diario(nome || id.slice(0, 5), '🔎 espera API: esperando há ' + min + ' min com CPF → abriu a consulta (8.12)'); return; } }
+            // 10.04 (Stefany 21/11 00:14, Em Nome De Jesus N7ZT8: voltou pelo menu "Crédito INSS" e ficou no vermelho): sem CPF e já recebeu a simulação padrão → o robô pede o CPF (modelo dele), 1x a cada 20 h
+            if (!cpf && !ordemViva && !/[?]/.test(tx)) { try { const VM4 = GM_getValue('valor_msg_feito', {}) || {}; const PC4 = GM_getValue('pedir_cpf_feito', {}) || {};
+                if (VM4[id] && !(PC4[id] > ag - 20 * 3600000) && window.dinsFilaVigia) { window.dinsFilaVigia({ hash: id, acao: 'pedir_cpf', quem: 'robo', permitido: true, nome, nota: '10.04: voltou sem CPF depois da simulação padrão (' + (tx || btn || tipo).slice(0, 40) + ') → pedido de CPF' }); PC4[id] = ag; GM_setValue('pedir_cpf_feito', PC4); res.push(nome + ' (pedido de CPF)'); diario(nome || id.slice(0, 5), '📨 voltou sem CPF → pedi o CPF (10.04)'); return; } } catch (e) {} }
             /* 8.79: o pedido de CPF do 8.12 (cliente do anúncio sem CPF) SAIU — primeiro contato recebe a simulação padrão (bloco acima); o que sobrar vira vermelho */
             // o resto (pergunta, arquivo sem CPF, áudio, cliente com ordem parada…) → vermelho para o vigia
             if (ordemViva && !['feito', 'erro', 'desfecho_ok', 'com_margem', 'sim_enviada', 'link'].includes(ordem.estado) && !ordem.parada877) return;   // a ordem está andando (8.77: parada além do prazo não conta)
