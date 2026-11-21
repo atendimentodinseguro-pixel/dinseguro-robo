@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.36';   // 10.36 (Stefany 21/11 10:06, Fabio 'Sempre'): CPF recebido sem o número do WhatsApp na API → usa o contactId do chat; e o 'ficou mais alguma dúvida?' (9.07) não sai para quem ainda espera a nossa resposta (ordem com_margem/sim parada).
+  const VERSAO = '10.37';   // 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): sem aba do portal Daycoval viva há 10 min (ou desligado) → C6, inclusive invalidez 40–52.
+  // 10.36:   // 10.36 (Stefany 21/11 10:06, Fabio 'Sempre'): CPF recebido sem o número do WhatsApp na API → usa o contactId do chat; e o 'ficou mais alguma dúvida?' (9.07) não sai para quem ainda espera a nossa resposta (ordem com_margem/sim parada).
   // 10.35:   // 10.35 (Stefany 21/11 10:04): desfeita a 10.34 (o 'sem margem' do 76Q6E foi teste dela, não problema do fluxo) — o religar do bot volta a valer para todas as encerradas.
   // 10.33:   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
   // 10.32:   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
@@ -189,10 +190,11 @@
       if (ult && ult.nome === linha.nome && ult.txt === linha.txt && linha.t - ult.t < 10 * 60000) return; D.push(linha); GM_setValue('diario', D.slice(-60)); } catch (e) {} }
   // 6.44 (Stefany 14/11 09:47: "vamos deixar o Daycoval pra gente consertar depois. Pode fazer no C6"): Daycoval desligado → C6
   function decidirBanco(f) { const r = decidirBanco0(f);
-    try { if (r && /DAYCOVAL|QUERO/i.test(r.banco) && GM_getValue('daycoval_off', 0) && !/DAYCOVAL|QUERO/i.test(String(f.banco_ordem_stefany || ''))) {
+    try { const dcyFora37 = GM_getValue('daycoval_off', 0) || Date.now() - (+GM_getValue('dcy_vivo', 0) || 0) > 10 * 60000;   // 10.37: portal Daycoval sem aba viva há 10 min = indisponível
+      if (r && /DAYCOVAL|QUERO/i.test(r.banco) && dcyFora37 && !/DAYCOVAL|QUERO/i.test(String(f.banco_ordem_stefany || ''))) {
       // 6.74 (caso Simone C6 980056818, 14/11 12:40: invalidez esp 32, 46 anos → "Reprovado Política Interna 66"): invalidez 40–52 NÃO vai para o C6
-      const esp9 = String(f.especie || '').padStart(2, '0'); if (['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };
-      return c6Off(f, { banco: 'C6', motivo: 'Daycoval desligado (Stefany 14/11) → C6' }); } } catch (e) {}
+      const esp9 = String(f.especie || '').padStart(2, '0'); if (false && ['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };   /* 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): desligado — vai para o C6 */
+      return c6Off(f, { banco: 'C6', motivo: 'Daycoval indisponível → C6 (Stefany 21/11 10:10)' }); } } catch (e) {}
     return c6Off(f, r); }
   // 7.08 (Stefany 15/11 10:15: "O C6 está travando [VALIDAR COMISSAO]… os clientes que couberem no critério de outro banco, a gente pode fazer"):
   // GM 'c6_off' = 1 → o que ia para o C6 vai para a FACTA; invalidez abaixo de 60 anos → vigia decide. Ligar/desligar: __R.dinsC6Off(1/0).
@@ -6286,6 +6288,7 @@
   // → Resumo → Gerar → Formalizar → link. Muda o endereço, o vendedor, a tabela e a conta aleatória.
   // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
   if (/^portaldecredito\.(daycoval|queromaisconsignado)\.com\.br$/.test(location.host)) {
+    try { GM_setValue('dcy_vivo', Date.now()); setInterval(() => { try { GM_setValue('dcy_vivo', Date.now()); } catch (e) {} }, 20000); } catch (e) {}   // 10.37: sinal de vida do portal Daycoval/Quero Mais
     // 8.81 (19/11: o Daycoval deslogou sozinho ~20 min depois da proposta da Ariana): batida do portal — aberto? logado? — para o quadro avisar NA HORA, sem esperar um pedido ficar parado
     // 8.83 (Stefany 19/11 12:17: "pode clicar sozinho"): portal na tela de login com usuário e senha JÁ preenchidos pelo Chrome → o robô clica em ENTRAR. Não digita nada; 1 tentativa por hora (se não entrar, o quadro avisa e o vigia clica).
     if (/daycoval/.test(location.host)) setInterval(() => { try { if (!/\/login/i.test(location.pathname)) return; const pw = document.querySelector('input[type="password"]'); const bt = [...document.querySelectorAll('button')].find(b => /^\s*entrar\s*$/i.test(b.textContent || '')); if (!pw || !bt) return; let auto = false; try { auto = pw.matches(':-webkit-autofill'); } catch (e) {} if (!auto && !pw.value) return;
