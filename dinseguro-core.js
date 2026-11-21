@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.20';
+  const VERSAO = '10.21';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2869,7 +2869,7 @@
         } catch (e) { FCH990 = null; }
         try { if (FCH990 && !simular) GM_setValue('fch990', { t: ag, m: FCH990 }); } catch (e) {}
         try { if (FCH990 && !simular) { const PL = GM_getValue('prot_lib1016', {}) || {}; const NI = GM_getValue('nao_interferir', []) || []; const NM = GM_getValue('nao_mexer', {}) || {}; let mudP = false;
-            for (const id of new Set([...NAO_INTERFERIR_PADRAO, ...NI, ...Object.keys(NM)])) { if (id === 'F20QOEL8YYLQN2S6SR47' || PL[id]) continue; const e0 = FCH990[id]; const desde = (NM[id] && (+NM[id].t || +NM[id])) || 0;
+            for (const id of new Set([...NAO_INTERFERIR_PADRAO, ...NI, ...Object.keys(NM), ...Object.keys(FCH990).filter(k => { try { return protegido(k); } catch (e) { return false; } })])) {   /* 10.21: também quem é protegido pelo NOME */ if (id === 'F20QOEL8YYLQN2S6SR47' || PL[id]) continue; const e0 = FCH990[id]; const desde = (NM[id] && (+NM[id].t || +NM[id])) || 0;
               if (e0 && e0.close && e0.close > desde) { PL[id] = ag; mudP = true; try { diario(id.slice(0, 5), '🔓 conversa encerrada → saiu da proteção; se voltar, atendimento normal (10.16)'); } catch (e) {} } }
             if (mudP) GM_setValue('prot_lib1016', PL); } } catch (e) {}   // 10.16   // 10.01: uma regra só — o mapa de eventos da API vale para todas as limpezas
         for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
@@ -3096,7 +3096,7 @@
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
     const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0', 'GYHPCFWP8SS8MG9ACP0G'];   /* 10.16 (Stefany 21/11 01:34 'tira ele'): José Tobias ⚫️ 76Q6E saiu da proteção */   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
-    const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^romulo\b/i, /^jair\b/i];   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
+    const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^jair\b/i];   /* 10.21: 'Romulo' por nome saiu (Stefany 21/11 02:12) — o chat de teste do Rômulo continua protegido pelo número */   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
     // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
@@ -4804,7 +4804,7 @@
     // Horário da varredura (Stefany, 07/11 20:51): de 2 em 2 horas, das 8h às 16h.
     const HORAS_VARREDURA = [8, 10, 12, 14, 16, 18, 20];   // 9.54 (Stefany 20/11 10:33: "ele tem que trabalhar direto"): 8h–21h, todo dia
     const HORA_FIM = 20;
-    const NAO_MEXER = ['Romulo', 'Jair'];   /* 10.17: ⚫️ (José Tobias) saiu — Stefany 21/11 01:34 */
+    const NAO_MEXER = ['Jair'];   /* 10.17: ⚫️ (José Tobias) saiu — Stefany 21/11 01:34 */
 
     // ⚠️⚠️ 3.56 (07/11 19:28) — SEGUNDO motivo de a varredura não resolver nada.
     // Ela media a idade da ÚLTIMA MENSAGEM DA CONVERSA — e a última mensagem quase
@@ -5055,7 +5055,7 @@
     // decide UMA conversa (já aberta) → { acao: 'fecha'|'c01'|'wa'|'revisar'|'pular', caso, motivo }
     function decidirVarredura(id, nomeLista) {
       if (NAO_MEXER_HASH.includes(id) || /CONGELADO/i.test(nomeLista)) return { acao: 'pular', motivo: 'chat que não se mexe' };
-      if (/^(Jair|Romulo)/.test(String(nomeLista || nomeDoContato() || '').trim())) return { acao: 'revisar', motivo: 'nome da lista de exceções antigas (Jair, Romulo) — decidir à mão' };
+      if (/^(Jair)/.test(String(nomeLista || nomeDoContato() || '').trim())) return { acao: 'revisar', motivo: 'nome da lista de exceções antigas (Jair, Romulo) — decidir à mão' };
       if (!janelaVencidaAgora()) return { acao: 'pular', motivo: 'janela aberta' };
       const c = lerConversaVarredura(id);
       if (c.humano) return { acao: 'revisar', motivo: 'chat em atendimento com ' + c.humano };
@@ -5099,7 +5099,7 @@
         const cu = j.customer; const lu = +cu.lastUserMessageTimeStamp || 0;
         if (!lu || Date.now() - lu < 24 * 3600000) return null;
         if (cu.BOT_MUTED) mutado857 = true;
-        if (/^(Jair|Romulo)/.test(String(it.nome || '').trim()) || /CONGELADO/i.test(it.nome || '')) return null;
+        if (/^(Jair)/.test(String(it.nome || '').trim()) || /CONGELADO/i.test(it.nome || '')) return null;
         const tags = (cu.tags || []).map(String);
         const temTag = re => tags.some(t => re.test(t));
         if (temTag(/01.?D|Fechou.?Neg/i)) return null;
