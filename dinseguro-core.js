@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.06';
+  const VERSAO = '10.07';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2262,14 +2262,16 @@
     // 7.55: lê pelo servidor se o cliente respondeu à simulação (sem abrir a tela). 1/sim → grava e manda o link já; 2 → vigia (carência);
     // 3/não desejo → pergunta o motivo; qualquer outra coisa (dúvida, outro valor) → vigia responde.
     setInterval(async () => { if (!faz('atendimento')) return; try {
-        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && x.estado === 'sim_enviada');
+        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && (x.estado === 'sim_enviada' || (x.estado === 'com_margem' && +x.tSimEnv > 0 && !x.erro && Date.now() - (+x.tSimEnv || 0) < 3 * 864e5)));   /* 10.07 (Stefany 21/11 00:33 'melhore e corrija', Marcus ONJNJ): resposta que chega DEPOIS dos 30 min (ordem já em com_margem, respondendo aos lembretes) também é entendida */
         for (const x of pend) { const j = await apiLer(x.hash, 15); if (!j || !Array.isArray(j.newMessages)) continue;
           const T = m => Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0;
           const tx = m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || '')); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/^\s*bolt\s*/i, '').trim(); };
-          let cli = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > (+x.tSimEnv || 0) + 3000).sort((m1, m2) => T(m1) - T(m2)).map(tx).filter(Boolean);   // 10.00 (Tatiana Y4OU2 21:15: mandou 2 áudios e '1' — o robô leu o áudio como resposta e parou): em ordem de hora, e a resposta é o último TEXTO (áudio/mídia só conta se não houver texto)
+          let cli = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > Math.max(+x.tSimEnv || 0, +x.respLidaT || 0) + 3000).sort((m1, m2) => T(m1) - T(m2)).map(tx).filter(Boolean);   // 10.00 (Tatiana Y4OU2 21:15: mandou 2 áudios e '1' — o robô leu o áudio como resposta e parou): em ordem de hora, e a resposta é o último TEXTO (áudio/mídia só conta se não houver texto)
           { const txt = cli.filter(t => !/^__(audio|media|image|video|file|document)__$/i.test(t) && !/^\[?(audio|m[íi]dia|image|imagem|video|arquivo)\]?$/i.test(t)); if (txt.length) cli = txt; }
-          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || y.estado !== 'sim_enviada') continue;
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || !(y.estado === 'sim_enviada' || y.estado === 'com_margem')) continue;
           if (!cli.length) { y.chkOkT = Date.now(); GM_setValue('auto_ordens', O2); continue; }
+          if (y.estado === 'com_margem') { const hh7 = new Date().getHours(); const tU7 = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); if ((hh7 < 8 || hh7 >= 21) && Date.now() - tU7 > 30 * 60000) continue; }   // 10.07: de madrugada só quem acabou de escrever
+          try { y.respLidaT = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); } catch (e) {}   // 10.07: não relê a mesma resposta
           let ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80);
           // 10.06 (Stefany 21/11 00:32: "o robô entende só 1 e 2, não dá para ficar mais esperto?"): traduz a resposta do cliente para 1 / 2 / "não desejo" antes das regras
           try { const nos = j.newMessages.filter(m => m.FROM === 'me').sort((m1, m2) => T(m1) - T(m2)).map(tx); const ultNos2 = [...nos].reverse().find(t => /2️⃣|op[çc][ãa]o 2/i.test(t)) || '';
