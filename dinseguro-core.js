@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.37';   // 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): sem aba do portal Daycoval viva há 10 min (ou desligado) → C6, inclusive invalidez 40–52.
+  const VERSAO = '10.38';   // 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): cliente que escolhe menos de R$ 10 mil recebe a simulação do MÁXIMO, com a oferta de valor menor a partir de R$ 10 mil.
+  // 10.37:   // 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): sem aba do portal Daycoval viva há 10 min (ou desligado) → C6, inclusive invalidez 40–52.
   // 10.36:   // 10.36 (Stefany 21/11 10:06, Fabio 'Sempre'): CPF recebido sem o número do WhatsApp na API → usa o contactId do chat; e o 'ficou mais alguma dúvida?' (9.07) não sai para quem ainda espera a nossa resposta (ordem com_margem/sim parada).
   // 10.35:   // 10.35 (Stefany 21/11 10:04): desfeita a 10.34 (o 'sem margem' do 76Q6E foi teste dela, não problema do fluxo) — o religar do bot volta a valer para todas as encerradas.
   // 10.33:   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
@@ -618,7 +619,7 @@
             if (+o.parcelaVigia > 0) { ta.value = /^parcela:.*$/m.test(ta.value) ? ta.value.replace(/^parcela:.*$/m, 'parcela: ' + brl(+o.parcelaVigia)) : ta.value + '\nparcela: ' + brl(+o.parcelaVigia); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             if (vv > 0) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vv)) : ta.value + '\nvalor: ' + brl(vv); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             else if (vb > 0 && vb < 10000) {   // 8.77 (Stefany 19/11 "valor abaixo de R$ 10 mil → oferecer faixa maior antes"; Oton N49ZS ficou 1 dia no "VIGIA: contorno"): o robô simula sozinho — R$ 10 mil quando a margem alcança, senão o máximo da margem
-              if ((mg || 0) * 43 >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: 10.000,00') : ta.value + '\nvalor: 10.000,00'; ta.dispatchEvent(new Event('input', { bubbles: true })); }
+              /* 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): não fixa mais R$ 10 mil — vai o MÁXIMO da margem; a mensagem oferece valor menor a partir de R$ 10 mil */
               poeAO(o.hash, { contorno10: vb, aceite: false, /* aceitou o valor baixo, não o maior → só a simulação, não grava */ resumo: resumo + ' · escolheu R$ ' + brl(vb) + ' no bot (abaixo de 10 mil) → faixa maior oferecida pelo robô (8.77)' }); }
             else if (vb >= 10000) { ta.value = /^valor:.*$/m.test(ta.value) ? ta.value.replace(/^valor:.*$/m, 'valor: ' + brl(vb)) : ta.value + '\nvalor: ' + brl(vb); ta.dispatchEvent(new Event('input', { bubbles: true })); }
             // 5.00 (caso Ronaldo 12/11: CPF não estava no mapa CPF→WhatsApp): a ordem nasceu do chat do Botmaker e traz o WhatsApp dele (o.fone) → usa esse
@@ -2299,7 +2300,7 @@
       return { v2: brl(Math.floor(lib * 0.945 * 100) / 100), p2: o.parcela, pediu: 0 }; }
     window.dinsTextoSim755 = o => textoSim755(o);   // 9.41: ponte (function é içada)
     function textoSim755(o) { const nm = nomeCli(o); const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
-      const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10 * 1.15) ?   /* 8.86: só explica quando o valor ficou de fato maior (Maria Cristina 19/11: R$ 1.929 x R$ 1.928 escolhidos) */ '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Olha a condição que consegui para você com um valor um pouco maior 👇 Se preferir outro valor, é só me falar.' : '';   /* 8.77 */
+      const c10 = (+o.contorno10 > 0 && numL(o.liberado) > +o.contorno10 * 1.15) ?   /* 8.86: só explica quando o valor ficou de fato maior (Maria Cristina 19/11: R$ 1.929 x R$ 1.928 escolhidos) */ '\n\nVi que você escolheu R$ ' + brl(+o.contorno10) + '. Consegui liberar para você *até R$ ' + o.liberado + '* 👇 Se preferir um valor menor, a partir de R$ 10 mil, é só me falar.' : '';   /* 8.77 */
       const duas = !/DAYCOVAL|QUERO/i.test(String(o.banco || '')) && !/90\s*DIAS|CAR[EÊ]NCIA/i.test(String(o.bancoStefany || '')) && numL(o.liberado) > 0;
       const seg = '\n\n✅ Sem taxas escondidas\n✅ Você pode cancelar de graça em até 7 dias\n⭐ Nota 4,9 no Google e empresa verificada no Reclame Aqui\n\n🔒 A Dinseguro não cobra nada adiantado, nunca pede a senha do seu banco nem do Meu INSS, e nada é concluído sem a sua confirmação.';
       if (!duas) return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉' + c10 + '\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*' + seg + '\n\n1️⃣ Sim, quero contratar\n2️⃣ Não desejo\n\nÉ só responder com o número 🤝';
