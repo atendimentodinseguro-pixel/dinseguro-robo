@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.28';   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
+  const VERSAO = '10.29';   // 10.29 (Stefany 21/11 09:34, Tatiana): link de proposta mandado pelo vigia pela API cria a régua de follow-up do link.
+  // 10.28:   // 10.28 (Stefany 21/11 09:27 'quando encerra sem margem você está deixando o chat bloqueado?'): ordem que encerra não desliga o bot, e conversa encerrada (fila fechar_*) com o bot desligado é aberta e o bot religado.
   // 10.27:   // 10.27 (Stefany 21/11 09:20, Djanira: 2 mensagens em 3 min): toque do link não sai se houve mensagem nossa (vigia/robô) na última 1 h — espera 1 h depois dela.
   // 10.26:   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): nenhum canal bloqueado — tirada a trava 8.65 do 0800 191 2261.
   // 10.25:   // 10.25 (Stefany 21/11 09:15 'pode fazer o follow-up de manhã com todos'): follow-up de dúvida (9.07) e encerramento do pedido de CPF (9.08) valem até 24 h — quem ficou da noite recebe de manhã.
@@ -1199,6 +1200,10 @@
         try { if (/simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(String(texto))) { const VM2 = GM_getValue('valor_msg_feito', {}) || {}; VM2[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM2); } } catch (e) {}
         // 8.94 (Stefany 19/11 13:21, Maurilio AOQNQ: "veja o erro do porque não tagueou ele"): link de proposta / simulação real mandada pela API não passava pela tela, que é quem punha a 01 A → agora a tag vai pela intenção so_tag_01a (não fecha)
         try { if (/https?:\/\/(dcy\.app|facta\.ly|\S*facta|\S*c6consig|\S*joinbank|\S*qualibank|\S*queromais)|Novo Cr[ée]dito Dispon[íi]vel|proposta de \*R\$|Valor na conta: \*R\$/i.test(String(texto)) && !/Separei \*duas op[çc][õo]es\* com a margem cheia/i.test(String(texto)) /* 9.66 (Stefany 20/11 12:13, Dinaldo WK1Z0): simulação PADRÃO (sem CPF) é 01 C, não 01 A */ && (GM_getValue('bm_intents_on', []) || []).includes('so_tag_01a')) { const T8 = GM_getValue('tag01a_894', {}) || {}; if (!(T8[chatId] > Date.now() - 6 * 3600000)) { T8[chatId] = Date.now(); GM_setValue('tag01a_894', T8); window.dinsBmIntent(chatId, 'so_tag_01a'); } } } catch (e) {}
+        // 10.29 (Stefany 21/11 09:34, Tatiana Y4OU2: link mandado pelo vigia às 21:40 pela API e nenhum follow-up depois): link de proposta mandado pelo vigia
+        // pela API agora cria a régua do link (10 min / 60 min / manhã / tarde), igual ao link mandado pelo robô.
+        try { const mL = String(texto).match(/https?:\/\/(?:dcy\.app|facta\.ly|[^\s]*facta|[^\s]*c6consig|[^\s]*joinbank|[^\s]*qualibank|[^\s]*queromais|[^\s]*happy)[^\s]*/i);
+          if (mL && typeof window.dinsLinkEnviado === 'function') window.dinsLinkEnviado(chatId, '', Date.now(), mL[0], ''); } catch (e) {}
         return { ok: 1 }; } catch (e) { return { erro: String((e && e.message) || e).slice(0, 160) }; } };
     // 9.91 (6) atalhos do vigia: ler a conversa pela API e o texto do /n30 salvo
     // 10.13: o vigia grava o valor que o cliente pediu antes de mandar o CPF (quando o CPF chegar, a consulta já sai nesse valor)
