@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.13';
+  const VERSAO = '10.14';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -5629,7 +5629,7 @@
         } catch (e) { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].sm818Tent = (+O2[oM.hash].sm818Tent || 0) + 1; O2[oM.hash].sm818Prox = Date.now() + 60000; O2[oM.hash].sm818Erro = String((e && e.message) || e).slice(0, 160); GM_setValue('auto_ordens', O2); }
           diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu (8.18): ' + String((e && e.message) || e).slice(0, 120)); }
         finally { ocup818 = false; } } catch (e) { ocup818 = false; } }, 6000); }
-    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; const h = new Date().getHours(); if (h < 8 || h >= 21) return; esperaApi812(); } catch (e) {} }, 60000);
+    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; esperaApi812(); } catch (e) {} }, 60000);   // 10.14 (Stefany 21/11 01:03, Loilton YKHK3: só respondeu depois que o vigia recarregou a aba): a espera API (quem escreveu e ninguém respondeu) parava das 21h às 8h — atendimento 24 h
     setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
     // 9.47 (Stefany 19/11 21:51, Arthemio 710AJ: entrou pelo anúncio às 21:47 sem escrever, o bot não respondeu e ninguém rodou o flow — a espera pela API só olha depois de 8 min e para às 21h):
     // a cada 1 min, 24 h (foi o cliente que chamou): conversa cuja ÚNICA mensagem recente é a do anúncio (cliente, sem texto e sem botão), há mais de 90 s e sem nada depois
