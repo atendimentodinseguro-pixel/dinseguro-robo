@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.48';   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
+  const VERSAO = '10.49';   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
+  // 10.48 —   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
   // 10.47 —   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
   // 10.46 —   // 10.46 (Ivanildo): link do robô pela API entra na régua na hora; 'sem fila e sem atendente' não tira mais do caderno.
   // 10.45 —   // 10.45: CPF que só recebeu o 'sem margem' automático do fluxo do bot (fila SEM_MARGEM_BOT) é consultado pelo robô em 6 min (antes ficava sem ordem).
