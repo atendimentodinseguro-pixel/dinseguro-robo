@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
+  const VERSAO = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
+  const VERSAO_10_50_NOTA = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
   // 10.49 —   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
   // 10.48 —   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
   // 10.47 —   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
@@ -936,6 +937,8 @@
       const g = Object.values(O0).find(x => x && (x.estado === 'gravada' || (x.estado === 'erro' && /link n[ãa]o apareceu/.test(x.erro || ''))) && x.propNc && x.viaApi && Date.now() - (+x.tGrav || 0) < 90 * 60000 && Date.now() - (+x.apiLinkT || 0) > (Date.now() - (+x.tGrav || 0) < 15 * 60000 ? 45000 : 120000));   // 7.87: C6 manda o link em ~18 min (teste Israel) → procura por 90 min, de 45 em 45 s e depois de 2 em 2 min
       if (g) { ocupApi = true; try { poe(g.hash, { apiLinkT: Date.now() }); const p = await ncReq('GET', '/proposals/' + g.propNc); const br = (((p && p.data) || p || {}).bank_reference) || {};
           if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
+          else if (/ALTERAR FORM PLUS/i.test(br.bank_status_description || '') && (+String(g.idade || (g.ficha && g.ficha.idade) || '').replace(/\D/g, '') || 0) >= 60 && g.banco !== 'QUALIBANK') poe(g.hash, { estado: 'ficha_ok', banco: 'QUALIBANK', bancoStefany: '', erro: '', apiFalhou: 0, propNc: null, viaApi: 0, link: '', propC6FormPlus: br.proposal_number || '', t: Date.now() - 120000 }, g.banco + ' Nº ' + (br.proposal_number || '') + ' voltou ALTERAR FORM PLUS (60+, lei estadual) → redigita no QUALIBANK (Stefany 21/11 15:24); proposta antiga fica aberta, sem cancelar');
+          else if (/SEM COMISS/i.test(br.bank_status_description || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' SEM COMISSAO = Não Perturbe (nº ' + (br.proposal_number || '') + ') → HAPPY pela tela com IN100 (não invalidez); invalidez 58+ → Quali; invalidez < 58 → avisar a Stefany' }, 'banco devolveu SEM COMISSAO (Não Perturbe) — vigia leva ao Happy');
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
       const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
