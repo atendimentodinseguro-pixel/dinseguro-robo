@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.33';   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
+  const VERSAO = '10.35';   // 10.35 (Stefany 21/11 10:04): desfeita a 10.34 (o 'sem margem' do 76Q6E foi teste dela, não problema do fluxo) — o religar do bot volta a valer para todas as encerradas.
+  // 10.33:   // 10.33 (Stefany 21/11 09:50, Janilsa): cliente que NÃO mandou CPF (CPF achado pelo telefone, análise reversa) não é digitado aos 30 min — espera o aceite e segue a régua 10.30.
   // 10.32:   // 10.32 (Stefany 21/11 09:49 'Tejo porque?'): 'ficou mais alguma dúvida?' chamava o cliente pelo nome do WhatsApp (Tejo, sobrenome) — agora usa o nome real da consulta (Marcus); e a régua 10.30 conta a dúvida já mandada como 1º toque.
   // 10.31:   // 10.31 (Stefany 21/11 09:48, Janilsa): o toque 'conseguiu ver as opções?' saía com '*1* ou *2*' e o WhatsApp mostrava '1* ou *2' em negrito → agora 1️⃣ ou 2️⃣.
   // 10.30:   // 10.30 (Stefany 21/11 09:46 confirmou): simulação abaixo de R$ 5 mil sem resposta ganha follow-up (1 h dúvida · manhã seguinte último toque · 2 h depois encerra com 01 A).
