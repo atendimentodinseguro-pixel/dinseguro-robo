@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.41';   // 10.41 (Stefany 21/11 10:17): na negociação a faixa vai de R$ 10 mil até o máximo do cliente (não passa de R$ 20 mil); máximo abaixo de R$ 10 mil → simulação normal do máximo.
+  const VERSAO = '10.42';   // 10.42 (Patricia GD4RY 21/11 11:19, C6 REPROVADA): invalidez 40–52 com o Daycoval indisponível volta para o vigia — o C6 reprova essa faixa (6.74); os demais seguem para o C6.
+  // 10.41:   // 10.41 (Stefany 21/11 10:17): na negociação a faixa vai de R$ 10 mil até o máximo do cliente (não passa de R$ 20 mil); máximo abaixo de R$ 10 mil → simulação normal do máximo.
   // 10.40:   // 10.40 (Stefany 21/11 10:17): negociação (cliente escolheu menos de R$ 10 mil) vai para o VIGIA no vermelho, com o máximo já simulado — o vigia manda o 8.10.
   // 10.39:   // 10.39 (Stefany 21/11 10:14–10:16): escolheu menos de R$ 10 mil → procedimento 8.10 completo: mensagem com 1️⃣ o máximo e 2️⃣ um valor da tabela + resposta rápida 'Simulação 10 a 18 mil'.
   // 10.38:   // 10.38 (Stefany 21/11 10:13 'tentando vender o máximo sempre'): cliente que escolhe menos de R$ 10 mil recebe a simulação do MÁXIMO, com a oferta de valor menor a partir de R$ 10 mil.
@@ -197,7 +198,7 @@
     try { const dcyFora37 = GM_getValue('daycoval_off', 0) || Date.now() - (+GM_getValue('dcy_vivo', 0) || 0) > 10 * 60000;   // 10.37: portal Daycoval sem aba viva há 10 min = indisponível
       if (r && /DAYCOVAL|QUERO/i.test(r.banco) && dcyFora37 && !/DAYCOVAL|QUERO/i.test(String(f.banco_ordem_stefany || ''))) {
       // 6.74 (caso Simone C6 980056818, 14/11 12:40: invalidez esp 32, 46 anos → "Reprovado Política Interna 66"): invalidez 40–52 NÃO vai para o C6
-      const esp9 = String(f.especie || '').padStart(2, '0'); if (false && ['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };   /* 10.37 (Stefany 21/11 10:10 'se o Daycoval está indisponível usa o C6 para o que precisar simular e link'): desligado — vai para o C6 */
+      const esp9 = String(f.especie || '').padStart(2, '0'); if (['04', '05', '06', '32', '33', '34', '51', '83', '92'].includes(esp9)) return { banco: 'VIGIA', motivo: 'invalidez 40–52 anos é Quero Mais (desligado hoje) — o C6 reprova (política interna) → vigia decide o banco' };   /* 10.42 (Patricia GD4RY 21/11 11:19: C6 REPROVADA — invalidez 49a): a trava 6.74 VOLTOU — o C6 reprova invalidez 40–52 por política interna; sem Daycoval → vigia (não C6) */
       return c6Off(f, { banco: 'C6', motivo: 'Daycoval indisponível → C6 (Stefany 21/11 10:10)' }); } } catch (e) {}
     return c6Off(f, r); }
   // 7.08 (Stefany 15/11 10:15: "O C6 está travando [VALIDAR COMISSAO]… os clientes que couberem no critério de outro banco, a gente pode fazer"):
