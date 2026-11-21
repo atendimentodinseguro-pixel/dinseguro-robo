@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.49';   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
+  const VERSAO = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
+  // 10.49 —   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
   // 10.48 —   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
   // 10.47 —   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
   // 10.46 —   // 10.46 (Ivanildo): link do robô pela API entra na régua na hora; 'sem fila e sem atendente' não tira mais do caderno.
@@ -245,7 +246,9 @@
     }
     // Mudança da Stefany, 07/11/2026 12:53, "por enquanto": não sendo invalidez,
     // ACIMA de R$ 6.000 vai para o C6. Antes o corte era R$ 20.000.
-    if (liberado >= 6000) return { banco: 'C6', motivo: 'Acima de R$ 6 mil e não é invalidez: C6' + nota };
+    // 10.50 (Stefany 21/11 14:30, Nelson H4FQ3 esp 41 66a R$ 10,8 mil — o C6 reprovou: 'faz no Facta · para o tipo de benefício e idade a regra é essa'): não invalidez de R$ 6 a 20 mil → FACTA; C6 só acima de R$ 20 mil
+    if (liberado > 20000) return { banco: 'C6', motivo: 'Acima de R$ 20 mil e não é invalidez: C6' + nota };
+    if (liberado >= 6000) return { banco: 'FACTA', motivo: 'Não é invalidez, de R$ 6 a 20 mil: FACTA (Stefany 21/11 14:30)' + nota };
     // Mudança da Stefany, 07/11/2026 14:41: abaixo de R$ 6 mil pode ir para a QUALIBANK,
     // desde que não caia na regra de invalidez (tratada acima) nem na de pensão abaixo
     // de 45 anos. Pensionista com menos de 45 anos continua na FACTA até ela passar a regra.
