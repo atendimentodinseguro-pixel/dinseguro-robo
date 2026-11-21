@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.46';   // 10.46 (Ivanildo): link do robô pela API entra na régua na hora; 'sem fila e sem atendente' não tira mais do caderno.
+  const VERSAO = '10.47';   // 10.47 (Oscar): resposta rápida de imagem com texto curto (tabela 10 a 18 mil) não sai mais repetida — se o clique já mandou, conta como enviada.
+  // 10.46 —   // 10.46 (Ivanildo): link do robô pela API entra na régua na hora; 'sem fila e sem atendente' não tira mais do caderno.
   // 10.45 —   // 10.45: CPF que só recebeu o 'sem margem' automático do fluxo do bot (fila SEM_MARGEM_BOT) é consultado pelo robô em 6 min (antes ficava sem ordem).
   // 10.44 —   // 10.44 (Stefany 21/11 13:00, Euuuu): depois do aviso "estou encerrando", 3 min depois confere se a conversa fechou; se não, fecha (01 C sem CPF / fechar_so com CPF).
   // 10.43 —   // 10.43 (Stefany 21/11 12:02, contato 'Euuuuuuuuuuu': 'Eu não é nome'): todos os pontos que usam o nome do WhatsApp rejeitam letra repetida 3x (Euuuu, Lulu), palavras que não são nome (Eu, Ok, Sim, Oi…) — aí cumprimenta sem nome.
@@ -1898,6 +1899,7 @@
       let linhaF = linha;
       if (!linhaF) { const trs = [...document.querySelectorAll('tr')].filter(vis).filter(x => !/^\s*Atalho\s+Mensagem/i.test(txt(x)) && txt(x).length > 30); if (trs.length === 1) linhaF = trs[0]; }
       if (!linhaF) throw new Error('resposta rápida ' + atalho + ' não apareceu');
+      const nAntes1047 = document.querySelectorAll('.entries [class*="entries-li"].right').length;   // 10.47
       clicar(linhaF);
       // 4.79: resposta rápida de VÍDEO/arquivo (/dsg25, /anuencia2…) não enche a caixa de texto → espera a prévia e confere pelo nº de mensagens
       if (midia) {
@@ -1915,6 +1917,9 @@
       if (!cheio) { try { const alvos = [linhaF.querySelector('td:last-child span, td:last-child div, td:last-child'), linhaF.querySelector('td:nth-child(2)'), ...linhaF.querySelectorAll('span,div')].filter(Boolean);
           for (const el of alvos) { for (const ty of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(ty, { bubbles: true, cancelable: true, view: window })); await esp(1500); if (document.querySelector('textarea').value.length > 40) { cheio = true; break; } } } catch (e) {} }
       if (!cheio) cheio = await ate(() => document.querySelector('textarea').value.length > 40, 4000);
+      // 10.47 (Oscar XJ348 21/11 13:41: 'Simulação 10 a 18 mil' saiu 3 VEZES — é imagem + texto curto (37 letras): o clique já mandou, o robô achou que 'não entrou' e repetiu)
+      if (!cheio) { await esp(2500); if (document.querySelectorAll('.entries [class*="entries-li"].right').length > nAntes1047) { try { setNativo(document.querySelector('textarea'), ''); } catch (e) {} return atalho + ' (saiu direto no clique)'; }
+        if (String((document.querySelector('textarea') || {}).value || '').trim().length >= 15) cheio = true; }
       if (!cheio) throw new Error('a resposta rápida não entrou na caixa');
       { /* 6.99 (Stefany 20:01: Dulce e Sonia receberam o passo a passo repetido): a mesma resposta rápida que já está entre as últimas 8 mensagens nossas não sai de novo */
         const v0 = semAcento(String(document.querySelector('textarea').value || '')).replace(/\s+/g, ' ').trim().slice(0, 60);
