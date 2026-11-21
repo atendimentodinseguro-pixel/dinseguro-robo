@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
+  const VERSAO = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
+  const VERSAO_10_53_NOTA = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
   const VERSAO_10_52_NOTA = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
   const VERSAO_10_51_NOTA = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
   const VERSAO_10_50_NOTA = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
@@ -3849,6 +3850,10 @@
       if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
+      // 10.54 (Francisca K94HN 21/11 18:02: recebeu "proposta será cancelada" com a C6 já em ANALISE CREDITO — documento anexado e aprovado — e respondeu "3 = cancelar"): confere a proposta pela API antes do toque
+      try { const OO54 = GM_getValue('auto_ordens', {}) || {}; const o54 = OO54[alvo.hash]; if (o54 && o54.propNc) { const p54 = await ncReq('GET', '/proposals/' + o54.propNc); const d54 = (p54 && p54.data) || p54 || {}; const br54 = d54.bank_reference || {};
+          const s54 = ((br54.bank_status || '') + ' ' + (br54.bank_status_description || '') + ' ' + (((d54.proposal || {}).status || {}).name || '')).trim();
+          if (/AN[AÁ]LISE|AVERB|PAGO|PAGA\b|INTEGRAD|APROVAD|CONCLU|FORMALIZAD|ASSINAD|CANCEL|REPROV/i.test(s54) && !/PENDENTE FORMALIZ|AGUARD[A-Z ]*FORM|ALTERAR FORM/i.test(s54)) { reg('pulado: a proposta já passou da assinatura (' + s54.slice(0, 60) + ') — 10.54', true); return; } } } catch (e) {}
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
       if (toque.tipo === 'manha' && new Date(toque.quando).toDateString() !== new Date(agora).toDateString()) {   /* 7.99 (Stefany 17/11 22:52: "se o computador ligar 9, 10, tem que acompanhar o horário que ligar"): o toque das 08:00 sai quando o computador ligar, no MESMO dia (8h–21h); só é pulado se ficou de um dia anterior */ reg('pulado (passou da manhã — régua criada tarde)', true); estado('esgotada', 'toque da manhã passou — vai para a FILA-FOLLOWUP-WHATSAPP'); return; }
       // 10.27 (Stefany 21/11 09:20, Djanira: "duas mensagens em menos de 3 minutos no follow-up, por quê?" — o vigia mandou às 09:16 e o /132 atrasado saiu às 09:19):
