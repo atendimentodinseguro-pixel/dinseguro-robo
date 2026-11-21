@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.14';
+  const VERSAO = '10.15';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -3369,7 +3369,7 @@
           // 6.37 (14/11 09:05, caso Roberlan: lista ↔ leitura brigando — 'alerta pela lista' e 'no bot' a cada 1,5 min, o robô relia o mesmo chat sem parar
           // e os follow-ups das 08:00 nunca tinham vez): se a conversa foi LIDA depois da última mudança na lista, vale a leitura, não a prévia.
           const lidaDepois = +x.lidoT > 0 && +x.lidoT > (+x.listaT || 0);
-          if (pareceEspera && !lidaDepois && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado) && !fechada888(x.hash, x.ultCliT)) {
+          if (pareceEspera && !lidaDepois && !['alerta', 'erro', 'humano', 'fechada', 'cancelada'].includes(x.estado) && !fechada888(x.hash, x.ultCliT) && !(x.estado === 'respondido' && Date.now() - (+x.api879T || 0) < 60 * 60000)) {   /* 10.15 (Djanira 7XSKL 01:11–01:15: entrava e saía do vermelho a cada minuto — prévia 'Estou analisando…' do bot × API 'já respondemos'): a API decidiu há menos de 1 h → vale a API; mensagem nova do cliente a espera API pega */
             x.estadoAntes = x.estado; x.estado = 'alerta'; x.motivo = 'cliente esperando resposta (lista: última mensagem não é nossa)'; x.reler = 1;   // 4.83: relê para achar CPF
             x.hist.push(hhmm(Date.now()) + ' alerta pela lista: ' + t.replace(/\s+/g, ' ').slice(0, 60)); mudou = true;
           } else if (nossa && x.estado === 'alerta' && /\(lista/.test(x.motivo || '')) {
@@ -5519,7 +5519,7 @@
           const R8 = RG(); let m8 = 0; for (const k8 in R8) { const x = R8[k8]; if (x && x.estado === 'alerta' && fechada888(k8, x.ultCliT) && /voltou a escrever depois do retorno|cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '')) { x.estado = 'fechada'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.88: conversa já encerrada e sem mensagem nova do cliente → saiu do vermelho'); m8++; } } if (m8) gravaRG(R8); } catch (e) {}
         try { const R9 = RG(); let m9 = 0; const porId = {}; all.forEach(c => { porId[c.chat.chatId] = c; }); const completo = !p;
           for (const k9 in R9) { const x = R9[k9]; if (!x || x.estado !== 'alerta') continue; const c9 = porId[k9]; const v9 = VI[k9];
-            if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
+            if (c9 && v9 && v9.ok && v9.lu === c9.lastUserMessageDatetime && /cliente esperando|cliente escreveu|bot passou para atendente|parou sem CPF|check-up|espera API/i.test(x.motivo || '') && !/8\.32|8\.15|8\.77/.test(x.motivo || '')) { x.estado = 'respondido'; x.api879T = ag; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: a API mostra que já respondemos → saiu do vermelho'); m9++; continue; }
             const u9 = +x.ultCliT || 0; if (!c9 && completo && ((u9 && ag - u9 > 24 * 3600000) || (!u9 && ag - (+x.criadoT || 0) > 24 * 3600000))) { x.estado = 'vencida'; delete x.reler; delete x.relerHist; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.79: cliente calado há mais de 24 h → é da varredura (saiu do vermelho)'); m9++; } }
           if (m9) { gravaRG(R9); diario('quadro', '🧹 ' + m9 + ' vermelho(s) antigo(s) saíram do quadro (já respondidos ou janela vencida) — 8.79'); } } catch (e) {}
         try { if (window.dinsLimpaCaderno) window.dinsLimpaCaderno(false); } catch (e) {}   // 9.01: caderno limpo a cada leitura da API
