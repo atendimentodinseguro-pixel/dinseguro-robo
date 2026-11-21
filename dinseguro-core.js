@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.05';
+  const VERSAO = '10.06';
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -2270,7 +2270,16 @@
           { const txt = cli.filter(t => !/^__(audio|media|image|video|file|document)__$/i.test(t) && !/^\[?(audio|m[íi]dia|image|imagem|video|arquivo)\]?$/i.test(t)); if (txt.length) cli = txt; }
           const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || y.estado !== 'sim_enviada') continue;
           if (!cli.length) { y.chkOkT = Date.now(); GM_setValue('auto_ordens', O2); continue; }
-          const ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
+          let ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80);
+          // 10.06 (Stefany 21/11 00:32: "o robô entende só 1 e 2, não dá para ficar mais esperto?"): traduz a resposta do cliente para 1 / 2 / "não desejo" antes das regras
+          try { const nos = j.newMessages.filter(m => m.FROM === 'me').sort((m1, m2) => T(m1) - T(m2)).map(tx); const ultNos2 = [...nos].reverse().find(t => /2️⃣|op[çc][ãa]o 2/i.test(t)) || '';
+            const doisENao = /2️⃣\s*N[ãa]o desejo/i.test(ultNos2); const temOp2 = /Op[çc][ãa]o 2/i.test(ultNos2) && !doisENao; const u0 = ult.toLowerCase().trim();
+            if (!/[?]/.test(u0)) {
+              if (/^(2|2️⃣)\s*[.!]?$/.test(u0) && doisENao) ult = 'não desejo';   // na mensagem de 1 opção (e nos toques) o 2 é "Não desejo" — nunca carência
+              else if (/(^|\b)(a\s+)?primeira(\s+op[çc][ãa]o)?\b|op[çc][ãa]o\s+(um|1)\b|^um[.!]?$|quero\s+a\s+(1|um)\b|vou\s+querer\b(?!.*segunda)|quero\s+contratar|pode\s+mandar\s+o\s+link|manda\s+o\s+link|como\s+fa[çc]o\s+(pra|para)\s+contratar|^aceito\b/.test(u0) && !/n[ãa]o/.test(u0)) ult = '1';
+              else if (temOp2 && (/(^|\b)(a\s+)?segunda(\s+op[çc][ãa]o)?\b|op[çc][ãa]o\s+(dois|2)\b|^dois[.!]?$|com\s+car[êe]ncia|come[çc]ar\s+a\s+pagar\s+(depois|mais\s+tarde)|pagar\s+s[óo]\s+depois/.test(u0)) && !/n[ãa]o/.test(u0)) ult = '2';
+              else if (/agora\s+n[ãa]o|n[ãa]o\s+tenho\s+interesse|n[ãa]o,?\s+obrigad|n[ãa]o\s+preciso|desisti|n[ãa]o\s+vou\s+querer|n[ãa]o\s+quero\s+(mais|empr[ée]stimo|n[ãa]o)/.test(u0)) ult = 'não desejo';
+              if (ult !== cli[cli.length - 1]) (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 10.06: entendi "' + String(cli[cli.length - 1]).slice(0, 40) + '" como "' + ult + '"'); } } catch (e) {} (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
           const nmR = y.nomeReal || y.nome || '';
           if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
