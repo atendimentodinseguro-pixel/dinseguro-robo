@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
+  const VERSAO = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
+  const VERSAO_10_51_NOTA = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
   const VERSAO_10_50_NOTA = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
   // 10.49 —   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
   // 10.48 —   // 10.48: ordem sem o WhatsApp pega o número no chat (contactId) e volta a andar sozinha.
@@ -1163,7 +1164,7 @@
     window.dinsReversoTeste = async fone => { const r = await reverso847(fone); return { fonte: r.fonte, cpf: r.cpf ? '***' + r.cpf.slice(-5) : '' }; };
     // 9.83 (Stefany 20/11 15:40, caso Sônia TCB5K: CPF achado pelo telefone deu sem margem → pediu o CPF; ela mandou o MESMO CPF às 15:38 e ninguém respondeu — a ordem ficou parada em 'reverso_conferir'):
     // cliente mandou o CPF dela → mesmo CPF: solta o desfecho guardado (vira ordem normal); CPF diferente: apaga a ordem do telefone para abrir consulta nova
-    function liberaReverso983(h, cs) { try { const O = GM_getValue('auto_ordens', {}) || {}; const x = O[h]; if (!x || x.estado !== 'reverso_conferir' || !cs) return false;
+    function liberaReverso983(h, cs) { try { const O = GM_getValue('auto_ordens', {}) || {}; const x = O[h]; if (!x || !cs || !(x.estado === 'reverso_conferir' || (x.estado === 'erro' && /reverso_conferir/.test(x.erro || '')))) return false; x.erro = '';   /* 10.52 (Andreia UM61O 21/11 15:43): o 9.91 tinha passado a ordem para 'erro' e o CPF que a cliente mandou ficou sem resposta */
       if (String(x.cpf || '') === String(cs)) { delete x.reverso; x.estado = 'desfecho'; x.t = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 9.83: cliente confirmou o mesmo CPF → mandando o desfecho'); }
       else { delete O[h]; } GM_setValue('auto_ordens', O); try { diario(x.nome || h.slice(0, 5), '🔎 cliente mandou o CPF depois do pedido de conferência → ' + (String(x.cpf) === String(cs) ? 'mesmo CPF, desfecho liberado' : 'CPF diferente, consulta nova') + ' (9.83)'); } catch (e) {} return true; } catch (e) { return false; } }
     window.dinsLiberaReverso = liberaReverso983;
