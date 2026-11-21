@@ -53,7 +53,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.21';
+  const VERSAO = '10.22';   // 10.22 (Stefany 21/11 02:19 'pode tirar do teste chat Rômulo também'): o chat de teste F20QOEL deixou de ser protegido (33 travas trocadas por um marcador que não casa com nenhum chat)
   // 9.91 (Stefany 20/11 19:49): (4) a tradução automática do Chrome apagava o formulário do NBC e mexia nos títulos do Botmaker → toda página em que o robô roda vira "não traduzir"
   try { const nt = () => { try { const H = document.documentElement; if (!H) return; H.setAttribute('translate', 'no'); H.classList.add('notranslate'); if (document.head && !document.querySelector('meta[name="google"][content="notranslate"]')) { const m = document.createElement('meta'); m.name = 'google'; m.content = 'notranslate'; document.head.appendChild(m); } } catch (e) {} };
     nt(); document.addEventListener('DOMContentLoaded', nt); setTimeout(nt, 3000); } catch (e) {}
@@ -286,7 +286,7 @@
     if (localStorage.getItem('dins_ordem')) return true;
     const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const RR = GM_getValue('regua', {}) || {}; const NM = GM_getValue('nao_mexer', {}) || {}; const AO = GM_getValue('auto_ordens', {}) || {};
     if (Object.values(AO).some(o => o && (soTela ? ['link'] : ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link']).includes(o.estado) && Date.now() - (o.t || 0) < 40 * 60000)) return true;
-    return FL.some(f => { const id = f.id; if (!id || id === 'F20QOEL8YYLQN2S6SR47' || NM[id]) return false; const q = RR[id]; if (!q) return true; if (q.comQuem) return false;
+    return FL.some(f => { const id = f.id; if (!id || id === '__TESTE_LIBERADO_1022__' || NM[id]) return false; const q = RR[id]; if (!q) return true; if (q.comQuem) return false;
       return !!q.reler || (+q.listaT || 0) > (+q.lidoT || 0) || (q.estado === 'alerta' && Date.now() - (+q.lidoT || 0) < 30 * 60000); });
   } catch (e) { return false; } };
   const zapDoCpf = cpf => { const c = String(cpf || '').replace(/\D/g, ''); const ZM = GM_getValue('zap_por_cpf', {}) || {}; const z = ZM[c] || ZM[c.padStart(11, '0')] || ZM[c.replace(/^0+/, '')];   /* 4.92: CPF com zero na frente (Multicorban mostra sem o zero — caso Ronaldo) */ if (!z || !z.fone) return ''; let t = String(z.fone).replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''); if (t.length === 10 && /[6-9]/.test(t[2])) t = t.slice(0, 2) + '9' + t.slice(2); return t; };   // 4.05: WhatsApp vem sem o 9 → celular com 9
@@ -1021,7 +1021,7 @@
   async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} return r942; }
   // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
   // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
-  function marcaDesligarBot942(chatId) { if (!chatId || chatId === 'F20QOEL8YYLQN2S6SR47') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true) return;
+  function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true) return;
     const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 15000); }
   window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
   function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
@@ -1216,7 +1216,7 @@
         const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return; const FE = GM_getValue('video_aval_feito', {}) || {}; const ag = Date.now();
         for (const k in FE) if (ag - (+FE[k] || 0) > 30 * 864e5) delete FE[k];
         for (const h of ks) { const t0 = +VP[h] || ag; delete VP[h]; GM_setValue('video_aval_pend', VP);
-          if (FE[h] || h === 'F20QOEL8YYLQN2S6SR47' || (typeof protegido === 'function' && protegido(h)) || ag - t0 > 2 * 3600000) continue;
+          if (FE[h] || h === '__TESTE_LIBERADO_1022__' || (typeof protegido === 'function' && protegido(h)) || ag - t0 > 2 * 3600000) continue;
           FE[h] = ag; GM_setValue('video_aval_feito', FE);
           const r = await window.dinsBmIntent(h, 'Video de avaliação'); try { diario(h.slice(0, 5), '🎬 vídeos de depoimento (fluxo Video de avaliação) enviados ao começar a digitação → ' + ((r && (r.http || r.erro)) || '?') + ' (9.93)'); } catch (e) {} break; } } catch (e) {} }, 30000);
     window.dinsBmGet = path => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
@@ -1541,7 +1541,7 @@
           if (!q || q.estado !== 'alerta' || !/bot passou para atendente|cliente escreveu|cliente esperando|mandou CPF|parou sem CPF/.test(q.motivo || '')) continue;
           if (fechada888(id, q.ultCliT)) continue;   // 8.88: conversa já encerrada não entra na lista
           if (q.hash && q.hash !== id && /^[A-Z0-9]{16,}$/i.test(q.hash)) continue;   // 4.84: entrada com chave errada (ex.: "103") — a certa entra pela própria chave
-          if (id === 'F20QOEL8YYLQN2S6SR47' || ignorar.includes(id) || fila.some(f => f.id === id)) continue;   // 5.07: estar na tela não tira da fila (caso Marcelo 72ND: última msg era do bot, a lista não punha e o quadro pulava)
+          if (id === '__TESTE_LIBERADO_1022__' || ignorar.includes(id) || fila.some(f => f.id === id)) continue;   // 5.07: estar na tela não tira da fila (caso Marcelo 72ND: última msg era do bot, a lista não punha e o quadro pulava)
           if (Date.now() - (q.ultT || q.lidoT || 0) > 24 * 3600 * 1000) continue;
           const sigQ = 'quadro|' + String(q.motivo || '').slice(0, 50);
           if (feito[id] === sigQ) continue;
@@ -2381,7 +2381,7 @@
         // 4.97: anúncio sem resposta do bot → flow "Inicio do atendimento" (2 min depois de entrar; uma vez por conversa; qualquer hora — foi o cliente que chamou)
         try { const RGa = GM_getValue('regua', {}) || {}; const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NMa = GM_getValue('nao_mexer', {}) || {};
           let STa = null; try { STa = JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) {}
-          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || NMa[k] || k === 'F20QOEL8YYLQN2S6SR47' || protegido(k)) continue;
+          for (const k of Object.keys(RGa)) { const x = RGa[k]; if (!x || x.estado !== 'alerta' || !/veio do anúncio e o bot não respondeu/.test(x.motivo || '') || NMa[k] || k === '__TESTE_LIBERADO_1022__' || protegido(k)) continue;
             if (AF[k]) { const falhou = STa && STa.hash === k && STa.acao === 'anuncio_sem_bot' && STa.st === 'erro'; const nT = +(AF[k + '#n'] || 1); if (!(falhou && nT < 3 && Date.now() - AF[k] > 60000)) continue; AF[k + '#n'] = nT + 1; }   // 4.98: deu erro → tenta de novo (até 3x)
             if (Date.now() - (+x.criadoT || 0) < 2 * 60000) continue;
             AF[k] = Date.now(); GM_setValue('anuncio_flow_feito', AF);
@@ -2389,7 +2389,7 @@
             return; } } catch (e) {}
         // 9.42: fila de conversas com o bot ainda ligado depois da nossa mensagem → abre e desliga (uma por vez)
         try { const DB = GM_getValue('desligar_bot942', {}) || {}; const NMb = GM_getValue('nao_mexer', {}) || {};
-          for (const k of Object.keys(DB)) { delete DB[k]; GM_setValue('desligar_bot942', DB); if (k === 'F20QOEL8YYLQN2S6SR47' || NMb[k] || protegido(k)) continue;
+          for (const k of Object.keys(DB)) { delete DB[k]; GM_setValue('desligar_bot942', DB); if (k === '__TESTE_LIBERADO_1022__' || NMb[k] || protegido(k)) continue;
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'nada_bot', quem: 'robo', t: Date.now() })); return; } } catch (e) {}
           for (const k in RGv) { if (true) break;   /* 8.79: pedido de CPF antigo DESLIGADO (regra 19/11: CPF só depois da resposta à simulação padrão) — ocupava a fila da tela à toa */ const x = RGv[k];
             if (!x || x.estado !== 'alerta' || !/parou sem CPF/.test(x.motivo || '') || PC[k] || !x.semCpfT || (GM_getValue('nao_mexer', {}) || {})[k] || protegido(k) || jaFezProposta(x)) continue;   // 6.35: 01 D/pago nunca recebe pedido de CPF
@@ -2513,7 +2513,7 @@
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'fase_msg', quem: 'robo', t: agora5, texto, nota: dd7 + ' ' + hhmm(agora5) + ' [robô 5.60] cliente disse "' + String(x.ultCliTxt || '').slice(0, 50) + '" → resposta (condição de hoje + horário certo) e lembrete na hora combinada.' }));
             return;
           }
-          for (const k in RGh) { if (true) break;   /* 8.79: 5.37 (mensagem pessoal + pedido de CPF) DESLIGADO — mesma regra */ const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === 'F20QOEL8YYLQN2S6SR47') continue;
+          for (const k in RGh) { if (true) break;   /* 8.79: 5.37 (mensagem pessoal + pedido de CPF) DESLIGADO — mesma regra */ const x = RGh[k]; if (!x || x.estado !== 'alerta' || protegido(k) || x.comQuem || k === '__TESTE_LIBERADO_1022__') continue;
             const handoff = /bot passou para atendente humano/.test(x.motivo || '') && x.handoffT;
             const menu = x.ultLado === 'cli' && MENU.test(x.ultCliTxt || '');
             const voltou = /voltou a escrever depois do retorno/.test(x.motivo || '') && MENU.test(x.ultCliTxt || '');
@@ -2828,7 +2828,7 @@
     const FIM897 = /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada)$/;
     const POS897 = x => /01 ?D|fechou neg|esteira|pago|averb|anu[êe]ncia|desbloque|AVERBE|formaliza/i.test(String(x.motivo || '') + ' ' + String(x.fase || '') + ' ' + ((x.hist || []).slice(-4).join(' ')));
     window.dinsLimpaCaderno = (simular) => { try { const r = RG(); const ag = Date.now(); const FM = GM_getValue('fechadas888', {}) || {}; const DEL = GM_getValue('regua_del', {}) || {};   /* 8.99: o gravaRG junta com o que está gravado — para SAIR de verdade tem que marcar em regua_del (a 8.97 contava mas não tirava) */ let tirou = 0, cortou = 0, ficou = 0; const motivos = {};
-        for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === 'F20QOEL8YYLQN2S6SR47') { ficou++; continue; }
+        for (const k in r) { const x = r[k]; if (!x) { delete r[k]; continue; } if (k === '__TESTE_LIBERADO_1022__') { ficou++; continue; }
           if (protegido(k)) { if (FIM897.test(x.estado || '')) { motivos['encerrada (protegido)'] = (motivos['encerrada (protegido)'] || 0) + 1; tirou++; if (!simular) { delete r[k]; DEL[k] = ag; } } else ficou++; continue; }   /* 9.02 (Stefany 19/11 14:37: "se tiver gente que já está encerrado ali, está errado") — tirar do caderno não mexe no cliente */
           // 9.00 (Stefany 19/11 14:17: "a galera que já fechou, mas tem link em andamento e você tá acompanhando — não faz sentido"): pós-venda SAI do caderno também.
           // O andamento das propostas continua guardado na esteira (lida do New Corban), que é de onde o vigia responde quando perguntarem. E 'atividade' é só o CLIENTE
@@ -2869,10 +2869,10 @@
         } catch (e) { FCH990 = null; }
         try { if (FCH990 && !simular) GM_setValue('fch990', { t: ag, m: FCH990 }); } catch (e) {}
         try { if (FCH990 && !simular) { const PL = GM_getValue('prot_lib1016', {}) || {}; const NI = GM_getValue('nao_interferir', []) || []; const NM = GM_getValue('nao_mexer', {}) || {}; let mudP = false;
-            for (const id of new Set([...NAO_INTERFERIR_PADRAO, ...NI, ...Object.keys(NM), ...Object.keys(FCH990).filter(k => { try { return protegido(k); } catch (e) { return false; } })])) {   /* 10.21: também quem é protegido pelo NOME */ if (id === 'F20QOEL8YYLQN2S6SR47' || PL[id]) continue; const e0 = FCH990[id]; const desde = (NM[id] && (+NM[id].t || +NM[id])) || 0;
+            for (const id of new Set([...NAO_INTERFERIR_PADRAO, ...NI, ...Object.keys(NM), ...Object.keys(FCH990).filter(k => { try { return protegido(k); } catch (e) { return false; } })])) {   /* 10.21: também quem é protegido pelo NOME */ if (id === '__TESTE_LIBERADO_1022__' || PL[id]) continue; const e0 = FCH990[id]; const desde = (NM[id] && (+NM[id].t || +NM[id])) || 0;
               if (e0 && e0.close && e0.close > desde) { PL[id] = ag; mudP = true; try { diario(id.slice(0, 5), '🔓 conversa encerrada → saiu da proteção; se voltar, atendimento normal (10.16)'); } catch (e) {} } }
             if (mudP) GM_setValue('prot_lib1016', PL); } } catch (e) {}   // 10.16   // 10.01: uma regra só — o mapa de eventos da API vale para todas as limpezas
-        for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === 'F20QOEL8YYLQN2S6SR47' || FIM897.test(x.estado || '')) continue;
+        for (const k of Object.keys(r)) { const x = r[k]; if (!x || k === '__TESTE_LIBERADO_1022__' || FIM897.test(x.estado || '')) continue;
           let j = null; try { const g = await window.dinsBmGet('/chats/' + k); if (g && g.http === 200) j = g.j; } catch (e) {} if (!j) { semResp++; continue; }
           const q = String(j.queueId || ''); const tg922 = (j.tags || []).join('|'); const fech = /^fechar_[a-z0-9_]+$/.test(q) || (!q && !j.agentId) || (!j.agentId && /01_I_|01k_|01 k|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado|Acima_?De_?80/i.test(tg922));   // 9.22 (Stefany 19/11 17:03, Leandro: "já tá fechado o cara e ainda tá aqui"): retorno final dado (tag de sem margem/LOAS/não identificado) = atendimento encerrado, mesmo com a fila aberta const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;
           const jf = Date.parse(j.whatsAppWindowCloseDatetime || '') || 0; const venc = !jf || jf < ag; const lu = Date.parse(j.lastUserMessageDatetime || '') || 0;; let fech985 = (FCH990 ? (() => { const e0 = FCH990[k]; return !!(e0 && e0.close && e0.close > e0.reab && e0.close >= lu); })() : fech) || fechada888(k, lu);   /* 10.01: com o mapa de eventos da API, ele decide (fila/tag antiga não) */   // 9.85 (Stefany 20/11 19:13: "a conversa está fechada, ele não tem que olhar mais"): fechada por intenção (fechar_*, tag_01a, tag_01c) registrada pelo robô e sem mensagem nova do cliente = fechada, mesmo que a fila diga tag_01a/tag_01c
@@ -2910,7 +2910,7 @@
         // "Não sou aposentado" (fila AUTONOMO) ou encerramento do bot ("Vamos encerrar este atendimento") → amarelo "encerrar pela regra" (07 / 01 C) até a Stefany liberar o fechamento automático.
         let novos931 = 0; try { if (!simular) { let rr = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); let pg = 0; const todas = [];
             while (rr && rr.j && pg < 10) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
-            const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || (R3[id] && !FIM897.test(R3[id].estado || '')) || id === 'F20QOEL8YYLQN2S6SR47' || protegido(id)) continue;   /* 9.97: registro antigo FECHADO não impede a volta (Em Nome De Jesus N7ZT8) — a regra 9.95 abaixo decide */ const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
+            const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || (R3[id] && !FIM897.test(R3[id].estado || '')) || id === '__TESTE_LIBERADO_1022__' || protegido(id)) continue;   /* 9.97: registro antigo FECHADO não impede a volta (Em Nome De Jesus N7ZT8) — a regra 9.95 abaixo decide */ const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
               const luC995 = Date.parse(c.lastUserMessageDatetime || '') || 0; const e995 = FCH990 && FCH990[id]; const voltou995 = !!(e995 && e995.close && luC995 > e995.close + 30000);   // 9.95: escreveu depois de encerrada → entra de novo
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
               if (!voltou995 && FO[id] && !((Date.parse(c.lastUserMessageDatetime || '') || 0) > (+FO[id].t || 0))) continue;   // 9.96 (Em Nome De Jesus N7ZT8: escreveu 20:28, saiu do caderno 20:31 como 'fechada' e a marca de saída segurava a volta)
@@ -2931,7 +2931,7 @@
         // o amarelo "encerrar pela regra" (bot já se despediu / não é do INSS) não espera gente — fecha pela intenção certa
         // (sem CPF → fechar_01c; com CPF → fechar_so; não é INSS → fechar_07). A trava 9.53 (conversa viva não fecha) continua valendo.
         try { if (!simular) { const ON956 = GM_getValue('bm_intents_on', []) || []; const R5 = RG(); let n956 = 0;
-            for (const k in R5) { const x = R5[k]; if (!x || x.estado !== 'humano' || protegido(k) || k === 'F20QOEL8YYLQN2S6SR47') continue; const mt = String(x.junto || x.motivo || '');
+            for (const k in R5) { const x = R5[k]; if (!x || x.estado !== 'humano' || protegido(k) || k === '__TESTE_LIBERADO_1022__') continue; const mt = String(x.junto || x.motivo || '');
               const it = /não é do INSS/i.test(mt) ? 'fechar_07' : /cliente encerrou no bot/i.test(mt) ? (x.cpf ? 'fechar_so' : 'fechar_01c') : ''; if (!it || !ON956.includes(it)) continue;
               const ri = await window.dinsBmIntent(k, it); if (ri && ri.http >= 200 && ri.http < 300 && !ri.pulado953) { const R6 = RG(); if (R6[k]) { R6[k].estado = 'fechada'; (R6[k].hist = R6[k].hist || []).push(hhmm(ag) + ' 9.56: encerrada pela regra → ' + it + ' (API)'); gravaRG(R6); } n956++; } }
             if (n956) diario('caderno', '✅ 9.56: ' + n956 + ' amarelo(s) "encerrar pela regra" fechado(s) pela intenção'); } } catch (e) {}
@@ -3094,14 +3094,14 @@
     // 4.44 (Stefany 11:09–11:10, caso Valdecir: "não é porque a última mensagem foi minha/do Rômulo que fica parado…
     // tem a questão dos contextos… só alguns casos específicos que eu pedi você não interfere"). Conversa com atendente
     // humano NÃO é mais "robô não faz nada": segue a análise normal. Só fica com o humano quem está nesta lista.
-    const NAO_INTERFERIR_PADRAO = ['F20QOEL8YYLQN2S6SR47', 'F0SEMWLO8C8FYE037LM0', 'GYHPCFWP8SS8MG9ACP0G'];   /* 10.16 (Stefany 21/11 01:34 'tira ele'): José Tobias ⚫️ 76Q6E saiu da proteção */   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
+    const NAO_INTERFERIR_PADRAO = ['__TESTE_LIBERADO_1022__', 'F0SEMWLO8C8FYE037LM0', 'GYHPCFWP8SS8MG9ACP0G'];   /* 10.16 (Stefany 21/11 01:34 'tira ele'): José Tobias ⚫️ 76Q6E saiu da proteção */   // 8.51: + José Tobias ⚫️ (CPF do usuário Credfranco) e Israel GYHPC (Rômulo) — nunca mexer   // chat de teste "Romulo" · Waldirene (Rômulo/Stefany)
     // 5.37 (Stefany 12/11, caso Carmen 16:05: o robô abriu consulta de CPF 3x para quem está no NÃO MEXER) → a lista vale também pelo NOME
     const NAO_MEXER_NOMES = [/^jo[aã]o carlos\b/i, /^carmen\b/i, /^lu andrade\b/i, /^waldirene\b/i, /^nila\b/i, /^jair\b/i];   /* 10.21: 'Romulo' por nome saiu (Stefany 21/11 02:12) — o chat de teste do Rômulo continua protegido pelo número */   // 5.48: ⚫️/Romulo/Jair (lista NAO_MEXER da varredura)
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
     // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
     window.dinsEhProtegido = h => protegido(h);   // 9.32: ponte para o bloco de envio pela API
-    const protegido = h => { try { if (h !== 'F20QOEL8YYLQN2S6SR47' && (gmCache('prot_lib1016', {}) || {})[h]) return false;   /* 10.16 (Stefany 21/11 01:33): proteção vale só até a conversa ENCERRAR; o cliente voltou → atendimento normal (o chat de teste continua sempre protegido) */
+    const protegido = h => { try { if (h !== '__TESTE_LIBERADO_1022__' && (gmCache('prot_lib1016', {}) || {})[h]) return false;   /* 10.16 (Stefany 21/11 01:33): proteção vale só até a conversa ENCERRAR; o cliente voltou → atendimento normal (o chat de teste continua sempre protegido) */
       if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
       const x = (gmCache('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
       const it = (JSON.parse(localStorage.getItem('dins_fila') || '[]') || []).find(f => f && (f.id === h || f.hash === h)); return !!(it && nomeProtegido(it.nome)); } catch (e) { return false; } };
@@ -3158,7 +3158,7 @@
         if (u && u.FROM === 'me' && u.FROM_NAME === 'Bot' && ut && Date.now() - ut < 6 * 60000 && soBotao && !passouHumano) { API_ADIA[id] = Date.now() + 2 * 60000; API_PLACAR.bot = (API_PLACAR.bot || 0) + 1; return false; } } else API_PLACAR.falhas++; } } catch (e) {}
       // 6.32 (Stefany 14/11 08:46 "Sim" — robô lendo pelo servidor, sem abrir a conversa): CPF mandado pelo cliente (texto) ou já gravado na
       // variável CPF do contato, sem resposta humana depois → cria a ordem de consulta direto do servidor, sem abrir a tela.
-      try { if (!protegido(id) && !['F20QOEL8YYLQN2S6SR47','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
+      try { if (!protegido(id) && !['__TESTE_LIBERADO_1022__','LF0ZIVPZJWV47Y1FUU09','JEYNTUC1V60ZRAYQHBQC','VFS738EQCXKLEHOES3LK','72NDWAFQHI0X2CKDXPL3','TYK97LS0A0LUTJ89N3WG'].includes(id)) { const AO0 = (GM_getValue('auto_ordens', {}) || {})[id];
         if (!(AO0 && (AO0.cpf && Date.now() - (+AO0.t || 0) < 23 * 3600000))) { const j = await apiLer(id, 30);
           if (j) { API_PLACAR.lidas++; const nm = j.newMessages || []; const txt = m => String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || ''));
             const humano = humano806;
@@ -3324,7 +3324,7 @@
       let FLq = []; try { FLq = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); } catch (e) {}
       const fA = faz('atendimento'), fV = faz('varredura'); if (!fA && !fV) return;   // 5.64 papel da aba
       let novo = !fA ? null : idsDaLista().filter(id => !apiAdiado(id)).find(id => !RG()[id] || (RG()[id].estado === 'fechada' && RG()[id].reler))   /* 4.99 (Stefany 12/11 09:28: "atendimentos já encerrados não precisa ele olhar"): fechada só volta a ser lida se a conversa andou */   /* 4.89: 'fechada' que voltou para a lista era relida sem parar (caso Fernanda) e ninguém mais tinha vez */
-        || FLq.filter(id => !apiAdiado(id)).find(id => !RG()[id] && id !== 'F20QOEL8YYLQN2S6SR47')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
+        || FLq.filter(id => !apiAdiado(id)).find(id => !RG()[id] && id !== '__TESTE_LIBERADO_1022__')   /* 4.93: cliente da fila que ainda não foi lido (não aparece na lista visível — ela só desenha ~6 conversas) */
         || FLq.filter(id => !apiAdiado(id)).find(id => RG()[id] && !protegido(id) && (RG()[id].reler || (+RG()[id].listaT || 0) > (+RG()[id].lidoT || 0)))
         || idsDaLista().filter(id => !apiAdiado(id)).find(id => RG()[id] && RG()[id].reler);   // 4.14: conversa que andou é relida
       // 4.23 (Stefany 11/11 08:06, casos Marcos/Hilda): vermelho com leitura velha. A conversa foi atendida e FECHADA, saiu da lista,
@@ -3338,7 +3338,7 @@
       if (!novo && fA) { const ag = Date.now(); const c = Object.values(RG()).filter(x => x && x.hash && pareceVermelho(x, ag) && ag - (+x.lidoT || 0) > 20 * M).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       // 5.62 (Stefany 18:00–18:02, casos Elisete/Alexandre/Ester): o 'reler' só valia para quem estava na lista visível (~6 conversas),
       // então 74 marcadas ficaram sem leitura. Agora, sem nada mais urgente, relê uma marcada fora da lista (a mais antiga primeiro).
-      if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== 'F20QOEL8YYLQN2S6SR47' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
+      if (!novo && fV) { const c = Object.values(RG()).filter(x => x && x.hash && x.reler && x.hash !== '__TESTE_LIBERADO_1022__' && !chatComOutraAba(x.hash) && !protegido(x.hash) && !x.comQuem && !['humano', 'fechada', 'cancelada', 'concluída'].includes(x.estado)).sort((a, b) => (+a.lidoT || 0) - (+b.lidoT || 0))[0]; if (c) novo = c.hash; }
       if (!novo) return;
       mapeando = true; const srv0 = SRV_PLACAR.lidas; try { await mapearUm(novo); localStorage.setItem('dins_mapeando', 0); desenharRegua(); } finally { mapeando = false; mapUltT = Date.now(); mapUltTela = SRV_PLACAR.lidas === srv0; }
     }, 3000);   // 4.83: de 60 s para 30 s · 4.96: 10 s (fila da manhã com 10+ clientes levava meia hora para ser lida)
@@ -3904,7 +3904,7 @@
           { const ini = Date.now(); while (atendimentoPendente() && Date.now() - ini < 45 * 60000) await new Promise(r => setTimeout(r, 5000)); }   // 4.95: atendimento primeiro
           // 4.94 (12/11 09:00: conferência das vencidas da manhã segurava a tela e 10 clientes da fila ficavam sem leitura) — quem está esperando passa na frente
           try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
-            const urg = FL.filter(id => id !== 'F20QOEL8YYLQN2S6SR47' && !protegido(id) && (!RR[id] || RR[id].reler || (+RR[id].listaT || 0) > (+RR[id].lidoT || 0))).slice(0, 2);
+            const urg = FL.filter(id => id !== '__TESTE_LIBERADO_1022__' && !protegido(id) && (!RR[id] || RR[id].reler || (+RR[id].listaT || 0) > (+RR[id].lidoT || 0))).slice(0, 2);
             for (const id of urg) { if (vigiaTrava() || localStorage.getItem('dins_ordem')) break; if (navPega('mapa')) { try { await mapearUm0(id); } catch (e) {} finally { navSolta('mapa'); } } }
           } catch (e) {}
           let livre = false;
@@ -3985,7 +3985,7 @@
         if (nossas.some(t => SIG_VIDEO.test(t)) && !(x && x.tVideo)) window.dinsVideo(hash, nomeSeguro(nomeDoContato()));
       } catch (e) {}
     }, 20000);
-    const NAO_MEXER_POS = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG', '44PQVTU6SYGBY2WM8E1V', '0KSYJ'];   // 7.23: mesmos chats que não se mexem (João Carlos, Carmen, Lu, Marcelo, teste, Josias, Marilza do Rômulo)
+    const NAO_MEXER_POS = ['__TESTE_LIBERADO_1022__', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG', '44PQVTU6SYGBY2WM8E1V', '0KSYJ'];   // 7.23: mesmos chats que não se mexem (João Carlos, Carmen, Lu, Marcelo, teste, Josias, Marilza do Rômulo)
     const detPos = { h: '' };
     let posRodando = false;
     async function olharPos() {
@@ -4109,7 +4109,7 @@
       if (posAnuRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       try {
-        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === 'F20QOEL8YYLQN2S6SR47' || !telaPronta(h)) return;
+        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === '__TESTE_LIBERADO_1022__' || !telaPronta(h)) return;
         const r = RG(), x = r[h]; if (!x || x.faseFeita !== 'falta anuência' || x.posAnu) return;
         if (!dentroDoHorario(Date.now()) || janelaVencidaAgora()) return;
         const ta = document.querySelector('textarea'); if (!ta || ta.value.trim() || /atendimento com (?!Dinseguro)/i.test(ta.placeholder || '')) return;
@@ -4135,7 +4135,7 @@
       if (senhaRodando || rodando || fupRodando || localStorage.getItem('dins_ordem') || vigiaTrava()) return;
       if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 45000) return;
       try {
-        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === 'F20QOEL8YYLQN2S6SR47' || !telaPronta(h)) return;
+        const h = (window.top.location.hash.match(/#\/chats\/([A-Z0-9]+)/i) || [])[1]; if (!h || h === '__TESTE_LIBERADO_1022__' || !telaPronta(h)) return;
         const r = RG(), x = r[h]; if (!x || x.faseFeita !== 'falta desbloquear' || x.senhaResp) return;
         if (!dentroDoHorario(Date.now()) || janelaVencidaAgora()) return;
         const ta = document.querySelector('textarea'); if (!ta || ta.value.trim() || /atendimento com (?!Dinseguro)/i.test(ta.placeholder || '')) return;
@@ -4163,7 +4163,7 @@
       for (const x of Object.values(r)) {
         // 4.51 (Stefany 12:32, caso Waldirene): a fase da esteira (desbloqueio/anuência) é mensagem padrão — sai mesmo em chat
         // protegido ou "com humano". Só o chat de teste fica de fora.
-        if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || x.hash === 'F20QOEL8YYLQN2S6SR47') continue;
+        if (!x.link || ['cancelada', 'fechada', 'concluída'].includes(x.estado) || x.hash === '__TESTE_LIBERADO_1022__') continue;
         const f = faseEsteira(x); if (!f || !ATALHOS_FASE[f.fase] || x.faseFeita === f.fase) continue;
         if (f.fase === 'pago') { try { const P0 = (GM_getValue('pos_pago', {}) || {})[x.hash]; if (P0 && P0.t22) continue; } catch (e) {} }   // 7.48: já avisado do pago (vigia/robô)
         if ((x.faseTent || 0) >= 3) continue;
@@ -4245,7 +4245,7 @@
       const r = RG(); let alvo = null, fe = null;
       for (const x of Object.values(r)) {
         if (x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita] && !x.faseFeitaT && !protegido(x.hash)) { x.faseFeitaT = Date.now() - 3 * 3600000; x.faseToq = 2; r[x.hash] = x; gravaRG(r); }   // 7.41: assinados de antes da 7.32 entram nos toques do dia seguinte (9h e 15h)
-        if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === 'F20QOEL8YYLQN2S6SR47' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
+        if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === '__TESTE_LIBERADO_1022__' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
         const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
@@ -4945,7 +4945,7 @@
     //  5) PRIMEIRA RODADA DO DIA: monta a lista e espera o botão "✅ Pode executar" no painel (regra dela); as outras rodam direto.
     // Liberar 01 D: dinsVarreLiberar('HASH', 'chamar'|'so_fechar').  Rodar agora: localStorage.dins_varrer_agora='1'.
     const DESF_TAG = /^(01 I|01 k|02 |03 |07 |Acima De 80)/i;
-    const NAO_MEXER_HASH = ['F20QOEL8YYLQN2S6SR47', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG'];   // 6.26: teste Romulo · João Carlos · Carmen · Lu Andrade · Marcelo 72ND · teste da Stefany · Josias (proposta a cancelar)   // chat de teste "Romulo"
+    const NAO_MEXER_HASH = ['__TESTE_LIBERADO_1022__', 'LF0ZIVPZJWV47Y1FUU09', 'JEYNTUC1V60ZRAYQHBQC', 'VFS738EQCXKLEHOES3LK', '72NDWAFQHI0X2CKDXPL3',  'TYK97LS0A0LUTJ89N3WG'];   // 6.26: teste Romulo · João Carlos · Carmen · Lu Andrade · Marcelo 72ND · teste da Stefany · Josias (proposta a cancelar)   // chat de teste "Romulo"
     window.dinsVarreLiberar = (hash, modo) => { const L = GM_getValue('varre_liberados', {}) || {}; if (modo) L[hash] = modo; else delete L[hash]; GM_setValue('varre_liberados', L); return L[hash] || null; };
     window.dinsVarreVer = () => GM_getValue('varre_plano', null);
     // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
@@ -5029,7 +5029,7 @@
         if (t === 0 && !varreSozinha()) { const ini = Date.now(); while (atendimentoPendente(true) && Date.now() - ini < 45 * 60000) { marcaVarrendo(); localStorage.setItem('dins_varre_livre', Date.now()); localStorage.setItem('dins_varre_pausa', 'atendimento'); await esp(5000); } localStorage.removeItem('dins_varre_pausa'); }   // 4.95: atendimento primeiro, varredura depois
         if (t === 0 && !varreSozinha()) { try { localStorage.setItem('dins_varre_livre', Date.now()); await esp(11000); while (localStorage.getItem('dins_ordem')) { marcaVarrendo(); await esp(3000); } localStorage.removeItem('dins_varre_livre'); } catch (e) {} }   // 4.90: janela de 11 s para o robô responder quem está esperando
         if (t === 0 && !varreSozinha()) { try { const FL = JSON.parse(localStorage.getItem('dins_fila') || '[]').map(f => f.id); const RR = RG();
-          const urg = FL.filter(h => h !== id && h !== 'F20QOEL8YYLQN2S6SR47' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
+          const urg = FL.filter(h => h !== id && h !== '__TESTE_LIBERADO_1022__' && (!RR[h] || RR[h].reler || (+RR[h].listaT || 0) > (+RR[h].lidoT || 0) || (Date.now() - (+RR[h].lidoT || 0) > 15 * 60000 && RR[h].estado === 'alerta'))).slice(0, 2);
           for (const h of urg) { marcaVarrendo(); try { if (window.__dinsMapear0) await window.__dinsMapear0(h); } catch (e) {} marcaVarrendo(); await esp(1500); }
         } catch (e) {} }
         window.top.location.hash = '#/chats/' + id; await esp(6000);
@@ -5333,7 +5333,7 @@
       try { const ag = Date.now(); const ids = new Set(Object.values(RG()).filter(x => x && x.hash && ag - Math.max(+x.ultCliT || 0, +x.lidoT || 0, +x.linkT || 0, +x.criadoT || 0) < 24 * 3600000).map(x => x.hash));
         document.querySelectorAll('[id]').forEach(e => { if (/^[A-Z0-9]{20}$/.test(e.id)) ids.add(e.id); });
         if (Date.now() - (+localStorage.getItem('dins_checkup_t') || 0) < 12 * 60000) return; localStorage.setItem('dins_checkup_t', String(Date.now()));   // 6.87: no máximo 1 a cada 12 min (também depois de recarregar)
-        for (const h of ids) { if (protegido(h) || h === 'F20QOEL8YYLQN2S6SR47') continue; await new Promise(r => setTimeout(r, 400)); let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
+        for (const h of ids) { if (protegido(h) || h === '__TESTE_LIBERADO_1022__') continue; await new Promise(r => setTimeout(r, 400)); let j = null; try { j = await apiLer(h, 12); } catch (e) {} if (!j) continue;
           const ms = j.newMessages || []; let iC = -1; for (let i = ms.length - 1; i >= 0; i--) { if (ms[i].FROM !== 'me') { iC = i; break; } } if (iC < 0) continue;
           const c = ms[iC]; const tC = new Date(c.CREATION_TIME).getTime() || +c.CREATION_TIME || 0; const min = (Date.now() - tC) / 60000; if (!(min >= 15 && min < 23 * 60)) continue;
           if (ms.slice(iC + 1).some(humano806)) continue;
@@ -5397,7 +5397,7 @@
             { let tCpf = 0, cpf5 = ''; for (const m of ms) { if (m.from !== 'user' || pixTxt891(T(m))) continue; const mm = T(m).match(/(^|\D)(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d)(\D|$)/); if (mm && cpfDigitoOk(mm[2]) && !(cpf5 && foneCara891(mm[2]) && !foneCara891(cpf5))) { cpf5 = mm[2].replace(/\D/g, ''); tCpf = Date.parse(m.creationTime); } }
               { const v891 = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v891) && v891 !== cpf5) { cpf5 = v891; if (!tCpf) { const u1 = ms.find(m => m.from === 'user'); tCpf = u1 ? Date.parse(u1.creationTime) : 0; } } }   // 8.91: o CPF que o bot guardou vale mais
               if (!cpf5) { const v = String(((c.variables || {}).CPF) || '').replace(/\D/g, ''); if (cpfDigitoOk(v)) { cpf5 = v; const u1 = ms.find(m => m.from === 'user'); tCpf = u1 ? Date.parse(u1.creationTime) : 0; } }
-              if (cpf5 && tCpf && ag - tCpf > 6 * 60000 && ag - tCpf < 24 * 3600000 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') {
+              if (cpf5 && tCpf && ag - tCpf > 6 * 60000 && ag - tCpf < 24 * 3600000 && !protegido(id) && id !== '__TESTE_LIBERADO_1022__') {
                 const ACOL = /Recebi o seu CPF|J[áa] tenho o seu CPF|j[áa] estou consultando|Estamos analisando|Bem-vindo de volta|Fico feliz que voc[êe] voltou/i;
                 const RESULT = /Novo Cr[ée]dito Dispon[íi]vel|Valor na conta|n[ãa]o h[áa] margem|sem margem|margem dispon[íi]vel|LOAS|n[ãa]o consigo liberar|https?:\/\/\S*(facta|dcy\.app|join|c6|quali|nuvidio|bit\.ly)|Op[çc][ãa]o 1|extrato de empr[ée]stimo.*(margem|valor)/i;
                 const depC = ms.filter(m => Date.parse(m.creationTime) > tCpf && m.from !== 'user');
@@ -5416,7 +5416,7 @@
                   try { const R = RG(); const x = R[id] || (R[id] = { hash: id, nome: String(c.firstName || ''), estado: 'alerta', toques: [], hist: [], criadoT: ag }); if (!/8\.15/.test(x.motivo || '')) { x.estado = 'alerta'; x.motivo = '8.15: mandou CPF às ' + hhmm(tCpf) + ', o robô consultou 2 vezes e o resultado não chegou ao cliente — vigia resolve'; x.ultLado = 'cli'; x.ultCliT = tCpf; x.reler = 1; (x.hist = x.hist || []).push(hhmm(ag) + ' ' + x.motivo); gravaRG(R); res.push(String(c.firstName || '') + ' (vigia: 2 tentativas)'); } } catch (e) {}
                   VI[id] = { lu: c.lastUserMessageDatetime, ok: 0, t: ag }; return; } } }
             // 8.32 (Julio ZMH5P 18/11: parou no fluxo do bot sem CPF às 07:09 e só recebeu mensagem automática do bot): sem CPF e sem resposta de GENTE depois da última mensagem dele → pede o CPF (1 vez a cada 12 h)
-            let fez879 = false; if (iC >= 0 && !protegido(id) && id !== 'F20QOEL8YYLQN2S6SR47') { try {   /* 8.79: vale também para quem só recebeu resposta automática do bot */
+            let fez879 = false; if (iC >= 0 && !protegido(id) && id !== '__TESTE_LIBERADO_1022__') { try {   /* 8.79: vale também para quem só recebeu resposta automática do bot */
               const temCpf8 = ms.some(m => m.from === 'user' && /(^|\D)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\s?\d\s?\d(\D|$)/.test(T(m))) || cpfDigitoOk(String(((c.variables || {}).CPF) || '').replace(/\D/g, ''));
               const gente = dep.some(m => m.from === 'agent');
               const cU8 = ms[iC]; const btn8 = String((cU8.content && (cU8.content.selectedButton || '')) || ''); const min8 = (ag - Date.parse(cU8.creationTime)) / 60000;
@@ -5466,7 +5466,7 @@
                 res.push(String(c.firstName || '') + ' (mensagem de valor)'); fez879 = true; } } catch (e) {} }
             if (fez879 && !respondido) { const tx9 = T(ms[iC]); if (!/\?/.test(tx9) && tx9.trim().length <= 40) { VI[id] = { lu: c.lastUserMessageDatetime, ok: 1, t: ag }; return; } }   /* pergunta ou texto longo → além da simulação, segue para o vermelho (o vigia responde a pergunta) */   // 8.79: já saiu a simulação padrão / análise reversa → não vira vermelho
             if (respondido) { try { const R = RG(); const x = R[id]; if (x && x.estado === 'alerta' && /check-up|espera API/.test(x.motivo || '')) { x.estado = 'respondido'; (x.hist = x.hist || []).push(hhmm(ag) + ' 8.12: a API mostra que já respondemos → saiu do vermelho'); gravaRG(R); } } catch (e) {} return; }
-            if (protegido(id) || id === 'F20QOEL8YYLQN2S6SR47') return;
+            if (protegido(id) || id === '__TESTE_LIBERADO_1022__') return;
             /* 8.77 (Stefany 19/11 11:42 "tem que resolver a causa" — Oscar 6SEVR e Oton N49ZS): a trava "conversa de humano (Rômulo/Stefany) — não tocar" saiu daqui. O rótulo [Rômulo Lima👤] é o do usuário logado: vai em TODA mensagem que o robô manda pela tela e nas do fluxo do bot, então a trava escondia cliente esperando. Regra 19/11: cliente esperando em chat do Rômulo/Stefany → entra na hora. As conversas de não mexer continuam barradas por protegido(). */
             const cU = ms[iC]; const tx = T(cU); const tipo = (cU.content && cU.content.type) || ''; const min = Math.round((ag - Date.parse(cU.creationTime)) / 60000);
             const btn = tipo === 'button-click' ? String((cU.content && (cU.content.selectedButton || cU.content.text)) || '') : '';
@@ -5500,7 +5500,7 @@
         // 8.37 (Stefany 18/11 13:41: "o robô de atendimento… parar de pegar esse pessoal com a janela de 24 h fechada… está atrasando o atendimento… foi um equívoco meu"): DESLIGADO — vencidas são só da varredura
         try { const ON = GM_getValue('bm_intents_on', []) || []; if (false && ON.includes('fechar_so') && ON.includes('fechar_01c')) {
           const FV = GM_getValue('esp_api_fechou_venc', {}) || {}; for (const k in FV) if (ag - FV[k] > 7 * 86400000) delete FV[k];
-          const venc = all.filter(c => !janAberta(c) && !FV[c.chat.chatId] && !protegido(c.chat.chatId) && c.chat.chatId !== 'F20QOEL8YYLQN2S6SR47').slice(0, 30);
+          const venc = all.filter(c => !janAberta(c) && !FV[c.chat.chatId] && !protegido(c.chat.chatId) && c.chat.chatId !== '__TESTE_LIBERADO_1022__').slice(0, 30);
           const frV = encodeURIComponent(new Date(ag - 6 * 86400000).toISOString()); let nF = 0, n01 = 0;
           for (const c of venc) { const id = c.chat.chatId; const tags = (c.tags || []).join('|');
             if (/01_?D|FechouNeg|Fechou_?Neg/i.test(tags)) { FV[id] = ag; continue; }   // fechou negócio: esteira acompanha, não fecha
@@ -5651,7 +5651,7 @@
     setInterval(async () => { try { if (anun947Rod || meuPapel() === 'vigia' || !faz('atendimento') || !window.dinsBmGet) return; if (localStorage.getItem('dins_ordem')) return; anun947Rod = true;
       const ag = Date.now(); const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 20 * 60000).toISOString())); if (!r || r.http !== 200) return;
       const AF = GM_getValue('anuncio_flow_feito', {}) || {}; const NM = GM_getValue('nao_mexer', {}) || {};
-      const cs = ((r.j && r.j.items) || []).filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); const id = c.chat && c.chat.chatId; return id && !AF[id] && !NM[id] && id !== 'F20QOEL8YYLQN2S6SR47' && !protegido(id) && !c.agentId && ag - lu > 90000 && ag - lu < 20 * 60000; });
+      const cs = ((r.j && r.j.items) || []).filter(c => { const lu = Date.parse(c.lastUserMessageDatetime || 0); const id = c.chat && c.chat.chatId; return id && !AF[id] && !NM[id] && id !== '__TESTE_LIBERADO_1022__' && !protegido(id) && !c.agentId && ag - lu > 90000 && ag - lu < 20 * 60000; });
       for (const c of cs.slice(0, 6)) { const id = c.chat.chatId; const m = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 6 * 3600000).toISOString())); if (!m || m.http !== 200) continue;
         const ms = ((m.j && m.j.items) || []).slice().sort((a, b) => (Date.parse(a.creationTime) || 0) - (Date.parse(b.creationTime) || 0)); const u = ms[ms.length - 1]; if (!u || u.from !== 'user') continue;
         const ct = u.content || {}; if (String(ct.text || '').trim() || ct.selectedButton || (ct.type && ct.type !== 'text')) continue;   // só a mensagem VAZIA do anúncio (sem texto, sem botão, sem arquivo)
@@ -5680,7 +5680,7 @@
       setInterval(async () => { if (ocup907) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
         const L = GM_getValue('duv907_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('duv907_dono', { aba: ABA, t: Date.now() });
         ocup907 = true; const ag = Date.now(); const R = GM_getValue('regua', {}) || {}; const DV = GM_getValue('duv907', {}) || {}; const VM = GM_getValue('valor_msg_feito', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
-        for (const id of Object.keys(R)) { const x = R[id]; if (n >= 2) break; if (!x || protegido(id) || id === 'F20QOEL8YYLQN2S6SR47' || /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada|alerta|humano)$/.test(x.estado || '') || (x.link && !x.semLink)) continue;
+        for (const id of Object.keys(R)) { const x = R[id]; if (n >= 2) break; if (!x || protegido(id) || id === '__TESTE_LIBERADO_1022__' || /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada|alerta|humano)$/.test(x.estado || '') || (x.link && !x.semLink)) continue;
           if (O[id] && ['nova', 'consultando', 'ficha_ok', 'digitando', 'pronto', 'gravando', 'gravada', 'link', 'desfecho'].includes(O[id].estado)) continue;
           if (DV[id] && ag - (+DV[id].v || 0) < 20 * 60000) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
@@ -5721,7 +5721,7 @@
         // 9.08 (Stefany 19/11 14:48 + 14:52 "pode avisar o cliente que tá encerrando e fecha"): PEDIMOS O CPF e não veio → 2 HORAS depois: aviso de encerramento + 01 C + fecha. Sem repetir o pedido.
         const PC908 = GM_getValue('pedir_cpf_feito', {}) || {}; const CAND = {}; for (const id in VM) CAND[id] = { t: +VM[id] || 0, lim: 60, mot: 'simulação padrão sem resposta há 1 h' };
         for (const id in PC908) { const tp = +PC908[id] || 0; if (tp > ((CAND[id] || {}).t || 0)) CAND[id] = { t: tp, lim: 120, mot: 'pedimos o CPF e não veio em 2 h' }; }
-        for (const id of Object.keys(CAND)) { const t = CAND[id].t; if (EN[id] || ag - t < CAND[id].lim * 60000 || ag - t > 20 * 3600000 || protegido(id) || id === 'F20QOEL8YYLQN2S6SR47' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
+        for (const id of Object.keys(CAND)) { const t = CAND[id].t; if (EN[id] || ag - t < CAND[id].lim * 60000 || ag - t > 20 * 3600000 || protegido(id) || id === '__TESTE_LIBERADO_1022__' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
           if (/^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || lu > t + 30000 || !jf || jf < ag + 2 * 60000 || /01.?A|01.?D|FechouNeg|SimulacaoEnviada/i.test(tg)) { EN[id] = { t: ag, pulou: 1 }; continue; }
