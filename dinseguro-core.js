@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
+  const VERSAO = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
+  const VERSAO_10_52_NOTA = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
   const VERSAO_10_51_NOTA = '10.51';   // 10.51 (Stefany 21/11 15:24, Severino): C6 'ALTERAR FORM PLUS' com 60+ → redigita no QUALIBANK; 'SEM COMISSAO' → erro com a ordem do Happy.
   const VERSAO_10_50_NOTA = '10.50';   // 10.50 (Stefany 21/11 14:30, Nelson): não invalidez de R$ 6 a 20 mil vai para a FACTA (C6 só acima de R$ 20 mil).
   // 10.49 —   // 10.49: a mensagem pronta do disparo ('recebi seu WhatsApp, desejo mais informações') não conta como resposta à simulação.
@@ -912,7 +913,7 @@
     if (banco === 'qualibank' && bc === '104' && ag === '3880') ag = '0001';   // 4.62: o Qualibank recusa a 3880
     const conta = { account_type: bc === '104' || /poup/i.test(f.tipo_conta || '') ? 'CP' : 'CC', bank_code: bc, agency_number: ag, account_number: String(ct).replace(/^0+(?=\d)/, ''), account_digit: dv };
     const tel = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (tel.length < 10) throw new Error('Falta telefone (celular) na ficha');
-    const sx = /^F/i.test(String(f.sexo || '')) ? 'FEMININO' : 'MASCULINO';
+    const sx = /^F/i.test(String(f.sexo || '')) ? 'FEMININO' : /^M/i.test(String(f.sexo || '')) ? 'MASCULINO' : (/A$/i.test(String(f.nome || o.nomeReal || o.nome || '').trim().split(/\s+/)[0]) ? 'FEMININO' : 'MASCULINO');   // 10.53 (Sonia 21/11: ficha sem sexo ia MASCULINO na API) — sem sexo, primeiro nome terminado em A = FEMININO
     const end = { zip_code: so(f.cep) || null, street: f.endereco || null, number: String(f.numero || 'SN'), neighborhood: f.bairro || null, city: f.cidade || null, state: f.uf || ufDoDDD(tel) || null };
     const cli = { tax_id: so(f.cpf).padStart(11, '0'), name: String(f.nome || '').slice(0, 49), mother_name: f.mae || 'NAO INFORMADO', birth_date: ncD(f.nascimento), marital_status: 'SOLTEIRO', email: f.email || 'naoinformado@gmail.com', income_amount: Math.max(num(f.renda), 1621) };
     const ben = { registration_number: so(f.beneficio).replace(/^0+/, ''), benefit_species: +so(f.especie), state: end.state, benefit_dispatch_date: ncD(f.ddb) || null, receive_card: false };
