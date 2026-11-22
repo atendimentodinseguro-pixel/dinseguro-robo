@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
+  const VERSAO = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
+  const VERSAO_10_63_NOTA = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
   const VERSAO_10_62_NOTA = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
   const VERSAO_10_61_NOTA = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
   const VERSAO_10_60_NOTA = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
@@ -730,7 +731,7 @@
         // 7.55 (Stefany 17/11 01:16: "a gente está digitando muito rápido a proposta antes do cara simular, isso está assustando muita gente"):
         // quem ainda NÃO aceitou recebe primeiro só a SIMULAÇÃO (2 opções). A proposta só é gravada se ele aceitar (opção 1 → link na hora)
         // ou se não responder em 30 min (grava e manda /parabens para ele avaliar). Aceite do bot / ordem do vigia continuam gravando direto.
-        if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && o.soSim1063) {   // 10.63 (Stefany 22/11 10:37): CPF recebido → digita direto e manda simulação + link (/parabens); só simula se o vigia pedir (soSim1063)
+        if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && !o.digitaDireto1063) {   // 10.64 (Stefany 22/11 10:39): volta a regra — 1º a SIMULAÇÃO; 30 min sem resposta → digita e manda /parabens (7.55). digitaDireto1063 = vigia manda direto
           const tabS = logRobo().slice(antes).map(l => /Tabela: .*?(\d{2,3})x\s+[\d,]+%\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/.exec(l)).filter(Boolean).pop();
           const okS = v => /\d,\d{2}$/.test(String(v || ''));
           const fS = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
@@ -912,7 +913,7 @@
     const dados = { liberado: brl(+of.released_amount), parcela: brl(+of.installment), prazo: String(of.term || f.prazo || 108), nomeReal: f.nome || o.nomeReal, tabelaApi: of.table_name };
     if (abaixo969) { dados.ficha = Object.assign({}, f, { valor: '', parcela: brl(+of.installment) }); dados.pedido969 = brl(pedido); dados.aceite = false; dados.simGravar = 0; dados.aceitouSim = 0; return { simulada: 1, dados }; }   // o aceite era do valor maior → manda a simulação do que a margem dá e espera o novo aceite
     // 7.55: quem ainda NÃO aceitou recebe só a SIMULAÇÃO (não grava)
-    if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && o.soSim1063) return { simulada: 1, dados };   // 10.63: CPF recebido → grava direto (simulação + link + /parabens)
+    if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && !o.digitaDireto1063) return { simulada: 1, dados };   // 10.64: 1º a simulação; 30 min sem resposta → digita + /parabens
     // conta: mesma hierarquia da tela (6191-6205): ficha com conta → ficha sem conta (deriva da agência) → aleatória Caixa (quem ainda não aceitou) → para
     const aleatOk = f.aleatoria_ok || (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim));
     let bc = bancoOk(f.banco), ag = agOk(f.agencia), cc = so(f.conta), ct, dv;
@@ -1259,12 +1260,15 @@
     window.dinsTextoN30 = () => { try { const RC = GM_getValue('rr_cache', {}) || {}; return (RC['/n30'] && RC['/n30'].tx) || ''; } catch (e) { return ''; } };
     // 9.91 (3) pedido parado na mesma etapa → amarelo do vigia (caso Sônia: ficou em 'reverso_conferir' e ninguém viu). Uma vez por pedido.
     setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; { const hh = new Date().getHours(); if (hh < 8 || hh >= 21) { GM_setValue('parado991', {}); return; } }   /* fora do horário o pedido pode esperar de propósito */ const O = GM_getValue('auto_ordens', {}) || {}; const SN = GM_getValue('parado991', {}) || {}; const ag = Date.now(); let mud = false, mudO = false;
-        const LIM = { reverso_conferir: 20, desfecho: 20, ficha_ok: 20, nova: 40 };   /* 10.02: com_margem/sim_resp = esperando o CLIENTE responder a simulação, não é pedido parado (Sirley FVNVK caiu no amarelo à toa) */
+        const LIM = { reverso_conferir: 20, desfecho: 20, ficha_ok: 20, nova: 40, simulada: 45 };   /* 10.02: com_margem/sim_resp = esperando o CLIENTE responder a simulação, não é pedido parado (Sirley FVNVK caiu no amarelo à toa) */
         for (const h in O) { const o = O[h]; if (!o || !LIM[o.estado]) { if (SN[h]) { delete SN[h]; mud = true; } continue; } const sig = o.estado + '|' + (o.hist || []).length;
           if (!SN[h] || SN[h].sig !== sig) { SN[h] = { sig, t: ag }; mud = true; continue; }
           // 10.61 (Stefany 22/11 10:20, KLEBER LQPL7: "mandou CPF, quis proposta e não recebeu nada — prioridade máxima"): ordem parada em ficha_ok/digitando (banco fora do ar, Daycoval sem login…) com valor já calculado e o cliente SEM resposta → manda a SIMULAÇÃO na hora pela API (o link vai depois) e avisa o vigia
           if (['ficha_ok', 'digitando'].includes(o.estado) && o.tipo === 'cpf' && o.liberado && o.parcela && !o.simParada1061 && !o.reverso && ag - SN[h].t > 8 * 60000 && !protegido(h)) { o.simParada1061 = ag; mudO = true; const nm61 = primeiroNome(o.nomeReal || '') || ''; const tx61 = (nm61 ? nm61 + ', ' : '') + 'já consultei o seu benefício e você tem crédito disponível 😊\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 108x de *R$ ' + o.parcela + '*\n\nJá estou deixando a sua proposta pronta e em seguida te mando o link para você conferir e finalizar *pelo celular*. Depois da assinatura, a liberação sai em até *60 minutos*. 🤝\n\nSe preferir um valor menor, é só me dizer quanto. 🔒 Nada é feito sem a sua confirmação.';
             bmEnviarTexto(h, tx61).then(() => { try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛟 pedido parado em ' + o.estado + ' (' + (o.banco || '') + ') → simulação mandada na hora pela API para o cliente não ficar sem resposta (10.61)'); } catch (e) {} }).catch(() => {}); }
+          // 10.64 (Roberta POQJD 22/11: ficou 'simulada' das 08:05 às 10:20 — a simulação NUNCA saiu e o relógio dos 30 min não começou): 'simulada' há 15 min sem envio → manda a simulação pela API e começa os 30 min (sim_enviada)
+          if (o.estado === 'simulada' && o.tipo === 'cpf' && o.liberado && o.parcela && !o.tSimEnv && !o.api790T && !o.simParada1061 && ag - (+o.tSim || SN[h].t) > 15 * 60000 && ag - SN[h].t > 2 * 60000 && !protegido(h)) { Object.assign(o, { simParada1061: ag, api790T: ag, estado: 'sim_enviada', tSimEnv: ag, chkOkT: ag }); (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 10.64: simulação não tinha saído → mandada pela API; 30 min sem resposta → digita + /parabens'); mudO = true; const nm64 = primeiroNome(o.nomeReal || '') || '';
+            bmEnviarTexto(h, (nm64 ? nm64 + ', ' : '') + 'já consultei o seu benefício e você tem crédito disponível 😊\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + (o.prazo || '108') + 'x de *R$ ' + o.parcela + '*\n\n✅ Simulação gratuita e sem compromisso\n🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.\n\nPosso preparar a sua proposta para você conferir pelo celular? É só responder *SIM* 🤝').then(() => { try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛟 simulação estava parada → mandada pela API; 30 min sem resposta → digita + /parabens (10.64)'); } catch (e) {} }).catch(() => {}); continue; }
           if (!SN[h].av && ag - SN[h].t > LIM[o.estado] * 60000) { SN[h].av = 1; mud = true; o.erro = 'pedido parado em "' + o.estado + '" há ' + LIM[o.estado] + ' min (9.91) — vigia confere'; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 9.91: parado em ' + o.estado + ' → vigia'); o.estado = 'erro'; mudO = true;
             try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛠️ pedido parado em "' + sig.split('|')[0] + '" há ' + LIM[sig.split('|')[0]] + ' min → amarelo do vigia (9.91)'); } catch (e) {} } }
         for (const h in SN) if (!O[h]) { delete SN[h]; mud = true; }
@@ -6875,7 +6879,7 @@
           GM_setValue('ficha_atual', o.ficha);
           poeAOd(o.hash, { estado: 'digitando' });
           const t0 = Date.now();
-          const soSim = !o.aceite && !o.simGravar && !!o.soSim1063;   // 10.63 (antes 7.56): mesma regra do New Corban — quem não aceitou recebe só a simulação
+          const soSim = !o.aceite && !o.simGravar && !o.digitaDireto1063;   // 10.64 (7.56): mesma regra do New Corban — quem não aceitou recebe só a simulação
           const b = [...p.querySelectorAll('button')].find(x => x.dataset.a === (soSim ? 'Só simular' : 'Fazer tudo')); if (!b) throw new Error('botão ' + (soSim ? 'Só simular' : 'Fazer tudo') + ' não está na tela');
           b.click();
           let st = null;
