@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
+  const VERSAO = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
+  const VERSAO_10_57_NOTA = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
   const VERSAO_10_56_NOTA = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
   const VERSAO_10_55_NOTA = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
   const VERSAO_10_54_NOTA = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
@@ -1043,7 +1044,8 @@
   // Conversa que chegou por um canal suspenso NUNCA recebe mensagem do robô — nem pela API nem pela tela (executor de ordens).
   const CANAIS_SUSPENSOS = [];   // 8.64 (Stefany 19/11 08:01: "o telefone voltou, não está mais suspenso") — 0800 191 2261 liberado de novo
   // 8.70 (Stefany 19/11 09:17, Chung: "Recebi o seu CPF" saiu 2x — duas abas do robô ao mesmo tempo): trava entre abas (localStorage é síncrono no mesmo site)
-  function trava870(chave, ms) { try { const k = 'dins_trava870_' + chave; const v = +localStorage.getItem(k) || 0; if (Date.now() - v < (ms || 10 * 60000)) return false; localStorage.setItem(k, String(Date.now())); return true; } catch (e) { return true; } }
+  // 10.58 (Stefany 22/11 07:50, Carlos Henrique: "Recebi o seu CPF…" saiu 2x às 07:41 — "duplicação segue sem resolver"): a trava era por localStorage (uma por SITE); a API e a tela rodam em sites/abas diferentes e as duas passavam. Agora a trava é no armazenamento do Tampermonkey (o mesmo em todas as abas e sites)
+  function trava870(chave, ms) { try { const k = 'dins_trava870_' + chave; const T = GM_getValue('trava870g', {}) || {}; const v = Math.max(+T[k] || 0, +localStorage.getItem(k) || 0); if (Date.now() - v < (ms || 10 * 60000)) return false; T[k] = Date.now(); for (const x in T) if (Date.now() - T[x] > 6 * 3600000) delete T[x]; GM_setValue('trava870g', T); try { localStorage.setItem(k, String(Date.now())); } catch (e) {} return true; } catch (e) { return true; } }
   const canalCache = {};
   const CANAL_VOLTOU865 = {};   // 10.26 (Stefany 21/11 09:16 'não tem número suspenso mais'): a trava 8.65 (só quem escreveu depois de 19/11 08:00) saiu — ela bloqueava conversas novas do 0800 quando a API não trazia lastUserMessageDatetime (caso Djanira)   // 8.65: voltou 19/11 08:00 (Brasília)
   async function canalSuspenso(chatId) { try { const c0 = canalCache[chatId]; if (c0 && Date.now() - c0.t < 30 * 60000) return c0.s; let lu865 = 0;
@@ -1057,7 +1059,7 @@
   window.dinsCanalSuspenso = canalSuspenso;
   window.dinsLibera865 = (h, on = true) => { const L = GM_getValue('libera865', {}) || {}; if (on) L[h] = Date.now(); else delete L[h]; GM_setValue('libera865', L); delete canalCache[h]; return Object.keys(L).length; };   // 8.71 (Stefany 19/11 09:37: os de ontem do 0800 que mandaram CPF → consultar e retornar)
   window.dinsBmApiOn = on => { if (on !== undefined) GM_setValue('bm_api_on', on ? 1 : 0); return GM_getValue('bm_api_on', 1); };   // chave geral do envio pela API (0 = desligado em todas as abas deste Chrome)
-  async function bmEnviarTexto(chatId, texto) { if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} try { if (/estou encerrando o seu atendimento/i.test(String(texto))) { const E44 = GM_getValue('enc1044', {}) || {}; E44[chatId] = Date.now(); GM_setValue('enc1044', E44); } } catch (e) {} return r942; }
+  async function bmEnviarTexto(chatId, texto) { { const k58 = 'txt_' + chatId + '_' + String(texto || '').replace(/\s+/g, ' ').slice(0, 120); if (!trava870(k58, 15 * 60000)) throw new Error('mesma mensagem já enviada a este chat há menos de 15 min — não repito (10.58)'); } if (await canalSuspenso(chatId)) throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); if (GM_getValue('bm_api_on', 1) === 0) throw new Error('envio pela API desligado'); const r942 = await bmEnviarTexto0(chatId, texto); try { marcaDesligarBot942(chatId); } catch (e) {} try { if (/estou encerrando o seu atendimento/i.test(String(texto))) { const E44 = GM_getValue('enc1044', {}) || {}; E44[chatId] = Date.now(); GM_setValue('enc1044', E44); } } catch (e) {} return r942; }
   // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
   // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
   function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true || /^fechar_/.test(String(r.j.queueId || ''))) return;   /* 10.28: encerrada não desliga */
