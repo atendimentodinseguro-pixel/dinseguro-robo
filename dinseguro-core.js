@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
+  const VERSAO = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
+  const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
   const VERSAO_10_72_NOTA = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
   const VERSAO_10_71_NOTA = '10.71';   // 10.71: logs do robô da Quali.
   const VERSAO_10_70_NOTA = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
@@ -2705,7 +2706,13 @@
             const sug60 = (() => { const t = String(x.ultCliTxt || '').toLowerCase(); const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']; const dn = dias.findIndex(d => t.includes(d) || t.includes(d.replace('ç', 'c').replace('á', 'a')));
               if (/amanh[ãa]/.test(t) || dn >= 0) { const dia = dn >= 0 ? (dn === new Date().getDay() + 1 || (dn === 0 && new Date().getDay() === 6) ? 'amanhã (' + dias[dn] + ')' : dias[dn]) : 'amanhã'; return 'Para eu te chamar no horário certinho ' + dia + ': fica melhor às *10h* ou às *11h* da manhã?'; }
               let h1 = new Date().getHours() + 2; if (h1 > 19) return 'Para eu te chamar no horário certinho amanhã: fica melhor às *10h* ou às *11h* da manhã?'; if (h1 < 9) h1 = 9; return 'Para eu te chamar no horário certinho: fica melhor às *' + h1 + 'h* ou às *' + (h1 + 1) + 'h*?'; })();
-            const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp
+            // 10.74 (Stefany 22/11 14:26, Cláudia B39TN1 "no começo de fevereiro" — "PRIORIDADE TOTAL"): cliente que quer DEIXAR PARA DEPOIS → o objetivo é fechar AGORA.
+            // Primeiro a URGÊNCIA (o valor de hoje pode diminuir: margem reduzida, taxa maior, benefício bloqueado/suspenso) + ação fácil (link pronto / SIM); o horário só vem como plano B.
+            const val74 = String(x.liberado || x.valor || '').trim(); const longe74 = /\b(m[eê]s|semana|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|ano que vem|mais (pra|para) frente|outra hora|outro dia|quando (eu )?precisar|pensar|pensando)\b/i.test(x.ultCliTxt || '');
+            const urg74 = 'Entendo' + (nm ? ', ' + nm : '') + '! 😊 Mas preciso ser sincero com você: o valor' + (val74 ? ' de *R$ ' + val74 + '*' : '') + ' é o que está garantido *hoje*. ⚠️ Deixando para depois, ele pode *diminuir*: a margem pode ser reduzida, a taxa pode subir e o benefício pode ser bloqueado ou suspenso para empréstimo — aí não tem como voltar atrás.\n\n💡 O mais seguro é *garantir agora*: o dinheiro cai na sua conta e fica guardado para quando você precisar. E se quiser, dá para quitar antes depois, com desconto dos juros.'
+              + (comProp ? '\n\nO seu link já está pronto e leva só uns minutinhos *pelo celular*. Vamos finalizar agora? 🤝' : '\n\nQuer que eu já deixe a sua proposta pronta para você conferir *pelo celular*? É só responder *SIM* 🤝')
+              + (longe74 || temHora ? '' : '\n\nSe não der agora mesmo: ' + sug60.charAt(0).toLowerCase() + sug60.slice(1));
+            const texto = urg74; const texto_antigo74 = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp
               ? (temHora ? '\n\nFica combinado então: vou deixar o seu link ativo para você concluir nesse horário, e nessa hora eu te chamo aqui para te ajudar a finalizar. 🤝'
                          : '\n\n' + sug60 + ' Eu deixo o seu link ativo até lá e te chamo nesse horário para finalizarmos juntos. 🤝')
               : '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : sug60 + ' Eu te chamo nesse horário. 🤝'));   // 7.34 (Stefany 16/11 16:41: sempre firmar um horário e deixar o link ativo até lá — caso Fernanda)
