@@ -90,7 +90,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
+  const VERSAO = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
+  const VERSAO_10_68_NOTA = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
   const VERSAO_10_67_NOTA = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
   const VERSAO_10_66_NOTA = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
   const VERSAO_10_65_NOTA = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
