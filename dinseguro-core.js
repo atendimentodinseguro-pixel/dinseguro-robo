@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
+  const VERSAO = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
+  const VERSAO_10_60_NOTA = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
   const VERSAO_10_59_NOTA = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
   const VERSAO_10_58_NOTA = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
   const VERSAO_10_57_NOTA = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
@@ -1259,6 +1260,9 @@
         const LIM = { reverso_conferir: 20, desfecho: 20, ficha_ok: 20, nova: 40 };   /* 10.02: com_margem/sim_resp = esperando o CLIENTE responder a simulação, não é pedido parado (Sirley FVNVK caiu no amarelo à toa) */
         for (const h in O) { const o = O[h]; if (!o || !LIM[o.estado]) { if (SN[h]) { delete SN[h]; mud = true; } continue; } const sig = o.estado + '|' + (o.hist || []).length;
           if (!SN[h] || SN[h].sig !== sig) { SN[h] = { sig, t: ag }; mud = true; continue; }
+          // 10.61 (Stefany 22/11 10:20, KLEBER LQPL7: "mandou CPF, quis proposta e não recebeu nada — prioridade máxima"): ordem parada em ficha_ok/digitando (banco fora do ar, Daycoval sem login…) com valor já calculado e o cliente SEM resposta → manda a SIMULAÇÃO na hora pela API (o link vai depois) e avisa o vigia
+          if (['ficha_ok', 'digitando'].includes(o.estado) && o.tipo === 'cpf' && o.liberado && o.parcela && !o.simParada1061 && !o.reverso && ag - SN[h].t > 8 * 60000 && !protegido(h)) { o.simParada1061 = ag; mudO = true; const nm61 = primeiroNome(o.nomeReal || '') || ''; const tx61 = (nm61 ? nm61 + ', ' : '') + 'já consultei o seu benefício e você tem crédito disponível 😊\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 108x de *R$ ' + o.parcela + '*\n\nJá estou deixando a sua proposta pronta e em seguida te mando o link para você conferir e finalizar *pelo celular*. Depois da assinatura, a liberação sai em até *60 minutos*. 🤝\n\nSe preferir um valor menor, é só me dizer quanto. 🔒 Nada é feito sem a sua confirmação.';
+            bmEnviarTexto(h, tx61).then(() => { try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛟 pedido parado em ' + o.estado + ' (' + (o.banco || '') + ') → simulação mandada na hora pela API para o cliente não ficar sem resposta (10.61)'); } catch (e) {} }).catch(() => {}); }
           if (!SN[h].av && ag - SN[h].t > LIM[o.estado] * 60000) { SN[h].av = 1; mud = true; o.erro = 'pedido parado em "' + o.estado + '" há ' + LIM[o.estado] + ' min (9.91) — vigia confere'; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 9.91: parado em ' + o.estado + ' → vigia'); o.estado = 'erro'; mudO = true;
             try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛠️ pedido parado em "' + sig.split('|')[0] + '" há ' + LIM[sig.split('|')[0]] + ' min → amarelo do vigia (9.91)'); } catch (e) {} } }
         for (const h in SN) if (!O[h]) { delete SN[h]; mud = true; }
