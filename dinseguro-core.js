@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
+  const VERSAO = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
+  const VERSAO_10_61_NOTA = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
   const VERSAO_10_60_NOTA = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
   const VERSAO_10_59_NOTA = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
   const VERSAO_10_58_NOTA = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
@@ -3877,6 +3878,8 @@
       if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
+      // 10.62 (Stefany 22/11 10:21, JOÃO REIS: "será cancelada" saiu 3x no mesmo minuto 17:23 — várias abas mandando o mesmo toque): trava ÚNICA (Tampermonkey, todas as abas) por conversa + toque + link; a 2ª e a 3ª aba não mandam
+      if (!trava870('toque62_' + alvo.hash + '_' + toque.tipo + '_' + String(alvo.link || '').slice(-12), 3 * 3600000)) { reg('não saiu de novo: este toque já foi mandado por outra aba (10.62)', true); return; }
       // 10.54 (Francisca K94HN 21/11 18:02: recebeu "proposta será cancelada" com a C6 já em ANALISE CREDITO — documento anexado e aprovado — e respondeu "3 = cancelar"): confere a proposta pela API antes do toque
       try { const OO54 = GM_getValue('auto_ordens', {}) || {}; const o54 = OO54[alvo.hash]; if (o54 && o54.propNc) { const p54 = await ncReq('GET', '/proposals/' + o54.propNc); const d54 = (p54 && p54.data) || p54 || {}; const br54 = d54.bank_reference || {};
           const s54 = ((br54.bank_status || '') + ' ' + (br54.bank_status_description || '') + ' ' + (((d54.proposal || {}).status || {}).name || '')).trim();
