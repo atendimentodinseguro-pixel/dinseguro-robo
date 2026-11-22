@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
+  const VERSAO = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
+  const VERSAO_10_64_NOTA = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
   const VERSAO_10_63_NOTA = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
   const VERSAO_10_62_NOTA = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
   const VERSAO_10_61_NOTA = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
@@ -4350,9 +4351,9 @@
       ]
     };
     const quandoToque = (t0, n) => { const d0 = new Date(t0); if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 2 * 3600000;
-      const amanha = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1); if (amanha.getDay() === 6) amanha.setDate(amanha.getDate() + 2); if (amanha.getDay() === 0) amanha.setDate(amanha.getDate() + 1);
+      const amanha = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1);   // 10.65 (Stefany 22/11 10:45, Genevaldo assinou sábado e domingo ficou sem follow-up): atendimento é TODOS os dias — sem pular sábado/domingo
       if (n === 2) { amanha.setHours(9, 0, 0, 0); return amanha.getTime(); } if (n === 3) { amanha.setHours(15, 0, 0, 0); return amanha.getTime(); }
-      if (n === 4 || n === 5) { const dd = new Date(amanha); dd.setDate(dd.getDate() + (n === 4 ? 1 : 2)); if (dd.getDay() === 6) dd.setDate(dd.getDate() + 2); if (dd.getDay() === 0) dd.setDate(dd.getDate() + 1); dd.setHours(10, 0, 0, 0); return dd.getTime(); }   // 7.49: D+2 e D+3 às 10h (só o desbloqueio tem 6 toques)
+      if (n === 4 || n === 5) { const dd = new Date(amanha); dd.setDate(dd.getDate() + (n === 4 ? 1 : 2)); dd.setHours(10, 0, 0, 0); return dd.getTime(); }   // 7.49: D+2 e D+3 às 10h (só o desbloqueio tem 6 toques)
       return Infinity; };
     window.dinsPrioridadeVer = () => Object.values(RG()).filter(x => x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita]).map(x => { const fe = faseEsteira(x); return { nome: x.nomeReal || x.nome, hash: x.hash, fase: x.faseFeita, agora: fe ? fe.fase : '?', real: fe ? fe.real : '', toques: x.faseToq || 0, prox: x.faseFeitaT ? new Date(quandoToque(x.faseFeitaT, x.faseToq || 0)).toLocaleString('pt-BR').slice(0, 17) : '—' }; });
     let prioRodando = false;
@@ -4366,6 +4367,8 @@
         if (x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita] && !x.faseFeitaT && !protegido(x.hash)) { x.faseFeitaT = Date.now() - 3 * 3600000; x.faseToq = 2; r[x.hash] = x; gravaRG(r); }   // 7.41: assinados de antes da 7.32 entram nos toques do dia seguinte (9h e 15h)
         if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === '__TESTE_LIBERADO_1022__' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
+        // 10.65: assinado que saiu dos toques porque o cliente respondeu / estava com humano (faseToq 9) → 4 h depois VOLTA para os toques do ponto onde parou (prioridade total: ninguém fica sem follow-up)
+        if (x.faseToq === 9 && x.faseToq9T && x.faseToqAnt != null && !x.faseToq9Jan && Date.now() - x.faseToq9T > 4 * 3600000) { x.faseToq = Math.min(x.faseToqAnt, TOQUES_FASE[x.faseFeita].length - 1); x.faseFeitaT = Math.min(x.faseFeitaT, Date.now() - 3 * 86400000); x.faseToq9T = 0; x.hist.push(hhmm(Date.now()) + ' 10.65: volta aos toques (estava parado há 4 h)'); r[x.hash] = x; gravaRG(r); }
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
         const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
         alvo = x; fe = f; break;
@@ -4382,9 +4385,9 @@
       try {
         if (!(await esperaChatLivre(alvo.hash))) return;
         await abrir(alvo.hash);   // abre e confere telefone + mensagens na tela (7.31)
-        if (janelaVencidaAgora()) { marca({ faseToq: 9 }, 'prioridade (' + fe.fase + '): janela de 24 h vencida — vigia/varredura'); return; }
-        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(window.top.document.body.innerText + '\n' + document.body.innerText)) { if (!(await liberarChat())) { marca({ faseToq: 9 }, 'prioridade: chat com humano e não liberou — vigia'); return; } }
-        if (clienteRespondeu()) { marca({ faseToq: 9 }, 'prioridade (' + fe.fase + '): cliente respondeu — fica para o vigia'); return; }
+        if (janelaVencidaAgora()) { marca({ faseToq: 9, faseToq9T: Date.now(), faseToqAnt: alvo.faseToq || 0, faseToq9Jan: 1 }, 'prioridade (' + fe.fase + '): janela de 24 h vencida — vigia/varredura'); return; }
+        if (/Chat em atendimento com (?!Dinseguro)([^\n]+)/.test(window.top.document.body.innerText + '\n' + document.body.innerText)) { if (!(await liberarChat())) { marca({ faseToq: 9, faseToq9T: Date.now(), faseToqAnt: alvo.faseToq || 0 }, 'prioridade: chat com humano e não liberou — vigia'); return; } }
+        if (clienteRespondeu()) { marca({ faseToq: 9, faseToq9T: Date.now(), faseToqAnt: alvo.faseToq || 0 }, 'prioridade (' + fe.fase + '): cliente respondeu — fica para o vigia'); return; }
         const n = alvo.faseToq || 0;
         await mensagemLivre(TOQUES_FASE[fe.fase][n](nomeDoAlvo(alvo)));
         marca({ faseToq: n + 1 }, 'prioridade: toque ' + (n + 1) + ' de ' + TOQUES_FASE[fe.fase].length + ' (' + fe.fase + ')');
