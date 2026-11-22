@@ -11,6 +11,43 @@
   // 7.25 (Stefany 16/11 12:41 "abre, fecha, abre, fecha"): no WhatsApp Web o eval é bloqueado, então ESTA cópia do @require rodava o envio
   // antigo (rodarWA, de 1 em 1 min, sem pausa) que navegava para send?phone=… sem parar. O envio agora é só do carregador (3.28+).
   if (location.host === 'web.whatsapp.com') return;
+  // 10.68 (Stefany 22/11 12:16–12:21): CONSULTA IN100 NO SITE DA QUALI — cliente com DDB de 90+ dias que aceitou/vai receber o link.
+  // A aba da Quali (quali.joinbank.com.br, já logada) pega a fila GM 'in100_fila', abre "Consultar IN100", preenche nome/CPF/benefício,
+  // confirma e lê o resultado (Sucesso → Visualizar → Saldo Total Disponível; Erro → o motivo). Resultado em GM 'in100_res'[hash].
+  if (location.host === 'quali.joinbank.com.br') {
+    const esp = ms => new Promise(r => window.setTimeout(r, ms));
+    const ate = async (f, ms) => { const t0 = Date.now(); while (Date.now() - t0 < (ms || 15000)) { try { const r = f(); if (r) return r; } catch (e) {} await esp(400); } return null; };
+    const setNat = (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); ['input', 'change', 'blur'].forEach(ev => el.dispatchEvent(new Event(ev, { bubbles: true }))); };
+    const fmtCpf = c => { const d = String(c || '').replace(/\D/g, '').padStart(11, '0'); return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9); };
+    const brl = t => { const m = String(t || '').match(/R\$\s*([\d.]+,\d{2})/); return m ? m[1] : ''; };
+    let ocupQ = false;
+    window.setInterval(async () => { if (ocupQ) return; let it = null; try {
+      const FQ = GM_getValue('in100_fila', []) || []; if (!FQ.length) return; if (/sign-in|login/.test(location.pathname)) return;
+      if (!/\/inss-balances/.test(location.pathname)) { location.href = '/inss-balances'; return; }
+      ocupQ = true; it = FQ[0];
+      const fim = res => { const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = Object.assign({ t: Date.now() }, res); for (const k in R) if (Date.now() - (+R[k].t || 0) > 7 * 864e5) delete R[k]; GM_setValue('in100_res', R); GM_setValue('in100_fila', (GM_getValue('in100_fila', []) || []).filter(x => x.hash !== it.hash)); };
+      const hh = new Date().getHours(); if (hh < 6 || hh >= 22) { fim({ st: 'fora', msg: 'DataPrev só responde das 06h às 22h' }); return; }
+      if (Date.now() - (+it.t || 0) > 2 * 3600000) { fim({ st: 'expirou' }); return; }
+      const cpfF = fmtCpf(it.cpf); const t0 = Date.now() - 90000;
+      const bt = [...document.querySelectorAll('button')].find(x => /^\s*Consultar IN100\s*$/i.test(x.innerText)); if (!bt) throw new Error('botão Consultar IN100 não apareceu');
+      bt.click(); const iNome = await ate(() => document.querySelector('input[name=name]')); if (!iNome) throw new Error('o formulário não abriu');
+      setNat(iNome, String(it.nome || 'CLIENTE').toUpperCase()); setNat(document.querySelector('input[name=identity]'), String(it.cpf).replace(/\D/g, '').padStart(11, '0')); setNat(document.querySelector('input[name=benefit]'), String(it.beneficio).replace(/\D/g, ''));
+      await esp(900); const cf = [...document.querySelectorAll('button')].find(x => /^\s*Confirmar\s*$/i.test(x.innerText)); if (!cf || cf.disabled) throw new Error('Confirmar desabilitado (dados incompletos)'); cf.click();
+      // a linha nova desta consulta (Cadastro de agora) — a lista vem da mais nova para a mais velha
+      const linha = await ate(() => { const tr = [...document.querySelectorAll('table tbody tr')].find(r => r.innerText.includes(cpfF)); if (!tr) return null; const tx = tr.innerText; const mC = tx.match(/Cadastro:\s*(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/); if (!mC) return null; const tc = new Date(+mC[3], +mC[2] - 1, +mC[1], +mC[4], +mC[5]).getTime(); if (tc < t0 - 60000) { try { const rf = [...document.querySelectorAll('button')].find(b => /refresh|sync|autorenew/i.test(b.innerText + b.innerHTML) && b.closest('header,div')); } catch (e) {} return null; } return /Sucesso|Erro/.test(tx) ? tr : null; }, 90000);
+      if (!linha) throw new Error('a consulta não voltou em 90 s');
+      const txL = linha.innerText;
+      if (/Erro/.test(txL) && !/Sucesso/.test(txL)) { const mot = (txL.split('\n').map(x => x.trim()).find(x => /bloquead|representante|n[ãa]o encontrado|DataPrev|limite|inv[áa]lid|fechado/i.test(x)) || 'erro sem motivo').slice(0, 160); fim({ st: 'erro', msg: mot }); return; }
+      // Sucesso → ⋮ → Visualizar → lê os saldos
+      const menu = linha.querySelector('button.mat-mdc-menu-trigger, button[class*=menu-trigger]'); if (!menu) throw new Error('menu ⋮ da linha não achado'); menu.click();
+      const vis = await ate(() => [...document.querySelectorAll('.mat-mdc-menu-panel button, [role=menuitem]')].find(b => /Visualizar/i.test(b.innerText))); if (!vis) throw new Error('Visualizar não apareceu'); vis.click();
+      const det = await ate(() => /Saldo Total Dispon[ií]vel/i.test(document.body.innerText) ? document.body.innerText : null, 20000); if (!det) throw new Error('o detalhe não abriu');
+      const pega = rot => { const i = det.search(rot); return i < 0 ? '' : det.slice(i, i + 120); };
+      const res = { st: 'sucesso', saldo: brl(pega(/Saldo Total Dispon[ií]vel/i)), usado: brl(pega(/Saldo Total Utilizado/i)), ativos: ((pega(/Quantidade Empr[ée]stimos Ativos/i).match(/Ativos\s*\n?\s*(\d+)/i) || [])[1] || ''), rep: /Representa[çc][ãa]o Legal\s*\n?\s*Sim/i.test(det) ? 'sim' : 'não', bloqueio: ((pega(/Tipo de bloqueio/i).split('\n')[1]) || '').trim().slice(0, 60), pensao: ((pega(/Pens[ãa]o aliment[íi]cia/i).split('\n')[1]) || '').trim().slice(0, 40) };
+      fim(res); try { location.href = '/inss-balances'; } catch (e) {}
+    } catch (e) { try { if (it) { const n = (+it.tent || 0) + 1; const FQ2 = GM_getValue('in100_fila', []) || []; const k = FQ2.findIndex(x => x.hash === it.hash); if (k >= 0) { if (n >= 3) { FQ2.splice(k, 1); const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = { t: Date.now(), st: 'falhou', msg: String((e && e.message) || e).slice(0, 120) }; GM_setValue('in100_res', R); } else { FQ2[k].tent = n; FQ2.push(FQ2.splice(k, 1)[0]); } GM_setValue('in100_fila', FQ2); } } try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (x) {} } catch (x) {} } finally { ocupQ = false; } }, 20000);
+    return;
+  }
   // 5.64 (Stefany 12/11 19:18: "um robô por aba") — 1) temporizadores por Worker no Botmaker: aba que não está na frente não fica
   // freada pelo Chrome (1 vez por minuto); 2) junção de GM_setValue entre abas: cada aba grava só o que ELA mudou desde a leitura.
   const { setTimeout, setInterval, clearTimeout, clearInterval } = (() => {
@@ -53,7 +90,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
+  const VERSAO = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
+  const VERSAO_10_67_NOTA = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
   const VERSAO_10_66_NOTA = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
   const VERSAO_10_65_NOTA = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
   const VERSAO_10_64_NOTA = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
@@ -1150,6 +1188,42 @@
       return 'wait'; }
     const EXTR771 = {};
     // 9.73 (Stefany 20/11 13:59): o link de quem mandou extrato espera o VIGIA conferir a margem no máximo 15 min — passou disso, o robô manda o link mesmo assim.
+    // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo — cliente com DDB de 90+ dias que ACEITOU (ou vai receber o link) → consulta
+    // a margem atualizada antes do link. Resultado fica EVIDENTE no resumo da ordem e no diário (para a Stefany analisar):
+    //  · Sucesso → Saldo Total Disponível (margem que ainda pode usar). Menor que a parcela → vigia (vermelho); R$ 0 → sem margem → vigia.
+    //  · "bloqueado pelo beneficiário" → JÁ FEZ empréstimo → margem pode estar MENOR que a do sistema (ou residual) → aviso.
+    //  · "bloqueado ... concessão" → NUNCA fez empréstimo → ótimo.  · representante legal → vigia (03 A + flow).
+    // O link espera a IN100 no máximo 10 min.
+    if (/botmaker/.test(location.host) && window.top === window) setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return;
+      const O = GM_getValue('auto_ordens', {}) || {}; let mud = false; const ag = Date.now(); const hh = new Date().getHours();
+      const dias = d => { const m = String(d || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? (ag - new Date(+m[3], +m[2] - 1, +m[1]).getTime()) / 864e5 : -1; };
+      const num = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+      const FQ = GM_getValue('in100_fila', []) || []; const R = GM_getValue('in100_res', {}) || {};
+      for (const h in O) { const o = O[h]; if (!o || o.tipo !== 'cpf' || !o.cpf || !o.ficha) continue;
+        // pedir
+        if (!o.in100Pedido && hh >= 6 && hh < 22 && ['ficha_ok', 'simulada', 'sim_enviada', 'digitando', 'gravada', 'link'].includes(o.estado) && (o.aceite || o.simGravar || o.aceitouSim || ['gravada', 'link'].includes(o.estado)) && o.ficha.beneficio && dias(o.ficha.ddb) >= 90 && ag - (+o.t || ag) < 3 * 3600000) {
+          o.in100Pedido = ag; mud = true; if (!FQ.some(x => x.hash === h)) FQ.push({ hash: h, nome: o.ficha.nome || o.nomeReal || '', cpf: o.cpf, beneficio: o.ficha.beneficio, t: ag });
+          (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 10.68: DDB ' + o.ficha.ddb + ' (' + Math.floor(dias(o.ficha.ddb)) + ' dias) → IN100 na Quali'); continue; }
+        // aplicar
+        const r = R[h]; if (!o.in100Pedido || o.in100 || !r || (+r.t || 0) < o.in100Pedido) continue;
+        let txt = '', alerta = '';
+        if (r.st === 'sucesso') { const s = num(r.saldo), p = num(o.parcela || (o.ficha && o.ficha.parcela));
+          txt = 'IN100 ✓ saldo disponível R$ ' + (r.saldo || '?') + ' · usado R$ ' + (r.usado || '0') + ' · ativos ' + (r.ativos || '0') + (r.bloqueio ? ' · ' + r.bloqueio : '') + (r.rep === 'sim' ? ' · REPRESENTANTE LEGAL' : '');
+          if (r.rep === 'sim') alerta = 'IN100: REPRESENTANTE LEGAL → não fazemos (03 A + flow)';
+          else if (s <= 0.5) alerta = 'IN100: SEM MARGEM (saldo R$ 0,00, ' + (r.ativos || '?') + ' empréstimo(s) ativo(s)) → não mandar link; sem margem';
+          else if (p && s + 0.5 < p) alerta = 'IN100: margem RESIDUAL R$ ' + r.saldo + ' < parcela R$ ' + (o.parcela || '') + ' → refazer a simulação com o saldo da IN100'; }
+        else if (r.st === 'erro') { const m = String(r.msg || '');
+          if (/pelo benefici/i.test(m)) txt = 'IN100: bloqueado pelo beneficiário → JÁ FEZ empréstimo — a margem pode estar MENOR que a do sistema (ou residual)';
+          else if (/concess/i.test(m)) txt = 'IN100: bloqueado na concessão → NUNCA fez empréstimo ✓';
+          else if (/representante/i.test(m)) { txt = 'IN100: ' + m; alerta = 'IN100: REPRESENTANTE LEGAL → não fazemos (03 A + flow)'; }
+          else txt = 'IN100 não conclusiva: ' + m; }
+        else txt = 'IN100 ' + (r.st || '?') + (r.msg ? ': ' + r.msg : '');
+        o.in100 = txt; o.resumo = (o.resumo || '') + ' · ' + txt; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' ' + txt); mud = true;
+        if (alerta) { o.in100Alerta = alerta; if (!['link_enviado', 'feito'].includes(o.estado)) { o.estado = 'erro'; o.erro = alerta; } }
+        try { diario(o.nomeReal || o.nome || h.slice(0, 5), (alerta ? '🔴 ' + alerta : '🔎 ' + txt) + ' (10.68)'); } catch (e) {} }
+      GM_setValue('in100_fila', FQ); if (mud) GM_setValue('auto_ordens', O);
+    } catch (e) {} }, 60000);
+    window.dinsIn100Ver = () => ({ fila: GM_getValue('in100_fila', []), res: Object.fromEntries(Object.entries(GM_getValue('in100_res', {}) || {}).map(([k, v]) => [k.slice(0, 5), v])) });
     // 10.67: lista para o vigia — quem mandou extrato e ainda não foi conferido (abrir o PDF: margem, nº do benefício, REPRESENTANTE LEGAL, pensão alimentícia, bloqueio)
     window.dinsExtratosPendentes = () => { try { const T9 = GM_getValue('ex771_espera', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; return Object.keys(T9).filter(k => !/^_log_/.test(k) && O[k] && !O[k].extratoOk && Date.now() - T9[k] < 24 * 3600000).map(k => ({ hash: k, nome: O[k].nomeReal || O[k].nome || '', estado: O[k].estado, min: Math.round((Date.now() - T9[k]) / 60000) })); } catch (e) { return String(e); } };
     function extrSync(o) { if (!o || o.extratoOk) return false; try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (T9[o.hash] && Date.now() - T9[o.hash] > 45 * 60000) {   /* 10.67 (Stefany 22/11 12:04, Carla POQJD: link saiu sem ninguém ler o extrato, que mostrava REPRESENTANTE LEGAL): espera 45 min (antes 15) — o vigia confere a cada ronda pela dinsExtratosPendentes() */ if (!T9['_log_' + o.hash]) { T9['_log_' + o.hash] = 1; GM_setValue('ex771_espera', T9); try { diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '⏱️ extrato esperou 15 min sem o vigia → manda o link assim mesmo (9.73)'); } catch (e) {} } return false; } } catch (e) {} const c = EXTR771[o.hash];
@@ -1356,7 +1430,7 @@
         // mensagem + LINK saem NA HORA pela API do Botmaker, sem depender da tela. Extrato não lido → vigia (igual à 7.71). Falhou 2 vezes → a tela manda.
         // 9.15 (19/11, Oscar: link pronto 3 vezes e não saiu sozinho): um pedido antigo em 'link' esperando a leitura do extrato ('wait') era sempre o PRIMEIRO da lista
         // e dava return — segurava o link de TODOS os outros clientes. Agora quem está em 'wait' é pulado e o próximo link sai.
-        { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo) && extrSync(x) !== 'wait');
+        { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo) && extrSync(x) !== 'wait' && !(x.in100Pedido && !x.in100 && Date.now() - x.in100Pedido < 10 * 60000));   // 10.68: espera a IN100 até 10 min
           if (oK) { const exK = extrSync(oK); if (exK === 'wait') return; if (await window.dinsBotAtivo(oK.hash)) return;   /* 9.28: proposta pronta; o link sai quando o bot do Botmaker parar */
             if (exK) { oK.estado = 'com_margem'; oK.resumo = (oK.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oK.nomeReal || oK.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
             if (!trava870('link879_' + oK.hash, 3 * 60000)) return;
