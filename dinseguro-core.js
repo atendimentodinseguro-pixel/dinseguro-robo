@@ -20,9 +20,9 @@
     const setNat = (el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value'); d.set.call(el, v); ['input', 'change', 'blur'].forEach(ev => el.dispatchEvent(new Event(ev, { bubbles: true }))); };
     const fmtCpf = c => { const d = String(c || '').replace(/\D/g, '').padStart(11, '0'); return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9); };
     const brl = t => { const m = String(t || '').match(/R\$\s*([\d.]+,\d{2})/); return m ? m[1] : ''; };
-    let ocupQ = false;
-    window.setInterval(async () => { if (ocupQ) return; let it = null; try {
-      const FQ = GM_getValue('in100_fila', []) || []; if (!FQ.length) return; if (/sign-in|login/.test(location.pathname)) return;
+    let ocupQ = false; try { console.log('[Dinseguro] Quali: robô da IN100 ativo (10.71)'); window.__dinsQuali = Date.now(); } catch (e) {}
+    window.setInterval(async () => { if (ocupQ) return; let it = null; try { window.__dinsQualiTick = Date.now();
+      const FQ = GM_getValue('in100_fila', []) || []; window.__dinsQualiFila = FQ.length; if (!FQ.length) return; console.log('[Dinseguro] Quali IN100: ' + FQ.length + ' na fila'); if (/sign-in|login/.test(location.pathname)) return;
       if (!/\/inss-balances/.test(location.pathname)) { location.href = '/inss-balances'; return; }
       ocupQ = true; it = FQ[0];
       const fim = res => { const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = Object.assign({ t: Date.now() }, res); for (const k in R) if (Date.now() - (+R[k].t || 0) > 7 * 864e5) delete R[k]; GM_setValue('in100_res', R); GM_setValue('in100_fila', (GM_getValue('in100_fila', []) || []).filter(x => x.hash !== it.hash)); };
@@ -45,7 +45,7 @@
       const pega = rot => { const i = det.search(rot); return i < 0 ? '' : det.slice(i, i + 120); };
       const res = { st: 'sucesso', saldo: brl(pega(/Saldo Total Dispon[ií]vel/i)), usado: brl(pega(/Saldo Total Utilizado/i)), ativos: ((pega(/Quantidade Empr[ée]stimos Ativos/i).match(/Ativos\s*\n?\s*(\d+)/i) || [])[1] || ''), rep: /Representa[çc][ãa]o Legal\s*\n?\s*Sim/i.test(det) ? 'sim' : 'não', bloqueio: ((pega(/Tipo de bloqueio/i).split('\n')[1]) || '').trim().slice(0, 60), pensao: ((pega(/Pens[ãa]o aliment[íi]cia/i).split('\n')[1]) || '').trim().slice(0, 40) };
       fim(res); try { location.href = '/inss-balances'; } catch (e) {}
-    } catch (e) { try { if (it) { const n = (+it.tent || 0) + 1; const FQ2 = GM_getValue('in100_fila', []) || []; const k = FQ2.findIndex(x => x.hash === it.hash); if (k >= 0) { if (n >= 3) { FQ2.splice(k, 1); const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = { t: Date.now(), st: 'falhou', msg: String((e && e.message) || e).slice(0, 120) }; GM_setValue('in100_res', R); } else { FQ2[k].tent = n; FQ2.push(FQ2.splice(k, 1)[0]); } GM_setValue('in100_fila', FQ2); } } try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (x) {} } catch (x) {} } finally { ocupQ = false; } }, 20000);
+    } catch (e) { try { console.warn('[Dinseguro] Quali IN100 erro:', String((e && e.message) || e)); } catch (x) {} try { if (it) { const n = (+it.tent || 0) + 1; const FQ2 = GM_getValue('in100_fila', []) || []; const k = FQ2.findIndex(x => x.hash === it.hash); if (k >= 0) { if (n >= 3) { FQ2.splice(k, 1); const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = { t: Date.now(), st: 'falhou', msg: String((e && e.message) || e).slice(0, 120) }; GM_setValue('in100_res', R); } else { FQ2[k].tent = n; FQ2.push(FQ2.splice(k, 1)[0]); } GM_setValue('in100_fila', FQ2); } } try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (x) {} } catch (x) {} } finally { ocupQ = false; } }, 20000);
     return;
   }
   // 5.64 (Stefany 12/11 19:18: "um robô por aba") — 1) temporizadores por Worker no Botmaker: aba que não está na frente não fica
@@ -90,7 +90,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
+  const VERSAO = '10.71';   // 10.71: logs do robô da Quali.
+  const VERSAO_10_70_NOTA = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
   const VERSAO_10_69_NOTA = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
   const VERSAO_10_68_NOTA = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
   const VERSAO_10_67_NOTA = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
