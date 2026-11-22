@@ -33,17 +33,23 @@
       bt.click(); const iNome = await ate(() => document.querySelector('input[name=name]')); if (!iNome) throw new Error('o formulário não abriu');
       setNat(iNome, String(it.nome || 'CLIENTE').toUpperCase()); setNat(document.querySelector('input[name=identity]'), String(it.cpf).replace(/\D/g, '').padStart(11, '0')); setNat(document.querySelector('input[name=benefit]'), String(it.beneficio).replace(/\D/g, ''));
       await esp(900); const cf = [...document.querySelectorAll('button')].find(x => /^\s*Confirmar\s*$/i.test(x.innerText)); if (!cf || cf.disabled) throw new Error('Confirmar desabilitado (dados incompletos)'); cf.click();
-      // a linha nova desta consulta (Cadastro de agora) — a lista vem da mais nova para a mais velha
-      const linha = await ate(() => { const tr = [...document.querySelectorAll('table tbody tr')].find(r => r.innerText.includes(cpfF)); if (!tr) return null; const tx = tr.innerText; const mC = tx.match(/Cadastro:\s*(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/); if (!mC) return null; const tc = new Date(+mC[3], +mC[2] - 1, +mC[1], +mC[4], +mC[5]).getTime(); if (tc < t0 - 60000) { try { const rf = [...document.querySelectorAll('button')].find(b => /refresh|sync|autorenew/i.test(b.innerText + b.innerHTML) && b.closest('header,div')); } catch (e) {} return null; } return /Sucesso|Erro/.test(tx) ? tr : null; }, 90000);
-      if (!linha) throw new Error('a consulta não voltou em 90 s');
-      const txL = linha.innerText;
-      if (/Erro/.test(txL) && !/Sucesso/.test(txL)) { const mot = (txL.split('\n').map(x => x.trim()).find(x => /bloquead|representante|n[ãa]o encontrado|DataPrev|limite|inv[áa]lid|fechado/i.test(x)) || 'erro sem motivo').slice(0, 160); fim({ st: 'erro', msg: mot }); return; }
-      // Sucesso → ⋮ → Visualizar → lê os saldos
-      const menu = linha.querySelector('button.mat-mdc-menu-trigger, button[class*=menu-trigger]'); if (!menu) throw new Error('menu ⋮ da linha não achado'); menu.click();
-      const vis = await ate(() => [...document.querySelectorAll('.mat-mdc-menu-panel button, [role=menuitem]')].find(b => /Visualizar/i.test(b.innerText))); if (!vis) throw new Error('Visualizar não apareceu'); vis.click();
-      const det = await ate(() => /Saldo Total Dispon[ií]vel/i.test(document.body.innerText) ? document.body.innerText : null, 20000); if (!det) throw new Error('o detalhe não abriu');
-      const pega = rot => { const i = det.search(rot); return i < 0 ? '' : det.slice(i, i + 120); };
-      const res = { st: 'sucesso', saldo: brl(pega(/Saldo Total Dispon[ií]vel/i)), usado: brl(pega(/Saldo Total Utilizado/i)), ativos: ((pega(/Quantidade Empr[ée]stimos Ativos/i).match(/Ativos\s*\n?\s*(\d+)/i) || [])[1] || ''), rep: /Representa[çc][ãa]o Legal\s*\n?\s*Sim/i.test(det) ? 'sim' : 'não', bloqueio: ((pega(/Tipo de bloqueio/i).split('\n')[1]) || '').trim().slice(0, 60), pensao: ((pega(/Pens[ãa]o aliment[íi]cia/i).split('\n')[1]) || '').trim().slice(0, 40) };
+      // 10.72: depois do Confirmar a Quali ABRE o detalhe da consulta (no mesmo dia pode reaproveitar a de antes) — lê direto do detalhe; se voltar para a lista, abre pela linha
+      const lerDet = det => { const pega = rot => { const k = det.search(rot); return k < 0 ? '' : det.slice(k, k + 120); };
+        return { st: 'sucesso', saldo: brl(pega(/Saldo Total Dispon[ií]vel/i)), usado: brl(pega(/Saldo Total Utilizado/i)), ativos: ((pega(/Quantidade Empr[ée]stimos Ativos/i).match(/Ativos\s*\n?\s*(\d+)/i) || [])[1] || ''), rep: /Representa[çc][ãa]o Legal\s*\n?\s*Sim/i.test(det) ? 'sim' : 'não', bloqueio: ((pega(/Tipo de bloqueio/i).split('\n')[1]) || '').trim().slice(0, 60), pensao: ((pega(/Pens[ãa]o aliment[íi]cia/i).split('\n')[1]) || '').trim().slice(0, 40), data: ((pega(/Status/).match(/(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})/) || [])[1] || '') }; };
+      const motivo = tx => (String(tx).split('\n').map(x => x.trim()).find(x => /bloquead|representante|n[ãa]o encontrado|DataPrev|limite|inv[áa]lid|fechado|transfer/i.test(x)) || 'erro sem motivo').slice(0, 160);
+      const volta = await ate(() => { const b = document.body.innerText; if (b.includes(cpfF) && /Dados Pessoais|Restri[çc][õo]es e Exposi/i.test(b)) { if (/Saldo Total Dispon[ií]vel/i.test(b)) return { tipo: 'det', b }; if (/\bErro\b/.test(b)) return { tipo: 'deterro', b }; }
+        const tr = [...document.querySelectorAll('table tbody tr')].find(r => r.innerText.includes(cpfF)); if (tr) { const tx = tr.innerText; const mC = tx.match(/Cadastro:\s*(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/); if (mC && new Date(+mC[3], +mC[2] - 1, +mC[1], +mC[4], +mC[5]).getTime() >= t0 - 60000 && /Sucesso|Erro/.test(tx)) return { tipo: 'linha', tr, tx }; }
+        const al = [...document.querySelectorAll('.mat-mdc-snack-bar-container, .toast, [role=alert], mat-error')].map(e => e.innerText).join(' '); if (/erro|inv[áa]lid|n[ãa]o/i.test(al)) return { tipo: 'alerta', b: al }; return null; }, 90000);
+      if (!volta) throw new Error('a consulta não voltou em 90 s');
+      let res;
+      if (volta.tipo === 'det') res = lerDet(volta.b);
+      else if (volta.tipo === 'deterro') res = { st: 'erro', msg: motivo(volta.b) };
+      else if (volta.tipo === 'alerta') res = { st: 'erro', msg: String(volta.b).slice(0, 160) };
+      else { if (/Erro/.test(volta.tx) && !/Sucesso/.test(volta.tx)) res = { st: 'erro', msg: motivo(volta.tx) };
+        else { const menu = volta.tr.querySelector('button.mat-mdc-menu-trigger, button[class*=menu-trigger]'); if (!menu) throw new Error('menu ⋮ da linha não achado'); menu.click();
+          const vis = await ate(() => [...document.querySelectorAll('.mat-mdc-menu-panel button, [role=menuitem]')].find(b => /Visualizar/i.test(b.innerText))); if (!vis) throw new Error('Visualizar não apareceu'); vis.click();
+          const det = await ate(() => /Saldo Total Dispon[ií]vel/i.test(document.body.innerText) ? document.body.innerText : null, 20000); if (!det) throw new Error('o detalhe não abriu'); res = lerDet(det); } }
+      console.log('[Dinseguro] Quali IN100 resultado:', res.st, res.saldo || res.msg || '');
       fim(res); try { location.href = '/inss-balances'; } catch (e) {}
     } catch (e) { try { console.warn('[Dinseguro] Quali IN100 erro:', String((e && e.message) || e)); } catch (x) {} try { if (it) { const n = (+it.tent || 0) + 1; const FQ2 = GM_getValue('in100_fila', []) || []; const k = FQ2.findIndex(x => x.hash === it.hash); if (k >= 0) { if (n >= 3) { FQ2.splice(k, 1); const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = { t: Date.now(), st: 'falhou', msg: String((e && e.message) || e).slice(0, 120) }; GM_setValue('in100_res', R); } else { FQ2[k].tent = n; FQ2.push(FQ2.splice(k, 1)[0]); } GM_setValue('in100_fila', FQ2); } } try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (x) {} } catch (x) {} } finally { ocupQ = false; } }, 20000);
     return;
@@ -90,7 +96,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.71';   // 10.71: logs do robô da Quali.
+  const VERSAO = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
+  const VERSAO_10_71_NOTA = '10.71';   // 10.71: logs do robô da Quali.
   const VERSAO_10_70_NOTA = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
   const VERSAO_10_69_NOTA = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
   const VERSAO_10_68_NOTA = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
