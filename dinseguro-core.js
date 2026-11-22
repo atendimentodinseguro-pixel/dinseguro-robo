@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.80';   // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
+  const VERSAO = '10.81';   // 10.81: dinsNaoFechar + 'obrigado/ok' não é pendência.    // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
   const VERSAO_10_75_NOTA = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
   const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
@@ -1437,14 +1437,14 @@
           const tU = ultU ? Date.parse(ultU.creationTime) : 0, tN = ultN ? Date.parse(ultN.creationTime) : 0;
           // repetição: o mesmo texto nosso (≥ 40 letras) 2x em 6 h = falha do robô
           { const vis = {}; for (const k of ms) { if (k.from === 'user') continue; const t = txt1077(k).replace(/\s+/g, ' ').trim(); if (t.length < 40 || GEN1077.test(t)) continue; const c = t.slice(0, 80); if (vis[c] && Date.parse(k.creationTime) - vis[c] < 6 * 3600000 && ag - Date.parse(k.creationTime) < 3 * 3600000) { anom.push({ h, nome, tipo: 'msg_repetida', info: c.slice(0, 60) }); break; } vis[c] = Date.parse(k.creationTime); } }
-          if (ult && ult.from === 'user' && ag - tU > 8 * 60000) { pend.push({ h, nome, tipo: 'cliente_esperando', min: Math.round((ag - tU) / 60000), info: txt1077(ultU).slice(0, 100), estado: o && o.estado }); continue; }
+          if (ult && ult.from === 'user' && ag - tU > 8 * 60000 && !/^\s*(ok+|obrigad[oa]s?|obg|valeu|blz|beleza|t[aá] bom|certo|👍|🙏|amém|amem)[\s.!🙏👍😊]*$/i.test(txt1077(ultU))) {   /* 10.81: 'obrigado/ok' sozinho não é pendência */ pend.push({ h, nome, tipo: 'cliente_esperando', min: Math.round((ag - tU) / 60000), info: txt1077(ultU).slice(0, 100), estado: o && o.estado }); continue; }
           if (!o) continue;
           if (o.estado === 'erro') { pend.push({ h, nome, tipo: 'erro_robo', info: String(o.erro || '').slice(0, 120), estado: o.estado }); continue; }
           if (o.estado === 'sim_enviada' && ag - (+o.tSimEnv || ag) > 2 * 3600000 && !o.reverso && !o.semPar767) anom.push({ h, nome, tipo: 'simulacao_parada', info: 'sim_enviada há ' + Math.round((ag - o.tSimEnv) / 60000) + ' min' });
           // FECHAMENTO do link não assinado
           const rg = RGx[h]; const link = (rg && rg.link) || o.link || ''; if (!link || !/feito|link/.test(String(o.estado))) continue;
           if (rg && (rg.faseFeita || /cancelada|conclu/.test(String(rg.estado || '')))) continue;   // assinou / acabou
-          if (agendados.has(h) || o.reverso && !o.aceite) continue;
+          if (agendados.has(h) || (o.reverso && !o.aceite) || (+((GM_getValue('nao_fechar1077', {}) || {})[h]) || 0) > ag) continue;   // 10.81: agendado à mão pelo vigia (dinsNaoFechar)
           const negU = ms.filter(k => k.from === 'user' && ag - Date.parse(k.creationTime) < 24 * 3600000).some(k => NEG1077.test(txt1077(k)));
           if (negU) { if (!FX[h] || !FX[h].neg) { FX[h] = Object.assign(FX[h] || {}, { neg: ag }); pend.push({ h, nome, tipo: 'recusou_ou_adiou', info: 'cliente disse não/cancelar/depois nas últimas 24 h — vigia decide se tenta salvar', estado: o.estado }); } continue; }
           if (!horaOk || fim - ag < 5 * 60000) continue; if (ag - tN < 60 * 60000) continue;
@@ -1463,6 +1463,7 @@
         for (const k in FX) if (ag - Math.max(+FX[k].t || 0, +FX[k].neg || 0) > 4 * 864e5) delete FX[k];
         if (seco) return { seco: 1, abertas, prev, pend, anom }; GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
       window.dinsRonda1077 = (seco) => ronda1077(true, !!seco);
+      window.dinsNaoFechar = (h, dias) => { const N = GM_getValue('nao_fechar1077', {}) || {}; if (dias === 0) delete N[h]; else N[h] = Date.now() + (dias || 3) * 864e5; GM_setValue('nao_fechar1077', N); return N[h] || 'removido'; };   // 10.81: vigia tira um cliente dos fechamentos automáticos (agendado, negociação, caso especial)
       window.dinsPend1077 = () => { const R = GM_getValue('pend1077', null) || {}; const f = x => (x.nome || '').split(' ')[0] + ' ' + String(x.h || '').slice(0, 6) + ' · ' + x.tipo + (x.min ? ' ' + x.min + 'min' : '') + (x.info ? ' · ' + x.info : '');
         return 'ronda ' + (R.t ? new Date(R.t).toTimeString().slice(0, 5) : '—') + ' · ' + (R.abertas || 0) + ' abertas · ' + (R.enviados || 0) + ' fechamentos\nPENDÊNCIAS (' + ((R.pend || []).length) + '):\n' + (R.pend || []).map(f).join('\n') + '\nANOMALIAS (' + ((R.anom || []).length) + '):\n' + (R.anom || []).map(f).join('\n'); };
       window.dinsAuditoria = (horas) => { const A = GM_getValue('audit1077', []) || []; const ag = Date.now(); return A.filter(a => ag - a.t < (horas || 3) * 3600000).map(a => new Date(a.t).toTimeString().slice(0, 5) + ' ' + a.tipo + ' ' + (a.nome || '').split(' ')[0] + ' ' + String(a.h || '').slice(0, 6) + ' ' + a.info).join('\n'); };
