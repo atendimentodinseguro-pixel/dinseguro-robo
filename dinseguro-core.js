@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
+  const VERSAO = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
+  const VERSAO_10_59_NOTA = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
   const VERSAO_10_58_NOTA = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
   const VERSAO_10_57_NOTA = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
   const VERSAO_10_56_NOTA = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
@@ -2592,10 +2593,14 @@
             if (DR[k] && agora5 - DR[k] < 20 * 3600000) continue; if (agora5 - (+x.ultCliT || 0) < 60000 || agora5 - (+x.ultCliT || 0) > 6 * 3600000) continue; if (!(hh5 >= 8 && hh5 < 21)) continue;
             const nm = nomeCli(x); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
             const comProp = x.link && !x.semLink;
+            // 10.60 (Stefany 22/11 10:16, Vinícius: "sempre dá duas opções… sempre vem com a sugestão de horário"): no lugar de "me diz um horário", sugere DOIS horários — mesmo dia: daqui a 2 h e 3 h; outro dia (amanhã/segunda/…): 10h ou 11h
+            const sug60 = (() => { const t = String(x.ultCliTxt || '').toLowerCase(); const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']; const dn = dias.findIndex(d => t.includes(d) || t.includes(d.replace('ç', 'c').replace('á', 'a')));
+              if (/amanh[ãa]/.test(t) || dn >= 0) { const dia = dn >= 0 ? (dn === new Date().getDay() + 1 || (dn === 0 && new Date().getDay() === 6) ? 'amanhã (' + dias[dn] + ')' : dias[dn]) : 'amanhã'; return 'Para eu te chamar no horário certinho ' + dia + ': fica melhor às *10h* ou às *11h* da manhã?'; }
+              let h1 = new Date().getHours() + 2; if (h1 > 19) return 'Para eu te chamar no horário certinho amanhã: fica melhor às *10h* ou às *11h* da manhã?'; if (h1 < 9) h1 = 9; return 'Para eu te chamar no horário certinho: fica melhor às *' + h1 + 'h* ou às *' + (h1 + 1) + 'h*?'; })();
             const texto = 'Combinado' + (nm ? ', ' + nm : '') + '! 😊 Sem problema nenhum.' + (comProp
               ? (temHora ? '\n\nFica combinado então: vou deixar o seu link ativo para você concluir nesse horário, e nessa hora eu te chamo aqui para te ajudar a finalizar. 🤝'
-                         : '\n\nMe diz um horário certinho que fica bom para você concluir, que eu deixo o seu link ativo até lá e te chamo exatamente nesse horário para finalizarmos juntos. 🤝')
-              : '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : 'Me diz um horário certinho que fica bom para você, que eu te chamo exatamente nesse horário. 🤝'));   // 7.34 (Stefany 16/11 16:41: sempre firmar um horário e deixar o link ativo até lá — caso Fernanda)
+                         : '\n\n' + sug60 + ' Eu deixo o seu link ativo até lá e te chamo nesse horário para finalizarmos juntos. 🤝')
+              : '\n\n' + (temHora ? 'Fica combinado então, eu te chamo nesse horário. 🤝' : sug60 + ' Eu te chamo nesse horário. 🤝'));   // 7.34 (Stefany 16/11 16:41: sempre firmar um horário e deixar o link ativo até lá — caso Fernanda)
             DR[k] = agora5; GM_setValue('depois_resp', DR);
             if (teste) continue;
             const dd7 = String(new Date().getDate()).padStart(2, '0') + '/' + String(new Date().getMonth() + 1).padStart(2, '0');
