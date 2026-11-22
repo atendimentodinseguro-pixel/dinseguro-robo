@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
+  const VERSAO = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
+  const VERSAO_10_65_NOTA = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
   const VERSAO_10_64_NOTA = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
   const VERSAO_10_63_NOTA = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
   const VERSAO_10_62_NOTA = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
@@ -4368,6 +4369,7 @@
         if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === '__TESTE_LIBERADO_1022__' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
         // 10.65: assinado que saiu dos toques porque o cliente respondeu / estava com humano (faseToq 9) → 4 h depois VOLTA para os toques do ponto onde parou (prioridade total: ninguém fica sem follow-up)
+        if (x.faseToq === 9 && !x.faseToq9T && !x.faseToq9Jan) { x.faseToq9T = Date.now(); x.faseToqAnt = 2; r[x.hash] = x; gravaRG(r); }   // 10.66: os que já estavam parados (9) antes da 10.65 também voltam em 4 h
         if (x.faseToq === 9 && x.faseToq9T && x.faseToqAnt != null && !x.faseToq9Jan && Date.now() - x.faseToq9T > 4 * 3600000) { x.faseToq = Math.min(x.faseToqAnt, TOQUES_FASE[x.faseFeita].length - 1); x.faseToq9T = 0; x.hist.push(hhmm(Date.now()) + ' 10.65: volta aos toques (estava parado há 4 h)'); r[x.hash] = x; gravaRG(r); }
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
         if (Date.now() - (+x.prioUltT || 0) < 3 * 3600000) continue;   // 10.65: toques atrasados saem um por vez, com 3 h entre eles (nada de rajada)
