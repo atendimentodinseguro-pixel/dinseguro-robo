@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
+  const VERSAO = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
+  const VERSAO_10_62_NOTA = '10.62';   // 10.62 (João Reis 22/11 10:21): toque da régua com trava única entre abas (não sai 2x/3x).
   const VERSAO_10_61_NOTA = '10.61';   // 10.61 (Kleber 22/11 10:20): pedido parado em ficha_ok/digitando 8 min → simulação vai na hora ao cliente pela API.
   const VERSAO_10_60_NOTA = '10.60';   // 10.60 (Stefany 22/11 10:16): combinar horário sempre com DUAS sugestões (mesmo dia +2h/+3h; outro dia 10h ou 11h).
   const VERSAO_10_59_NOTA = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
@@ -729,7 +730,7 @@
         // 7.55 (Stefany 17/11 01:16: "a gente está digitando muito rápido a proposta antes do cara simular, isso está assustando muita gente"):
         // quem ainda NÃO aceitou recebe primeiro só a SIMULAÇÃO (2 opções). A proposta só é gravada se ele aceitar (opção 1 → link na hora)
         // ou se não responder em 30 min (grava e manda /parabens para ele avaliar). Aceite do bot / ordem do vigia continuam gravando direto.
-        if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) {
+        if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && o.soSim1063) {   // 10.63 (Stefany 22/11 10:37): CPF recebido → digita direto e manda simulação + link (/parabens); só simula se o vigia pedir (soSim1063)
           const tabS = logRobo().slice(antes).map(l => /Tabela: .*?(\d{2,3})x\s+[\d,]+%\s+R\$\s*([\d.,]+)\s+R\$\s*([\d.,]+)/.exec(l)).filter(Boolean).pop();
           const okS = v => /\d,\d{2}$/.test(String(v || ''));
           const fS = (o.ficha && String(o.ficha.cpf).replace(/\D/g, '').replace(/^0+/, '') === o.cpf.replace(/^0+/, '')) ? o.ficha : (f || {});
@@ -911,7 +912,7 @@
     const dados = { liberado: brl(+of.released_amount), parcela: brl(+of.installment), prazo: String(of.term || f.prazo || 108), nomeReal: f.nome || o.nomeReal, tabelaApi: of.table_name };
     if (abaixo969) { dados.ficha = Object.assign({}, f, { valor: '', parcela: brl(+of.installment) }); dados.pedido969 = brl(pedido); dados.aceite = false; dados.simGravar = 0; dados.aceitouSim = 0; return { simulada: 1, dados }; }   // o aceite era do valor maior → manda a simulação do que a margem dá e espera o novo aceite
     // 7.55: quem ainda NÃO aceitou recebe só a SIMULAÇÃO (não grava)
-    if (o.tipo === 'cpf' && !o.aceite && !o.simGravar) return { simulada: 1, dados };
+    if (o.tipo === 'cpf' && !o.aceite && !o.simGravar && o.soSim1063) return { simulada: 1, dados };   // 10.63: CPF recebido → grava direto (simulação + link + /parabens)
     // conta: mesma hierarquia da tela (6191-6205): ficha com conta → ficha sem conta (deriva da agência) → aleatória Caixa (quem ainda não aceitou) → para
     const aleatOk = f.aleatoria_ok || (o.tipo === 'cpf' && (!o.aceite || o.aceitouSim));
     let bc = bancoOk(f.banco), ag = agOk(f.agencia), cc = so(f.conta), ct, dv;
@@ -6874,7 +6875,7 @@
           GM_setValue('ficha_atual', o.ficha);
           poeAOd(o.hash, { estado: 'digitando' });
           const t0 = Date.now();
-          const soSim = !o.aceite && !o.simGravar;   // 7.56: mesma regra do New Corban — quem não aceitou recebe só a simulação
+          const soSim = !o.aceite && !o.simGravar && !!o.soSim1063;   // 10.63 (antes 7.56): mesma regra do New Corban — quem não aceitou recebe só a simulação
           const b = [...p.querySelectorAll('button')].find(x => x.dataset.a === (soSim ? 'Só simular' : 'Fazer tudo')); if (!b) throw new Error('botão ' + (soSim ? 'Só simular' : 'Fazer tudo') + ' não está na tela');
           b.click();
           let st = null;
