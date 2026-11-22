@@ -4368,8 +4368,9 @@
         if (!x || !x.link || !x.faseFeita || !TOQUES_FASE[x.faseFeita] || !x.faseFeitaT || x.hash === '__TESTE_LIBERADO_1022__' || protegido(x.hash)) continue;   // 7.35: chats protegidos (Carmen, João Carlos…) fora
         if (['cancelada', 'concluída'].includes(x.estado)) continue;
         // 10.65: assinado que saiu dos toques porque o cliente respondeu / estava com humano (faseToq 9) → 4 h depois VOLTA para os toques do ponto onde parou (prioridade total: ninguém fica sem follow-up)
-        if (x.faseToq === 9 && x.faseToq9T && x.faseToqAnt != null && !x.faseToq9Jan && Date.now() - x.faseToq9T > 4 * 3600000) { x.faseToq = Math.min(x.faseToqAnt, TOQUES_FASE[x.faseFeita].length - 1); x.faseFeitaT = Math.min(x.faseFeitaT, Date.now() - 3 * 86400000); x.faseToq9T = 0; x.hist.push(hhmm(Date.now()) + ' 10.65: volta aos toques (estava parado há 4 h)'); r[x.hash] = x; gravaRG(r); }
+        if (x.faseToq === 9 && x.faseToq9T && x.faseToqAnt != null && !x.faseToq9Jan && Date.now() - x.faseToq9T > 4 * 3600000) { x.faseToq = Math.min(x.faseToqAnt, TOQUES_FASE[x.faseFeita].length - 1); x.faseToq9T = 0; x.hist.push(hhmm(Date.now()) + ' 10.65: volta aos toques (estava parado há 4 h)'); r[x.hash] = x; gravaRG(r); }
         const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
+        if (Date.now() - (+x.prioUltT || 0) < 3 * 3600000) continue;   // 10.65: toques atrasados saem um por vez, com 3 h entre eles (nada de rajada)
         const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
         alvo = x; fe = f; break;
       }
@@ -4390,7 +4391,7 @@
         if (clienteRespondeu()) { marca({ faseToq: 9, faseToq9T: Date.now(), faseToqAnt: alvo.faseToq || 0 }, 'prioridade (' + fe.fase + '): cliente respondeu — fica para o vigia'); return; }
         const n = alvo.faseToq || 0;
         await mensagemLivre(TOQUES_FASE[fe.fase][n](nomeDoAlvo(alvo)));
-        marca({ faseToq: n + 1 }, 'prioridade: toque ' + (n + 1) + ' de ' + TOQUES_FASE[fe.fase].length + ' (' + fe.fase + ')');
+        marca({ faseToq: n + 1, prioUltT: Date.now() }, 'prioridade: toque ' + (n + 1) + ' de ' + TOQUES_FASE[fe.fase].length + ' (' + fe.fase + ')');
         try { diario(alvo.nomeReal || alvo.nome || alvo.hash.slice(0, 5), '⭐ assinado — toque ' + (n + 1) + ' do ' + (fe.fase === 'falta desbloquear' ? 'desbloqueio' : 'Meu INSS (anuência)')); } catch (e) {}
       } catch (e) { marca({}, 'prioridade ERRO: ' + String(e.message || e).slice(0, 120)); }
       finally { prioRodando = false; navSolta('fase'); }
