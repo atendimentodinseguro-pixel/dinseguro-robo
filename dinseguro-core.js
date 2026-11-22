@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.82';   // 10.82: /132 (aviso de cancelamento) no máximo 1x a cada 20 h por cliente.    // 10.81: dinsNaoFechar + 'obrigado/ok' não é pendência.    // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
+  const VERSAO = '10.83';   // 10.83: mensagem do fluxo do Botmaker 'Se você não deseja continuar' não é falha do robô.    // 10.82: /132 (aviso de cancelamento) no máximo 1x a cada 20 h por cliente.    // 10.81: dinsNaoFechar + 'obrigado/ok' não é pendência.    // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
   const VERSAO_10_75_NOTA = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
   const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
@@ -1413,7 +1413,7 @@
     // (cliente falou por último e ninguém respondeu; pedido em erro; simulação parada; mensagem repetida) e manda sozinho os FECHAMENTOS
     // do link não assinado: 1º com a nossa última msg há > 1 h; 2º (curto, com opções) 3 h depois do 1º. Só 8h–21h, janela aberta, fora de protegidos,
     // sem assinatura (régua faseFeita), sem recusa recente, sem agendamento. Tudo vai para a AUDITORIA (dinsAuditoria) para o vigia conferir.
-    { const GEN1077 = /Estou analisando suas informa|logo voc[eê] ser[aá] atendid|Para agilizar o seu atendimento|Bem-vindo de volta|Identificamos que voc[eê] j[aá] passou|Nosso hor[aá]rio de atendimento|Enviamos para voc[eê] um v[ií]deo com depoimentos|^\[m[ií]dia\]$/i;
+    { const GEN1077 = /Estou analisando suas informa|logo voc[eê] ser[aá] atendid|Para agilizar o seu atendimento|Bem-vindo de volta|Identificamos que voc[eê] j[aá] passou|Nosso hor[aá]rio de atendimento|Enviamos para voc[eê] um v[ií]deo com depoimentos|Se voc[eê] n[aã]o deseja continuar|^\[m[ií]dia\]$/i;
       const FECH1077 = /Passando porque a sua proposta|ainda est[aá] te esperando|s[oó] para eu saber como te ajudar com a sua proposta|antes de cancelar, posso|passando rapidinho/i;
       const NEG1077 = /^\s*(2|3|n[aã]o|nao)\s*[.!]*\s*$|n[aã]o (quero|tenho interesse|preciso|vou fazer)|cancel|desist|j[aá] fiz (em|com|no) outr|me tira|pare de|n[aã]o me (mande|chame)|s[oó] (posso|vou poder)|ap[oó]s (os )?90|depois d[oa]s? 90|m[eê]s que vem|ano que vem|vou ver no dia|outro dia|mais pra frente|mais para frente/i;   // recusa OU adiamento → vigia decide (regra 5-A)
       const txt1077 = k => String((k && k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '');
