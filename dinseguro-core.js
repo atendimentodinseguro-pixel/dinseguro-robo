@@ -4517,7 +4517,7 @@
     const SIG_CPF = /(informe|mande|envie|me manda|digite)[^\n]{0,60}\bCPF\b|n[úu]mero do seu CPF/i;
     const SIG_SIM = /1️⃣\s*Sim|Escolha uma op[çc][ãa]o/i;
     const SIG_DOC = /(foto|imagem)[^\n]{0,40}(documento|RG|CNH)|documento de identifica|envie (o|seu) (RG|documento)|\/CLT1/i;
-    const DEPOIS = /(?<![\wÀ-ÿ])(s[óo] amanh[ãa]|amanh[ãa]|mais tarde|depois eu (vejo|fa[çc]o|mando|olho)|vou ver depois|agora n[ãa]o (posso|d[áa])|t[ôo] no trabalho|estou trabalhando|[àa] noite|de noite|mais tardinha)(?![\wÀ-ÿ])/i;
+    const DEPOIS = /(?<![\wÀ-ÿ])(s[óo] amanh[ãa]|amanh[ãa]|mais tarde|depois eu (vejo|fa[çc]o|mando|olho)|vou ver depois|agora n[ãa]o (posso|d[áa])|t[ôo] no trabalho|estou trabalhando|[àa] noite|de noite|mais tardinha|janeiro|fevereiro|mar[çc]o|m[eê]s que vem|semana que vem|ano que vem|pr[óo]ximo m[eê]s|mais (pra|para) frente|vou pensar|deixa (pra|para) depois|deixar (pra|para) depois|outra hora|outro dia)(?![\wÀ-ÿ])/i;   // 10.74: inclui adiamentos longos (meses, 'vou pensar')
     function horaDita(txt) {
       const t = String(txt || '').toLowerCase();
       const m = t.match(/(?:[àa]s?|depois das?|l[áa] pelas?)\s*(\d{1,2})(?:[:h](\d{2}))?\s*(?:h|hs|horas)?/) || t.match(/\b(\d{1,2})\s*(?:h|hs|horas)\b/);
