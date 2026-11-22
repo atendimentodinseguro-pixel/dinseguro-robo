@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
+  const VERSAO = '10.76';   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
+  const VERSAO_10_75_NOTA = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
   const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
   const VERSAO_10_72_NOTA = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
@@ -1238,6 +1239,20 @@
       GM_setValue('in100_fila', FQ); if (mud) GM_setValue('auto_ordens', O);
     } catch (e) {} }, 60000);
     window.dinsIn100Pedir = (hash, nome, cpf, beneficio) => { const FQ = GM_getValue('in100_fila', []) || []; if (!FQ.some(x => x.hash === hash)) FQ.push({ hash, nome, cpf: String(cpf).replace(/\D/g, ''), beneficio: String(beneficio).replace(/\D/g, ''), t: Date.now() }); GM_setValue('in100_fila', FQ); return FQ.length; };   // 10.70: vigia pede uma IN100 à mão (teste ou cliente fora do fluxo)
+    // 10.76: agenda de retornos sem repetir horário (GM 'agenda_slots': { 'AAAA-MM-DD HH:MM': {hash, t} }) — segura o horário oferecido por 12 h
+    window.dinsAgendaSlots = (hash, op) => { op = op || {}; const A = GM_getValue('agenda_slots', {}) || {}; const ag = Date.now(); for (const k in A) if (ag - (+A[k].t || 0) > 12 * 3600000 && Date.parse(k.replace(' ', 'T')) < ag) delete A[k];
+      const pad = n => String(n).padStart(2, '0'); const chave = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      const util = d => { while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1); return d; };
+      const agora = new Date(); let ini; let rotulo = ''; const dsem = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+      const fds = agora.getDay() === 0 || agora.getDay() === 6;
+      if (op.dia != null && op.dia >= 0) { ini = new Date(agora); ini.setDate(ini.getDate() + ((op.dia - agora.getDay() + 7) % 7 || 7)); ini.setHours(10, 0, 0, 0); }
+      else if (op.amanha || fds || agora.getHours() >= 19) { ini = new Date(agora); ini.setDate(ini.getDate() + 1); ini.setHours(10, 0, 0, 0); if (fds || op.amanha) util(ini); }
+      else { ini = new Date(agora.getTime() + 60 * 60000); const m = ini.getMinutes(); ini.setMinutes(m === 0 ? 0 : m <= 30 ? 30 : 60, 0, 0); if (ini.getHours() < 9) ini.setHours(9, 0, 0, 0); }
+      if (ini.toDateString() !== agora.toDateString()) { const amanha = new Date(agora); amanha.setDate(amanha.getDate() + 1); rotulo = ini.toDateString() === amanha.toDateString() ? ' amanhã' : ' na ' + dsem[ini.getDay()] + (/sábado|domingo/.test(dsem[ini.getDay()]) ? '' : '-feira'); if (/domingo|sábado/.test(dsem[ini.getDay()])) rotulo = ' no ' + dsem[ini.getDay()]; }
+      const h = []; const d = new Date(ini); let guard = 0;
+      while (h.length < 2 && guard++ < 40) { if (d.getHours() >= 19) { d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); util(d); }
+        const k = chave(d); if (!A[k] || A[k].hash === hash) { A[k] = { hash, t: ag }; h.push(pad(d.getHours()) + 'h' + (d.getMinutes() ? pad(d.getMinutes()) : '')); } d.setMinutes(d.getMinutes() + 30); }
+      GM_setValue('agenda_slots', A); return { h, rotulo }; };
     window.dinsIn100Ver = () => ({ fila: GM_getValue('in100_fila', []), res: Object.fromEntries(Object.entries(GM_getValue('in100_res', {}) || {}).map(([k, v]) => [k.slice(0, 5), v])) });
     // 10.67: lista para o vigia — quem mandou extrato e ainda não foi conferido (abrir o PDF: margem, nº do benefício, REPRESENTANTE LEGAL, pensão alimentícia, bloqueio)
     window.dinsExtratosPendentes = () => { try { const T9 = GM_getValue('ex771_espera', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; return Object.keys(T9).filter(k => !/^_log_/.test(k) && O[k] && !O[k].extratoOk && Date.now() - T9[k] < 24 * 3600000).map(k => ({ hash: k, nome: O[k].nomeReal || O[k].nome || '', estado: O[k].estado, min: Math.round((Date.now() - T9[k]) / 60000) })); } catch (e) { return String(e); } };
@@ -2704,9 +2719,11 @@
             const nm = nomeCli(x); const temHora = /\b\d{1,2}\s*(h|hs|horas)\b|[àa]s\s*\d{1,2}/i.test(x.ultCliTxt || '');
             const comProp = x.link && !x.semLink;
             // 10.60 (Stefany 22/11 10:16, Vinícius: "sempre dá duas opções… sempre vem com a sugestão de horário"): no lugar de "me diz um horário", sugere DOIS horários — mesmo dia: daqui a 2 h e 3 h; outro dia (amanhã/segunda/…): 10h ou 11h
+            // 10.76 (Stefany 22/11 15:13): AGENDA com horários que não se repetem — fim de semana (ou depois das 19h) → próximo dia útil a partir das 10h (10h, 10h30, 11h…);
+            // dia de semana → daqui a 1 h e 1 h 30; outro dia pedido (amanhã/segunda…) → esse dia a partir das 10h. Sempre DUAS opções; quem pega um horário, o próximo cliente recebe os seguintes.
             const sug60 = (() => { const t = String(x.ultCliTxt || '').toLowerCase(); const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']; const dn = dias.findIndex(d => t.includes(d) || t.includes(d.replace('ç', 'c').replace('á', 'a')));
-              if (/amanh[ãa]/.test(t) || dn >= 0) { const dia = dn >= 0 ? (dn === new Date().getDay() + 1 || (dn === 0 && new Date().getDay() === 6) ? 'amanhã (' + dias[dn] + ')' : dias[dn]) : 'amanhã'; return 'Para eu te chamar no horário certinho ' + dia + ': fica melhor às *10h* ou às *11h* da manhã?'; }
-              let h1 = new Date().getHours() + 2; if (h1 > 19) return 'Para eu te chamar no horário certinho amanhã: fica melhor às *10h* ou às *11h* da manhã?'; if (h1 < 9) h1 = 9; return 'Para eu te chamar no horário certinho: fica melhor às *' + h1 + 'h* ou às *' + (h1 + 1) + 'h*?'; })();
+              const ops = window.dinsAgendaSlots(k, { amanha: /amanh[ãa]/.test(t), dia: dn });
+              return 'Para eu te chamar no horário certinho' + ops.rotulo + ': fica melhor às *' + ops.h[0] + '* ou às *' + ops.h[1] + '*?'; })();
             // 10.74 (Stefany 22/11 14:26, Cláudia B39TN1 "no começo de fevereiro" — "PRIORIDADE TOTAL"): cliente que quer DEIXAR PARA DEPOIS → o objetivo é fechar AGORA.
             // Primeiro a URGÊNCIA (o valor de hoje pode diminuir: margem reduzida, taxa maior, benefício bloqueado/suspenso) + ação fácil (link pronto / SIM); o horário só vem como plano B.
             const val74 = String(x.liberado || x.valor || '').trim(); const longe74 = /\b(m[eê]s|semana|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|ano que vem|mais (pra|para) frente|outra hora|outro dia|quando (eu )?precisar|pensar|pensando)\b/i.test(x.ultCliTxt || '');
@@ -4373,7 +4390,7 @@
         if (ents.slice(-12).some(e => e.classList.contains('right') && /recuperar a senha|ligar no \*?135/i.test(e.innerText))) { x.senhaResp = Date.now(); gravaRG(r); return; }
         senhaRodando = true;
         const nm = nomeDoAlvo(x);
-        await mensagemLivre(`${nm ? nm + ', s' : 'S'}em problema, isso acontece muito e é fácil de resolver! 😊\n\n*Para recuperar a senha do Meu INSS (é a senha do gov.br):*\n1️⃣ Abra o aplicativo Meu INSS e toque em *Entrar com gov.br*\n2️⃣ Digite o seu CPF e toque em *Continuar*\n3️⃣ Toque em *Esqueci minha senha*\n4️⃣ Escolha receber o código por SMS ou e-mail e crie uma senha nova\n\n📞 *Ou, se preferir, faça o desbloqueio por telefone:* ligue no *135* (grátis, de segunda a sábado, das 7h às 22h) e peça o *desbloqueio do benefício para empréstimo consignado*.\n\nSe travar em alguma parte, me manda um print da tela que eu te ajudo na hora. 🙏`);
+        await mensagemLivre(`${nm ? nm + ', s' : 'S'}em problema, isso acontece muito e é fácil de resolver! 😊\n\n*Para recuperar a senha do Meu INSS (é a senha do gov.br):*\n1️⃣ Abra o aplicativo Meu INSS e toque em *Entrar com gov.br*\n2️⃣ Digite o seu CPF e toque em *Continuar*\n3️⃣ Toque em *Esqueci minha senha*\n4️⃣ Escolha receber o código por SMS ou e-mail e crie uma senha nova\n\nSe travar em alguma parte, me manda um *print de cada tela* que eu te guio passo a passo, na hora. 🙏 E se preferir, eu agendo um horário com um profissional nosso para fazer o desbloqueio junto com você.`);
         const r2 = RG(); if (r2[h]) { r2[h].senhaResp = Date.now(); r2[h].hist.push(hhmm(Date.now()) + ' desbloqueio: cliente com problema de senha → recuperação + 135 (7.49)'); gravaRG(r2); desenharRegua(); }
       } catch (e) {} finally { senhaRodando = false; }
     }, 30000);
@@ -4446,9 +4463,9 @@
         n => `${n ? n + ', p' : 'P'}assando para ver como ficou o desbloqueio 🙏 Ele é o último passo do seu lado: com o benefício desbloqueado, o banco já consegue finalizar e o dinheiro cai na sua conta. Precisa de ajuda?`,
         n => `Bom dia${n ? ', ' + n : ''}! ☀️ A sua proposta está aprovada e só falta o desbloqueio do benefício no Meu INSS para o dinheiro ir para a sua conta. Quer fazer agora comigo? Eu te acompanho por aqui, passo a passo.`,
         n => `${n ? n + ', o' : 'O'} seu dinheiro está esperando só o desbloqueio do benefício 💰 Se ficou alguma dúvida ou o aplicativo deu algum erro, me fala aqui ou me diz um horário bom que eu te ajudo.`,
-        // 7.49 (Stefany 16/11 19:32, caso Vilson "esqueci a senha do Meu INSS": "temos que criar um processo para essa galera") — D+2 e D+3 com o caminho do 135
-        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Se o aplicativo do Meu INSS estiver dando trabalho (senha, gov.br, erro), tem um jeito mais fácil: ligar no *135* (grátis, de segunda a sábado, das 7h às 22h) e pedir o *desbloqueio do benefício para empréstimo consignado*. Leva poucos minutos. Depois me avisa aqui que eu acompanho a liberação 🙏`,
-        n => `${n ? n + ', a' : 'A'} sua proposta continua aprovada e reservada para você 💰 Falta só o desbloqueio do benefício (pelo Meu INSS ou ligando no 135). Me diz o que travou que eu resolvo com você agora, ou um horário bom para eu te ajudar.`
+        // 10.76 (Stefany 22/11 15:13: "135 nunca fala para o cliente ligar, não resolve"; print guiado + agendar um profissional para fazer o desbloqueio junto)
+        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Se o aplicativo do Meu INSS estiver dando trabalho (senha, gov.br, erro), a gente resolve junto: me manda um *print da tela* onde travou que eu te guio passo a passo, na hora. 📲 O seu dinheiro está só esperando esse desbloqueio 💰`,
+        n => `${n ? n + ', a' : 'A'} sua proposta continua aprovada e reservada para você 💰 Falta só o desbloqueio do benefício. Se estiver difícil, eu agendo um horário com um profissional nosso para fazer *junto com você* — fica melhor às *10h* ou às *10h30*? 🤝`
       ],
       'falta anuência': [
         n => `${n ? n + ', c' : 'C'}onseguiu fazer a confirmação no Meu INSS? 😊 Quando aparecer como feito, me manda um print aqui. Se travar, eu te ajudo.`,
