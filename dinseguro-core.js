@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
+  const VERSAO = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
+  const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
   const VERSAO_10_72_NOTA = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
   const VERSAO_10_71_NOTA = '10.71';   // 10.71: logs do robô da Quali.
@@ -2972,12 +2973,14 @@
         const p = String(nr).trim().split(/\s+/)[0] || ''; if (p.length >= 2) return p[0].toUpperCase() + p.slice(1).toLowerCase(); } catch (e) {}
       return nomeSeguro(alvo && alvo.nome);
     }
-    const MSG_TARDE = nome => `${nome ? nome + ', p' : 'P'}assando rapidinho 😊 A sua proposta continua pronta, com as condições que você viu. Falta só abrir o link e fazer a selfie de segurança para o dinheiro ir para a sua conta. Se tiver qualquer dúvida ou dificuldade, me chama aqui que eu te ajudo agora.`;   // 7.32
-    const MSG_MANHA_DUV904 = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro. Ficou com mais alguma dúvida sobre a proposta que te enviei? Podemos ajudar em algo mais? É só me chamar aqui. 😊`;   // 9.04
-    const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Tudo bem? Aqui é da Dinseguro.\n\n` +
-      'Passando só para lembrar que a sua proposta continua disponível no link que te mandei ontem. ' +
-      'Quando tiver um tempinho, é só abrir e fazer a selfie de segurança.\n\n' +
-      'Se tiver qualquer dificuldade, me chama aqui que eu te ajudo 🤝';
+    // 10.75 (Stefany 22/11 14:51: "o objetivo é a VENDA — convencer, tranquilizar, escassez"): os toques do link deixam de ser "lembretes" e passam a FECHAR —
+    // escassez honesta (o valor de hoje pode diminuir; o link vence), facilidade (3 minutinhos pelo celular), segurança e ação clara.
+    const MSG_TARDE = nome => `${nome ? nome + ', ' : ''}última chamada sobre a sua proposta 🙏\n\n⚠️ Ela fica reservada por pouco tempo: se o link vencer, numa nova consulta o valor pode vir *menor* (a margem e as taxas mudam toda semana).\n\n✅ Leva só *uns 3 minutinhos pelo celular*: abrir o link, conferir e tirar a selfie — e a liberação sai em até *60 minutos*.\n🔒 É tudo seguro: a Dinseguro não cobra nada antes e nada é feito sem a sua confirmação.\n\nVamos finalizar agora? Se travou em alguma parte, me manda um print que eu te guio na hora 🤝`;   // 7.32 → 10.75
+    const MSG_MANHA_DUV904 = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro. A proposta que te enviei continua com as condições de ontem — mas não consigo garantir esse valor por muito tempo, porque a margem e as taxas mudam. Ficou com alguma dúvida? Me fala que eu te explico e já deixo tudo certo para você 😊`;   // 9.04 → 10.75
+    const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro.\n\n` +
+      'A sua proposta *ainda está garantida* no link que te mandei ontem — mas ela não fica reservada para sempre: se vencer, numa nova consulta o valor pode vir *menor*. ⚠️\n\n' +
+      'São só *uns 3 minutinhos pelo celular* (abrir, conferir e tirar a selfie) e a liberação sai em até *60 minutos*.\n\n' +
+      'Que tal fazer agora, enquanto o valor está garantido? Se tiver qualquer dificuldade, me chama aqui que eu te ajudo passo a passo 🤝';
 
     let CLS_CTX = null;   // 6.40: leitura pelo SERVIDOR em curso → as funções de leitura usam isto em vez da tela
     function nomeDoContato() { if (CLS_CTX) return CLS_CTX.nome || '';
