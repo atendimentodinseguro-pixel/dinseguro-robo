@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
+  const VERSAO = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
+  const VERSAO_10_72_NOTA = '10.72';   // 10.72: IN100 lê o detalhe que a Quali abre depois do Confirmar.
   const VERSAO_10_71_NOTA = '10.71';   // 10.71: logs do robô da Quali.
   const VERSAO_10_70_NOTA = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
   const VERSAO_10_69_NOTA = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
@@ -1429,6 +1430,12 @@
               if (O4[oM.hash].api800Tent < 3 && !/sem token/.test(er)) { delete O4[oM.hash].api800T; O4[oM.hash].api800Prox = Date.now() + 90000; } else O4[oM.hash].api800Falhou = 1;   // 8.17: tenta de novo pela API (até 3 vezes) antes de cair na fila da tela
               GM_setValue('auto_ordens', O4); diario(oM.nomeReal || oM.nome || '', '⚠️ sem margem pela API não saiu: ' + er + ' (tentativa ' + O4[oM.hash].api800Tent + ')'); } }
             finally { ocup790 = false; } return; } }
+        // 10.73 (Stefany 22/11, Francisca K94HN escreveu "Vamos fazer" (o DESBLOQUEIO) e o robô respondeu "já tenho o seu CPF, estou consultando"): cliente com proposta
+        // ASSINADA esperando desbloqueio/anuência (régua com fase feita) não é consulta nova → não acolhe nem consulta; vai para o vigia responder sobre a etapa dele
+        { let mudG = false; const RGg = GM_getValue('regua', {}) || {};
+          for (const x of Object.values(O)) { if (!x || x.tipo !== 'cpf' || !['nova', 'consultando'].includes(x.estado) || x.vigiaForcou1073) continue; const rg = RGg[x.hash];
+            if (rg && rg.faseFeita && !['cancelada', 'concluída'].includes(rg.estado) && Date.now() - (+rg.faseFeitaT || +rg.t || 0) < 15 * 864e5) { x.estado = 'erro'; x.erro = 'cliente com proposta ASSINADA (fase: ' + rg.faseFeita + ') escreveu — VIGIA responde sobre a etapa dele (não é consulta nova) (10.73)'; x.acolheu = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 10.73: tem proposta assinada (' + rg.faseFeita + ') → não reconsulta; vigia'); mudG = true; try { diario(x.nomeReal || x.nome || x.hash.slice(0, 5), '🔴 cliente com proposta assinada (' + rg.faseFeita + ') escreveu → vigia responde (10.73)'); } catch (e) {} } }
+          if (mudG) { GM_setValue('auto_ordens', O); return; } }
         // 7.93 (Stefany 17/11 22:12: "1 minuto é muito tempo"): o "recebi o seu CPF, já estou consultando" sai NA HORA pela API, antes da consulta acabar
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
         if (oA && !trava870('acolhe_' + oA.hash)) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O); return; }
