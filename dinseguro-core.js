@@ -90,7 +90,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
+  const VERSAO = '10.70';   // 10.70: dinsIn100Pedir (vigia pede IN100 à mão).
+  const VERSAO_10_69_NOTA = '10.69';   // 10.69: IN100 do Botmaker roda no frame do robô (o robô do Botmaker mora no iframe).
   const VERSAO_10_68_NOTA = '10.68';   // 10.68 (Stefany 22/11 12:20): IN100 da Quali no fluxo (DDB 90+, aceitou) — resultado no resumo/diário; link espera até 10 min.
   const VERSAO_10_67_NOTA = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
   const VERSAO_10_66_NOTA = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
@@ -1224,6 +1225,7 @@
         try { diario(o.nomeReal || o.nome || h.slice(0, 5), (alerta ? '🔴 ' + alerta : '🔎 ' + txt) + ' (10.68)'); } catch (e) {} }
       GM_setValue('in100_fila', FQ); if (mud) GM_setValue('auto_ordens', O);
     } catch (e) {} }, 60000);
+    window.dinsIn100Pedir = (hash, nome, cpf, beneficio) => { const FQ = GM_getValue('in100_fila', []) || []; if (!FQ.some(x => x.hash === hash)) FQ.push({ hash, nome, cpf: String(cpf).replace(/\D/g, ''), beneficio: String(beneficio).replace(/\D/g, ''), t: Date.now() }); GM_setValue('in100_fila', FQ); return FQ.length; };   // 10.70: vigia pede uma IN100 à mão (teste ou cliente fora do fluxo)
     window.dinsIn100Ver = () => ({ fila: GM_getValue('in100_fila', []), res: Object.fromEntries(Object.entries(GM_getValue('in100_res', {}) || {}).map(([k, v]) => [k.slice(0, 5), v])) });
     // 10.67: lista para o vigia — quem mandou extrato e ainda não foi conferido (abrir o PDF: margem, nº do benefício, REPRESENTANTE LEGAL, pensão alimentícia, bloqueio)
     window.dinsExtratosPendentes = () => { try { const T9 = GM_getValue('ex771_espera', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; return Object.keys(T9).filter(k => !/^_log_/.test(k) && O[k] && !O[k].extratoOk && Date.now() - T9[k] < 24 * 3600000).map(k => ({ hash: k, nome: O[k].nomeReal || O[k].nome || '', estado: O[k].estado, min: Math.round((Date.now() - T9[k]) / 60000) })); } catch (e) { return String(e); } };
