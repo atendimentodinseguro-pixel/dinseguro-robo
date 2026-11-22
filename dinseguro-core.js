@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
+  const VERSAO = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
+  const VERSAO_10_56_NOTA = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
   const VERSAO_10_55_NOTA = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
   const VERSAO_10_54_NOTA = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
   const VERSAO_10_53_NOTA = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
@@ -1226,6 +1227,11 @@
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
         const hh = new Date().getHours(); if ((hh < 8 || hh >= 21) && !respondendoAgora) return { erro: 'fora do horário (8h–21h)' };
+        // 10.57 (Stefany 22/11 07:36–07:38, Roberta POQJD e André 6HFL7: o vigia pediu CPF de quem JÁ tinha mandado CPF e extrato — "já tinha falado isso e não fez"): TRAVA — mensagem que pede CPF só sai se os últimos 14 dias da conversa não tiverem CPF nem arquivo do cliente
+        if (/\bCPF\b/i.test(texto) && /(me manda|me envi|informe|me passa|(s[oó]|apenas) os n[uú]meros|n[uú]mero do seu)/i.test(texto) && window.dinsBmGet) {
+          try { const m57 = await window.dinsBmGet('/messages?chat-id=' + chatId + '&from=' + encodeURIComponent(new Date(Date.now() - 14 * 86400000).toISOString())); const u57 = ((m57 && m57.j && m57.j.items) || []).filter(k => k.from === 'user');
+            const cpf57 = u57.map(k => String((k.content && k.content.text) || '')).map(t => (t.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/) || [])[0]).filter(Boolean).pop(); const arq57 = u57.some(k => k.content && k.content.media && !/^(audio|ptt)/i.test(String(k.content.type || '')));
+            if (cpf57 || arq57) return { erro: 'TRAVA 10.57: o cliente JÁ mandou ' + (cpf57 ? 'CPF (…' + String(cpf57).replace(/\D/g, '').slice(-4) + ')' : '') + (cpf57 && arq57 ? ' e ' : '') + (arq57 ? 'arquivo (extrato/documento)' : '') + ' nos últimos 14 dias — não peça de novo: use o que ele mandou', cpf: cpf57 ? String(cpf57).replace(/\D/g, '') : '' }; } catch (e) {} }
         try { if (/margem cheia do INSS/i.test(String(texto))) { const VM9 = GM_getValue('valor_msg_feito', {}) || {}; VM9[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM9); } } catch (e) {}   // 9.19: simulação padrão do vigia conta igual à do robô
         await bmEnviarTexto(chatId, String(texto)); try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
         try { const R2 = GM_getValue('regua', {}) || {}; const x2 = R2[chatId]; if (x2 && x2.estado === 'alerta') { x2.estado = 'respondido'; delete x2.reler; delete x2.relerHist; (x2.hist = x2.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: o vigia respondeu pela API → saiu do vermelho'); GM_setValue('regua', R2); } } catch (e) {}
