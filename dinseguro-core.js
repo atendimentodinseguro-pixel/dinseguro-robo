@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.76';   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
+  const VERSAO = '10.77';   // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
   const VERSAO_10_75_NOTA = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
   const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
@@ -1408,6 +1408,65 @@
     // 9.44: mais pontes do mesmo erro de escopo (estas funções moram em outro bloco)
     const hhmm = t => { try { if (typeof window.dinsHhmm === 'function') return window.dinsHhmm(t); } catch (e) {} return t ? new Date(t).toTimeString().slice(0, 5) : ''; };
     const primeiroNome = n => { try { if (typeof window.dinsPrimeiroNome === 'function') return window.dinsPrimeiroNome(n); } catch (e) {} const p = String(n || '').trim().split(/\s+/)[0] || ''; return p ? p[0].toUpperCase() + p.slice(1).toLowerCase() : ''; };
+    // 10.77 (Stefany 22/11 18:03–18:17: "a ronda completa tem que ser do robô, sustentável, sem gastar token… mas você fiscaliza o robô"):
+    // RONDA DO ROBÔ a cada 15 min (uma aba só, trava GM): lê pela API as conversas da janela de 24 h, separa as PENDÊNCIAS do vigia
+    // (cliente falou por último e ninguém respondeu; pedido em erro; simulação parada; mensagem repetida) e manda sozinho os FECHAMENTOS
+    // do link não assinado: 1º com a nossa última msg há > 1 h; 2º (curto, com opções) 3 h depois do 1º. Só 8h–21h, janela aberta, fora de protegidos,
+    // sem assinatura (régua faseFeita), sem recusa recente, sem agendamento. Tudo vai para a AUDITORIA (dinsAuditoria) para o vigia conferir.
+    { const GEN1077 = /Estou analisando suas informa|logo voc[eê] ser[aá] atendid|Para agilizar o seu atendimento|Bem-vindo de volta|Identificamos que voc[eê] j[aá] passou|Nosso hor[aá]rio de atendimento|Enviamos para voc[eê] um v[ií]deo com depoimentos|^\[m[ií]dia\]$/i;
+      const FECH1077 = /Passando porque a sua proposta|ainda est[aá] te esperando|s[oó] para eu saber como te ajudar com a sua proposta|antes de cancelar, posso|passando rapidinho/i;
+      const NEG1077 = /^\s*(2|3|n[aã]o|nao)\s*[.!]*\s*$|n[aã]o (quero|tenho interesse|preciso|vou fazer)|cancel|desist|j[aá] fiz (em|com|no) outr|me tira|pare de|n[aã]o me (mande|chame)|s[oó] (posso|vou poder)|ap[oó]s (os )?90|depois d[oa]s? 90|m[eê]s que vem|ano que vem|vou ver no dia|outro dia|mais pra frente|mais para frente/i;   // recusa OU adiamento → vigia decide (regra 5-A)
+      const txt1077 = k => String((k && k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '');
+      const aud1077 = (h, nome, tipo, info) => { try { const A = GM_getValue('audit1077', []) || []; A.push({ t: Date.now(), h, nome: String(nome || '').slice(0, 30), tipo, info: String(info || '').slice(0, 160) }); while (A.length > 300) A.shift(); GM_setValue('audit1077', A); } catch (e) {} };
+      const saud1077 = () => { const h = new Date().getHours(); return h < 12 ? 'bom dia! ☀️' : h < 18 ? 'boa tarde! ☀️' : 'boa noite! 🌙'; };
+      async function ronda1077(manual, seco) { const prev = [];
+        const ag = Date.now(); const L = GM_getValue('r1077_lock', 0) || 0; if (!manual && ag - L < 13 * 60000) return { pulou: 'outra aba rodou há ' + Math.round((ag - L) / 60000) + ' min' }; GM_setValue('r1077_lock', ag);
+        if (!window.dinsBmGet || !GM_getValue('bm_api_token', '')) return { erro: 'sem API' };
+        const from = encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); let url = '/chats?from=' + from, itens = [], pg = 0;
+        while (url && pg++ < 6) { const r = await window.dinsBmGet(url); const j = (r && r.j) || {}; itens = itens.concat(j.items || []); url = j.nextPage ? String(j.nextPage).replace(/^https?:\/\/[^/]+(\/v2\.0)?/, '') : null; }
+        const O = GM_getValue('auto_ordens', {}) || {}; const RGx = GM_getValue('regua', {}) || {}; const AGS = GM_getValue('agenda_slots', {}) || {}; const agendados = new Set(Object.keys(AGS).filter(k => Date.parse(k.replace(' ', 'T')) > ag).map(k => AGS[k].hash));
+        const FX = GM_getValue('fech1077', {}) || {}; const hh = new Date().getHours(); const horaOk = hh >= 8 && hh < 21;
+        const pend = [], anom = []; let abertas = 0, enviados = 0;
+        for (const x of itens) { try {
+          const h = x.chat && (x.chat.chatId || x.chat.id); if (!h) continue; const fim = Date.parse(x.whatsAppWindowCloseDatetime || 0) || 0; if (fim <= ag || /fechar/i.test(String(x.queueId || ''))) continue; abertas++;
+          if (protegido(h)) continue; const o = O[h]; const nome = (o && (o.nomeReal || o.nome)) || ((x.firstName || '') + ' ' + (x.lastName || '')).trim();
+          const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(ag - 48 * 3600000).toISOString())); await esp(250);
+          const ms = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)); if (!ms.length) continue;
+          const reais = ms.filter(k => k.from === 'user' || !GEN1077.test(txt1077(k).trim()));   // respostas automáticas genéricas do bot não contam como resposta
+          const ult = reais[reais.length - 1]; const ultU = [...ms].reverse().find(k => k.from === 'user'); const ultN = [...reais].reverse().find(k => k.from !== 'user');
+          const tU = ultU ? Date.parse(ultU.creationTime) : 0, tN = ultN ? Date.parse(ultN.creationTime) : 0;
+          // repetição: o mesmo texto nosso (≥ 40 letras) 2x em 6 h = falha do robô
+          { const vis = {}; for (const k of ms) { if (k.from === 'user') continue; const t = txt1077(k).replace(/\s+/g, ' ').trim(); if (t.length < 40 || GEN1077.test(t)) continue; const c = t.slice(0, 80); if (vis[c] && Date.parse(k.creationTime) - vis[c] < 6 * 3600000 && ag - Date.parse(k.creationTime) < 3 * 3600000) { anom.push({ h, nome, tipo: 'msg_repetida', info: c.slice(0, 60) }); break; } vis[c] = Date.parse(k.creationTime); } }
+          if (ult && ult.from === 'user' && ag - tU > 8 * 60000) { pend.push({ h, nome, tipo: 'cliente_esperando', min: Math.round((ag - tU) / 60000), info: txt1077(ultU).slice(0, 100), estado: o && o.estado }); continue; }
+          if (!o) continue;
+          if (o.estado === 'erro') { pend.push({ h, nome, tipo: 'erro_robo', info: String(o.erro || '').slice(0, 120), estado: o.estado }); continue; }
+          if (o.estado === 'sim_enviada' && ag - (+o.tSimEnv || ag) > 2 * 3600000 && !o.reverso && !o.semPar767) anom.push({ h, nome, tipo: 'simulacao_parada', info: 'sim_enviada há ' + Math.round((ag - o.tSimEnv) / 60000) + ' min' });
+          // FECHAMENTO do link não assinado
+          const rg = RGx[h]; const link = (rg && rg.link) || o.link || ''; if (!link || !/feito|link/.test(String(o.estado))) continue;
+          if (rg && (rg.faseFeita || /cancelada|conclu/.test(String(rg.estado || '')))) continue;   // assinou / acabou
+          if (agendados.has(h) || o.reverso && !o.aceite) continue;
+          const negU = ms.filter(k => k.from === 'user' && ag - Date.parse(k.creationTime) < 24 * 3600000).some(k => NEG1077.test(txt1077(k)));
+          if (negU) { if (!FX[h] || !FX[h].neg) { FX[h] = Object.assign(FX[h] || {}, { neg: ag }); pend.push({ h, nome, tipo: 'recusou_ou_adiou', info: 'cliente disse não/cancelar/depois nas últimas 24 h — vigia decide se tenta salvar', estado: o.estado }); } continue; }
+          if (!horaOk || fim - ag < 5 * 60000) continue; if (ag - tN < 60 * 60000) continue;
+          const fx = FX[h] = FX[h] || {}; const chaveL = String(link).slice(-14); if (fx.link !== chaveL) { fx.link = chaveL; fx.n = 0; fx.t = 0; }
+          const fechRecente = reais.some(k => k.from !== 'user' && FECH1077.test(txt1077(k)) && ag - Date.parse(k.creationTime) < 3 * 3600000);
+          if (fechRecente || fx.n >= 2 || (fx.n === 1 && ag - fx.t < 3 * 3600000) || (tU && tU > fx.t && fx.n)) continue;
+          const nm = primeiroNome(o.nomeReal || o.nome || '') || ''; const v = o.liberado ? 'R$ ' + o.liberado : '';
+          const tx = fx.n === 0 && !reais.some(k => k.from !== 'user' && FECH1077.test(txt1077(k)))
+            ? (nm ? nm + ', ' : '') + saud1077() + ' Passando porque a sua proposta' + (v ? ' de *' + v + '*' : '') + ' ainda está te esperando, e eu não quero que você perca esse valor 🙏\n\n⚠️ Ela fica reservada por pouco tempo: se o link vencer, numa nova consulta o valor pode vir *menor* (a margem e as taxas mudam toda semana).\n\n✅ São só 3 minutinhos pelo celular: abrir o link, conferir e tirar a selfie. A liberação sai em até 60 minutos depois de tudo certo.\n\n🔒 Nada é feito sem a sua confirmação. Travou em alguma tela? Me manda um print que eu te guio 🤝'
+            : (nm ? nm + ', s' : 'S') + 'ó para eu saber como te ajudar com a sua proposta' + (v ? ' de *' + v + '*' : '') + ' 😊\n\n1️⃣ Quero finalizar agora, me ajuda\n2️⃣ Não consegui abrir o link\n3️⃣ Tenho uma dúvida\n4️⃣ Quero outro valor ou outra parcela\n\nÉ só responder com o número 🤝';
+          if (seco) { prev.push((nome || '').split(' ')[0] + ' ' + h.slice(0, 6) + ' → ' + (/Passando porque/.test(tx) ? 'fech1' : 'fech2') + ' ' + v); continue; }
+          try { await bmEnviarTexto(h, tx); fx.n = /Passando porque/.test(tx) ? 1 : 2; fx.t = ag; enviados++; aud1077(h, nome, fx.n === 1 ? 'fechamento_1' : 'fechamento_2', (o.banco || '') + ' ' + (o.proposta || '') + ' ' + v);
+            try { diario(nome, '🎯 fechamento ' + fx.n + ' do link não assinado (10.77)'); } catch (e) {} } catch (e) { aud1077(h, nome, 'falha_envio', String((e && e.message) || e)); }
+          if (enviados >= 8) break;   // no máximo 8 por ronda
+        } catch (e) {} }
+        for (const k in FX) if (ag - Math.max(+FX[k].t || 0, +FX[k].neg || 0) > 4 * 864e5) delete FX[k];
+        if (seco) return { seco: 1, abertas, prev, pend, anom }; GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
+      window.dinsRonda1077 = (seco) => ronda1077(true, !!seco);
+      window.dinsPendencias = () => { const R = GM_getValue('pend1077', null) || {}; const f = x => (x.nome || '').split(' ')[0] + ' ' + String(x.h || '').slice(0, 6) + ' · ' + x.tipo + (x.min ? ' ' + x.min + 'min' : '') + (x.info ? ' · ' + x.info : '');
+        return 'ronda ' + (R.t ? new Date(R.t).toTimeString().slice(0, 5) : '—') + ' · ' + (R.abertas || 0) + ' abertas · ' + (R.enviados || 0) + ' fechamentos\nPENDÊNCIAS (' + ((R.pend || []).length) + '):\n' + (R.pend || []).map(f).join('\n') + '\nANOMALIAS (' + ((R.anom || []).length) + '):\n' + (R.anom || []).map(f).join('\n'); };
+      window.dinsAuditoria = (horas) => { const A = GM_getValue('audit1077', []) || []; const ag = Date.now(); return A.filter(a => ag - a.t < (horas || 3) * 3600000).map(a => new Date(a.t).toTimeString().slice(0, 5) + ' ' + a.tipo + ' ' + (a.nome || '').split(' ')[0] + ' ' + String(a.h || '').slice(0, 6) + ' ' + a.info).join('\n'); };
+      if (/botmaker/.test(location.host)) { setTimeout(() => ronda1077().catch(() => {}), 120000); setInterval(() => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; } catch (e) {} ronda1077().catch(() => {}); }, 15 * 60000); } }
     const LINHA_SEM_MARGEM = n => window.dinsLinhaSemMargem(n);
     window.dinsLinkDiag = () => { try { const O = GM_getValue('auto_ordens', {}) || {}; const L = GM_getValue('bm_sim_dono', null); return { api: bmApiLigada(), papel: meuPapel(), dono: L ? Math.round((Date.now() - (+L.t || 0)) / 1000) + ' s' : '-', links: Object.values(O).filter(x => x && x.estado === 'link').map(x => ({ n: String(x.nomeReal || x.nome || '').slice(0, 16), h: String(x.hash).slice(0, 6), tipo: x.tipo || '(sem tipo)', prot: protegido(x.hash), falhou: !!x.api879Falhou, prox: +x.api879Prox > Date.now(), link: /^https?:\/\//.test(String(x.link || '')), lpp: !!(x.liberado && x.parcela && x.prazo), extr: extrSync(x), trava: Math.round((Date.now() - (+localStorage.getItem('dins_trava870_link879_' + x.hash) || 0)) / 1000) + ' s', tent: x.api879Tent || 0, erro: String(x.api879Erro || '').slice(0, 80), min: Math.round((Date.now() - (+x.t || 0)) / 60000) })) }; } catch (e) { return { erro: String((e && e.message) || e) }; } };
     // 9.28 (Stefany 19/11 17:17): cliente ainda no FLUXO DO BOT do Botmaker → o robô já adianta (consulta, simula, digita se aceitou, despacha sem margem na hora),
