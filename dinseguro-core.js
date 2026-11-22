@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
+  const VERSAO = '10.67';   // 10.67 (Carla 22/11): extrato espera o vigia 45 min + dinsExtratosPendentes().
+  const VERSAO_10_66_NOTA = '10.66';   // 10.66: assinados parados de antes da 10.65 também voltam aos toques.
   const VERSAO_10_65_NOTA = '10.65';   // 10.65 (Stefany 22/11 10:45): follow-up de assinados todos os dias (sem pular fim de semana) e volta aos toques 4 h depois de parar.
   const VERSAO_10_64_NOTA = '10.64';   // 10.64 (Stefany 22/11 10:39): volta a regra simulação → 30 min → digita + /parabens; simulação parada 15 min sai pela API.
   const VERSAO_10_63_NOTA = '10.63';   // 10.63 (Stefany 22/11 10:37): CPF recebido vai direto para digitação + link, sem esperar aceite.
@@ -1149,7 +1150,9 @@
       return 'wait'; }
     const EXTR771 = {};
     // 9.73 (Stefany 20/11 13:59): o link de quem mandou extrato espera o VIGIA conferir a margem no máximo 15 min — passou disso, o robô manda o link mesmo assim.
-    function extrSync(o) { if (!o || o.extratoOk) return false; try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (T9[o.hash] && Date.now() - T9[o.hash] > 15 * 60000) { if (!T9['_log_' + o.hash]) { T9['_log_' + o.hash] = 1; GM_setValue('ex771_espera', T9); try { diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '⏱️ extrato esperou 15 min sem o vigia → manda o link assim mesmo (9.73)'); } catch (e) {} } return false; } } catch (e) {} const c = EXTR771[o.hash];
+    // 10.67: lista para o vigia — quem mandou extrato e ainda não foi conferido (abrir o PDF: margem, nº do benefício, REPRESENTANTE LEGAL, pensão alimentícia, bloqueio)
+    window.dinsExtratosPendentes = () => { try { const T9 = GM_getValue('ex771_espera', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; return Object.keys(T9).filter(k => !/^_log_/.test(k) && O[k] && !O[k].extratoOk && Date.now() - T9[k] < 24 * 3600000).map(k => ({ hash: k, nome: O[k].nomeReal || O[k].nome || '', estado: O[k].estado, min: Math.round((Date.now() - T9[k]) / 60000) })); } catch (e) { return String(e); } };
+    function extrSync(o) { if (!o || o.extratoOk) return false; try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (T9[o.hash] && Date.now() - T9[o.hash] > 45 * 60000) {   /* 10.67 (Stefany 22/11 12:04, Carla POQJD: link saiu sem ninguém ler o extrato, que mostrava REPRESENTANTE LEGAL): espera 45 min (antes 15) — o vigia confere a cada ronda pela dinsExtratosPendentes() */ if (!T9['_log_' + o.hash]) { T9['_log_' + o.hash] = 1; GM_setValue('ex771_espera', T9); try { diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '⏱️ extrato esperou 15 min sem o vigia → manda o link assim mesmo (9.73)'); } catch (e) {} } return false; } } catch (e) {} const c = EXTR771[o.hash];
       if (c && Date.now() - c.t < 3 * 60000) return c.pend ? 'wait' : c.has;
       if (!c || !c.pend) { EXTR771[o.hash] = { t: Date.now(), pend: true, has: false }; extratoNaoLido(o).then(h => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: h }; if (h) { try { const T9 = GM_getValue('ex771_espera', {}) || {}; if (!T9[o.hash]) { T9[o.hash] = Date.now(); for (const k in T9) if (!/^_log_/.test(k) && Date.now() - T9[k] > 3 * 864e5) { delete T9[k]; delete T9['_log_' + k]; } GM_setValue('ex771_espera', T9); } } catch (e) {} } }).catch(() => { EXTR771[o.hash] = { t: Date.now(), pend: false, has: false }; }); }
       return 'wait'; }
