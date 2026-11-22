@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
+  const VERSAO = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
+  const VERSAO_10_55_NOTA = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
   const VERSAO_10_54_NOTA = '10.54';   // 10.54 (Francisca 21/11): toques do link conferem a proposta pela API — já em análise/averbada/paga não recebe 'será cancelada'.
   const VERSAO_10_53_NOTA = '10.53';   // 10.53 (Sonia 21/11): digitação pela API sem sexo na ficha deduz pelo primeiro nome (A = FEMININO).
   const VERSAO_10_52_NOTA = '10.52';   // 10.52 (Andreia 21/11 15:43): CPF mandado pela cliente solta a ordem reversa mesmo depois do amarelo 9.91.
@@ -245,7 +246,7 @@
     if (inval) {
       if (idade >= 60) return { banco: 'FACTA', motivo: 'Invalidez 60–73: FACTA mesmo acima de R$ 20 mil' + nota };
       if (idade >= 58) return { banco: 'QUALIBANK', motivo: 'Invalidez 58–59: Qualibank, tabela de invalidez (566), 108x' + nota };
-      if (idade >= 53) return { banco: 'C6', motivo: 'Invalidez 53–57: C6, sempre 108x' + nota };
+      if (idade >= 53) return { banco: 'C6', motivo: 'Invalidez 53–57: C6, sempre 108x; se o C6 não fizer → DAYCOVAL (Stefany 21/11 22:09)' + nota };
       if (idade >= 40) return { banco: 'DAYCOVAL', motivo: 'Invalidez 40–52: Daycoval (Stefany 12/11 10:55: o que ia para o Quero Mais volta para o Daycoval — mesmo sistema)' + nota };
       return { banco: 'C6', motivo: 'Invalidez até 39: C6, sempre 108x' + nota };
     }
@@ -943,6 +944,7 @@
           if (br.formalization_link) poe(g.hash, { estado: 'link', link: br.formalization_link, erro: '', aguardaLista: 0 }, 'link do ' + g.banco + ' chegou pela API (' + Math.round((Date.now() - (+g.tGrav || Date.now())) / 60000) + ' min depois de gravar) → vai mandar ao cliente');
           else if (/ALTERAR FORM PLUS/i.test(br.bank_status_description || '') && (+String(g.idade || (g.ficha && g.ficha.idade) || '').replace(/\D/g, '') || 0) >= 60 && g.banco !== 'QUALIBANK') poe(g.hash, { estado: 'ficha_ok', banco: 'QUALIBANK', bancoStefany: '', erro: '', apiFalhou: 0, propNc: null, viaApi: 0, link: '', propC6FormPlus: br.proposal_number || '', t: Date.now() - 120000 }, g.banco + ' Nº ' + (br.proposal_number || '') + ' voltou ALTERAR FORM PLUS (60+, lei estadual) → redigita no QUALIBANK (Stefany 21/11 15:24); proposta antiga fica aberta, sem cancelar');
           else if (/SEM COMISS/i.test(br.bank_status_description || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' SEM COMISSAO = Não Perturbe (nº ' + (br.proposal_number || '') + ') → HAPPY pela tela com IN100 (não invalidez); invalidez 58+ → Quali; invalidez < 58 → avisar a Stefany' }, 'banco devolveu SEM COMISSAO (Não Perturbe) — vigia leva ao Happy');
+          else if (/REPROV/i.test(br.bank_status || '') && g.banco === 'C6' && ['32', '92'].includes(String((g.ficha || {}).especie || '').padStart(2, '0')) && (parseInt((g.ficha || {}).idade) || 0) >= 40 && (parseInt((g.ficha || {}).idade) || 0) < 58 && (g.fallbacks || 0) < 2) { const hh56 = new Date().getHours(); if (hh56 >= 8 && hh56 < 20) poe(g.hash, { estado: 'nova', bancoStefany: 'DAYCOVAL', banco: '', proposta: '', link: '', erro: '', ficha: null, propNc: null, viaApi: 0, fallbacks: (g.fallbacks || 0) + 1, propC6Reprov: br.proposal_number || '' }, 'C6 REPROVOU (nº ' + (br.proposal_number || '') + ') — invalidez ' + (g.ficha || {}).idade + 'a → refazendo no DAYCOVAL (Stefany 21/11 22:09) — 10.56'); else poe(g.hash, { estado: 'erro', bancoStefany: 'DAYCOVAL', erro: 'C6 REPROVOU (nº ' + (br.proposal_number || '') + ') — invalidez ' + (g.ficha || {}).idade + 'a → DAYCOVAL no próximo horário comercial (Stefany 21/11 22:09) — 10.56' }, 'C6 reprovou fora do horário do Daycoval → vigia refaz no Daycoval de manhã'); }
           else if (/REPROV|CANCEL/i.test(br.bank_status || '')) poe(g.hash, { estado: 'erro', erro: g.banco + ' ' + br.bank_status + ' ' + (br.bank_status_description || '') + ' (nº ' + (br.proposal_number || '') + ') — trocar de banco?' }, 'banco REPROVOU a proposta (vista pela API)');
         } catch (e) {} finally { ocupApi = false; } return; }
       const o = Object.values(O0).find(x => x && x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco) && !(x.bancoStefany && String(x.bancoStefany).toUpperCase().replace(/\s+/g, ' ').trim() !== x.banco) && !x.apiFalhou && x.ficha && so(x.ficha.cpf).replace(/^0+/, '') === so(x.cpf).replace(/^0+/, ''));
