@@ -53,7 +53,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
+  const VERSAO = '10.59';   // 10.59 (Michele 22/11 09:18): fase_msg com resposta rápida que falhou tenta de novo só as respostas rápidas (3x) e depois avisa o vigia.
+  const VERSAO_10_58_NOTA = '10.58';   // 10.58 (Carlos Henrique 22/11 07:41): trava870 no armazenamento comum do Tampermonkey + bmEnviarTexto não repete a mesma mensagem ao mesmo chat em 15 min.
   const VERSAO_10_57_NOTA = '10.57';   // 10.57 (Stefany 22/11 07:38): trava no dinsBmEnviar — não pede CPF de quem já mandou CPF/arquivo nos últimos 14 dias.
   const VERSAO_10_56_NOTA = '10.56';   // 10.56 (Stefany 21/11 22:09, Marcelo 763AB): invalidez 53–57 que o C6 reprovar → DAYCOVAL (em horário comercial; fora dele, erro para o vigia refazer de manhã).
   const VERSAO_10_55_NOTA = '10.55';   // 10.55 (Severino 21/11): reenvio do MESMO link não recria a régua (toques não saem 2x).
@@ -2196,6 +2197,10 @@
         if (/^(ok|erro)$/.test(st) && o.acao === 'sim_link') { try { const OA = GM_getValue('auto_ordens', {}) || {}; const xa = OA[o.hash]; if (xa && xa.estado === 'link_enviado') { xa.estado = st === 'ok' ? 'feito' : 'erro'; if (st !== 'ok') xa.erro = 'envio do link parou: ' + String((extra || {}).erro || ''); GM_setValue('auto_ordens', OA); } } catch (e) {} }   // 7.01: fecha a ordem na hora (sem depender do status não ser sobrescrito)
         if (/^(ok|erro)$/.test(st)) { try { const nmD = ((GM_getValue('regua', {}) || {})[o.hash] || {}).nome || o.nome || o.hash.slice(0, 5); const AC = { sim_link: 'mandou simulação + link', fase_msg: 'mandou mensagem', pedir_cpf: 'pediu o CPF', loas_com: 'LOAS: retorno + fechou', loas_sem: 'LOAS: retorno + fechou', sem_margem: 'sem margem: retorno + fechou' }[o.acao] || o.acao;
           diario(nmD, st === 'ok' && passos.some(p => /não repeti/.test(p)) ? AC + ': NÃO saiu de novo (já tinha saído igual antes)' : st === 'ok' ? AC + ' ✓' + (passos.some(p => /fechad/i.test(p)) ? ' (conversa fechada)' : '') : 'NÃO conseguiu (' + AC + '): ' + String((extra || {}).erro || '').slice(0, 80)); } catch (e) {} }
+        // 10.59 (Stefany 22/11 09:18, Michele 4SH7N: a linha "Veja abaixo como funciona 👇" saiu e o /inss6 + /inss6a NÃO — "tem vez que ele esquece de mandar"): fase_msg com respostas rápidas que deu erro → tenta de novo SÓ as respostas rápidas (a linha não repete), até 3 vezes, de 3 em 3 min; depois avisa o vigia
+        if (st === 'erro' && o.acao === 'fase_msg' && (o.atalhos || []).length) { try { const t59 = (+o.tent1059 || 0) + 1; const nm59 = ((GM_getValue('regua', {}) || {})[o.hash] || {}).nome || o.nome || o.hash.slice(0, 5);
+          if (t59 <= 3 && typeof window.dinsFilaVigia === 'function') { const linhaJa = passos.some(p => /^msg:/.test(p)); setTimeout(() => { try { window.dinsFilaVigia(Object.assign({}, o, { linha: linhaJa ? '' : o.linha, tent1059: t59, forcar: true, permitido: true, quem: o.quem || 'robo' })); } catch (e) {} }, 3 * 60000); diario(nm59, '↻ resposta rápida ' + o.atalhos.join(' + ') + ' não saiu — nova tentativa em 3 min (' + t59 + '/3) (10.59)'); }
+          else diario(nm59, '⛔ resposta rápida ' + o.atalhos.join(' + ') + ' NÃO saiu depois de 3 tentativas → VIGIA manda à mão (10.59)'); } catch (e) {} }
         if (st === 'ok' && o.hash && !/pular|nada/i.test(String(o.acao))) { try {
           const RS = JSON.parse(localStorage.getItem('dins_resolvidos') || '{}'); RS[o.hash] = Date.now(); localStorage.setItem('dins_resolvidos', JSON.stringify(RS));
           const fl = JSON.parse(localStorage.getItem('dins_fila') || '[]'); const it = fl.find(f => f.id === o.hash);
