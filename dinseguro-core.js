@@ -24,6 +24,7 @@
     window.setInterval(async () => { if (ocupQ) return; let it = null; try { window.__dinsQualiTick = Date.now();
       const FQ = GM_getValue('in100_fila', []) || []; window.__dinsQualiFila = FQ.length; if (!FQ.length) return; console.log('[Dinseguro] Quali IN100: ' + FQ.length + ' na fila'); if (/sign-in|login/.test(location.pathname)) return;
       if (!/\/inss-balances/.test(location.pathname)) { location.href = '/inss-balances'; return; }
+      if (/Dados Pessoais|Restri[çc][õo]es e Exposi/i.test(document.body.innerText) && ![...document.querySelectorAll('button')].some(x => /^\s*Consultar IN100\s*$/i.test(x.innerText))) { location.href = '/inss-balances'; return; }   // 10.72: está num detalhe → volta para a lista
       ocupQ = true; it = FQ[0];
       const fim = res => { const R = GM_getValue('in100_res', {}) || {}; R[it.hash] = Object.assign({ t: Date.now() }, res); for (const k in R) if (Date.now() - (+R[k].t || 0) > 7 * 864e5) delete R[k]; GM_setValue('in100_res', R); GM_setValue('in100_fila', (GM_getValue('in100_fila', []) || []).filter(x => x.hash !== it.hash)); };
       const hh = new Date().getHours(); if (hh < 6 || hh >= 22) { fim({ st: 'fora', msg: 'DataPrev só responde das 06h às 22h' }); return; }
