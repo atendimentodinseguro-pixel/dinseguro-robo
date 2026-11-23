@@ -4431,6 +4431,7 @@
     const SIG_VIDEO = /nuvidio\.me\/|chamada de v[íi]deo pelo link|https?:\/\/\S*(videochamada|video-?call)\S*/i;
     window.dinsPago = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.t22) return 'já registrado';
       Object.assign(x, { nome: nome || x.nome || '', t22: t || Date.now(), w40: 0, p102: 0, estado: 'pago', vigia: 1 });   /* 11.43: o vigia confirmou o pago — não exige a /22N no chat */ x.hist.push(hhmm(Date.now()) + ' /22N registrada'); o[hash] = x; gravaPOS(o); return 'ok'; };
+    window.dinsPosRetomar = (hash, mud) => { const o = POS(); const x = o[hash]; if (!x) return 'sem registro — use dinsPago'; delete x.parado; delete x.erro; x.tent = 0; x.vigia = 1; Object.assign(x, mud || {}); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' vigia retomou o pós-venda (11.43)' + (mud ? ' ' + JSON.stringify(mud) : '')); o[hash] = x; gravaPOS(o); return 'ok'; };   // 11.43: destrava o pós-venda parado (ex.: /W40 já mandada pelo vigia → {w40: Date.now()})
     window.dinsVideo = (hash, nome, t) => { const o = POS(); const x = o[hash] || { hash, hist: [] }; if (x.tVideo) return 'já registrado';
       Object.assign(x, { nome: nome || x.nome || '', tVideo: t || Date.now(), videoPerg: 0 }); x.hist.push(hhmm(Date.now()) + ' link de vídeo registrado'); o[hash] = x; gravaPOS(o); return 'ok'; };
     // 4.48 (Gerson 11/11): a /W40 que já estava no chat era marcada com a hora em que o robô VIU (11:07), não com a hora
