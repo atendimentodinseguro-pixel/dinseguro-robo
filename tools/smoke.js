@@ -13,4 +13,9 @@ if (typeof window.dinsParaStefany === 'function') { window.dinsParaStefany('BBBB
 G.para_stefany = {}; G.auto_ordens = { CCCCCC: { hash: 'CCCCCC', nome: 'ANDA', estado: 'link', banco: 'C6', t: Date.now() - 30 * 60000 } };
 r = window.dinsAntesDeParar(); if (!/EM ANDAMENTO/.test(r)) throw new Error('11.17: EM ANDAMENTO faltando: ' + r);
 window.dinsConferido('CCCCCC', 60, 'ok'); r = window.dinsAntesDeParar(); if (/EM ANDAMENTO/.test(r)) throw new Error('11.17: conferido não sumiu');
+G.vigia_dispensa = {}; G.auto_ordens = {}; G.conf_andamento = {}; G.quadro_r1124 = { t: Date.now(), it: [{ h: 'QQQQQQ', n: 'GYLM', m: 'alerta', cli: Date.now() - 180 * 60000 }] };
+r = window.dinsAntesDeParar(); if (!/GYLM QQQQQQ/.test(r)) throw new Error('11.24: 🔴 do quadro faltando no portão: ' + r);
+window.dinsDispensar('QQQQQQ', 2, 't'); r = window.dinsAntesDeParar(); if (/QQQQQQ/.test(r)) throw new Error('11.24: dispensa não escondeu: ' + r);
+G.vigia_dispensa['QQQQQQ'].t = Date.now() - 10 * 60000; G.quadro_r1124.it[0].cli = Date.now(); r = window.dinsAntesDeParar(); if (!/QQQQQQ/.test(r)) throw new Error('11.24: cliente escreveu depois da dispensa e não voltou: ' + r);
+G.quadro_r1124 = { t: Date.now() - 20 * 60000, it: [] }; r = window.dinsAntesDeParar(); if (!/quadro/.test(r)) throw new Error('11.24: quadro parado não avisou: ' + r);
 console.log('smoke ok');
