@@ -10,4 +10,7 @@ window.dinsDispensar('AAAAAA11112222333344', 2, 't'); G.vigia_dispensa['AAAAAA11
 r = window.dinsAntesDeParar(); if (!/TESTE/.test(r)) throw new Error('11.11: cliente que escreveu depois da dispensa sumiu: ' + r);
 G.pend1077.pend = []; r = window.dinsAntesDeParar(); if (!/^NADA/.test(r)) throw new Error('portão vazio não deu NADA: ' + r);
 if (typeof window.dinsParaStefany === 'function') { window.dinsParaStefany('BBBBBB', 'x', 'Y'); if (!/PARA A STEFANY/.test(window.dinsAntesDeParar())) throw new Error('rodapé PARA A STEFANY faltando'); }
+G.para_stefany = {}; G.auto_ordens = { CCCCCC: { hash: 'CCCCCC', nome: 'ANDA', estado: 'link', banco: 'C6', t: Date.now() - 30 * 60000 } };
+r = window.dinsAntesDeParar(); if (!/EM ANDAMENTO/.test(r)) throw new Error('11.17: EM ANDAMENTO faltando: ' + r);
+window.dinsConferido('CCCCCC', 60, 'ok'); r = window.dinsAntesDeParar(); if (/EM ANDAMENTO/.test(r)) throw new Error('11.17: conferido não sumiu');
 console.log('smoke ok');
