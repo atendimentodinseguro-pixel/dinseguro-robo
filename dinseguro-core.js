@@ -1357,6 +1357,7 @@
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' };
         try { if (typeof protegido === 'function' && protegido(chatId)) return { erro: 'conversa protegida (não mexer)' }; } catch (e) {}
         const hh = new Date().getHours(); if ((hh < 8 || hh >= 21) && !respondendoAgora) return { erro: 'fora do horário (8h–21h)' };
+        try { trava1095(chatId, texto); } catch (e) { return { erro: e.message }; }   // 10.95
         // 10.57 (Stefany 22/11 07:36–07:38, Roberta POQJD e André 6HFL7: o vigia pediu CPF de quem JÁ tinha mandado CPF e extrato — "já tinha falado isso e não fez"): TRAVA — mensagem que pede CPF só sai se os últimos 14 dias da conversa não tiverem CPF nem arquivo do cliente
         if (/\bCPF\b/i.test(texto) && /(me manda|me envi|informe|me passa|(s[oó]|apenas) os n[uú]meros|n[uú]mero do seu)/i.test(texto) && window.dinsBmGet) {
           try { const m57 = await window.dinsBmGet('/messages?chat-id=' + chatId + '&from=' + encodeURIComponent(new Date(Date.now() - 14 * 86400000).toISOString())); const u57 = ((m57 && m57.j && m57.j.items) || []).filter(k => k.from === 'user');
