@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '10.85';   // 10.85: fechamento automático conta os fechamentos já mandados (inclusive pelo vigia): no máximo 2 no total, e as opções só 1x.    // 10.84: msg_repetida só conta mensagens [Dinseguro].    // 10.83: mensagem do fluxo do Botmaker 'Se você não deseja continuar' não é falha do robô.    // 10.82: /132 (aviso de cancelamento) no máximo 1x a cada 20 h por cliente.    // 10.81: dinsNaoFechar + 'obrigado/ok' não é pendência.    // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
+  const VERSAO = '10.86';   // 10.86: aceite da simulação do BOT lido pela API → digita direto na parcela/prazo aceitos (valor ≥ o aceito) e manda o link, sem nova simulação.    // 10.85: fechamento automático conta os fechamentos já mandados (inclusive pelo vigia): no máximo 2 no total, e as opções só 1x.    // 10.84: msg_repetida só conta mensagens [Dinseguro].    // 10.83: mensagem do fluxo do Botmaker 'Se você não deseja continuar' não é falha do robô.    // 10.82: /132 (aviso de cancelamento) no máximo 1x a cada 20 h por cliente.    // 10.81: dinsNaoFechar + 'obrigado/ok' não é pendência.    // 10.80: dinsPend1077 (dinsPendencias já existia).    // 10.79: 1ª ronda 1077 também respeita a aba do vigia.    // 10.78: ronda do robô de 5 em 5 min (era 15).    // 10.77 (Stefany 22/11 18:17): ronda do robô a cada 15 min (pendências + fechamentos automáticos + auditoria para o vigia). Antes:   // 10.76 (Stefany 22/11 15:13): desbloqueio sem 135; agenda de retorno sem repetir horário (fds → segunda 10h…).
   const VERSAO_10_75_NOTA = '10.75';   // 10.75 (Stefany 22/11 14:51): toques do link com escassez + facilidade + ação (objetivo: assinatura).
   const VERSAO_10_74_NOTA = '10.74';   // 10.74 (Stefany 22/11 14:26): quem quer deixar para depois recebe URGÊNCIA (valor pode diminuir) + ação para fechar AGORA.
   const VERSAO_10_73_NOTA = '10.73';   // 10.73: cliente com proposta assinada que escreve não vira consulta nova (vigia responde).
@@ -951,6 +951,7 @@
   async function ncDigitaOrdem(o) {
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
     const pedido = num(f.valor); let parcela = num(f.parcela); const margem = num(f.margem);
+    if (o.parcBot > 0 && o.aceite) { const lim = margem > 0 ? margem - 0.01 : 1e9; if (o.parcBot <= lim) parcela = +o.parcBot; if (o.prazoBot) f.prazo = String(o.prazoBot); }   // 10.86: parcela e prazo que o cliente aceitou no bot
     if (!(parcela > 0)) throw new Error('ficha sem parcela');
     // 8.83: 71 a 76 anos sem ordem de prazo → simula no prazo que a idade permite (tabela larga) e, se o banco não oferecer, na curta
     let res, of; { const i883 = parseInt(f.idade) || 0; const pzSt = parseInt(String(f.prazo_ordem_stefany || '').replace(/\D/g, ''), 10) || 0;
@@ -1464,6 +1465,26 @@
         for (const k in FX) if (ag - Math.max(+FX[k].t || 0, +FX[k].neg || 0) > 4 * 864e5) delete FX[k];
         if (seco) return { seco: 1, abertas, prev, pend, anom }; GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
       window.dinsRonda1077 = (seco) => ronda1077(true, !!seco);
+      // 10.86 (Stefany 22/11 22:48, Marcelo 763AB: aceitou a simulação do BOT — R$ 10.000 em 108x de R$ 229,93, 'Sim desejo contratar' — e o robô mandou OUTRA
+      // simulação de 2 opções; ele aceitou de novo e o link nunca chegou): várias portas de criação da ordem gravam aceite:false. Agora, toda ordem nova sem aceite
+      // confere UMA vez pela API se a última simulação do bot ('Receba: R$ X / Pague em: N x R$ Y') teve 'Sim desejo contratar' depois (sem 'nova simulação'/'outro valor'
+      // depois). Se teve → aceite, valorBot = X (mínimo), parcBot = Y e prazoBot = N: digita direto nessa parcela e prazo (o valor pode sair MAIOR, nunca menor) e manda o link, sem nova simulação.
+      const aceiteBot1086 = async h => { try { const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(Date.now() - 48 * 3600000).toISOString()));
+          const ms = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)); const tx = k => String((k.content && (k.content.text || k.content.selectedButton)) || '').replace(/\s+/g, ' ');
+          let iS = -1; ms.forEach((k, i) => { if (k.from !== 'user' && /Receba:?\s*\*?R\$\s*[\d.]+,\d{2}/i.test(tx(k)) && /Pague em/i.test(tx(k))) iS = i; }); if (iS < 0) return null;
+          const t = tx(ms[iS]); const v = /Receba:?\s*\*?R\$\s*([\d.]+,\d{2})/i.exec(t), pz = /Pague em:?\s*\*?(\d{2,3})\s*x\s*\*?R\$\s*([\d.]+,\d{2})/i.exec(t); if (!v || !pz) return null;
+          const dep = ms.slice(iS + 1).filter(k => k.from === 'user').map(tx); const ac = dep.findIndex(x => /sim,?\s*desejo contratar|quero contratar/i.test(x)); if (ac < 0) return null;
+          if (dep.slice(ac + 1).some(x => /nova simula|outro valor|n[aã]o desejo|n[aã]o quero/i.test(x))) return null;
+          const n = x => parseFloat(String(x).replace(/\./g, '').replace(',', '.')) || 0; return { valor: n(v[1]), prazo: +pz[1], parcela: n(pz[2]) }; } catch (e) { return null; } };
+      window.dinsAceiteBot = aceiteBot1086;
+      setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {};
+          const o = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.aceite && !x.ab1086 && ['nova', 'consultando', 'ficha_ok', 'simulada'].includes(x.estado) && Date.now() - (+x.cpfT || +x.t || 0) < 6 * 3600000); if (!o) return;
+          const O1 = GM_getValue('auto_ordens', {}) || {}; if (!O1[o.hash]) return; O1[o.hash].ab1086 = Date.now(); GM_setValue('auto_ordens', O1);
+          const ab = await aceiteBot1086(o.hash); if (!ab) return; const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y || y.aceite) return;
+          Object.assign(y, { aceite: true, aceitouSim: 1, simGravar: 1, valorBot: ab.valor, parcBot: ab.parcela, prazoBot: ab.prazo });
+          if (y.ficha && typeof y.ficha === 'object') { y.ficha.parcela = String(ab.parcela.toFixed(2)).replace('.', ','); y.ficha.prazo = String(ab.prazo); if (!(parseFloat(String(y.ficha.valor || '').replace(/\./g, '').replace(',', '.')) >= ab.valor)) y.ficha.valor = String(ab.valor.toFixed(2)).replace('.', ','); }
+          (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 10.86: aceitou a simulação do BOT (R$ ' + ab.valor + ' em ' + ab.prazo + 'x de R$ ' + ab.parcela + ') → digita direto nessa parcela/prazo e manda o link, sem nova simulação');
+          GM_setValue('auto_ordens', O2); try { diario(y.nomeReal || y.nome || o.hash.slice(0, 5), '✅ aceite do bot visto pela API → digita direto (10.86)'); } catch (e) {} } catch (e) {} }, 5000);
       window.dinsNaoFechar = (h, dias) => { const N = GM_getValue('nao_fechar1077', {}) || {}; if (dias === 0) delete N[h]; else N[h] = Date.now() + (dias || 3) * 864e5; GM_setValue('nao_fechar1077', N); return N[h] || 'removido'; };   // 10.81: vigia tira um cliente dos fechamentos automáticos (agendado, negociação, caso especial)
       window.dinsPend1077 = () => { const R = GM_getValue('pend1077', null) || {}; const f = x => (x.nome || '').split(' ')[0] + ' ' + String(x.h || '').slice(0, 6) + ' · ' + x.tipo + (x.min ? ' ' + x.min + 'min' : '') + (x.info ? ' · ' + x.info : '');
         return 'ronda ' + (R.t ? new Date(R.t).toTimeString().slice(0, 5) : '—') + ' · ' + (R.abertas || 0) + ' abertas · ' + (R.enviados || 0) + ' fechamentos\nPENDÊNCIAS (' + ((R.pend || []).length) + '):\n' + (R.pend || []).map(f).join('\n') + '\nANOMALIAS (' + ((R.anom || []).length) + '):\n' + (R.anom || []).map(f).join('\n'); };
