@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.74';
+  const VERSAO = '11.75';
+  const VERSAO_11_75_NOTA = '';   // 11.75 (Stefany 24/11 20:19): pediu menos que o máximo → simulação do MÁXIMO; sem resposta em 30 min → link do máximo (10.64). Sem negociação pelo vigia
   const VERSAO_11_74_NOTA = '';   // 11.74 (Stefany 24/11 20:10): no menu da simulação a opção 'Não desejo' vira 'Simular outro valor'; resposta pergunta o valor/parcela (faixa 10.97)
   const VERSAO_11_73_NOTA = '';   // 11.73: dois benefícios da MESMA espécie → usa só o mais recente (DDB) — Stefany 24/11 20:06
   const VERSAO_11_72_NOTA = '';   // 11.72: ronda 1077 baixa as mensagens em paralelo (6 por vez) — estava levando 5+ min
@@ -1776,7 +1777,8 @@
         ocup790 = true; oS.api790T = Date.now();
         try { const linhaS = textoSim755(oS);
           /* 10.39 (Stefany 21/11 10:14 'lembra': procedimento 8.10): cliente que escolheu MENOS de R$ 10 mil → mensagem com 1️⃣ o máximo · 2️⃣ um valor da tabela de R$ 10 a 20 mil + a resposta rápida "Simulação 10 a 18 mil" (a tabela). A tabela é imagem: sai pela tela (fila do vigia). */
-          if (+oS.contorno10 > 0 && (parseFloat(String(oS.liberado || '').replace(/\./g, '').replace(',', '.')) || 0) >= 10000) {   /* 10.41 (Stefany 21/11 10:17 'se o cara só puder 15 mil na margem, manda o que ele tem'): máximo abaixo de R$ 10 mil não é negociação — vai a simulação normal do máximo */ // 10.40 (Stefany 21/11 10:17 'esses casos de negociação vêm para você, o robô te manda'): NEGOCIAÇÃO é do vigia — o robô só simula o máximo e passa para o vermelho
+          if (false && +oS.contorno10 > 0 && (parseFloat(String(oS.liberado || '').replace(/\./g, '').replace(',', '.')) || 0) >= 10000) {   /* 11.75: desligado — vai a simulação normal do máximo */   /* 10.41 (Stefany 21/11 10:17 'se o cara só puder 15 mil na margem, manda o que ele tem'): máximo abaixo de R$ 10 mil não é negociação — vai a simulação normal do máximo */ // 10.40 (Stefany 21/11 10:17 'esses casos de negociação vêm para você, o robô te manda'): NEGOCIAÇÃO é do vigia — o robô só simula o máximo e passa para o vermelho
+            /* 11.75 (Stefany 24/11 20:19 — a regra dela): cliente que escolheu menos → o robô manda a SIMULAÇÃO DO MÁXIMO (normal, abaixo); se não responder em 30 min, o 10.64 digita o máximo e manda o link. Sem negociação pelo vigia. */
             const O39 = GM_getValue('auto_ordens', {}) || {}; if (O39[oS.hash]) { O39[oS.hash].estado = 'erro'; O39[oS.hash].erro = 'NEGOCIAÇÃO → vigia: escolheu R$ ' + brl(+oS.contorno10) + ' (abaixo de 10 mil) · máximo R$ ' + oS.liberado + ' em ' + (oS.prazo || 108) + 'x de R$ ' + oS.parcela + ' (' + (oS.banco || '') + ') → mandar o 8.10 (opções + tabela 10 a 18 mil)'; O39[oS.hash].contorno1039 = Date.now(); (O39[oS.hash].hist = O39[oS.hash].hist || []).push(hhmm(Date.now()) + ' 10.40: negociação → vigia'); GM_setValue('auto_ordens', O39); }
             try { const R40 = GM_getValue('regua', {}) || {}; const x40 = R40[oS.hash] = R40[oS.hash] || { hash: oS.hash, nome: oS.nome || '', criadoT: Date.now(), toques: [], hist: [] }; x40.estado = 'alerta'; x40.motivo = '🤝 NEGOCIAÇÃO (vigia): escolheu R$ ' + brl(+oS.contorno10) + ' · máximo R$ ' + oS.liberado + ' → opções + tabela 10 a 18 mil (8.10)'; (x40.hist = x40.hist || []).push(hhmm(Date.now()) + ' 10.40: negociação → vigia'); GM_setValue('regua', R40); } catch (e) {}
             diario(oS.nomeReal || oS.nome || '', '🤝 escolheu menos de R$ 10 mil → NEGOCIAÇÃO passada para o vigia (10.40)'); return; }
