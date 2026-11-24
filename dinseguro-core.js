@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.70';
+  const VERSAO = '11.71';
+  const VERSAO_11_71_NOTA = '';   // 11.71: dois benefícios → segue sozinho com o de maior margem; o 2º vai ao portão (SEGUNDO_BENEFICIO)
   const VERSAO_11_70_NOTA = '';   // 11.70: 'recebi seu WhatsApp, desejo mais informações' (mensagem do disparo) não é 'CLIENTE DISSE QUE RECEBEU' (Elio/Marcelo/Marize 24/11);   // 11.69: Lu Andrade (VFS738) sai da proteção — Stefany 24/11 19:37 'pode tirar a proteção e mandar'
   const VERSAO_1168_NOTA = '';   // 11.68: aceite do bot (10.86) usado uma vez só por ordem — parava o loop simulação→aceite→simulação (Lacerda 24/11)
   const VERSAO_1167_NOTA = '';   // 11.67: sem benefício no Multicorban → confere o FullConsig pela API antes de fechar (Aroudo 24/11)
@@ -692,7 +693,7 @@
             }
             const comM = res.filter(x => x.margem >= 25 && !x.recusa);
             const desc = res.map(x => 'esp ' + x.esp + ' …' + x.mat.slice(-4) + ' margem R$ ' + x.margem.toFixed(2).replace('.', ',') + (x.recusa ? ' (' + x.recusa + ')' : '')).join(' · ');
-            if (comM.length >= 2) { poeAO(o.hash, { estado: 'com_margem', resumo: 'DOIS benefícios consignáveis com margem: ' + desc + ' → VIGIA: simular e mandar os DOIS (B1/B7), banco pela espécie e idade de cada um' }); return; }
+            if (comM.length >= 2) { comM.sort((a, b) => b.margem - a.margem); poeAO(o.hash, { segBen: comM.slice(1).map(x => x.mat).join(','), segBenDesc: desc }); }   /* 11.71 (Stefany 24/11 20:01, Carolina QK885R parada 10 min em com_margem): com DOIS benefícios o robô segue SOZINHO com o de MAIOR margem (simulação + link sem esperar) e o 2º fica no portão do vigia (B1/B7) */
             const alvoB = comM[0] || res[0];
             await abrirMat(alvoB.mat);
             poeAO(o.hash, { estado: 'consultando', resumo: 'vários benefícios: ' + desc + ' → seguiu com …' + alvoB.mat.slice(-4) });
@@ -1644,7 +1645,7 @@
           const add = (h, nome, tipo, info, minEsp) => { if (!h || disp(h, minEsp)) return; const k = h + '|' + tipo; if (vistos.has(k)) return; vistos.add(k); L.push((O[h] && /^(link|feito|gravada|aprovado_espera)$/.test(O[h].estado) ? 0 : 1) + '\u0001' + String(nome || '').split(' ')[0] + ' ' + h + ' · ' + tipo + ' · ' + String(info || '').slice(0, 100)); };
           try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(localStorage.getItem(k) || '{}'); if (ag - (+v.t || 0) < 60000 && /followup/.test(v.papel || '') && v.aud === 0 && (+v.up || 0) > 300) L.push('0\u0001ROBÔ · aba [' + String(v.papel).toUpperCase() + '] sem o clique de despertar → dar 1 clique em área vazia dela (11.12)'); } } catch (e) {}   // 11.12 (erro 12 do ERROS-ANTIFRAGIL, 23/11 14:00)
           const idade = R.t ? Math.round((ag - R.t) / 60000) : 999; if (idade > 15) L.push('0\u0001ROBÔ · ronda_parada ' + idade + ' min · recarregar [ATENDIMENTO] e [FOLLOW-UP]');
-          try { const P = GM_getValue('promessa_link', {}) || {}; for (const h in P) if (ag - P[h].t >= 5 * 60000) add(h, 'LINK PROMETIDO', 'PROMETEU_LINK', P[h].txt); } catch (e) {}
+          try { const P = GM_getValue('promessa_link', {}) || {}; for (const h in P) if (ag - P[h].t >= 5 * 60000) add(h, 'LINK PROMETIDO', 'PROMETEU_LINK', P[h].txt); } catch (e) {} try { for (const h in O) { const x = O[h]; if (x && x.segBen && !x.segBenOk && /^(simulada|sim_enviada|link|feito|gravada)$/.test(x.estado || '') && ag - (+x.t || 0) < 48 * 3600000) add(h, x.nome, 'SEGUNDO_BENEFICIO', 'falta simular o 2º benefício …' + String(x.segBen).slice(-4) + ' (B1/B7) — ' + String(x.segBenDesc || '').slice(0, 80) + ' → feito: dinsAutoMudar(h,{segBenOk:1})'); } } catch (e) {}   /* 11.71 */
           try { const PC = GM_getValue('promessa_conteudo', {}) || {}; for (const h in PC) { if (ag - PC[h].t > 24 * 3600000) continue; add(h, '⚠️ PROMETEU E NÃO MANDOU', 'PROMETEU_CONTEUDO', 'a linha disse que ia mandar e ' + PC[h].at + ' NÃO saiu (' + Math.round((ag - PC[h].t) / 60000) + ' min) — mandar já (dinsMandaAnuencia/dinsMandaDesbloqueio ou fila)'); } } catch (e) {}   /* 11.38 */
           try { const P = typeof window.dinsPendencias === 'function' ? window.dinsPendencias() : null; ((P && P.vermelho) || []).forEach(v => add(v.h, v.n, 'vermelho ' + (v.min || '') + 'min', v.m, v.min != null ? +v.min : null)); } catch (e) {}   /* 11.24: vermelho também volta quando o cliente escreve depois da dispensa */
           try { const Q = GM_getValue('quadro_r1124', null); if (Q && ag - (+Q.t || 0) < 15 * 60000) (Q.it || []).forEach(v => { if ([...vistos].some(k => k.indexOf(v.h + '|') === 0)) return; const mc = v.cli ? Math.round((ag - v.cli) / 60000) : null; add(v.h, v.n, '🔴 QUADRO' + (mc != null ? ' · cliente há ' + mc + 'min' : ''), v.m, mc); }); else if (Q) L.push('0\u0001ROBÔ · quadro 🔴 sem atualizar há ' + (Q ? Math.round((ag - Q.t) / 60000) : '?') + ' min → [ATENDIMENTO] parada? (11.24)'); } catch (e) {}   /* 11.24: tudo que está no 🔴 Responder agora do quadro entra no portão */
