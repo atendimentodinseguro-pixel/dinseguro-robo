@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.72';
+  const VERSAO = '11.73';
+  const VERSAO_11_73_NOTA = '';   // 11.73: dois benefícios da MESMA espécie → usa só o mais recente (DDB) — Stefany 24/11 20:06
   const VERSAO_11_72_NOTA = '';   // 11.72: ronda 1077 baixa as mensagens em paralelo (6 por vez) — estava levando 5+ min
   const VERSAO_11_71_NOTA = '';   // 11.71: dois benefícios → segue sozinho com o de maior margem; o 2º vai ao portão (SEGUNDO_BENEFICIO)
   const VERSAO_11_70_NOTA = '';   // 11.70: 'recebi seu WhatsApp, desejo mais informações' (mensagem do disparo) não é 'CLIENTE DISSE QUE RECEBEU' (Elio/Marcelo/Marize 24/11);   // 11.69: Lu Andrade (VFS738) sai da proteção — Stefany 24/11 19:37 'pode tirar a proteção e mandar'
@@ -690,11 +691,11 @@
               let t0 = null; for (let i = 0; i < 75; i++) { await zz(1000); t0 = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value) && new RegExp('^beneficio: *0*' + c.mat.replace(/^0+/, ''), 'm').test(t.value)); if (t0) break; }
               if (!t0) throw new Error('a ficha do benefício ' + c.mat.slice(-4) + ' não foi gerada');
               const f0 = textoParaFicha(t0.value); const m0 = parseFloat(String(f0.margem || '').replace(/[^\d,\-]/g, '').replace(',', '.')) || 0;
-              res.push({ mat: c.mat, esp: c.esp, margem: m0, recusa: (f0.recusa || '').split('|')[0] });
+              res.push({ mat: c.mat, esp: c.esp, ddb: c.ddb || '', margem: m0, recusa: (f0.recusa || '').split('|')[0] });
             }
             const comM = res.filter(x => x.margem >= 25 && !x.recusa);
             const desc = res.map(x => 'esp ' + x.esp + ' …' + x.mat.slice(-4) + ' margem R$ ' + x.margem.toFixed(2).replace('.', ',') + (x.recusa ? ' (' + x.recusa + ')' : '')).join(' · ');
-            if (comM.length >= 2) { comM.sort((a, b) => b.margem - a.margem); poeAO(o.hash, { segBen: comM.slice(1).map(x => x.mat).join(','), segBenDesc: desc }); }   /* 11.71 (Stefany 24/11 20:01, Carolina QK885R parada 10 min em com_margem): com DOIS benefícios o robô segue SOZINHO com o de MAIOR margem (simulação + link sem esperar) e o 2º fica no portão do vigia (B1/B7) */
+            if (comM.length >= 2) { const mesmaEsp = comM.every(x => x.esp === comM[0].esp); if (mesmaEsp) { const od = d => String(d || '').split('/').reverse().join(''); comM.sort((a, b) => od(b.ddb).localeCompare(od(a.ddb)) || b.margem - a.margem); } else { comM.sort((a, b) => b.margem - a.margem); poeAO(o.hash, { segBen: comM.slice(1).map(x => x.mat).join(','), segBenDesc: desc }); } }   /* 11.73 (Stefany 24/11 20:06, Carolina): MESMA espécie → só o benefício MAIS RECENTE (DDB), sem 2º; espécies diferentes → maior margem + 2º no portão (B1/B7) */   /* 11.71 (Stefany 24/11 20:01, Carolina QK885R parada 10 min em com_margem): com DOIS benefícios o robô segue SOZINHO com o de MAIOR margem (simulação + link sem esperar) e o 2º fica no portão do vigia (B1/B7) */
             const alvoB = comM[0] || res[0];
             await abrirMat(alvoB.mat);
             poeAO(o.hash, { estado: 'consultando', resumo: 'vários benefícios: ' + desc + ' → seguiu com …' + alvoB.mat.slice(-4) });
