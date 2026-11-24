@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.71';
+  const VERSAO = '11.72';
+  const VERSAO_11_72_NOTA = '';   // 11.72: ronda 1077 baixa as mensagens em paralelo (6 por vez) — estava levando 5+ min
   const VERSAO_11_71_NOTA = '';   // 11.71: dois benefícios → segue sozinho com o de maior margem; o 2º vai ao portão (SEGUNDO_BENEFICIO)
   const VERSAO_11_70_NOTA = '';   // 11.70: 'recebi seu WhatsApp, desejo mais informações' (mensagem do disparo) não é 'CLIENTE DISSE QUE RECEBEU' (Elio/Marcelo/Marize 24/11);   // 11.69: Lu Andrade (VFS738) sai da proteção — Stefany 24/11 19:37 'pode tirar a proteção e mandar'
   const VERSAO_1168_NOTA = '';   // 11.68: aceite do bot (10.86) usado uma vez só por ordem — parava o loop simulação→aceite→simulação (Lacerda 24/11)
@@ -1535,10 +1536,12 @@
         const O = GM_getValue('auto_ordens', {}) || {}; const RGx = GM_getValue('regua', {}) || {}; const AGS = GM_getValue('agenda_slots', {}) || {}; const agendados = new Set(Object.keys(AGS).filter(k => Date.parse(k.replace(' ', 'T')) > ag).map(k => AGS[k].hash));
         const FX = GM_getValue('fech1077', {}) || {}; const hh = new Date().getHours(); const horaOk = hh >= 8 && hh < 21;
         const pend = [], anom = []; let abertas = 0, enviados = 0;
+        /* 11.72 (24/11 20:05: ronda levando 5+ min com o volume do disparo → "ronda_parada" e clientes esperando): baixa as mensagens das conversas abertas em PARALELO, 6 por vez */
+        const PF1172 = {}; { const hs = itens.filter(x => { const h = x.chat && (x.chat.chatId || x.chat.id); const fim = Date.parse(x.whatsAppWindowCloseDatetime || 0) || 0; return h && fim > ag && !/fechar/i.test(String(x.queueId || '')); }).map(x => x.chat.chatId || x.chat.id); const fromP = encodeURIComponent(new Date(ag - 48 * 3600000).toISOString()); for (let i = 0; i < hs.length; i += 6) { await Promise.all(hs.slice(i, i + 6).map(h => window.dinsBmGet('/messages?chat-id=' + h + '&from=' + fromP).then(m => { if (m && m.j) PF1172[h] = m; }))); } }
         for (const x of itens) { try {
           const h = x.chat && (x.chat.chatId || x.chat.id); if (!h) continue; const fim = Date.parse(x.whatsAppWindowCloseDatetime || 0) || 0; if (fim <= ag || /fechar/i.test(String(x.queueId || ''))) continue; abertas++;
           if (protegido(h)) continue; const o = O[h]; const nome = (o && (o.nomeReal || o.nome)) || ((x.firstName || '') + ' ' + (x.lastName || '')).trim();
-          const m = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(ag - 48 * 3600000).toISOString())); await esp(250);
+          const m = PF1172[h] || await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(ag - 48 * 3600000).toISOString()));   /* 11.72: mensagens já baixadas em paralelo */
           const ms = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)); if (!ms.length) continue;
           const reais = ms.filter(k => k.from === 'user' || (!GEN1077.test(txt1077(k).trim()) && /^\s*(\[Dinseguro\]|\*?\[[^\]]*👤\])/.test(txt1077(k))));   /* 11.49 (Stefany 24/11 08:41, caso Emerson PVTMD7: esperou 13 h sem CPF na fila do atendente e fechou com outro — 'Deixa pra lá'): só conta como resposta nossa mensagem do robô/vigia ([Dinseguro]) ou de atendente ([Nome👤]); mensagem do FLUXO do Botmaker (ex.: 'A gente valoriza muito que você queira ter certeza…') não é resposta e o cliente fica como ESPERANDO */   // respostas automáticas genéricas do bot não contam como resposta
           const ult = reais[reais.length - 1]; const ultU = [...ms].reverse().find(k => k.from === 'user'); const ultN = [...reais].reverse().find(k => k.from !== 'user');
