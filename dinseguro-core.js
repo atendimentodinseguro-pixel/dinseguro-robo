@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.90';
+  const VERSAO = '11.91';
   const VERSAO_11_90_NOTA = '';   // 11.90: Happy — renda da ficha; conta inválida do Histórico não grava; aviso velho da IN100 fechado antes do Gravar; Gerar Links repete por ~5 min.
   const VERSAO_11_87_NOTA = '';   // 11.87 (Stefany 24/11 22:04): Happy NÃO faz invalidez — o robô recusa antes de começar.
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
@@ -8418,7 +8418,7 @@
       let okH = false;
       if (!contaDoCliente) { const aH = [...document.querySelectorAll('a,button')].find(x => x.offsetParent && /Hist[óo]rico Banc/i.test(x.innerText || ''));
         if (aH) { aH.click(); const bH = await esperar(() => { const mm = [...document.querySelectorAll('.modal.show')].find(x => /Hist[óo]rico Banc/i.test(x.innerText || '')); if (!mm) return null; const b = [...mm.querySelectorAll('button,a')].find(x => /Auto-?Complete/i.test(x.innerText || '')); return b || (/nenhum|n[ãa]o encontrad|sem hist|n[ãa]o h[áa]/i.test(mm.innerText) ? 'vazio' : null); }, 15000, 500);
-          if (bH && bH !== 'vazio') { bH.click(); await sleep(1500); okH = vale0(so((el('banco') || {}).value)) && !!so((el('conta') || {}).value); if (okH) log('Conta do Histórico Bancário (Auto-Complete).', 'ok'); }
+          if (bH && bH !== 'vazio') { bH.click(); await sleep(1500); const ctH = so((el('conta') || {}).value).replace(/^0+/, ''); okH = vale0(so((el('banco') || {}).value)) && ctH.length >= 3 && !/^(\d)\1+$/.test(ctH); if (okH) log('Conta do Histórico Bancário (Auto-Complete).', 'ok'); else { log('Conta do Histórico inválida (conta ' + so((el('conta') || {}).value) + ') — ignoro e sigo a hierarquia (ficha → aleatória Caixa) (11.91).', 'aviso'); ['banco', 'agencia', 'conta', 'conta_digito'].forEach(k => { if (el(k)) setv(k, ''); }); } }
           fechaModaisNC('Histórico Happy'); await sleep(500); } }
       else log('Conta informada pelo cliente — NÃO uso o Histórico Bancário.', 'ok');
       if (okH) { await copiaBenHappy(); return; }
