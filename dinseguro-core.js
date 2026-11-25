@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.94';
+  const VERSAO = '11.95';
+  const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
   const VERSAO_11_92_NOTA = '';   // 11.92 (Stefany 24/11 22:34): Happy só digita das 6h às 22h (retorno da IN100 do INSS).
@@ -8211,6 +8212,7 @@
   }
   async function autoCompleteHappy(f) {
     { const hh = new Date().getHours(); if (hh < 6 || hh >= 22) throw new Error('⛔ Happy: a IN100 do INSS só retorna das 6h às 22h (Stefany 24/11 22:34) — fora desse horário o link fica "Aguardando Retorno da IN 100". Digitar a partir das 6h.'); }   // 11.92
+    { const m = String(f.ddb || '').match(/(\d{2})\/(\d{2})\/(\d{4})/) || String(f.ddb || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) { const d = m[3].length === 4 ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(+m[1], +m[2] - 1, +m[3]); if (Date.now() - d.getTime() < 90 * 86400000) throw new Error('⛔ Happy não faz benefício com menos de 90 dias (DDB ' + f.ddb + ') — Stefany 24/11 22:39. Outro banco pelo roteiro.'); } }   // 11.95
     if (INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'))) throw new Error('⛔ Happy não faz benefício de INVALIDEZ (espécie ' + f.especie + ') — Stefany 24/11 22:04. Outro banco pelo roteiro.');   // 11.87
     const nascBR = d => { const s0 = String(d || '').trim(); let m = s0.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[3] + '/' + m[2] + '/' + m[1]; m = s0.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? s0 : ''; };
     setv('cpf_cliente', so(f.cpf).padStart(11, '0'));
