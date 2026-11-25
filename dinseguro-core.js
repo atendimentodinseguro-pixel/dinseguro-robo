@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.80';
+  const VERSAO = '11.81';
+  const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
   const VERSAO_11_79_NOTA = '';   // 11.79: portal Happy — card agora diz 'N° Benefício:' (antes 'N° Bene:').
   const VERSAO_11_78_NOTA = '';   // 11.78: portal Happy — botão agora se chama 'Consultar benefícios'; 'Retomar digitação' tratado depois do formulário.
@@ -6956,7 +6957,7 @@
       if (!in1) throw new Error('botão "Autorização IN100" não apareceu');
       if (in1 !== 'ja') in1.click();
       const r1 = await hzW(() => /AUTORIZADO/.test(document.body.innerText) ? 'ok' : /Autoriza[çc][ãa]o consulta|Link para solicita[çc][ãa]o da IN100/i.test(document.body.innerText) ? 'cliente' : ((document.querySelector('.ant-message-notice, .ant-notification-notice') || {}).innerText || null), 45000);
-      if (r1 === 'cliente') { const lkI = [...document.querySelectorAll('input')].map(x => x.value).find(v => /^https?:\/\//.test(v || '')) || ''; try { GM_setValue('happy_in100_link', { t: Date.now(), cpf: q.cpf, link: lkI }); } catch (e) {} throw new Error('a Happy exige que o CLIENTE autorize a consulta (link/SMS da IN100) — não pedimos autorização ao cliente (11.03): vigia/Stefany decide (outro banco)'); }   // 11.80 (Thiago 24/11 21:43)
+      if (r1 === 'cliente') return { ok: 1, msg: 'portal chegou na tela "Autorização consulta" — isso já libera a digitação no New Corban (Stefany 24/11 21:48: não mandar link ao cliente)' };   // 11.81
       if (r1 !== 'ok') throw new Error('IN100 no portal: ' + String(r1 || 'sem resposta em 45 s').replace(/\s+/g, ' ').slice(0, 140));
       const marg = ((document.body.innerText.match(/Margem dispon[íi]vel\s*\n?\s*R\$\s*([\d.,]+)/i) || [])[1]) || '';
       // 4. Continuar → simulação (é o que libera a digitação no New Corban)
