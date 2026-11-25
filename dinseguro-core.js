@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.75';
+  const VERSAO = '11.76';
+  const VERSAO_11_76_NOTA = '';   // 11.76 (Stefany 24/11 21:18): robô da HAPPY — portal.happyconsig.com.br faz CPF/celular/escolaridade → benefício → Autorização IN100 → Continuar (simulação, libera a digitação); a tela ?p=happyconsig do New Corban digita (lupa, matrícula, espécie, In100, parcela 108x, CEP da capital, UF/DDB, Histórico Auto-Complete, extrato = liberação, Gravar, Gerar Links). Ordem com banco HAPPY (bancoStefany 'HAPPY').
   const VERSAO_11_75_NOTA = '';   // 11.75 (Stefany 24/11 20:19): pediu menos que o máximo → simulação do MÁXIMO; sem resposta em 30 min → link do máximo (10.64). Sem negociação pelo vigia
   const VERSAO_11_74_NOTA = '';   // 11.74 (Stefany 24/11 20:10): no menu da simulação a opção 'Não desejo' vira 'Simular outro valor'; resposta pergunta o valor/parcela (faixa 10.97)
   const VERSAO_11_73_NOTA = '';   // 11.73: dois benefícios da MESMA espécie → usa só o mais recente (DDB) — Stefany 24/11 20:06
@@ -170,7 +171,7 @@
   function saudAgora() { const h = new Date().getHours(); return h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }   // 7.99: o toque "das 08:00" pode sair mais tarde (computador ligou depois) → saudação pela hora do envio
   // 7.37 (16/11: as abas não pegavam a versão nova sozinhas — o vigia recarregou à mão, 2 vezes). A cada 10 min: versão no GitHub ≠ a que roda →
   // recarrega a aba quando ela estiver parada (nunca no Daycoval/Quero Mais/WhatsApp; no máximo 3 vezes por hora).
-  try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
+  try { const TOPW = (() => { try { return window.top.location.host ? window.top : window; } catch (e) { return window; } })(); if (!/daycoval|queromais|whatsapp|happyconsig/i.test(location.host) && !TOPW.__dinsAutoAtualiza) { TOPW.__dinsAutoAtualiza = 1;
     setInterval(async () => { try {
       const t = await (await fetch('https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro-core.js?t=' + Date.now(), { cache: 'no-store' })).text();
       const vr = (t.match(/const VERSAO = '([\d.]+)'/) || [])[1]; if (!vr || vr === VERSAO) return;
@@ -390,6 +391,7 @@
     const dest = String(f.banco_destino || '').toUpperCase(), aqui = String(tela || '').toUpperCase();
     if (!dest || !aqui || dest === aqui) return '';
     if ((RESERVA[dest] || []).includes(aqui)) return '';
+    if (/^HAPPY/.test(dest) && /^HAPPY/.test(aqui)) return '';   // 11.76: ficha HAPPY na tela ?p=happyconsig
     if (String(f.banco_ordem_stefany || '').toUpperCase().trim().split(/\s+/)[0] === aqui) return '';
     // 4.44 (Stefany 11:11: "Ordem Stefany saiu, não existe mais"): quem NÃO é invalidez segue a hierarquia sozinho —
     // C6 → FACTA → QUALIBANK — quando o banco anterior reprova/não serve (caso Jairo: C6 "Reprovado Política Interna 66").
@@ -578,12 +580,12 @@
     // ficha pronta 11:33 e a aba do C6 parada até 11:41 com o quadro da proposta do Luiz aberto): aba do New Corban (nunca Daycoval/Quero Mais)
     // livre → recarrega quando há ficha esperando há 3 min, ou a cada 20 min parada. Nunca com gente mexendo (5 min) nem no meio de uma ordem.
     const CARREGOU_NC = Date.now();
-    if (/newcorban/.test(location.host) && /[?&]p=(c6|facta|qualibank|presencabank)\b/.test(location.search)) setInterval(() => { try {
+    if (/newcorban/.test(location.host) && /[?&]p=(c6|facta|qualibank|presencabank|happyconsig)\b/.test(location.search)) setInterval(() => { try {
       if (ocupadoAuto || Date.now() - CARREGOU_NC < 2 * 60000) return;
       if (Date.now() - (ultDigitT || 0) < 5 * 60000) return;
       const O9 = GM_getValue('auto_ordens', {}) || {}; const vals = Object.values(O9).filter(Boolean);
       if (vals.some(o => ['digitando', 'pronto', 'gravando', 'gravada'].includes(o.estado) && !o.aguardaLista && Date.now() - (+o.t || 0) < 25 * 60000 && (o.aba || location.search) === location.search)) return;
-      const pg = (location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || ''; const esperando = vals.some(o => o.estado === 'ficha_ok' && String(o.banco || '').toLowerCase().replace('presenca', 'presencabank') === pg.toLowerCase() && Date.now() - (+o.t || 0) > 3 * 60000);
+      const pg = (location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || ''; const esperando = vals.some(o => o.estado === 'ficha_ok' && String(o.banco || '').toLowerCase().replace('presenca', 'presencabank').replace(/^happy$/, 'happyconsig') === pg.toLowerCase() && Date.now() - (+o.t || 0) > 3 * 60000);
       if (esperando || Date.now() - CARREGOU_NC > 20 * 60000) { try { console.log('[Dinseguro] 6.58: aba do banco parada → atualizando'); } catch (e) {} location.reload(); }
     } catch (e) {} }, 60000);
     // 5.37 (caso Ramon 16:04: ordem 'nova' parada 15 min): campo com foco e texto parado há mais de 60 s não é gente digitando → solta o foco e segue
@@ -595,9 +597,9 @@
     // 5.04 (12/11 10:06: Alexandre e Franco presos em "consultando" depois de recarregar a aba): consulta interrompida volta para a fila
     // 6.59 (14/11 11:41, caso Elide: a aba do C6 recarregou com ela em 'gravando' e a ordem ficou parada): aba do banco recarregada →
     // ordem desta aba em 'digitando'/'pronto' volta para 'ficha_ok' (digita de novo); em 'gravando'/'gravada' vira ERRO para o vigia conferir a lista de propostas (nunca regrava sozinho = sem duplicar)
-    if (/newcorban/.test(location.host)) setTimeout(() => { try { const pg = ((location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || '').toLowerCase(); if (!/^(c6|facta|qualibank|presencabank)$/.test(pg)) return;
+    if (/newcorban/.test(location.host)) setTimeout(() => { try { const pg = ((location.search.match(/[?&]p=([a-z0-9]+)/i) || [])[1] || '').toLowerCase(); if (!/^(c6|facta|qualibank|presencabank|happyconsig)$/.test(pg)) return;
       const O = AO(); let m = false; const hh = new Date().toTimeString().slice(0, 5);
-      for (const h in O) { const x = O[h]; if (!x || String(x.banco || '').toLowerCase().replace('presenca', 'presencabank') !== pg || Date.now() - (+x.t || 0) > 6 * 3600000) continue;
+      for (const h in O) { const x = O[h]; if (!x || String(x.banco || '').toLowerCase().replace('presenca', 'presencabank').replace(/^happy$/, 'happyconsig') !== pg || Date.now() - (+x.t || 0) > 6 * 3600000) continue;
         if (['digitando', 'pronto'].includes(x.estado)) { x.estado = 'ficha_ok'; (x.hist = x.hist || []).push(hh + ' digitação interrompida (aba recarregada) → de novo'); m = true; }
         else if (x.estado === 'gravando' || (x.estado === 'gravada' && !x.link && !x.aguardaLista)) { x.estado = 'erro'; x.erro = 'aba do banco recarregou no meio do ' + (x.estado === 'gravando' ? 'Gravar' : 'link (Nº ' + (x.proposta || '?') + ')') + ' → vigia: conferir na lista de propostas antes de refazer'; (x.hist = x.hist || []).push(hh + ' ' + x.erro); m = true; try { diario(x.nomeReal || x.nome || '', 'PAROU: ' + x.erro); } catch (e) {} } }
       if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 1500);
@@ -817,7 +819,7 @@
       // 7.83 (Stefany 17/11 16:06 "ele consegue ser mais rápido sem perder a precisão?"): cada aba do New Corban pode ficar FIXA num banco
       // (sessionStorage.dins_nc_fixo = 'c6' ou 'facta,qualibank') → duas digitações ao mesmo tempo, sem uma aba roubar a ordem da outra.
       const fixo = String(sessionStorage.getItem('dins_nc_fixo') || '').toLowerCase().split(/[ ,]+/).filter(Boolean);
-      const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' };
+      const pg0 = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank', HAPPY: 'happyconsig' };   // 11.76: Happy pela TELA (?p=happyconsig) + portal
       const o = Object.values(AO()).find(x => x.estado === 'ficha_ok' && (x.chk936 || !(x.aceite || x.simGravar || x.aceitouSim) || Date.now() - (+x.t || 0) > 90000) && (x.tipo !== 'cpf' || x.aceite || x.simGravar || x.ab1086Done || Date.now() - (+x.t || 0) > 60000) && !(x.ex50 && !x.ex50Ok && (x.aceite || x.simGravar || x.aceitouSim)) && x.banco !== 'DAYCOVAL' && (!fixo.length || fixo.includes(pg0[x.banco])) && !(dinsApiLigada() && !x.apiFalhou && ['C6', 'FACTA', 'QUALIBANK'].includes(x.banco))); if (!o) return;   // 7.86: com a API ligada a TELA só pega o que a API não conseguiu
       const pag = pg0[o.banco];
       if (!pag) { if (o.banco === 'DAYCOVAL') return; poeAO(o.hash, { estado: 'erro', erro: 'banco ' + o.banco + ' não é digitado pelo New Corban' }); return; }   // 5.11: DAYCOVAL é do portal do Daycoval
@@ -837,8 +839,8 @@
         if (taP && cpfOk(f)) { taP.value = fichaParaTexto(f); await zz(400); } else { car.click(); await zz(2500); }
         dig.click();
         let fim = null;
-        for (let i = 0; i < 160 && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon|NÃO gravar|PAROU/i.test(l)); }   // 5.17: 'NÃO gravar' também encerra
-        if (!fim) throw new Error('a digitação não terminou em 4 min');   // 5.13 (caso Josias TYK97: 90 s era pouco)
+        for (let i = 0; i < (pag === 'happyconsig' ? 320 : 160) && !fim; i++) { await zz(1500); const novos = logRobo().slice(antes); fim = novos.find(l => /Pronto \(liberado R\$|⛔|ERRO|erro|não (achei|encontrei)|indispon|NÃO gravar|PAROU/i.test(l)); }   // 5.17: 'NÃO gravar' também encerra
+        if (!fim) throw new Error('a digitação não terminou em ' + (pag === 'happyconsig' ? 8 : 4) + ' min');   // 11.76: Happy passa pelo portal + IN100   // 5.13 (caso Josias TYK97: 90 s era pouco)
         const m = /Pronto \(liberado R\$ ([\d.,]+)\)/.exec(fim);
         if (!m) throw new Error(fim.replace(/^\d\d:\d\d /, '').slice(0, 160));
         poeAO(o.hash, { estado: 'pronto', liberado: m[1], aba: location.search });
@@ -872,7 +874,7 @@
             try { diario(o.nomeReal || o.nome || '', 'C6 recusou a agência → refaz com agência 0001 (6.56)'); } catch (e) {} return; }
           if (!nro) throw new Error('não gravou: ' + fimG.replace(/^\d\d:\d\d /, '').slice(0, 160));
           poeAO(o.hash, { estado: 'gravada', proposta: nro });
-          const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText));
+          const MD = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada/i.test(x.innerText) || (/Gerar Link/i.test(x.innerText) && /^https?:\/\//.test(String((document.getElementById('link_cliente') || {}).value || ''))));   // 11.76: Happy
           const LK = () => { const mm = MD(); if (!mm) return ''; return [...mm.querySelectorAll('input')].map(x => x.value).find(v => /^https?:\/\//.test(v)) || (mm.innerText.match(/https?:\/\/\S+/) || [])[0] || ''; };
           let link = LK(); const tGrav = Date.now();
           // 5.93: segunda forma de achar o link — a lista de Propostas (aba ?p=propostas grava em GM 'esteira' por CPF)
@@ -1065,7 +1067,7 @@
     if (d.status !== 'completed' || !d.result || /fail|erro/i.test(d.result.flag || '')) throw new Error('não gravou (API ' + o.banco + '): ' + String((d.error && (d.error.message || JSON.stringify(d.error))) || (d.result && d.result.message) || d.status).slice(0, 160));
     return { dados: Object.assign(dados, { proposta: String(d.bank_external_id || d.result.bank_external_id || ''), propNc: d.proposal_id || null, bancoConta: (bc === '104' && ct === '111113') ? '' : (NOME_BANCO[bc] || '') }), link: d.result.formalization_link || '' }; }
   // laço: UMA aba (trava em GM) pega ordens 'ficha_ok' de C6/FACTA/QUALIBANK quando a API está ligada; C6 sem link → busca o link na proposta (até 25 min)
-  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg|fullconsig/i.test(location.host)) { const EU = Math.random().toString(36).slice(2, 8); let ocupApi = false;
+  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg|fullconsig|happyconsig/i.test(location.host)) { const EU = Math.random().toString(36).slice(2, 8); let ocupApi = false;
     setInterval(async () => { if (ocupApi || !dinsApiLigada()) return;
       // 9.71 (Djanira 20/11 13:01: a correção 9.70 não pegou — a digitação pela API rodou numa aba com versão VELHA, ex.: FullConsig/Daycoval que não recarregam): aba desatualizada não pega ordem
       try { if (+(GM_getValue('versao_nova', 0) || 0) > +VERSAO) return; } catch (e) {}
@@ -1111,7 +1113,7 @@
   // Stefany 17/11 22:38 ("Sim"): o robô acompanha as propostas pela API (GET /v1/proposals?updated_since=…) a cada 3 min, sem a aba ?p=propostas,
   // e grava no mesmo GM 'esteira' que a tela usa (chave 'L:'+link e 'C:'+cpf) + a DDB em 'ddb_cli'. O quadro e a régua decidem o passo (faseEsteira):
   // pago → /22N · benefício bloqueado / AVERBE JA → desbloqueio (DDB ≥ 91) · anuência → /anuencia · vídeo (nuvidio) → manda o link · conta recusada → vigia.
-  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg/i.test(location.host)) { const EU5 = Math.random().toString(36).slice(2, 8); let ocup5 = false;
+  if (!/daycoval|queromais|whatsapp|c6consig|bancobmg|happyconsig/i.test(location.host)) { const EU5 = Math.random().toString(36).slice(2, 8); let ocup5 = false;
     const nnE5 = s2 => String(s2 || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
     const dBR5 = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
     const limpa5 = t => String(t || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -6887,6 +6889,74 @@
     return;
   }
 
+  // ============================================== 11.76 HAPPY CONSIG — PORTAL (portal.happyconsig.com.br)
+  // Stefany 24/11 21:18 ("um robozinho no site deles só para essa primeira parte, para liberar para digitação"): sem a simulação no portal
+  // o Gravar do New Corban (?p=happyconsig) volta "(2) Criar Contrato - Erro na criação da proposta" (Devanyr 24/11 21:20).
+  // A aba do New Corban pede (GM 'happy_portal_req'); esta aba faz: Iniciar digitação → (Retomar? → Não - Descartar) → CPF + celular +
+  // escolaridade → Benefícios do consultor → benefício → Autorização IN100 → AUTORIZADO → Continuar (simulação) e responde em GM 'happy_portal_res'.
+  // Batida em GM 'happy_portal_vivo' {t, logado}. Nunca recarrega (perde o login). Login: só CLICA em Continuar com usuário e senha JÁ preenchidos pelo Chrome (igual 8.83 do Daycoval).
+  if (location.host === 'portal.happyconsig.com.br' && window.top === window) {
+    const hzS = ms => new Promise(r => setTimeout(r, ms));
+    const hzB = re => [...document.querySelectorAll('button')].find(b => b.offsetParent && !b.disabled && re.test((b.innerText || '').trim()));
+    const hzW = async (fn, ms) => { for (let t = 0; t < ms; t += 400) { let r = null; try { r = fn(); } catch (e) {} if (r) return r; await hzS(400); } return null; };
+    const hzSet = (e, v) => { const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; e.focus(); d.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); };
+    const hzLogado = () => !/\/login/i.test(location.pathname) && !document.getElementById('password');
+    const hzBate = () => { try { GM_setValue('happy_portal_vivo', { t: Date.now(), logado: hzLogado(), ocupado: !!window.__hzOcup }); } catch (e) {} };
+    hzBate(); setInterval(hzBate, 5000);
+    let hzTentLogin = 0;
+    setInterval(() => { try { if (hzLogado() || Date.now() - hzTentLogin < 20 * 60000) return; const pw = document.getElementById('password'); let auto = false; try { auto = pw && pw.matches(':-webkit-autofill'); } catch (e) {} if (!pw || !(auto || pw.value)) return;
+      const bt = [...document.querySelectorAll('button')].find(b => /^\s*Continuar\s*$/i.test(b.textContent || '')); if (bt) { hzTentLogin = Date.now(); bt.click(); console.log('[Dinseguro] 11.76: portal Happy no login com dados do Chrome → cliquei Continuar'); } } catch (e) {} }, 15000);
+    const hzResp = (id, r) => { try { GM_setValue('happy_portal_res', Object.assign({ id, t: Date.now() }, r)); } catch (e) {} };
+    async function hzFazer(q) {
+      // 1. tela inicial do Multiproduto
+      const xm = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (xm && xm.offsetParent) { xm.click(); await hzS(500); }
+      if (!/\/inss\/multiproduto/.test(location.pathname) || !document.getElementById('customer_nu_cpf')) {
+        if (!/\/servicos/.test(location.pathname)) { const ls = [...document.querySelectorAll('a,span,li')].find(e => e.offsetParent && /^\s*Servi[çc]os\s*$/.test(e.textContent || '')); if (ls) { ls.click(); await hzS(1500); } }
+        if (!/\/servicos/.test(location.pathname)) { history.pushState({}, '', '/servicos'); window.dispatchEvent(new PopStateEvent('popstate')); await hzS(2000); }
+        const x2 = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (x2 && x2.offsetParent) { x2.click(); await hzS(500); }
+        const ini = await hzW(() => hzB(/Iniciar digita/), 10000); if (!ini) throw new Error('não achei "Iniciar digitação" no portal');
+        ini.click();
+      }
+      const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d) { d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 20000);
+      if (!pronto) throw new Error('a tela de Identificação do portal não abriu');
+      await hzS(600);
+      // 2. CPF, celular e escolaridade
+      hzSet(document.getElementById('customer_nu_cpf'), q.cpf); await hzS(300);
+      hzSet(document.getElementById('customer_telefone_celular'), q.tel); await hzS(300);
+      const esc = document.getElementById('customer_escolaridade'); const sel = esc && esc.closest('.ant-select') && esc.closest('.ant-select').querySelector('.ant-select-selector');
+      if (sel) { sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); const op = await hzW(() => [...document.querySelectorAll('.ant-select-item-option')].find(o => /Fundamental/i.test(o.innerText || '')), 5000); if (op) op.click(); await hzS(800); }
+      const bc = await hzW(() => hzB(/Benef[íi]cios do consultor/), 8000); if (!bc) throw new Error('botão "Benefícios do consultor" não habilitou (CPF/celular/escolaridade)');
+      bc.click();
+      // 3. benefício → IN100
+      const ben = String(q.ben || '').replace(/\D/g, '').replace(/^0+/, '');
+      const card = await hzW(() => { if (/n[ãa]o (possui|h[áa]|foram encontrad)|nenhum benef/i.test(document.body.innerText) && !/Bene:/.test(document.body.innerText)) return 'nenhum';
+        return [...document.querySelectorAll('div,section,article,li')].filter(e => e.offsetParent && /Bene:/.test(e.innerText || '') && /Esp[ée]cie/.test(e.innerText || '') && (!ben || (e.innerText || '').replace(/\D/g, ' ').split(/\s+/).some(n => n.replace(/^0+/, '') === ben))).sort((a, b) => a.innerText.length - b.innerText.length)[0]; }, 30000);
+      if (!card) throw new Error('o benefício ' + ben + ' não apareceu no portal');
+      if (card === 'nenhum') throw new Error('portal: cliente sem benefício disponível');
+      card.click(); await hzS(800);
+      const in1 = await hzW(() => hzB(/Autoriza[çc][ãa]o IN100/) || (hzB(/^Continuar/) && /AUTORIZADO/.test(document.body.innerText) ? 'ja' : null), 10000);
+      if (!in1) throw new Error('botão "Autorização IN100" não apareceu');
+      if (in1 !== 'ja') in1.click();
+      const r1 = await hzW(() => /AUTORIZADO/.test(document.body.innerText) ? 'ok' : ((document.querySelector('.ant-message-notice, .ant-notification-notice') || {}).innerText || null), 45000);
+      if (r1 !== 'ok') throw new Error('IN100 no portal: ' + String(r1 || 'sem resposta em 45 s').replace(/\s+/g, ' ').slice(0, 140));
+      const marg = ((document.body.innerText.match(/Margem dispon[íi]vel\s*\n?\s*R\$\s*([\d.,]+)/i) || [])[1]) || '';
+      // 4. Continuar → simulação (é o que libera a digitação no New Corban)
+      const ct = await hzW(() => hzB(/^Continuar/), 10000); if (!ct) throw new Error('botão Continuar não apareceu depois da IN100');
+      ct.click();
+      const st = await hzW(() => /Analisando o perfil|Montando ofertas|Ofertas dispon|Simula[çc][ãa]o/i.test(document.body.innerText) && !document.getElementById('customer_nu_cpf') ? 1 : null, 30000);
+      if (!st) throw new Error('a simulação do portal não abriu');
+      await hzS(4000);
+      return { ok: 1, msg: 'IN100 autorizada e simulação aberta no portal' + (marg ? ' (margem R$ ' + marg + ')' : '') };
+    }
+    setInterval(async () => { if (window.__hzOcup) return; let q = null; try { q = GM_getValue('happy_portal_req', null); } catch (e) {} if (!q || !q.id || Date.now() - (+q.t || 0) > 5 * 60000) return;
+      const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
+      if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
+      window.__hzOcup = 1; hzBate();
+      try { const r = await hzFazer(q); hzResp(q.id, r); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
+      catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); console.warn('[Dinseguro] 11.76 portal Happy', e); }
+      finally { window.__hzOcup = 0; hzBate(); } }, 3000);
+  }
+
   // ============================================== DAYCOVAL e QUERO MAIS (Portal do Correspondente)
   // É o MESMO sistema nos dois: Simulação de Ofertas → Cadastrar → Dados Cadastrais → Dados Complementares
   // → Resumo → Gerar → Formalizar → link. Muda o endereço, o vendedor, a tabela e a conta aleatória.
@@ -8030,7 +8100,7 @@
   }
 
   // ================================================================== NEW CORBAN
-  const pagina = (location.search.match(/p=(facta|c6|qualibank)\b/) || [])[1];
+  const pagina = (location.search.match(/p=(facta|c6|qualibank|happyconsig)\b/) || [])[1];   // 11.76: + Happy (?p=happyconsig)
   if (!pagina) return;
   const $ = window.jQuery || (window.unsafeWindow && window.unsafeWindow.jQuery);
 
@@ -8054,7 +8124,7 @@
     return null;
   }
 
-  const p = painel('Digitação ' + (pagina === 'qualibank' ? 'QUALIBANK' : pagina.toUpperCase()));
+  const p = painel('Digitação ' + (pagina === 'qualibank' ? 'QUALIBANK' : pagina === 'happyconsig' ? 'HAPPY' : pagina.toUpperCase()));
   p.querySelector('#dins-corpo').innerHTML =
     botao('Carregar ficha', '#2563eb') +
     `<textarea id="dins-ficha" style="width:100%;height:170px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px" placeholder="Cole a ficha aqui (chave: valor) ou clique Carregar ficha"></textarea>` +
@@ -8074,6 +8144,7 @@
   }
   // ---- 1. Auto-complete pelo CPF + benefício
   async function autoComplete(f) {
+    if (pagina === 'happyconsig') return autoCompleteHappy(f);   // 11.76
     // 7.58 (17/11 08:02, caso João Batista FAWBI: a tela da FACTA abriu com a operação "Portabilidade + Refin" → "Nenhuma tabela 1,85%"): operação sempre MARGEM (novo)
     { const op = el('inputOperacao'); if (op && op.value !== 'margem' && [...op.options].some(o => o.value === 'margem')) { const ant = op.value; setSelect('inputOperacao', 'margem'); log('Operação estava "' + ant + '" → Margem (7.58)'); await sleep(3000); } }
     el('autocomplete-span').click();
@@ -8092,9 +8163,57 @@
     log('Auto-complete OK: ' + el('nome_cliente').value, 'ok');
   }
 
+  // ---- 11.76 HAPPY: CPF pela lupa → matrícula/espécie → portal Happy (IN100 + simulação, libera a digitação) → Emitir In100 no New Corban
+  async function portalHappy(f) {
+    const v0 = GM_getValue('happy_portal_vivo', {}) || {};
+    if (Date.now() - (+v0.t || 0) > 60000) throw new Error('Portal Happy FECHADO: abrir portal.happyconsig.com.br (logado) numa aba do Chrome do atendimento — sem a simulação no portal o banco recusa ("Erro na criação da proposta").');
+    if (!v0.logado) throw new Error('Portal Happy DESLOGADO: vigia clica em Continuar no login (o Chrome já preenche) e manda ficha_ok de novo.');
+    const tel = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
+    const id = Date.now().toString(36) + '_' + so(f.cpf).slice(-4);
+    GM_setValue('happy_portal_req', { id, t: Date.now(), cpf: so(f.cpf).padStart(11, '0'), tel, ben: so(f.beneficio) });
+    log('Portal Happy: pedindo IN100 + simulação…');
+    const r = await esperar(() => { const R = GM_getValue('happy_portal_res', {}) || {}; return R.id === id ? R : null; }, 180000, 1500);
+    if (!r) throw new Error('Portal Happy não respondeu em 3 min (aba ocupada/travada?) — vigia confere a aba do portal.');
+    if (!r.ok) throw new Error('Portal Happy: ' + r.erro);
+    log('Portal Happy: ' + (r.msg || 'ok'), 'ok');
+  }
+  async function autoCompleteHappy(f) {
+    const nascBR = d => { const s0 = String(d || '').trim(); let m = s0.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[3] + '/' + m[2] + '/' + m[1]; m = s0.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? s0 : ''; };
+    setv('cpf_cliente', so(f.cpf).padStart(11, '0'));
+    await sleep(400);
+    el('autocomplete-span').click();
+    const r0 = await esperar(() => (el('autocomplete-api-cpf') && el('autocomplete-api-cpf').offsetParent) ? 'modal' : ((el('nome_cliente') || {}).value ? 'ok' : null), 15000, 500);
+    if (r0 === 'modal') {   // se o New Corban abrir o auto-complete da lista de benefícios (como no FACTA/C6), usa a linha do benefício
+      setv('autocomplete-api-cpf', so(f.cpf)); const fonte = el('autocomplete-api-fonte'); if (fonte) { fonte.value = 'inss'; if ($) $(fonte).trigger('change'); }
+      el('autocomplete-api-btn_buscar').click();
+      const btn = await esperar(() => { const tr = [...document.querySelectorAll('tr')].find(t => so(t.innerText).includes(so(f.beneficio).replace(/^0+/, '')) && t.querySelector('[id^="autocomplete-btn-"]')); return tr ? tr.querySelector('[id^="autocomplete-btn-"]') : null; }, 20000);
+      if (btn) { btn.click(); await esperar(() => (el('nome_cliente') || {}).value, 15000); }
+    }
+    await sleep(800); fechaModaisNC('lupa Happy');
+    if (!String((el('nome_cliente') || {}).value || '').trim() && f.nome) setv('nome_cliente', String(f.nome).toUpperCase());
+    if (!so((el('data_nascimento') || {}).value) && nascBR(f.nascimento)) setv('data_nascimento', nascBR(f.nascimento));
+    setv('matricula_preferencial', so(f.beneficio));
+    const esp = String(parseInt(String(f.especie || '').replace(/\D/g, ''), 10) || '');
+    const se = el('especie');
+    if (se && esp) { const op = [...se.options].find(o => o.value === esp); if (!op) throw new Error('Espécie ' + esp + ' não existe na lista da Happy.'); if ($ && $(se).selectpicker) { $(se).selectpicker('val', op.value); $(se).trigger('change'); } else { se.value = op.value; se.dispatchEvent(new Event('change', { bubbles: true })); } log('Espécie: ' + op.text, 'ok'); }
+    if (!so((el('inputRenda') || {}).value).replace(/^0+/, '')) setv('inputRenda', f.renda || '1621,00');
+    log('Cliente: ' + ((el('nome_cliente') || {}).value || f.nome || '?'), 'ok');
+    // portal primeiro (libera a digitação), depois a IN100 do New Corban
+    await portalHappy(f);
+    const bIn = el('btn-emitirIn100');
+    if (bIn) { bIn.click();
+      const mo = await esperar(() => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => x.offsetParent && /in100|autoriza|sucesso|erro/i.test(x.innerText || '')), 45000, 700);
+      if (mo) { const t = (mo.innerText || '').replace(/\s+/g, ' ');
+        log('In100 New Corban: ' + t.slice(0, 120), /sem retorno|sucesso|autorizad/i.test(t) ? 'ok' : 'aviso');
+        const fc = [...mo.querySelectorAll('button')].find(b => /fechar|^ok$/i.test((b.innerText || '').trim())); if (fc) fc.click(); await sleep(800); }
+      else log('In100 New Corban: sem resposta em 45 s — sigo com os dados manuais.', 'aviso'); }
+    fechaModaisNC('In100 Happy');
+  }
+
   // ---- 2. Simulação e escolha da tabela
   async function simular(f) {
     setv('valor_parcela', f.parcela);
+    if (pagina === 'happyconsig') { setv('valor_solicitado', ''); const pz = el('prazo'); const alvoP = String(f.prazo || '108').replace(/\D/g, '') || '108'; const opP = pz && [...pz.options].find(o => so(o.value) === alvoP || so(o.text) === alvoP); if (opP) { pz.value = opP.value; pz.dispatchEvent(new Event('change', { bubbles: true })); if ($) $(pz).trigger('change'); } }   // 11.76: Happy simula pela PARCELA, Valor Solicitado em branco
     const prazoId = pagina === 'facta' ? 'facta-prazo' : 'prazo';
     setSelect(prazoId, String(f.prazo || '108'));
     const invalidez = INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'));
@@ -8147,7 +8266,8 @@
     if (!cand.length) throw new Error(invalidez ? 'Sem tabela INVAL 1,85%.' : 'Sem tabela DWeb-ML (sem INVAL) 1,85%.');
     // 3.89 — C6: a faixa de TICKET do nome tem que bater com o liberado da linha ("Tkt ate 6k" · "Tkt 6k a 20k" · "Tkt > 20k").
     // Caso Estefania 10/11: R$ 12.684,50 gravado na "Tkt ate 6k" → esteira PEN / AJUSTAR TABELA, link nunca saiu.
-    const libDe = x => num(((x.innerText.match(/R\$\s*[\d.,]+/g) || []).pop() || '').replace('R$', ''));
+    const libDe = x => { const a = x.innerText.match(/R\$\s*[\d.,]+/g) || []; return num(((pagina === 'happyconsig' ? a[1] : a.pop()) || '').replace('R$', '')); };   // 11.76: Happy = Parcela · Vlr Cliente · IOF (o liberado é a 2ª)
+    if (pagina === 'happyconsig') { const pzA = String(f.prazo || '108').replace(/\D/g, '') || '108'; const soPz = cand.filter(x => new RegExp('\\b' + pzA + 'x\\b').test(x.innerText)); if (!soPz.length) throw new Error('Happy: nenhuma linha em ' + pzA + 'x na simulação.'); cand = soPz; }
     const faixaOk = x => { const t = x.innerText, v = libDe(x);
       if (/Tkt\s*at[ée]\s*6k/i.test(t)) return v <= 6000;
       if (/Tkt\s*6k\s*a\s*20k/i.test(t)) return v > 6000 && v <= 20000;
@@ -8164,7 +8284,7 @@
     await sleep(1200);
     const txt = escolhida.innerText.replace(/\s+/g, ' ');
     log('Tabela: ' + txt.slice(0, 90), 'ok');
-    const lib = (txt.match(/R\$\s*[\d.,]+/g) || []).pop();
+    const lib = pagina === 'happyconsig' ? (txt.match(/R\$\s*[\d.,]+/g) || [])[1] : (txt.match(/R\$\s*[\d.,]+/g) || []).pop();   // 11.76
     f._liberado = lib ? lib.replace('R$', '').trim() : '';
   }
 
@@ -8232,15 +8352,44 @@
     }
     // 7.78 (17/11 15:21, Sandra 3UQG6 FACTA: "Informe o nome da mãe." → Gravar sem confirmação): o auto-complete novo deixa o nome da mãe vazio → ficha ou NAO INFORMADO
     try { const nm = el('nome_mae'); if (nm && !String(nm.value || '').trim()) { const v = String(f.mae || '').trim() || 'NAO INFORMADO'; const st = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; st.call(nm, v); ['input', 'change', 'blur'].forEach(ev => nm.dispatchEvent(new Event(ev, { bubbles: true }))); log('Nome da mãe vazio → ' + v + ' (7.78)', 'aviso'); } } catch (e) {}
+    if (pagina === 'happyconsig') {   // 11.76: Happy recusa CEP 00000000 → CEP do centro da capital da UF (endereço aleatório permitido); UF do benefício e DDB
+      const tel0 = so(f.telefone).replace(/^55(?=\d{10,11}$)/, '');
+      const ufH = (/^[A-Z]{2}$/i.test(String(f.uf || '').trim()) ? String(f.uf).trim().toUpperCase() : '') || ufDoDDD(tel0) || 'SP';
+      const CEPCAP = { AC: '69900000', AL: '57020000', AP: '68900000', AM: '69005000', BA: '40010000', CE: '60010000', DF: '70040000', ES: '29010000', GO: '74003010', MA: '65010000', MT: '78005000', MS: '79002000', MG: '30130000', PA: '66010000', PB: '58010000', PR: '80010000', PE: '50010000', PI: '64000000', RJ: '20010000', RN: '59010000', RS: '90010000', RO: '76801000', RR: '69301000', SC: '88010000', SP: '01001000', SE: '49010000', TO: '77001000' };
+      if (/^0*$/.test(so((el('cep') || {}).value))) { setv('cep', CEPCAP[ufH] || '01001000'); log('CEP vazio/00000000 → centro de ' + ufH + ' (Happy não aceita CEP zerado).', 'aviso'); await sleep(3500); }
+      const vazio = id => { const v = String((el(id) || {}).value || '').trim(); return !v || /^(UF|CEP|N[ÃA]O INFORMADO)$/i.test(v); };
+      if (vazio('endereco')) setv('endereco', String(f.endereco || 'RUA NAO INFORMADA').toUpperCase());
+      if (vazio('bairro')) setv('bairro', String(f.bairro || 'CENTRO').toUpperCase());
+      if (vazio('cidade')) setv('cidade', String(f.cidade || '').toUpperCase());
+      if (!String((el('endereco_numero') || {}).value || '').trim() || /^(SN|0)$/i.test(String(el('endereco_numero').value).trim())) setv('endereco_numero', String(f.numero || '100').replace(/^0$/, '100'));
+      const un = el('uf_nb'); if (un) { const o = [...un.options].find(x => x.value === ufH); if (o) { if ($ && $(un).selectpicker) { $(un).selectpicker('val', o.value); $(un).trigger('change'); } else { un.value = o.value; un.dispatchEvent(new Event('change', { bubbles: true })); } log('UF do benefício: ' + ufH, 'ok'); } }
+      const dd = String(f.ddb || '').trim(); let ddb = ''; let m = dd.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) ddb = m[3] + '/' + m[2] + '/' + m[1]; else if ((m = dd.match(/^(\d{2})\/(\d{2})\/(\d{4})/))) ddb = m[0];
+      if (ddb) { setv('ddb', ddb); log('DDB: ' + ddb, 'ok'); } else if (!so((el('ddb') || {}).value)) log('Ficha sem DDB — a Happy pode recusar; confira o campo DDB.', 'aviso');
+    }
     log('Dados pessoais preenchidos.', 'ok');
   }
 
+  const vale0 = b => !!b && !/^0+$/.test(b);
+  async function copiaBenHappy() {   // 11.76: Happy — a conta do EXTRATO (benefício) é a mesma da liberação (Stefany 24/11)
+    ['banco', 'agencia', 'agencia_digito', 'conta', 'conta_digito'].forEach(k => { const d = el('beneficio_' + k), o = el(k); if (d && o && String(o.value || '') !== String(d.value || '')) setv(d, o.value); });
+    const t1 = el('tipo_conta'), t2 = el('beneficio_tipo_conta'); if (t1 && t2 && t2.value !== t1.value) { t2.value = t1.value; t2.dispatchEvent(new Event('change', { bubbles: true })); if ($) $(t2).trigger('change'); }
+    log('Conta do benefício (extrato) = conta da liberação: ' + so((el('banco') || {}).value) + ' / ' + so((el('agencia') || {}).value), 'ok');
+  }
   // ---- 4. Banco: Histórico Bancário (salvo no sistema) > ficha (Multicorban) > 0001/001-1
   async function dadosBancarios(f) {
     // 6.00 (Stefany 13/11 11:15, Michele digitada 2x com a conta errada): conta INFORMADA PELO CLIENTE vence o Histórico Bancário
     const contaDoCliente = /cliente/i.test(f.conta_origem || '') && so(f.banco) && so(f.conta);
-    if (!contaDoCliente) el('btn-historico-bancario').click(); else log('Conta informada pelo cliente — NÃO uso o Histórico Bancário.', 'ok');
-    const pick = contaDoCliente ? 'vazio' : await esperar(() => {
+    if (pagina === 'happyconsig') {   // 11.76: na Happy o Histórico é um link (openExternalModal) e a linha tem o botão "Auto-Complete"
+      let okH = false;
+      if (!contaDoCliente) { const aH = [...document.querySelectorAll('a,button')].find(x => x.offsetParent && /Hist[óo]rico Banc/i.test(x.innerText || ''));
+        if (aH) { aH.click(); const bH = await esperar(() => { const mm = [...document.querySelectorAll('.modal.show')].find(x => /Hist[óo]rico Banc/i.test(x.innerText || '')); if (!mm) return null; const b = [...mm.querySelectorAll('button,a')].find(x => /Auto-?Complete/i.test(x.innerText || '')); return b || (/nenhum|n[ãa]o encontrad|sem hist|n[ãa]o h[áa]/i.test(mm.innerText) ? 'vazio' : null); }, 15000, 500);
+          if (bH && bH !== 'vazio') { bH.click(); await sleep(1500); okH = vale0(so((el('banco') || {}).value)) && !!so((el('conta') || {}).value); if (okH) log('Conta do Histórico Bancário (Auto-Complete).', 'ok'); }
+          fechaModaisNC('Histórico Happy'); await sleep(500); } }
+      else log('Conta informada pelo cliente — NÃO uso o Histórico Bancário.', 'ok');
+      if (okH) { await copiaBenHappy(); return; }
+    }
+    if (pagina !== 'happyconsig') { if (!contaDoCliente) el('btn-historico-bancario').click(); else log('Conta informada pelo cliente — NÃO uso o Histórico Bancário.', 'ok'); }
+    const pick = (contaDoCliente || pagina === 'happyconsig') ? 'vazio' : await esperar(() => {
       const m = el('integrationsv2-bank-history-modal');
       if (!m || !m.classList.contains('show')) return null;
       const b = m.querySelector('.iv2-bh-pick');
@@ -8306,6 +8455,7 @@
         }
       }
     }
+    if (pagina === 'happyconsig') await copiaBenHappy();   // 11.76
     if (pagina === 'c6' || pagina === 'qualibank') {   // C6 e Qualibank também pedem o banco do benefício
       ['banco', 'agencia', 'conta', 'conta_digito'].forEach(k => { if (el('beneficio_' + k) && !el('beneficio_' + k).value) setv('beneficio_' + k, el(k).value); });
     }
@@ -8347,14 +8497,20 @@
     try { const nm = el('nome_mae'); if (nm && !String(nm.value || '').trim()) { const st = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; st.call(nm, String(f.mae || '').trim() || 'NAO INFORMADO'); ['input', 'change', 'blur'].forEach(ev => nm.dispatchEvent(new Event(ev, { bubbles: true }))); } } catch (e) {}   // 7.78
     el('btn_gravar_proposta').click();
     const modal = await esperar(() => {
-      const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText));
+      const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText) || (pagina === 'happyconsig' && /Gerar Link/i.test(x.innerText) && so((el('link_proposta') || {}).value)));   // 11.76: Happy abre "Gerar Link - Happy Consig" com o Nº
       return m || null;
     }, 75000, 500);   // 4.81: o Qualibank demora mais de 30 s para mostrar "Proposta gerada!" (caso Mauro 19:12)
     if (!modal) throw new Error('Não apareceu confirmação. Veja se faltou algum campo (a tela rola até ele).');
-    if (!/Proposta gerada|criada com sucesso/i.test(modal.innerText)) throw new Error('Banco recusou: ' + modal.innerText.slice(0, 200));
-    const nro = (modal.innerText.match(/N[º°o]\s*([A-Z]{0,4}\d+)/) || [])[1] || '';   // 4.81: Qualibank "QUA0003227745"
+    const okHappy = pagina === 'happyconsig' && /Gerar Link/i.test(modal.innerText) && !/Erro na Solicita/i.test(modal.innerText);
+    if (!okHappy && !/Proposta gerada|criada com sucesso/i.test(modal.innerText)) throw new Error('Banco recusou: ' + modal.innerText.replace(/\s+/g, ' ').slice(0, 200) + (pagina === 'happyconsig' && /cria[çc][ãa]o da proposta/i.test(modal.innerText) ? ' — Happy: confira se a simulação foi feita no portal (11.76)' : ''));
+    const nro = okHappy ? so((el('link_proposta') || {}).value) : ((modal.innerText.match(/N[º°o]\s*([A-Z]{0,4}\d+)/) || [])[1] || '');   // 4.81: Qualibank "QUA0003227745"
     log('Proposta gravada Nº ' + nro, 'ok');
     GM_setValue('ultimo_resultado', { cpf: f.cpf, proposta: nro, quando: new Date().toISOString() });
+    if (okHappy) {   // 11.76: Gerar Links → o link aparece no campo "Link Cliente" (#link_cliente) do mesmo quadro
+      const bg = el('btn-gerarLink'); if (bg) bg.click();
+      const lk = await esperar(() => { const v = String((el('link_cliente') || {}).value || ''); return /^https?:\/\//.test(v) ? v : null; }, 45000, 1000);
+      log(lk ? 'Link Happy gerado (campo Link Cliente).' : 'Happy: o link não apareceu em 45 s — clicar "Gerar Links" de novo.', lk ? 'ok' : 'erro');
+    }
     if (!PEGAR_LINK) return;                     // por enquanto para aqui: link é pego à mão
     const achaLink = () => {
       const i = [...modal.querySelectorAll('input')].map(x => x.value).find(v => /^https?:\/\//.test(v));

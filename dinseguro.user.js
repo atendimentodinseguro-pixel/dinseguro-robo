@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.42
+// @version      3.43
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -15,6 +15,7 @@
 // @match        https://c6.c6consig.com.br/*
 // @match        https://sistema.fullconsig.com.br/*
 // @match        https://quali.joinbank.com.br/*
+// @match        https://portal.happyconsig.com.br/*
 // @grant        GM_notification
 // @grant        GM_setValue
 // @grant        GM_getValue
