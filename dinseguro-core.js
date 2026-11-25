@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.09';
+  const VERSAO = '12.10';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2930,7 +2930,8 @@
           try { const nos = j.newMessages.filter(m => m.FROM === 'me').sort((m1, m2) => T(m1) - T(m2)).map(tx); const ultNos2 = [...nos].reverse().find(t => /2️⃣|op[çc][ãa]o 2/i.test(t)) || '';
             const doisENao = /2️⃣\s*N[ãa]o desejo/i.test(ultNos2); const temOp2 = /Op[çc][ãa]o 2/i.test(ultNos2) && !doisENao; const u0 = ult.toLowerCase().trim();
             if (!/[?]/.test(u0)) {
-              if (/^(2|2️⃣)\s*[.!]?$/.test(u0) && doisENao) ult = 'não desejo';   // na mensagem de 1 opção (e nos toques) o 2 é "Não desejo" — nunca carência
+              if (/^(2|2️⃣)\s*[.!]?$/.test(u0) && doisENao) ult = 'não desejo';
+              else if (/^(2|2️⃣)\s*[.!]?$/.test(u0) && !temOp2 && /2️⃣\s*Simular outro valor/i.test(ultNos2)) ult = 'outro valor 12.10';   // 12.10 (Alexandre 8IAWNA 25/11): na mensagem "1 Sim, quero contratar / 2 Simular outro valor" o 2 NÃO é carência   // na mensagem de 1 opção (e nos toques) o 2 é "Não desejo" — nunca carência
               else if (/(^|\b)(a\s+)?primeira(\s+op[çc][ãa]o)?\b|op[çc][ãa]o\s+(um|1)\b|^um[.!]?$|quero\s+a\s+(1|um)\b|vou\s+querer\b(?!.*segunda)|quero\s+contratar|pode\s+mandar\s+o\s+link|manda\s+o\s+link|como\s+fa[çc]o\s+(pra|para)\s+contratar|^aceito\b/.test(u0) && !/n[ãa]o/.test(u0)) ult = '1';
               else if (temOp2 && (/(^|\b)(a\s+)?segunda(\s+op[çc][ãa]o)?\b|op[çc][ãa]o\s+(dois|2)\b|^dois[.!]?$|com\s+car[êe]ncia|come[çc]ar\s+a\s+pagar\s+(depois|mais\s+tarde)|pagar\s+s[óo]\s+depois/.test(u0)) && !/n[ãa]o/.test(u0)) ult = '2';
               else if (/agora\s+n[ãa]o|n[ãa]o\s+tenho\s+interesse|n[ãa]o,?\s+obrigad|n[ãa]o\s+preciso|desisti|n[ãa]o\s+vou\s+querer|n[ãa]o\s+quero\s+(mais|empr[ée]stimo|n[ãa]o)/.test(u0)) ult = 'não desejo';
@@ -2938,6 +2939,9 @@
           const nmR = y.nomeReal || y.nome || '';
           if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
+          else if (ult === 'outro valor 12.10') { y.estado = 'sim_resp'; const nm4 = nomeCli(y);
+            window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm4 ? nm4 + ', c' : 'C') + 'laro! Vamos simular outro valor 😊 Me diz *quanto você precisa* (ou a *parcela* que fica boa para você no benefício) que eu faço na hora.\n\n' + faixa1097(y) + ' sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
+            diario(nmR, 'escolheu "2 Simular outro valor" → perguntei o valor (12.10)'); }
           else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
             /* 9.50 (Stefany 19/11 23:19: "a regra é a mesma do sem carência… a preferência era do C6 mesmo, ele tá certo, só faltou colocar carência"): opção 2 = MESMO banco
                que a regra escolheu (C6, FACTA, Qualibank…), só que na tabela COM carência de 90 dias. O robô digita sozinho e manda o link. Sem exceção de invalidez. */
