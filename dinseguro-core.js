@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.97';
+  const VERSAO = '11.98';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1536,6 +1536,18 @@
       window.dinsBmIntent = async (chatId, intent) => { const r = await orig1160(chatId, intent);
         try { if (/^(tag|so_tag)_/.test(String(intent)) && r && r.http >= 200 && r.http < 300) { const o = (GM_getValue('auto_ordens', {}) || {})[chatId];
           if (o && !/^desfecho|nao_localizado|cancel/i.test(String(o.estado || '')) && !(typeof window.dinsEhProtegido === 'function' && window.dinsEhProtegido(chatId))) marcaDesligarBot942(chatId); } } catch (e) {}
+        return r; }; }
+    // 11.98 (Stefany 25/11 10:37, Sonia G8GA5F: "REPETIU 4 MENSAGENS IGUAL… resolver definitivo"): o fluxo 'Extrato de empréstimo' saiu 5x em 3 min
+    // (o 9.58 disparava a intenção de novo a cada tentativa). TRAVA GERAL de intenção: a mesma intenção no mesmo chat não roda de novo em 30 min
+    // (fluxos que mandam mensagem — 'Extrato de empréstimo', 'Video de avaliação' — em 12 h). Vale para todas as abas (GM) e reserva antes de chamar.
+    { const orig1198 = window.dinsBmIntent;
+      window.dinsBmIntent = async (chatId, intent) => { const k = String(chatId) + '|' + String(intent); const ag = Date.now();
+        const jan = /^(Extrato de empr|Video de avalia)/.test(String(intent)) ? 12 * 3600000 : 30 * 60000;
+        let M = {}; try { M = GM_getValue('intent1198', {}) || {}; for (const x in M) if (ag - (+M[x] || 0) > 12 * 3600000) delete M[x]; } catch (e) { M = {}; }
+        if (ag - (+M[k] || 0) < jan) { try { diario(String(chatId).slice(0, 5), '🛑 11.98: intenção "' + intent + '" já rodou neste chat há ' + Math.round((ag - M[k]) / 60000) + ' min — não repito'); } catch (e) {} return { http: 208, repetida1198: 1 }; }
+        M[k] = ag; try { GM_setValue('intent1198', M); } catch (e) {}
+        let r; try { r = await orig1198(chatId, intent); } catch (e) { r = { erro: String((e && e.message) || e) }; }
+        if (!(r && r.http >= 200 && r.http < 300)) { try { const M2 = GM_getValue('intent1198', {}) || {}; if (M2[k] === ag) { delete M2[k]; GM_setValue('intent1198', M2); } } catch (e) {} }
         return r; }; }
     // 8.76 (Stefany 19/11 11:26: "o robô e você têm que mandar mensagem pela API"): envio do VIGIA pela API do Botmaker (sem abrir a conversa na tela)
     window.dinsBmEnviar = async (chatId, texto, respondendoAgora) => { try { if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !String(texto || '').trim()) return { erro: 'chat ou texto inválido' }; try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') { const CL = GM_getValue('ctx_lido1121', {}) || {}; if (!(Date.now() - (+CL[chatId] || 0) < 5 * 60000)) return { erro: '11.21: leia a conversa antes — rode await dinsCtx("' + chatId + '") (mostra TUDO que o cliente mandou desde a nossa última mensagem) e depois envie' }; } } catch (e) {}   /* 11.21 (Juliane 23/11 15:05: ela já tinha respondido "100" e o vigia perguntou a parcela de novo — respondeu só a última frase) */
@@ -6301,9 +6313,10 @@
         const O = GM_getValue('auto_ordens', {}) || {}; { const k = Object.keys(O).find(h => { const x = O[h]; return x && x.ex50 && !x.ex50Ok && x.estado === 'ficha_ok' && (x.aceite || x.simGravar || x.aceitouSim); }); if (k) { O[k].estado = 'extrato_50'; (O[k].hist = O[k].hist || []).push(hhmm(Date.now()) + ' 9.58: aceitou, mas margem < R$ 50 → não digita, pede extrato'); GM_setValue('auto_ordens', O); } }
         const o = Object.values(O).find(x => x && x.estado === 'extrato_50' && !protegido(x.hash) && (+x.ex958Tent || 0) < 3); if (!o) return; ocup958 = true;
         const marca = (campos, txt) => { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[o.hash]) { Object.assign(O2[o.hash], campos); (O2[o.hash].hist = O2[o.hash].hist || []).push(hhmm(Date.now()) + ' ' + txt); GM_setValue('auto_ordens', O2); } };
-        try { const ri = await window.dinsBmIntent(o.hash, 'Extrato de empréstimo'); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('fluxo Extrato de empréstimo não aceitou (' + ((ri && (ri.http || ri.erro)) || '?') + ')');
-          await esp(4000); const nm = primeiroNome(o.nomeReal || '');
-          await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem baixa (abaixo de R$ 100,00) — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏');
+        try { if (!o.ex958Int) { const ri = await window.dinsBmIntent(o.hash, 'Extrato de empréstimo'); if (!(ri && ri.http >= 200 && ri.http < 300)) throw new Error('fluxo Extrato de empréstimo não aceitou (' + ((ri && (ri.http || ri.erro)) || '?') + ')'); marca({ ex958Int: Date.now() }, '9.58: fluxo Extrato de empréstimo disparado (1 vez só — 11.98)'); await esp(4000); }
+          const nm = primeiroNome(o.nomeReal || '');
+          /* 11.98: o fluxo NUNCA é disparado de novo numa nova tentativa; e mensagem barrada pela trava 10.58 (já enviada) conta como enviada */
+          try { await bmEnviarTexto(o.hash, (nm ? nm + ', ' : '') + 'para eu confirmar a sua margem antes de preparar a proposta, pedi o seu *extrato de empréstimo* do Meu INSS. 📄\n\nA consulta mostrou uma margem baixa (abaixo de R$ 100,00) — com o extrato eu confiro direitinho quanto dá para liberar para você. É só me mandar por aqui assim que tirar. 🙏'); } catch (e9) { if (!/10\.58|já enviada/i.test(String((e9 && e9.message) || e9))) throw e9; }
           marca({ estado: 'aguarda_extrato', ex958T: Date.now() }, '9.58: margem < R$ 50 → fluxo Extrato de empréstimo + aviso pela API');
           diario(o.nomeReal || o.nome || o.hash.slice(0, 5), '📄 margem abaixo de R$ 50 → pedi o extrato de empréstimo (fluxo + mensagem pela API) (o fluxo já desliga o bot) (9.58/9.64)');
           // 9.64 (Stefany 20/11 12:06): o fluxo 'Extrato de empréstimo' já desliga o bot sozinho → não abre a tela para clicar no ⏻
