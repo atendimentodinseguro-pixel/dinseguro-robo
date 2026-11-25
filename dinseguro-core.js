@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.10';
+  const VERSAO = '12.11';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -4464,7 +4464,7 @@
       // 10.62 (Stefany 22/11 10:21, JOÃO REIS: "será cancelada" saiu 3x no mesmo minuto 17:23 — várias abas mandando o mesmo toque): trava ÚNICA (Tampermonkey, todas as abas) por conversa + toque + link; a 2ª e a 3ª aba não mandam
       if (!trava870('toque62_' + alvo.hash + '_' + toque.tipo + '_' + String(alvo.link || '').slice(-12), 3 * 3600000)) { reg('não saiu de novo: este toque já foi mandado por outra aba (10.62)', true); return; }
       // 10.54 (Francisca K94HN 21/11 18:02: recebeu "proposta será cancelada" com a C6 já em ANALISE CREDITO — documento anexado e aprovado — e respondeu "3 = cancelar"): confere a proposta pela API antes do toque
-      try { const OO54 = GM_getValue('auto_ordens', {}) || {}; const o54 = OO54[alvo.hash]; if (o54 && o54.propNc) { const p54 = await ncReq('GET', '/proposals/' + o54.propNc); const d54 = (p54 && p54.data) || p54 || {}; const br54 = d54.bank_reference || {};
+      try { const OO54 = GM_getValue('auto_ordens', {}) || {}; const o54 = OO54[alvo.hash]; if (o54 && o54.propNc) { const p54 = await ncReq('GET', '/proposals/' + o54.propNc); const d54 = (p54 && p54.data) || p54 || {}; const br54 = d54.bank_reference || {}; if (o54.proposta && String(br54.proposal_number || '') !== String(o54.proposta)) throw new Error('11.11 propNc antigo');   /* 12.11 (Vitória SC58KD 25/11: propNc era de uma proposta ANTIGA cancelada; a ativa é a Daycoval 833980268 — só vale o status da MESMA proposta do link) */
           const s54 = ((br54.bank_status || '') + ' ' + (br54.bank_status_description || '') + ' ' + (((d54.proposal || {}).status || {}).name || '')).trim();
           if (/AN[AÁ]LISE|AVERB|PAGO|PAGA\b|INTEGRAD|APROVAD|CONCLU|FORMALIZAD|ASSINAD|CANCEL|REPROV/i.test(s54) && !/PENDENTE FORMALIZ|AGUARD[A-Z ]*FORM|ALTERAR FORM/i.test(s54)) { reg('pulado: a proposta já passou da assinatura (' + s54.slice(0, 60) + ') — 10.54', true); return; } } } catch (e) {}
       // 4.14c (caso Marcia Verônica 10/11 18:43): régua criada tarde para link de ontem → o toque das 08:00 não sai à noite com "bom dia"
