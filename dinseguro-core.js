@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.13';
+  const VERSAO = '12.14';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -7055,7 +7055,7 @@
       aleatoria: () => ({ banco: '104', agencia: '3880', conta: '111113', dv: '1', seq: 0, poupanca: true }),
     } : {
       nome: 'DAYCOVAL',
-      agente: /JADY/i, vendedor: /\d/, comercial: /\d/,
+      agente: /222391/, vendedor: /^257444/, comercial: /^000153/,   // 12.14 (Stefany 25/11 13:49, PADRAO-DAYCOVAL-AGENTE-LINK): Agente 222391 STEFANY MONARA SOUZA · Vendedor 257444 · Comercial 000153 LARISSA (antes ficava JADY 205912)
       // 5.10 (caso Marcelo 12/11: esp 32 veio na 800991 - INSS 1 DIG AOL). Daycoval confere pelo NOME (REGRAS-BANCO-DAYCOVAL §6):
       // invalidez → INSS 1 DIG AOL ESP 32/92 · demais ≥ R$ 15 mil → INSS DIG AOL 15K · demais → INSS 1 DIG AOL
       tabela: (esp, liberado) => ((typeof INVALIDEZ !== 'undefined' && INVALIDEZ.includes(esp)) || esp === '32' || esp === '92') ? 'INSS 1 DIG AOL ESP 32/92' : (liberado >= 15000 ? 'INSS DIG AOL 15K' : 'INSS 1 DIG AOL'),
@@ -7398,9 +7398,10 @@
       await sleep(1200);
       const v = lista(/^Vendedor$/, sv); if (v) await escolher(v, PORTAL.vendedor);
       await sleep(1200);
-      await escolher(lista(/^Agente$/, sv), PORTAL.agente, QM ? '343999' : '');
+      await escolher(lista(/^Agente$/, sv), PORTAL.agente, QM ? '343999' : '222391');
       const ag = valorSel(lista(/^Agente$/, sv));
       if (QM && /WALESKA/i.test(ag)) throw new Error('O agente ficou na WALESKA. Tem que ser 343999 STEFANY MONARA SOUZA.');
+      if (!QM && !/222391/.test(ag)) throw new Error('12.14: o agente ficou "' + ag + '" — tem que ser 222391 STEFANY MONARA SOUZA (Vendedor 257444, Comercial 000153). Não gerei a proposta.');
       log('Vendedor: ' + valorSel(cm) + ' · ' + valorSel(v) + ' · ' + ag);
       await clicar(/^PRÓXIMO$/);
       await sleep(1500);
