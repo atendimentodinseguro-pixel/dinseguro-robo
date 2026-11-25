@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.76';
+  const VERSAO = '11.77';
+  const VERSAO_11_77_NOTA = '';   // 11.77 (Stefany 24/11 21:36): painel 'Happy — liberar digitação' no portal (situação, Carregar ficha, Liberar digitação à mão).
   const VERSAO_11_76_NOTA = '';   // 11.76 (Stefany 24/11 21:18): robô da HAPPY — portal.happyconsig.com.br faz CPF/celular/escolaridade → benefício → Autorização IN100 → Continuar (simulação, libera a digitação); a tela ?p=happyconsig do New Corban digita (lupa, matrícula, espécie, In100, parcela 108x, CEP da capital, UF/DDB, Histórico Auto-Complete, extrato = liberação, Gravar, Gerar Links). Ordem com banco HAPPY (bancoStefany 'HAPPY').
   const VERSAO_11_75_NOTA = '';   // 11.75 (Stefany 24/11 20:19): pediu menos que o máximo → simulação do MÁXIMO; sem resposta em 30 min → link do máximo (10.64). Sem negociação pelo vigia
   const VERSAO_11_74_NOTA = '';   // 11.74 (Stefany 24/11 20:10): no menu da simulação a opção 'Não desejo' vira 'Simular outro valor'; resposta pergunta o valor/parcela (faixa 10.97)
@@ -6903,6 +6904,20 @@
     const hzLogado = () => !/\/login/i.test(location.pathname) && !document.getElementById('password');
     const hzBate = () => { try { GM_setValue('happy_portal_vivo', { t: Date.now(), logado: hzLogado(), ocupado: !!window.__hzOcup }); } catch (e) {} };
     hzBate(); setInterval(hzBate, 5000);
+    // 11.77 (Stefany 24/11 21:36 "não aparece ficha no site da Happy"): painel no portal — situação do robô + ficha (Carregar ficha do Multicorban ou colar) e "Liberar digitação" à mão
+    let hzP = null; const hzLog = (m, t) => { try { log(m, t); } catch (e) {} };
+    const hzPainel = () => { try { if (hzP && document.body.contains(hzP)) return; hzP = painel('Happy — liberar digitação');
+      hzP.querySelector('#dins-corpo').innerHTML = '<div id="hz-st" style="font-size:12px;margin-bottom:6px;color:#93c5fd">…</div>' + botao('Carregar ficha', '#2563eb') +
+        '<textarea id="hz-ficha" style="width:100%;height:90px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px" placeholder="cpf: …\ntelefone: …\nbeneficio: …"></textarea>' + botao('Liberar digitação', '#16a34a');
+      hzP.addEventListener('click', async ev => { const a = ev.target && ev.target.dataset && ev.target.dataset.a; if (!a) return; const ta = hzP.querySelector('#hz-ficha');
+        if (a === 'Carregar ficha') { const f = GM_getValue('ficha_atual', null); if (!f) return hzLog('Nenhuma ficha salva no Multicorban.', 'erro'); ta.value = 'nome: ' + (f.nome || '') + '\ncpf: ' + (f.cpf || '') + '\ntelefone: ' + (f.telefone || '') + '\nbeneficio: ' + (f.beneficio || ''); hzLog('Ficha carregada: ' + (f.nome || f.cpf), 'ok'); }
+        if (a === 'Liberar digitação') { if (window.__hzOcup) return hzLog('Robô ocupado com outro cliente — espere.', 'erro'); const g = k => ((ta.value.match(new RegExp('^\\s*' + k + '\\s*:\\s*(.+)$', 'im')) || [])[1] || '').trim();
+          const q = { id: 'manual_' + Date.now().toString(36), cpf: g('cpf').replace(/\D/g, '').padStart(11, '0'), tel: g('telefone').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''), ben: g('beneficio').replace(/\D/g, '') };
+          if (q.cpf.length !== 11 || q.tel.length < 10) return hzLog('Ficha precisa de cpf e telefone (com DDD).', 'erro');
+          window.__hzOcup = 1; ev.target.disabled = true; hzLog('Liberando digitação de ' + (g('nome') || q.cpf.slice(-4)) + '…');
+          try { const r = await hzFazer(q); hzLog(r.msg || 'ok', 'ok'); } catch (e) { hzLog(String(e.message || e), 'erro'); } finally { window.__hzOcup = 0; ev.target.disabled = false; } } });
+    } catch (e) {} };
+    setInterval(() => { try { hzPainel(); const st = hzP && hzP.querySelector('#hz-st'); if (st) st.textContent = (hzLogado() ? '🟢 logado' : '🔴 DESLOGADO — clique em Continuar no login') + ' · ' + (window.__hzOcup ? '⏳ trabalhando…' : 'aguardando pedido do New Corban'); } catch (e) {} }, 2000);
     let hzTentLogin = 0;
     setInterval(() => { try { if (hzLogado() || Date.now() - hzTentLogin < 20 * 60000) return; const pw = document.getElementById('password'); let auto = false; try { auto = pw && pw.matches(':-webkit-autofill'); } catch (e) {} if (!pw || !(auto || pw.value)) return;
       const bt = [...document.querySelectorAll('button')].find(b => /^\s*Continuar\s*$/i.test(b.textContent || '')); if (bt) { hzTentLogin = Date.now(); bt.click(); console.log('[Dinseguro] 11.76: portal Happy no login com dados do Chrome → cliquei Continuar'); } } catch (e) {} }, 15000);
@@ -6952,8 +6967,9 @@
       const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
       if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
       window.__hzOcup = 1; hzBate();
-      try { const r = await hzFazer(q); hzResp(q.id, r); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
-      catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); console.warn('[Dinseguro] 11.76 portal Happy', e); }
+      hzLog('Pedido do New Corban: CPF …' + String(q.cpf).slice(-4));
+      try { const r = await hzFazer(q); hzResp(q.id, r); hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
+      catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); hzLog(String(e.message || e), 'erro'); console.warn('[Dinseguro] 11.76 portal Happy', e); }
       finally { window.__hzOcup = 0; hzBate(); } }, 3000);
   }
 
