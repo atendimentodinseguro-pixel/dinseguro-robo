@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.12';
+  const VERSAO = '12.13';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3389,7 +3389,7 @@
     window.dinsAutoCpf = (h, cpf, nome, valorBot, aceite, extra) => { const c = String(cpf || '').replace(/\D/g, ''); if (!h || c.length < 10) return false; const O = GM_getValue('auto_ordens', {}) || {}; const agora = Date.now();
       O[h] = { hash: h, nome: nome || '', cpf: c, tipo: 'cpf', cpfT: agora, valorBot: +valorBot || (((GM_getValue('valor_nota', {}) || {})[h] || {}).v) || 0, aceite: !!aceite, estado: 'nova', t: agora, hist: [hhmm(agora) + ' ordem criada pelo vigia (dinsAutoCpf)'] }; if (extra && typeof extra === 'object') Object.assign(O[h], extra); GM_setValue('auto_ordens', O); return true; };   // 5.70: extra = { valorVigia, fone, … }
     // 6.90 (caso Dulce): para MUDAR uma ordem que já existe (estado, banco, reenvio…) sem apagar valor/parcela/link/ficha — o dinsAutoCpf recria do zero.
-    window.dinsAutoMudar = (h, mud) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h] || !mud || typeof mud !== 'object') return false; if (mud.bancoConta != null) mud.bancoConta = bcNome1131(mud.bancoConta);   /* 11.31 */ if (mud.extratoOk && !(String(mud.extratoLido || '').length >= 15)) { console.warn('[Dinseguro] 11.23: extratoOk recusado — abra o PDF (aba go.botmaker.com/robots.txt → location.href = URL do PDF → foto da tela) e informe extratoLido: "benefício …XXXX · margem disponível R$ X · contratos ativos N · representante/pensão"'); return '11.23: extratoOk só com extratoLido (o que você leu no PDF)'; }   /* 11.23 (Fabiane 23/11 15:31: liberei pelo FullConsig sem abrir o PDF; o extrato mostrava empréstimo Caixa usando toda a margem) */ if (mud.estado === 'ficha_ok' && !('chk936' in mud)) mud = Object.assign({ chk936: 0, aceite: 1, simGravar: 1 }, mud);   /* 11.20 (Rinaldo 23/11 15:02: vigia refez a ficha e o pedido ficou parado em ficha_ok — o chk936 antigo e a falta de aceite seguravam) */ { const f04 = O[h].ficha || {}; const b04 = String(mud.banco || mud.bancoStefany || ''); if (/QUALI/i.test(b04) && ['32', '92'].includes(String(f04.especie || '').padStart(2, '0')) && (parseInt(f04.idade) || 0) < 58 && !mud.forcarQuali) { console.warn('[Dinseguro] 11.04: Qualibank invalidez só a partir de 58 anos — recusado'); return false; } }
+    window.dinsAutoMudar = (h, mud) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h] || !mud || typeof mud !== 'object') return false; if (mud.bancoStefany || mud.banco) { mud.ficha = Object.assign({}, O[h].ficha || {}, mud.ficha || {}); if (mud.ficha.recusa) mud.ficha.recusa = '';   /* 12.13 (Adilson 25/11): trocar o banco pelo vigia limpa a recusa do banco anterior — senão o executor recusa calado */ if (mud.bancoStefany) { mud.ficha.banco_ordem_stefany = String(mud.bancoStefany); mud.ficha.banco_destino = String(mud.bancoStefany).toUpperCase().trim().split(/\s+/)[0]; } } if (mud.bancoConta != null) mud.bancoConta = bcNome1131(mud.bancoConta);   /* 11.31 */ if (mud.extratoOk && !(String(mud.extratoLido || '').length >= 15)) { console.warn('[Dinseguro] 11.23: extratoOk recusado — abra o PDF (aba go.botmaker.com/robots.txt → location.href = URL do PDF → foto da tela) e informe extratoLido: "benefício …XXXX · margem disponível R$ X · contratos ativos N · representante/pensão"'); return '11.23: extratoOk só com extratoLido (o que você leu no PDF)'; }   /* 11.23 (Fabiane 23/11 15:31: liberei pelo FullConsig sem abrir o PDF; o extrato mostrava empréstimo Caixa usando toda a margem) */ if (mud.estado === 'ficha_ok' && !('chk936' in mud)) mud = Object.assign({ chk936: 0, aceite: 1, simGravar: 1 }, mud);   /* 11.20 (Rinaldo 23/11 15:02: vigia refez a ficha e o pedido ficou parado em ficha_ok — o chk936 antigo e a falta de aceite seguravam) */ { const f04 = O[h].ficha || {}; const b04 = String(mud.banco || mud.bancoStefany || ''); if (/QUALI/i.test(b04) && ['32', '92'].includes(String(f04.especie || '').padStart(2, '0')) && (parseInt(f04.idade) || 0) < 58 && !mud.forcarQuali) { console.warn('[Dinseguro] 11.04: Qualibank invalidez só a partir de 58 anos — recusado'); return false; } }
       /* 10.99 (Stefany 23/11 10:51, Michele CWBLAJ: escolheu a OPÇÃO 2 (1ª parcela em abril) e o vigia mandou digitar SEM carência — "inadmissível"): a escolha do cliente vence —
          aceite sem carência por cima de quem escolheu a opção 2 (op2Car948 / respSim '2') é recusado; para trocar de verdade o vigia passa forcarSemCarencia:1 */
       if ((mud.aceite || mud.simGravar) && !mud.carencia && !mud.op2Car948 && !mud.forcarSemCarencia && (O[h].op2Car948 || /^\s*(2|2️⃣|op[çc][ãa]o\s*2)\s*[.!]?\s*$/i.test(String(O[h].respSim || '')))) return 'RECUSADO 10.99: o cliente escolheu a OPÇÃO 2 (1ª parcela em abril, carência) — digitar COM carência (carencia:"90 DIAS", op2Car948:1) ou passar forcarSemCarencia:1 se ele mudou de ideia';
@@ -7469,7 +7469,7 @@
       const f = GM_getValue('ficha_atual');
       if (!f || !f.cpf) { log('Nenhuma ficha salva. No Multicorban: Gerar ficha → Salvar ficha.', 'erro'); return; }
       if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · mãe ${f.mae || '—'}`); return; }
-      if (f.recusa) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }
+      if (f.recusa && !String(f.banco_ordem_stefany || '').trim()) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }   /* 12.13: com banco_ordem_stefany (ordem da Stefany/vigia) a recusa antiga não segura — caso Adilson 25/11 */
       rodando = true;
       const status = (st, extra) => { try { localStorage.setItem(QM ? 'dins_queromais_status' : 'dins_daycoval_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, portal: PORTAL.nome, t: Date.now() }, extra || {}))); } catch (e) {} };
       status('rodando');
@@ -7761,7 +7761,7 @@
       const f = GM_getValue('ficha_atual');
       if (!f || !f.cpf) { log('Nenhuma ficha salva. No Multicorban: Gerar ficha → Salvar ficha.', 'erro'); return; }
       if (a === 'Carregar ficha') { log(`${f.nome} · CPF ${f.cpf} · benef ${f.beneficio} (esp ${f.especie}) · parcela ${f.parcela} · ${f.uf || '?'} · ${f.cidade || '?'} · mãe ${f.mae || '—'}`); return; }
-      if (f.recusa) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }
+      if (f.recusa && !String(f.banco_ordem_stefany || '').trim()) { log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro'); return; }   /* 12.13: com banco_ordem_stefany (ordem da Stefany/vigia) a recusa antiga não segura — caso Adilson 25/11 */
       rodando = true;
       const status = (st, extra) => { try { localStorage.setItem('dins_bmg_status', JSON.stringify(Object.assign({ st, cpf: f.cpf, nome: f.nome, t: Date.now() }, extra || {}))); } catch (er) {} };
       status('rodando');
@@ -8653,7 +8653,7 @@
         // 7.44 (caso Fernanda/Alessandro 16/11 18:06): o vigia mudou o valor para 5.000 mas a parcela velha (183,20) ficou → saiu proposta de 8 mil. Valor manda: parcela fora do valor é recalculada.
         { const ped = num(f.valor), par = num(f.parcela); if (ped > 0) { const pNec = Math.ceil(ped * 648.39 / 28400 * 1.003 * 100) / 100; if (!par || par > pNec * 1.15) { log(`Parcela ${f.parcela || '(vazia)'} não bate com o valor R$ ${brl(ped)} → parcela R$ ${brl(pNec)} (7.44).`, 'erro'); f.parcela = brl(pNec); ta.value = fichaParaTexto(f); } } }
         if (!so(f.cpf) || !so(f.beneficio) || !num(f.parcela)) return log('Ficha precisa de cpf, beneficio e parcela.', 'erro');
-        if (f.recusa) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');
+        if (f.recusa && !String(f.banco_ordem_stefany || '').trim()) return log('Ficha marcada como RECUSA (' + f.recusa.split('|')[0] + '). NÃO digitar.', 'erro');   /* 12.13 */
         if (['NAO', 'HUMANO'].includes((f.banco_destino || '').toUpperCase())) return log('Ficha marcada como ' + f.banco_destino + '. Não digitar.', 'erro');
         { const t = bancoErrado(f, pagina); if (t) return log(t, 'erro'); }
         { const t = telefoneErrado(f); if (t) return log(t, 'erro'); }
