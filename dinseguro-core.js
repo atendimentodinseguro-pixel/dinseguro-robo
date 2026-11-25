@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.91';
+  const VERSAO = '11.92';
+  const VERSAO_11_92_NOTA = '';   // 11.92 (Stefany 24/11 22:34): Happy só digita das 6h às 22h (retorno da IN100 do INSS).
   const VERSAO_11_90_NOTA = '';   // 11.90: Happy — renda da ficha; conta inválida do Histórico não grava; aviso velho da IN100 fechado antes do Gravar; Gerar Links repete por ~5 min.
   const VERSAO_11_87_NOTA = '';   // 11.87 (Stefany 24/11 22:04): Happy NÃO faz invalidez — o robô recusa antes de começar.
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
@@ -8204,6 +8205,7 @@
     log('Portal Happy: ' + (r.msg || 'ok'), 'ok');
   }
   async function autoCompleteHappy(f) {
+    { const hh = new Date().getHours(); if (hh < 6 || hh >= 22) throw new Error('⛔ Happy: a IN100 do INSS só retorna das 6h às 22h (Stefany 24/11 22:34) — fora desse horário o link fica "Aguardando Retorno da IN 100". Digitar a partir das 6h.'); }   // 11.92
     if (INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'))) throw new Error('⛔ Happy não faz benefício de INVALIDEZ (espécie ' + f.especie + ') — Stefany 24/11 22:04. Outro banco pelo roteiro.');   // 11.87
     const nascBR = d => { const s0 = String(d || '').trim(); let m = s0.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[3] + '/' + m[2] + '/' + m[1]; m = s0.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? s0 : ''; };
     setv('cpf_cliente', so(f.cpf).padStart(11, '0'));
