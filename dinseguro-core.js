@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.08';
+  const VERSAO = '12.09';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1419,7 +1419,7 @@
       const FQ = GM_getValue('in100_fila', []) || []; const R = GM_getValue('in100_res', {}) || {};
       for (const h in O) { const o = O[h]; if (!o || o.tipo !== 'cpf' || !o.cpf || !o.ficha) continue;
         // pedir
-        if (!o.in100Pedido && hh >= 6 && hh < 22 && ['ficha_ok', 'simulada', 'sim_enviada', 'digitando', 'gravada', 'link'].includes(o.estado) && (o.aceite || o.simGravar || o.aceitouSim || ['gravada', 'link'].includes(o.estado)) && o.ficha.beneficio && dias(o.ficha.ddb) >= 90 && ag - (+o.t || ag) < 3 * 3600000) {
+        if (!o.in100Pedido && hh >= 6 && hh < 22 && ['ficha_ok', 'simulada', 'sim_enviada', 'digitando', 'gravada', 'link', 'erro', 'link_enviado', 'feito'].includes(o.estado) && (o.aceite || o.simGravar || o.aceitouSim || o.link || ['gravada', 'link', 'link_enviado', 'feito'].includes(o.estado)) && o.ficha.beneficio && dias(o.ficha.ddb) >= 90 && ag - (+o.t || ag) < 8 * 3600000) {
           o.in100Pedido = ag; mud = true; if (!FQ.some(x => x.hash === h)) FQ.push({ hash: h, nome: o.ficha.nome || o.nomeReal || '', cpf: o.cpf, beneficio: o.ficha.beneficio, t: ag });
           (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 10.68: DDB ' + o.ficha.ddb + ' (' + Math.floor(dias(o.ficha.ddb)) + ' dias) → IN100 na Quali'); continue; }
         // aplicar
@@ -1439,6 +1439,7 @@
         o.in100 = txt; o.resumo = (o.resumo || '') + ' · ' + txt; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' ' + txt); mud = true;
         if (alerta) { o.in100Alerta = alerta; if (!['link_enviado', 'feito'].includes(o.estado)) { o.estado = 'erro'; o.erro = alerta; } }
         try { diario(o.nomeReal || o.nome || h.slice(0, 5), (alerta ? '🔴 ' + alerta : '🔎 ' + txt) + ' (10.68)'); } catch (e) {} }
+      try { const vel = FQ.find(x => ag - (+x.t || ag) > 6 * 60000 && !x.av1209); if (vel) { vel.av1209 = ag; diario('IN100', '🔴 fila da Quali parada há ' + Math.floor((ag - vel.t) / 60000) + ' min → recarregar a aba Quali (12.09)'); } } catch (e) {}
       GM_setValue('in100_fila', FQ); if (mud) GM_setValue('auto_ordens', O);
     } catch (e) {} }, 60000);
     window.dinsIn100Pedir = (hash, nome, cpf, beneficio) => { const FQ = GM_getValue('in100_fila', []) || []; if (!FQ.some(x => x.hash === hash)) FQ.push({ hash, nome, cpf: String(cpf).replace(/\D/g, ''), beneficio: String(beneficio).replace(/\D/g, ''), t: Date.now() }); GM_setValue('in100_fila', FQ); return FQ.length; };   // 10.70: vigia pede uma IN100 à mão (teste ou cliente fora do fluxo)
