@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.89';
+  const VERSAO = '11.90';
+  const VERSAO_11_90_NOTA = '';   // 11.90: Happy — renda da ficha; conta inválida do Histórico não grava; aviso velho da IN100 fechado antes do Gravar; Gerar Links repete por ~5 min.
   const VERSAO_11_87_NOTA = '';   // 11.87 (Stefany 24/11 22:04): Happy NÃO faz invalidez — o robô recusa antes de começar.
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
@@ -8222,7 +8223,7 @@
     const esp = String(parseInt(String(f.especie || '').replace(/\D/g, ''), 10) || '');
     const se = el('especie');
     if (se && esp) { const op = [...se.options].find(o => o.value === esp); if (!op) throw new Error('Espécie ' + esp + ' não existe na lista da Happy.'); if ($ && $(se).selectpicker) { $(se).selectpicker('val', op.value); $(se).trigger('change'); } else { se.value = op.value; se.dispatchEvent(new Event('change', { bubbles: true })); } log('Espécie: ' + op.text, 'ok'); }
-    if (!so((el('inputRenda') || {}).value).replace(/^0+/, '')) setv('inputRenda', f.renda || '1621,00');
+    { const rT = num((el('inputRenda') || {}).value), rF = num(f.renda); if (rF > rT || !rT) { setv('inputRenda', f.renda || '1621,00'); log('Renda: ' + (f.renda || '1621,00') + ' (da ficha)', 'ok'); } }   // 11.90: a lupa deixava 1.621,00 (Ana Carolina tem 5.535,17)
     log('Cliente: ' + ((el('nome_cliente') || {}).value || f.nome || '?'), 'ok');
     // portal primeiro (libera a digitação), depois a IN100 do New Corban
     await portalHappy(f);
@@ -8404,6 +8405,7 @@
 
   const vale0 = b => !!b && !/^0+$/.test(b);
   async function copiaBenHappy() {   // 11.76: Happy — a conta do EXTRATO (benefício) é a mesma da liberação (Stefany 24/11)
+    { const ct = so((el('conta') || {}).value).replace(/^0+/, ''); if (ct.length < 3 || /^(\d)\1+$/.test(ct)) throw new Error('⛔ Conta inválida na tela (' + so((el('banco') || {}).value) + ' / ' + so((el('agencia') || {}).value) + ' / conta ' + so((el('conta') || {}).value) + ') — veio do Histórico; NÃO gravar. Vigia: conta do cliente/flash ou aleatória Caixa (11.90, Ana Carolina 24/11)'); }
     ['banco', 'agencia', 'agencia_digito', 'conta', 'conta_digito'].forEach(k => { const d = el('beneficio_' + k), o = el(k); if (d && o && String(o.value || '') !== String(d.value || '')) setv(d, o.value); });
     const t1 = el('tipo_conta'), t2 = el('beneficio_tipo_conta'); if (t1 && t2 && t2.value !== t1.value) { t2.value = t1.value; t2.dispatchEvent(new Event('change', { bubbles: true })); if ($) $(t2).trigger('change'); }
     log('Conta do benefício (extrato) = conta da liberação: ' + so((el('banco') || {}).value) + ' / ' + so((el('agencia') || {}).value), 'ok');
@@ -8527,10 +8529,11 @@
     const bv = so((el('banco') || {}).value);
     if (!bv || /^0+$/.test(bv)) throw new Error('Sem banco preenchido (000/vazio): proposta NÃO gravada. Peça a conta ao cliente (/08).');
     fechaModaisNC('antes do Gravar');   // 7.77
+    if (pagina === 'happyconsig') { try { [...document.querySelectorAll('.modal, .swal2-popup')].filter(m => getComputedStyle(m).display !== 'none' && m.getClientRects().length && /in100|Erro na solicita/i.test(m.innerText || '')).forEach(m => { const b = [...m.querySelectorAll('button')].find(x => /fechar|^ok$/i.test((x.innerText || '').trim())); if (b) b.click(); }); await sleep(800); } catch (e) {} }   // 11.90: o aviso velho da IN100 era lido como 'Banco recusou'
     try { const nm = el('nome_mae'); if (nm && !String(nm.value || '').trim()) { const st = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; st.call(nm, String(f.mae || '').trim() || 'NAO INFORMADO'); ['input', 'change', 'blur'].forEach(ev => nm.dispatchEvent(new Event(ev, { bubbles: true }))); } } catch (e) {}   // 7.78
     el('btn_gravar_proposta').click();
     const modal = await esperar(() => {
-      const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText) || (pagina === 'happyconsig' && /Gerar Link/i.test(x.innerText) && so((el('link_proposta') || {}).value)));   // 11.76: Happy abre "Gerar Link - Happy Consig" com o Nº
+      const m = [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => !(pagina === 'happyconsig' && /in100/i.test(x.innerText || '') && !/Gerar Link/i.test(x.innerText || '')) && /Proposta gerada|criada com sucesso|erro|inv[áa]lid/i.test(x.innerText) || (pagina === 'happyconsig' && /Gerar Link/i.test(x.innerText) && so((el('link_proposta') || {}).value)));   // 11.76: Happy abre "Gerar Link - Happy Consig" com o Nº
       return m || null;
     }, 75000, 500);   // 4.81: o Qualibank demora mais de 30 s para mostrar "Proposta gerada!" (caso Mauro 19:12)
     if (!modal) throw new Error('Não apareceu confirmação. Veja se faltou algum campo (a tela rola até ele).');
@@ -8541,7 +8544,8 @@
     GM_setValue('ultimo_resultado', { cpf: f.cpf, proposta: nro, quando: new Date().toISOString() });
     if (okHappy) {   // 11.76: Gerar Links → o link aparece no campo "Link Cliente" (#link_cliente) do mesmo quadro
       const bg = el('btn-gerarLink'); if (bg) bg.click();
-      const lk = await esperar(() => { const v = String((el('link_cliente') || {}).value || ''); return /^https?:\/\//.test(v) ? v : null; }, 45000, 1000);
+      let lk = null; for (let t = 0; t < 10 && !lk; t++) { if (t) { const b2 = el('btn-gerarLink'); if (b2) b2.click(); log('Happy: link ainda não saiu (' + String((el('link_cliente') || {}).value || '').slice(0, 40) + ') — Gerar Links de novo (' + (t + 1) + '/10)'); }
+        lk = await esperar(() => { const v = String((el('link_cliente') || {}).value || ''); return /^https?:\/\//.test(v) ? v : null; }, 30000, 1000); }   // 11.90: 'Aguardando Retorno da IN 100' → tenta de novo por ~5 min
       log(lk ? 'Link Happy gerado (campo Link Cliente).' : 'Happy: o link não apareceu em 45 s — clicar "Gerar Links" de novo.', lk ? 'ok' : 'erro');
     }
     if (!PEGAR_LINK) return;                     // por enquanto para aqui: link é pego à mão
