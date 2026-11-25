@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.82';
+  const VERSAO = '11.83';
+  const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
   const VERSAO_11_79_NOTA = '';   // 11.79: portal Happy — card agora diz 'N° Benefício:' (antes 'N° Bene:').
@@ -8221,13 +8222,19 @@
     log('Cliente: ' + ((el('nome_cliente') || {}).value || f.nome || '?'), 'ok');
     // portal primeiro (libera a digitação), depois a IN100 do New Corban
     await portalHappy(f);
+    { const tel0 = so(f.telefone).replace(/^55(?=\d{10,11}$)/, ''); if (tel0.length >= 10) { let n0 = tel0.slice(2); if (n0.length === 8) n0 = '9' + n0; if (!so((el('ddd_cliente') || {}).value)) setv('ddd_cliente', tel0.slice(0, 2)); if (!so((el('telefone_cliente') || {}).value)) setv('telefone_cliente', n0); } }   // 11.83: sem DDD/telefone o "Solicitar IN100" não faz nada (Thiago 24/11 21:53)
     const bIn = el('btn-emitirIn100');
-    if (bIn) { bIn.click();
-      const mo = await esperar(() => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => x.offsetParent && /in100|autoriza|sucesso|erro/i.test(x.innerText || '')), 45000, 700);
-      if (mo) { const t = (mo.innerText || '').replace(/\s+/g, ' ');
+    const moIn = () => [...document.querySelectorAll('.modal.show, .swal2-popup')].find(x => x.offsetParent && /in100|autoriza|sucesso|erro|aviso/i.test(x.innerText || ''));
+    for (let k = 0; bIn && k < 2; k++) {   // 11.83: 1º clique = "Solicitar IN100" (vira "Emitir In100"), 2º = "Emitir In100" (volta "autorizada, porém sem retorno")
+      const tx0 = (bIn.innerText || '').trim(); bIn.click(); log('In100 New Corban: clique em "' + tx0 + '"');
+      const mo = await esperar(() => moIn() || ((bIn.innerText || '').trim() !== tx0 && !/enviando/i.test(bIn.innerText || '') && /emitir/i.test(bIn.innerText || '') && /solicitar/i.test(tx0) ? 'virou' : null), 90000, 700);
+      if (mo && mo !== 'virou') { const t = (mo.innerText || '').replace(/\s+/g, ' ');
         log('In100 New Corban: ' + t.slice(0, 120), /sem retorno|sucesso|autorizad/i.test(t) ? 'ok' : 'aviso');
-        const fc = [...mo.querySelectorAll('button')].find(b => /fechar|^ok$/i.test((b.innerText || '').trim())); if (fc) fc.click(); await sleep(800); }
-      else log('In100 New Corban: sem resposta em 45 s — sigo com os dados manuais.', 'aviso'); }
+        const fc = [...mo.querySelectorAll('button')].find(b => /fechar|^ok$/i.test((b.innerText || '').trim())); if (fc) fc.click(); await sleep(800);
+        if (/sem retorno|sucesso|autorizad/i.test(t)) break; }
+      else if (!mo) { log('In100 New Corban: sem resposta em 90 s — sigo com os dados manuais.', 'aviso'); break; }
+      await sleep(800);
+    }
     fechaModaisNC('In100 Happy');
   }
 
