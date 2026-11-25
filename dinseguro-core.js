@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.06';
+  const VERSAO = '12.07';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -6396,8 +6396,8 @@
         if (ri && ri.http >= 200 && ri.http < 300) { y.estado = 'desfecho_ok'; y.fechouIntent = it; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 11.65: fechado pela intenção ' + it + ' (nova tentativa pela API)'); diario(y.nomeReal || y.nome || '', 'tag + fechou pela intenção ' + it + ' ✓ (11.65, nova tentativa API)'); }
         else { y.it1165 = (+y.it1165 || 0) + 1; y.it1165Prox = Date.now() + 120000; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 11.65: intenção ' + it + ' falhou de novo (' + ((ri && (ri.http || ri.erro)) || '?') + ')'); }
         GM_setValue('auto_ordens', O2); } catch (e) {} }, 30000);
-    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('atendimento')) return; esperaApi812(); } catch (e) {} }, 60000);   // 10.14 (Stefany 21/11 01:03, Loilton YKHK3: só respondeu depois que o vigia recarregou a aba): a espera API (quem escreveu e ninguém respondeu) parava das 21h às 8h — atendimento 24 h
-    setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('atendimento')) esperaApi812(); } catch (e) {} }, 90000);
+    setInterval(() => { try { if (meuPapel() === 'vigia' || !faz('followup')) return; esperaApi812(); } catch (e) {} }, 60000);   // 10.14 (Stefany 21/11 01:03, Loilton YKHK3: só respondeu depois que o vigia recarregou a aba): a espera API (quem escreveu e ninguém respondeu) parava das 21h às 8h — atendimento 24 h
+    setTimeout(() => { try { if (meuPapel() !== 'vigia' && faz('followup')) esperaApi812(); } catch (e) {} }, 90000);
     // 9.47 (Stefany 19/11 21:51, Arthemio 710AJ: entrou pelo anúncio às 21:47 sem escrever, o bot não respondeu e ninguém rodou o flow — a espera pela API só olha depois de 8 min e para às 21h):
     // a cada 1 min, 24 h (foi o cliente que chamou): conversa cuja ÚNICA mensagem recente é a do anúncio (cliente, sem texto e sem botão), há mais de 90 s e sem nada depois
     // → flow "Inicio do atendimento" na hora (uma vez por conversa; marca anuncio_flow_feito).
@@ -6416,7 +6416,7 @@
         return; }
     } catch (e) {} finally { anun947Rod = false; } }, 60000);
     // 9.11: fechamento adiado do cliente 01 D sem margem (2 h depois do retorno). Cliente escreveu depois do retorno → não fecha (é atendimento; o vigia responde).
-    setInterval(async () => { try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet || !window.dinsBmIntent) return; const L = GM_getValue('fd911_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('fd911_dono', { aba: ABA, t: Date.now() });
+    setInterval(async () => { try { if (meuPapel() === 'vigia' || !faz('followup') || !bmApiLigada() || !window.dinsBmGet || !window.dinsBmIntent) return; const L = GM_getValue('fd911_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('fd911_dono', { aba: ABA, t: Date.now() });
       const FD = GM_getValue('fechar_depois911', {}) || {}; const ag = Date.now(); let mud = false;
       for (const id of Object.keys(FD)) { const f = FD[id]; if (ag < (+f.t || 0)) continue; delete FD[id]; mud = true;
         const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) { FD[id] = Object.assign(f, { t: ag + 10 * 60000 }); continue; }
@@ -6427,11 +6427,12 @@
         const ri = await window.dinsBmIntent(id, f.it); diario(f.nome, (ri && ri.http >= 200 && ri.http < 300) ? '01 D sem margem: 2 h depois do retorno → 01 k e fechou ✓ (9.11)' : '⚠️ 01 D sem margem: a intenção ' + f.it + ' não aceitou → fechar à mão (9.11)');
         try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, '01 D sem margem — fechado 2 h depois do retorno (9.11)'); } catch (e) {} }
       if (mud) GM_setValue('fechar_depois911', FD); } catch (e) {} }, 5 * 60000);
+    // 12.07 (Stefany 25/11 13:37 'follow-ups atrasados'): os follow-ups/encerramentos só pela API (esperaApi812, 9.11, 9.07, 10.30, 9.05/9.08) passaram da aba ATENDIMENTO (sobrecarregada, timers travando) para a aba FOLLOW-UP.
     // 9.07 (Stefany 19/11 14:49): cliente fez uma pergunta, nós respondemos e ele ficou 1 HORA sem responder → o robô pergunta "ficou mais alguma dúvida?"
     // pela API, uma vez por resposta nossa. NÃO fecha no fim do dia ("não precisa fechá-lo, a varredura depois fecha"). Fora: quem tem link (régua do link),
     // simulação padrão (9.05), pedido de CPF, conversa com atendente humano, fechada, 01 D ou tag de recusa.
     { let ocup907 = false;
-      setInterval(async () => { if (ocup907) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+      setInterval(async () => { if (ocup907) return; try { if (meuPapel() === 'vigia' || !faz('followup') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
         const L = GM_getValue('duv907_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('duv907_dono', { aba: ABA, t: Date.now() });
         ocup907 = true; const ag = Date.now(); const R = GM_getValue('regua', {}) || {}; const DV = GM_getValue('duv907', {}) || {}; const VM = GM_getValue('valor_msg_feito', {}) || {}; const PC = GM_getValue('pedir_cpf_feito', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
         for (const id of Object.keys(R)) { const x = R[id]; if (n >= 2) break; if (!x || protegido(id) || id === '__TESTE_LIBERADO_1022__' || /^(fechada|encerrado|cancelada|conclu[íi]da|vencida|esgotada|alerta|humano)$/.test(x.estado || '') || (x.link && !x.semLink)) continue;
@@ -6511,7 +6512,7 @@
     // Agora: 1 h depois da simulação → "ficou com alguma dúvida sobre a simulação?"; dia seguinte a partir das 08:00 → último toque;
     // 2 h depois do último sem resposta → aviso de encerramento + 01 A (so_tag_01a) + fecha (fechar_so). Cliente escreveu depois da simulação → para (é atendimento).
     { let ocup1030 = false;
-      setInterval(async () => { if (ocup1030) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+      setInterval(async () => { if (ocup1030) return; try { if (meuPapel() === 'vigia' || !faz('followup') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
         const L = GM_getValue('sim5k1030_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('sim5k1030_dono', { aba: ABA, t: Date.now() });
         ocup1030 = true; const ag = Date.now(); const O = GM_getValue('auto_ordens', {}) || {}; const S = GM_getValue('sim5k1030', {}) || {}; let n = 0;
         for (const id of Object.keys(O)) { const x = O[id]; if (n >= 3) break; if (!x || x.estado !== 'sim_enviada' || !x.semPar767 || protegido(id) || id === '__TESTE_LIBERADO_1022__') continue;
@@ -6540,7 +6541,7 @@
     // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
     // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
     { let ocup905 = false;
-      setInterval(async () => { if (ocup905) return; try { if (meuPapel() === 'vigia' || !faz('atendimento') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+      setInterval(async () => { if (ocup905) return; try { if (meuPapel() === 'vigia' || !faz('followup') || !bmApiLigada() || !window.dinsBmGet) return; const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
         const L = GM_getValue('enc905_dono', null); if (L && L.aba !== ABA && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('enc905_dono', { aba: ABA, t: Date.now() });
         ocup905 = true; const ag = Date.now(); const VM = GM_getValue('valor_msg_feito', {}) || {}; const EN = GM_getValue('enc905', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {}; let n = 0;
         // 9.08 (Stefany 19/11 14:48 + 14:52 "pode avisar o cliente que tá encerrando e fecha"): PEDIMOS O CPF e não veio → 2 HORAS depois: aviso de encerramento + 01 C + fecha. Sem repetir o pedido.
