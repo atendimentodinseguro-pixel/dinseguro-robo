@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.03';
+  const VERSAO = '12.04';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1621,6 +1621,14 @@
       try { GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0' + path, timeout: 25000, headers: { 'access-token': tk, Accept: 'application/json' },
         onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); },
         onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
+    // 12.04 (Stefany 25/11 12:10 "você tem vários tipos de ronda… corrija para não errar mais"): a API passou a devolver páginas VAZIAS com nextPage antes
+    // das conversas (/chats: 5 vazias → 163 na 6ª). Conserto ÚNICO para TODAS as rondas e leituras: o dinsBmGet pula sozinho as páginas vazias (até 40)
+    // e devolve a primeira página com itens (com o nextPage dela). Quem lia só a 1ª página (6384, 6472, 6479, 6486…) volta a enxergar as conversas.
+    { const raw1204 = window.dinsBmGet;
+      window.dinsBmGet = async path => { let r = await raw1204(path); let n = 0;
+        while (r && r.http === 200 && r.j && Array.isArray(r.j.items) && !r.j.items.length && r.j.nextPage && n < 40) { n++; r = await raw1204(String(r.j.nextPage).replace(/^https?:\/\/[^/]+(\/v2\.0)?/, '')); }
+        if (n) { try { GM_setValue('bm_pag_vazias1204', { t: Date.now(), n, path: String(path).split('?')[0] }); } catch (e) {} }
+        return r; }; }
     // 9.15: diagnóstico — por que um link pronto ainda não saiu pela API (cada condição do bloco 8.79)
     // 9.32 (19/11 17:43, Edna: link pronto 17:39 e não saiu — dinsLinkDiag deu "protegido is not defined"): o bloco 7.90/8.79 (envio pela API da simulação,
     // do sem margem e do LINK) chamava protegido(), que só existe mais abaixo noutro escopo → ReferenceError engolido pelo try → o LINK NUNCA saía sozinho
@@ -1709,7 +1717,7 @@
           if (enviados >= 8) break;   // no máximo 8 por ronda
         } catch (e) {} }
         for (const k in FX) if (ag - Math.max(+FX[k].t || 0, +FX[k].neg || 0) > 4 * 864e5) delete FX[k];
-        if (seco) return { seco: 1, abertas, prev, pend, anom }; GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
+        if (seco) return { seco: 1, abertas, prev, pend, anom }; if (!itens.length) { GM_setValue('ronda_vazia1204', { t: ag }); return { erro: '12.04: a API devolveu 0 conversas — ronda NÃO gravada (não é "0 pendências")' }; } GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
       window.dinsRonda1077 = (seco) => ronda1077(true, !!seco);
       // 10.86 (Stefany 22/11 22:48, Marcelo 763AB: aceitou a simulação do BOT — R$ 10.000 em 108x de R$ 229,93, 'Sim desejo contratar' — e o robô mandou OUTRA
       // simulação de 2 opções; ele aceitou de novo e o link nunca chegou): várias portas de criação da ordem gravam aceite:false. Agora, toda ordem nova sem aceite
@@ -1766,7 +1774,7 @@
       window.dinsAntesDeParar = () => { try { const ag = Date.now(); const D = GM_getValue('vigia_dispensa', {}) || {}; const disp = (h, minEsp) => D[h] && D[h].ate > ag && !(minEsp != null && D[h].t && ag - minEsp * 60000 > D[h].t + 60000);   /* 11.11: cliente que escreveu DEPOIS da dispensa volta para a lista (Aleksandro/Graziela 23/11 esperaram 15–28 min escondidos) */ const R = GM_getValue('pend1077', null) || {}; const O = GM_getValue('auto_ordens', {}) || {}; const L = []; const vistos = new Set();
           const add = (h, nome, tipo, info, minEsp) => { if (!h || disp(h, minEsp)) return; const k = h + '|' + tipo; if (vistos.has(k)) return; vistos.add(k); L.push((O[h] && /^(link|feito|gravada|aprovado_espera)$/.test(O[h].estado) ? 0 : 1) + '\u0001' + String(nome || '').split(' ')[0] + ' ' + h + ' · ' + tipo + ' · ' + String(info || '').slice(0, 100)); };
           try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!/^dins_aba_/.test(k)) continue; const v = JSON.parse(localStorage.getItem(k) || '{}'); if (ag - (+v.t || 0) < 60000 && /followup/.test(v.papel || '') && v.aud === 0 && (+v.up || 0) > 300) L.push('0\u0001ROBÔ · aba [' + String(v.papel).toUpperCase() + '] sem o clique de despertar → dar 1 clique em área vazia dela (11.12)'); } } catch (e) {}   // 11.12 (erro 12 do ERROS-ANTIFRAGIL, 23/11 14:00)
-          const idade = R.t ? Math.round((ag - R.t) / 60000) : 999; if (idade > 15) L.push('0\u0001ROBÔ · ronda_parada ' + idade + ' min · recarregar [ATENDIMENTO] e [FOLLOW-UP]');
+          const idade = R.t ? Math.round((ag - R.t) / 60000) : 999; if (idade > 15) L.push('0\u0001ROBÔ · ronda_parada ' + idade + ' min · recarregar [ATENDIMENTO] e [FOLLOW-UP]'); try { const RV4 = GM_getValue('ronda_vazia1204', null); if (RV4 && ag - RV4.t < 15 * 60000) L.push('0\u0001ROBÔ · a ronda leu 0 conversas na API às ' + new Date(RV4.t).toTimeString().slice(0, 5) + ' (12.04) → conferir a API do Botmaker; a lista do portão pode estar incompleta'); } catch (e) {}
           try { const P = GM_getValue('promessa_link', {}) || {}; for (const h in P) if (ag - P[h].t >= 5 * 60000) add(h, 'LINK PROMETIDO', 'PROMETEU_LINK', P[h].txt); } catch (e) {} try { for (const h in O) { const x = O[h]; if (x && x.segBen && !x.segBenOk && /^(simulada|sim_enviada|link|feito|gravada)$/.test(x.estado || '') && ag - (+x.t || 0) < 48 * 3600000) add(h, x.nome, 'SEGUNDO_BENEFICIO', 'falta simular o 2º benefício …' + String(x.segBen).slice(-4) + ' (B1/B7) — ' + String(x.segBenDesc || '').slice(0, 80) + ' → feito: dinsAutoMudar(h,{segBenOk:1})'); } } catch (e) {}   /* 11.71 */
           try { const PC = GM_getValue('promessa_conteudo', {}) || {}; for (const h in PC) { if (ag - PC[h].t > 24 * 3600000) continue; add(h, '⚠️ PROMETEU E NÃO MANDOU', 'PROMETEU_CONTEUDO', 'a linha disse que ia mandar e ' + PC[h].at + ' NÃO saiu (' + Math.round((ag - PC[h].t) / 60000) + ' min) — mandar já (dinsMandaAnuencia/dinsMandaDesbloqueio ou fila)'); } } catch (e) {}   /* 11.38 */
           try { const P = typeof window.dinsPendencias === 'function' ? window.dinsPendencias() : null; ((P && P.vermelho) || []).forEach(v => add(v.h, v.n, 'vermelho ' + (v.min || '') + 'min', v.m, v.min != null ? +v.min : null)); } catch (e) {}   /* 11.24: vermelho também volta quando o cliente escreve depois da dispensa */
