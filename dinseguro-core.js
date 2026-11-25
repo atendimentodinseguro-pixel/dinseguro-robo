@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.07';
+  const VERSAO = '12.08';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -7361,9 +7361,17 @@
         break;
       }
       if (!incluiu) throw new Error('Não consegui incluir a conta depois de 8 tentativas da sequência.');
+      // 12.08 (Stefany 25/11 13:49, Fabiano SLNVZY: "tá faltando clicar em substituir os dados bancários"): depois do INCLUIR o portal pergunta se SUBSTITUI os dados bancários
+      // (cliente que já tinha conta cadastrada). Sem esse clique a seção 'Dados do Benefício' não abre e dava 'Lista não encontrada: /^MG$/'. Clica em substituir/Sim e espera.
+      for (let k = 0; k < 6; k++) { await sleep(700);
+        const dlg = [...document.querySelectorAll('mat-dialog-container, .mat-mdc-dialog-container, .cdk-overlay-pane, .swal2-popup, [role=dialog]')].filter(vis).find(d => /substitu/i.test(tx(d)));
+        const bs = [...(dlg || document).querySelectorAll('button')].filter(vis);
+        const b = bs.find(x => /substitu/i.test(tx(x))) || (dlg && bs.find(x => /^\s*(sim|confirmar|ok)\b/i.test(tx(x))));
+        if (b) { b.click(); log('Dados bancários: cliquei em "' + tx(b).trim().slice(0, 30) + '" (substituir) — 12.08'); await sleep(1500); break; }
+        if (!dlg && k >= 2) break; }
       const re = new RegExp(c.conta + '/' + c.dv);
       const sbn = secao(/^Dados do Benef[íi]cio$/);
-      if (f.uf) await escolher(lista(/^UF Do Benef[íi]cio$/, sbn), new RegExp('^' + f.uf + '$'), f.uf);
+      if (f.uf) { let lu = lista(/^UF Do Benef[íi]cio$/, sbn); for (let k = 0; !lu && k < 8; k++) { await sleep(800); lu = lista(/^UF Do Benef[íi]cio$/, secao(/^Dados do Benef[íi]cio$/) || sbn); } await escolher(lu, new RegExp('^' + f.uf + '$'), f.uf); }   /* 12.08: espera a seção abrir */
       const esp = String(f.especie || '').padStart(2, '0');
       await escolher(lista(/^Tipo de Benef/, sbn), new RegExp('^' + esp + ' -'), esp + ' -');
       // 6.82 (caso Simone Daycoval 13:39: 'Opção não encontrada (/39\/8/). Tem: ' — a conta incluída ainda não estava na lista): espera e, se precisar, INCLUIR de novo
