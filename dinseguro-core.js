@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.95';
+  const VERSAO = '11.96';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1647,7 +1647,8 @@
           if (protegido(h)) continue; const o = O[h]; const nome = (o && (o.nomeReal || o.nome)) || ((x.firstName || '') + ' ' + (x.lastName || '')).trim();
           const m = PF1172[h] || await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(ag - 48 * 3600000).toISOString()));   /* 11.72: mensagens já baixadas em paralelo */
           const ms = ((m && m.j && m.j.items) || []).sort((a, b) => Date.parse(a.creationTime) - Date.parse(b.creationTime)); if (!ms.length) continue;
-          const reais = ms.filter(k => k.from === 'user' || (!GEN1077.test(txt1077(k).trim()) && /^\s*(\[Dinseguro\]|\*?\[[^\]]*👤\])/.test(txt1077(k))));   /* 11.49 (Stefany 24/11 08:41, caso Emerson PVTMD7: esperou 13 h sem CPF na fila do atendente e fechou com outro — 'Deixa pra lá'): só conta como resposta nossa mensagem do robô/vigia ([Dinseguro]) ou de atendente ([Nome👤]); mensagem do FLUXO do Botmaker (ex.: 'A gente valoriza muito que você queira ter certeza…') não é resposta e o cliente fica como ESPERANDO */   // respostas automáticas genéricas do bot não contam como resposta
+          const FIM1196 = /sem margem dispon[ií]vel|n[ãa]o h[áa] margem dispon[ií]vel|Vamos encerrar este atendimento|empr[ée]stimo n[ãa]o est[áa] dispon[ií]vel|atendimento est[áa] encerrado|Representante legal pode fazer empr[ée]stimo|precisamos do seu Extrato de Empr[ée]stimo|Voc[eê] possui mais 5 minutos/i;   /* 11.96 (Stefany 25/11 09:15 'resolva definitivo'): desfecho do FLUXO do Botmaker (sem margem, encerrado, LOAS, representante, pedido de extrato) É resposta — não fica como ESPERANDO */
+          const reais = ms.filter(k => k.from === 'user' || FIM1196.test(txt1077(k)) || (!GEN1077.test(txt1077(k).trim()) && /^\s*(\[Dinseguro\]|\*?\[[^\]]*👤\])/.test(txt1077(k))));   /* 11.49 (Stefany 24/11 08:41, caso Emerson PVTMD7: esperou 13 h sem CPF na fila do atendente e fechou com outro — 'Deixa pra lá'): só conta como resposta nossa mensagem do robô/vigia ([Dinseguro]) ou de atendente ([Nome👤]); mensagem do FLUXO do Botmaker (ex.: 'A gente valoriza muito que você queira ter certeza…') não é resposta e o cliente fica como ESPERANDO */   // respostas automáticas genéricas do bot não contam como resposta
           const ult = reais[reais.length - 1]; const ultU = [...ms].reverse().find(k => k.from === 'user'); const ultN = [...reais].reverse().find(k => k.from !== 'user');
           const tU = ultU ? Date.parse(ultU.creationTime) : 0, tN = ultN ? Date.parse(ultN.creationTime) : 0;
           // repetição: o mesmo texto nosso (≥ 40 letras) 2x em 6 h = falha do robô
