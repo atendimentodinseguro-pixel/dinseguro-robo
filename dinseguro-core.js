@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.93';
+  const VERSAO = '11.94';
+  const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
   const VERSAO_11_92_NOTA = '';   // 11.92 (Stefany 24/11 22:34): Happy só digita das 6h às 22h (retorno da IN100 do INSS).
   const VERSAO_11_90_NOTA = '';   // 11.90: Happy — renda da ficha; conta inválida do Histórico não grava; aviso velho da IN100 fechado antes do Gravar; Gerar Links repete por ~5 min.
@@ -476,6 +477,93 @@
     const cor = tipo === 'erro' ? '#f87171' : tipo === 'ok' ? '#4ade80' : '#cbd5e1';
     l.innerHTML += `<div style="color:${cor}">${new Date().toLocaleTimeString().slice(0, 5)} ${msg}</div>`;
     l.scrollTop = l.scrollHeight;
+  }
+
+  // ============================================== 11.76 HAPPY CONSIG — PORTAL (portal.happyconsig.com.br)
+  // Stefany 24/11 21:18 ("um robozinho no site deles só para essa primeira parte, para liberar para digitação"): sem a simulação no portal
+  // o Gravar do New Corban (?p=happyconsig) volta "(2) Criar Contrato - Erro na criação da proposta" (Devanyr 24/11 21:20).
+  // A aba do New Corban pede (GM 'happy_portal_req'); esta aba faz: Iniciar digitação → (Retomar? → Não - Descartar) → CPF + celular +
+  // escolaridade → Benefícios do consultor → benefício → Autorização IN100 → AUTORIZADO → Continuar (simulação) e responde em GM 'happy_portal_res'.
+  // Batida em GM 'happy_portal_vivo' {t, logado}. Nunca recarrega (perde o login). Login: só CLICA em Continuar com usuário e senha JÁ preenchidos pelo Chrome (igual 8.83 do Daycoval).
+  if (location.host === 'portal.happyconsig.com.br' && window.top === window) {
+    const hzS = ms => new Promise(r => setTimeout(r, ms));
+    const hzB = re => [...document.querySelectorAll('button')].find(b => b.offsetParent && !b.disabled && re.test((b.innerText || '').trim()));
+    const hzW = async (fn, ms) => { for (let t = 0; t < ms; t += 400) { let r = null; try { r = fn(); } catch (e) {} if (r) return r; await hzS(400); } return null; };
+    const hzSet = (e, v) => { const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; e.focus(); d.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); };
+    const hzLogado = () => !/\/(login|validacao)/i.test(location.pathname) && !document.getElementById('password');   // 11.84: /validacao = QR Code de identidade (Stefany escaneia)
+    const hzBate = () => { try { GM_setValue('happy_portal_vivo', { t: Date.now(), logado: hzLogado(), ocupado: !!window.__hzOcup }); } catch (e) {} };
+    hzBate(); setInterval(hzBate, 5000);
+    // 11.77 (Stefany 24/11 21:36 "não aparece ficha no site da Happy"): painel no portal — situação do robô + ficha (Carregar ficha do Multicorban ou colar) e "Liberar digitação" à mão
+    let hzP = null; const hzLog = (m, t) => { try { log(m, t); } catch (e) {} };
+    const hzPainel = () => { try { if (hzP && document.body.contains(hzP)) return; hzP = painel('Happy — liberar digitação');
+      hzP.querySelector('#dins-corpo').innerHTML = '<div id="hz-st" style="font-size:12px;margin-bottom:6px;color:#93c5fd">…</div>' + botao('Carregar ficha', '#2563eb') +
+        '<textarea id="hz-ficha" style="width:100%;height:90px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px" placeholder="cpf: …\ntelefone: …\nbeneficio: …"></textarea>' + botao('Liberar digitação', '#16a34a');
+      hzP.addEventListener('click', async ev => { const a = ev.target && ev.target.dataset && ev.target.dataset.a; if (!a) return; const ta = hzP.querySelector('#hz-ficha');
+        if (a === 'Carregar ficha') { const f = GM_getValue('ficha_atual', null); if (!f) return hzLog('Nenhuma ficha salva no Multicorban.', 'erro'); ta.value = 'nome: ' + (f.nome || '') + '\ncpf: ' + (f.cpf || '') + '\ntelefone: ' + (f.telefone || '') + '\nbeneficio: ' + (f.beneficio || ''); hzLog('Ficha carregada: ' + (f.nome || f.cpf), 'ok'); }
+        if (a === 'Liberar digitação') { if (window.__hzOcup) return hzLog('Robô ocupado com outro cliente — espere.', 'erro'); const g = k => ((ta.value.match(new RegExp('^\\s*' + k + '\\s*:\\s*(.+)$', 'im')) || [])[1] || '').trim();
+          const q = { id: 'manual_' + Date.now().toString(36), cpf: g('cpf').replace(/\D/g, '').padStart(11, '0'), tel: g('telefone').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''), ben: g('beneficio').replace(/\D/g, '') };
+          if (q.cpf.length !== 11 || q.tel.length < 10) return hzLog('Ficha precisa de cpf e telefone (com DDD).', 'erro');
+          window.__hzOcup = 1; ev.target.disabled = true; hzLog('Liberando digitação de ' + (g('nome') || q.cpf.slice(-4)) + '…');
+          try { const r = await hzFazer(q); hzLog(r.msg || 'ok', 'ok'); } catch (e) { hzLog(String(e.message || e), 'erro'); } finally { window.__hzOcup = 0; ev.target.disabled = false; } } });
+    } catch (e) {} };
+    setInterval(() => { try { hzPainel(); const st = hzP && hzP.querySelector('#hz-st'); if (st) st.textContent = (hzLogado() ? '🟢 logado' : /validacao/i.test(location.pathname) ? '🔴 VALIDAÇÃO por QR Code — Stefany escaneia e clica Atualizar' : '🔴 DESLOGADO — clique em Continuar no login') + ' · ' + (window.__hzOcup ? '⏳ trabalhando…' : 'aguardando pedido do New Corban'); } catch (e) {} }, 2000);
+    let hzTentLogin = 0;
+    setInterval(() => { try { if (hzLogado() || Date.now() - hzTentLogin < 20 * 60000) return; const pw = document.getElementById('password'); let auto = false; try { auto = pw && pw.matches(':-webkit-autofill'); } catch (e) {} if (!pw || !(auto || pw.value)) return;
+      const bt = [...document.querySelectorAll('button')].find(b => /^\s*Continuar\s*$/i.test(b.textContent || '')); if (bt) { hzTentLogin = Date.now(); bt.click(); console.log('[Dinseguro] 11.76: portal Happy no login com dados do Chrome → cliquei Continuar'); } } catch (e) {} }, 15000);
+    const hzResp = (id, r) => { try { GM_setValue('happy_portal_res', Object.assign({ id, t: Date.now() }, r)); } catch (e) {} };
+    async function hzFazer(q) {
+      // 1. tela inicial do Multiproduto
+      const xm = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (xm && xm.offsetParent) { xm.click(); await hzS(500); }
+      if (!/\/inss\/multiproduto/.test(location.pathname) || !document.getElementById('customer_nu_cpf')) {
+        if (!/\/servicos/.test(location.pathname)) { const ls = [...document.querySelectorAll('a,span,li')].find(e => e.offsetParent && /^\s*Servi[çc]os\s*$/.test(e.textContent || '')); if (ls) { ls.click(); await hzS(1500); } }
+        if (!/\/servicos/.test(location.pathname)) { history.pushState({}, '', '/servicos'); window.dispatchEvent(new PopStateEvent('popstate')); await hzS(2000); }
+        const x2 = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (x2 && x2.offsetParent) { x2.click(); await hzS(500); }
+        const ini = await hzW(() => hzB(/Iniciar digita/), 10000); if (!ini) throw new Error('não achei "Iniciar digitação" no portal');
+        ini.click();
+      }
+      let hzDesc = 0; const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d && hzDesc < 3) { hzDesc++; d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 30000);   // 11.82: clica Descartar no máximo 3x (a janela some com animação)
+      if (!pronto) throw new Error('a tela de Identificação do portal não abriu');
+      await hzS(1500); { const d2 = hzB(/N[ãa]o\s*-\s*Descartar/); if (d2) { d2.click(); await hzS(1200); } }   // 11.78: o 'Retomar digitação' aparece depois do formulário
+      // 2. CPF, celular e escolaridade
+      hzSet(document.getElementById('customer_nu_cpf'), q.cpf); await hzS(300);
+      hzSet(document.getElementById('customer_telefone_celular'), q.tel); await hzS(300);
+      const esc = document.getElementById('customer_escolaridade'); const sel = esc && esc.closest('.ant-select') && esc.closest('.ant-select').querySelector('.ant-select-selector');
+      if (sel) { sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); const op = await hzW(() => [...document.querySelectorAll('.ant-select-item-option')].find(o => /Fundamental/i.test(o.innerText || '')), 5000); if (op) op.click(); await hzS(800); }
+      const bc = await hzW(() => hzB(/Benef[íi]cios do consultor|Consultar benef[íi]cios|Buscar benef[íi]cios|^Consultar$/i), 8000); if (!bc) throw new Error('botão "Consultar benefícios" não habilitou (CPF/celular/escolaridade)');   // 11.78: o portal trocou o nome do botão (24/11 21:38)
+      bc.click();
+      // 3. benefício → IN100
+      const ben = String(q.ben || '').replace(/\D/g, '').replace(/^0+/, '');
+      const card = await hzW(() => { if (/n[ãa]o (possui|h[áa]|foram encontrad)|nenhum benef/i.test(document.body.innerText) && !/Bene(f[íi]cio)?\s*:/i.test(document.body.innerText)) return 'nenhum';
+        return [...document.querySelectorAll('div,section,article,li')].filter(e => e.offsetParent && /Bene(f[íi]cio)?\s*:/i.test(e.innerText || '') && /Esp[ée]cie/.test(e.innerText || '') && (!ben || (e.innerText || '').replace(/\D/g, ' ').split(/\s+/).some(n => n.replace(/^0+/, '') === ben))).sort((a, b) => a.innerText.length - b.innerText.length)[0]; }, 30000);
+      if (!card) throw new Error('o benefício ' + ben + ' não apareceu no portal');
+      if (card === 'nenhum') throw new Error('portal: cliente sem benefício disponível');
+      card.click(); await hzS(800);
+      const in1 = await hzW(() => hzB(/Autoriza[çc][ãa]o IN100/) || (hzB(/^Continuar/) && /AUTORIZADO/.test(document.body.innerText) ? 'ja' : null), 10000);
+      if (!in1) throw new Error('botão "Autorização IN100" não apareceu');
+      if (in1 !== 'ja') in1.click();
+      const r1 = await hzW(() => /AUTORIZADO/.test(document.body.innerText) ? 'ok' : /Autoriza[çc][ãa]o consulta|Link para solicita[çc][ãa]o da IN100/i.test(document.body.innerText) ? 'cliente' : ((document.querySelector('.ant-message-notice, .ant-notification-notice') || {}).innerText || null), 45000);
+      if (r1 === 'cliente') return { ok: 1, msg: 'portal chegou na tela "Autorização consulta" — isso já libera a digitação no New Corban (Stefany 24/11 21:48: não mandar link ao cliente)' };   // 11.81
+      if (r1 !== 'ok') throw new Error('IN100 no portal: ' + String(r1 || 'sem resposta em 45 s').replace(/\s+/g, ' ').slice(0, 140));
+      const marg = ((document.body.innerText.match(/Margem dispon[íi]vel\s*\n?\s*R\$\s*([\d.,]+)/i) || [])[1]) || '';
+      // 4. Continuar → simulação (é o que libera a digitação no New Corban)
+      const ct = await hzW(() => hzB(/^Continuar/), 10000); if (!ct) throw new Error('botão Continuar não apareceu depois da IN100');
+      ct.click();
+      const st = await hzW(() => /Analisando o perfil|Montando ofertas|Ofertas dispon|Simula[çc][ãa]o/i.test(document.body.innerText) && !document.getElementById('customer_nu_cpf') ? 1 : null, 30000);
+      if (!st) throw new Error('a simulação do portal não abriu');
+      await hzS(4000);
+      return { ok: 1, msg: 'IN100 autorizada e simulação aberta no portal' + (marg ? ' (margem R$ ' + marg + ')' : '') };
+    }
+    let hzHumano = 0; ['mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted && !(e.target && e.target.closest && e.target.closest('#dins-painel'))) hzHumano = Date.now(); }, true));   // 11.93 (Stefany 24/11 22:34: 'o sistema da Happy reinicia toda hora'): gente usando o portal → o robô espera
+    setInterval(async () => { if (window.__hzOcup) return; let q = null; try { q = GM_getValue('happy_portal_req', null); } catch (e) {} if (!q || !q.id || Date.now() - (+q.t || 0) > 5 * 60000) return;
+      if (Date.now() - hzHumano < 90000) return;   // 11.93: alguém mexeu no portal há menos de 1,5 min — não navega por cima
+      const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
+      if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: /validacao/i.test(location.pathname) ? 'portal Happy pede validação por QR Code — Stefany escaneia' : 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
+      window.__hzOcup = 1; hzBate();
+      hzLog('Pedido do New Corban: CPF …' + String(q.cpf).slice(-4));
+      try { const r = await hzFazer(q); hzResp(q.id, r); try { const OKH = GM_getValue('happy_ok', {}) || {}; OKH[q.cpf] = Date.now(); GM_setValue('happy_ok', OKH); } catch (e) {} hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
+      catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); hzLog(String(e.message || e), 'erro'); console.warn('[Dinseguro] 11.76 portal Happy', e); }
+      finally { window.__hzOcup = 0; hzBate(); } }, 3000);
+      return;   // 11.94 (Stefany 24/11 22:36: 'o portal da Happy cai toda hora'): no portal da Happy roda SÓ este bloco — nada do resto do robô (Botmaker, varredura, ronda, API) encosta na página
   }
 
   // ================================================================== MANTER SESSÃO ATIVA
@@ -6897,92 +6985,6 @@
     setInterval(() => { if (faz('atendimento')) vigiar(); }, 30000);
     setTimeout(() => { if (faz('atendimento')) vigiar(); }, 4000);
     return;
-  }
-
-  // ============================================== 11.76 HAPPY CONSIG — PORTAL (portal.happyconsig.com.br)
-  // Stefany 24/11 21:18 ("um robozinho no site deles só para essa primeira parte, para liberar para digitação"): sem a simulação no portal
-  // o Gravar do New Corban (?p=happyconsig) volta "(2) Criar Contrato - Erro na criação da proposta" (Devanyr 24/11 21:20).
-  // A aba do New Corban pede (GM 'happy_portal_req'); esta aba faz: Iniciar digitação → (Retomar? → Não - Descartar) → CPF + celular +
-  // escolaridade → Benefícios do consultor → benefício → Autorização IN100 → AUTORIZADO → Continuar (simulação) e responde em GM 'happy_portal_res'.
-  // Batida em GM 'happy_portal_vivo' {t, logado}. Nunca recarrega (perde o login). Login: só CLICA em Continuar com usuário e senha JÁ preenchidos pelo Chrome (igual 8.83 do Daycoval).
-  if (location.host === 'portal.happyconsig.com.br' && window.top === window) {
-    const hzS = ms => new Promise(r => setTimeout(r, ms));
-    const hzB = re => [...document.querySelectorAll('button')].find(b => b.offsetParent && !b.disabled && re.test((b.innerText || '').trim()));
-    const hzW = async (fn, ms) => { for (let t = 0; t < ms; t += 400) { let r = null; try { r = fn(); } catch (e) {} if (r) return r; await hzS(400); } return null; };
-    const hzSet = (e, v) => { const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; e.focus(); d.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); };
-    const hzLogado = () => !/\/(login|validacao)/i.test(location.pathname) && !document.getElementById('password');   // 11.84: /validacao = QR Code de identidade (Stefany escaneia)
-    const hzBate = () => { try { GM_setValue('happy_portal_vivo', { t: Date.now(), logado: hzLogado(), ocupado: !!window.__hzOcup }); } catch (e) {} };
-    hzBate(); setInterval(hzBate, 5000);
-    // 11.77 (Stefany 24/11 21:36 "não aparece ficha no site da Happy"): painel no portal — situação do robô + ficha (Carregar ficha do Multicorban ou colar) e "Liberar digitação" à mão
-    let hzP = null; const hzLog = (m, t) => { try { log(m, t); } catch (e) {} };
-    const hzPainel = () => { try { if (hzP && document.body.contains(hzP)) return; hzP = painel('Happy — liberar digitação');
-      hzP.querySelector('#dins-corpo').innerHTML = '<div id="hz-st" style="font-size:12px;margin-bottom:6px;color:#93c5fd">…</div>' + botao('Carregar ficha', '#2563eb') +
-        '<textarea id="hz-ficha" style="width:100%;height:90px;margin-top:6px;font:12px monospace;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px" placeholder="cpf: …\ntelefone: …\nbeneficio: …"></textarea>' + botao('Liberar digitação', '#16a34a');
-      hzP.addEventListener('click', async ev => { const a = ev.target && ev.target.dataset && ev.target.dataset.a; if (!a) return; const ta = hzP.querySelector('#hz-ficha');
-        if (a === 'Carregar ficha') { const f = GM_getValue('ficha_atual', null); if (!f) return hzLog('Nenhuma ficha salva no Multicorban.', 'erro'); ta.value = 'nome: ' + (f.nome || '') + '\ncpf: ' + (f.cpf || '') + '\ntelefone: ' + (f.telefone || '') + '\nbeneficio: ' + (f.beneficio || ''); hzLog('Ficha carregada: ' + (f.nome || f.cpf), 'ok'); }
-        if (a === 'Liberar digitação') { if (window.__hzOcup) return hzLog('Robô ocupado com outro cliente — espere.', 'erro'); const g = k => ((ta.value.match(new RegExp('^\\s*' + k + '\\s*:\\s*(.+)$', 'im')) || [])[1] || '').trim();
-          const q = { id: 'manual_' + Date.now().toString(36), cpf: g('cpf').replace(/\D/g, '').padStart(11, '0'), tel: g('telefone').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''), ben: g('beneficio').replace(/\D/g, '') };
-          if (q.cpf.length !== 11 || q.tel.length < 10) return hzLog('Ficha precisa de cpf e telefone (com DDD).', 'erro');
-          window.__hzOcup = 1; ev.target.disabled = true; hzLog('Liberando digitação de ' + (g('nome') || q.cpf.slice(-4)) + '…');
-          try { const r = await hzFazer(q); hzLog(r.msg || 'ok', 'ok'); } catch (e) { hzLog(String(e.message || e), 'erro'); } finally { window.__hzOcup = 0; ev.target.disabled = false; } } });
-    } catch (e) {} };
-    setInterval(() => { try { hzPainel(); const st = hzP && hzP.querySelector('#hz-st'); if (st) st.textContent = (hzLogado() ? '🟢 logado' : /validacao/i.test(location.pathname) ? '🔴 VALIDAÇÃO por QR Code — Stefany escaneia e clica Atualizar' : '🔴 DESLOGADO — clique em Continuar no login') + ' · ' + (window.__hzOcup ? '⏳ trabalhando…' : 'aguardando pedido do New Corban'); } catch (e) {} }, 2000);
-    let hzTentLogin = 0;
-    setInterval(() => { try { if (hzLogado() || Date.now() - hzTentLogin < 20 * 60000) return; const pw = document.getElementById('password'); let auto = false; try { auto = pw && pw.matches(':-webkit-autofill'); } catch (e) {} if (!pw || !(auto || pw.value)) return;
-      const bt = [...document.querySelectorAll('button')].find(b => /^\s*Continuar\s*$/i.test(b.textContent || '')); if (bt) { hzTentLogin = Date.now(); bt.click(); console.log('[Dinseguro] 11.76: portal Happy no login com dados do Chrome → cliquei Continuar'); } } catch (e) {} }, 15000);
-    const hzResp = (id, r) => { try { GM_setValue('happy_portal_res', Object.assign({ id, t: Date.now() }, r)); } catch (e) {} };
-    async function hzFazer(q) {
-      // 1. tela inicial do Multiproduto
-      const xm = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (xm && xm.offsetParent) { xm.click(); await hzS(500); }
-      if (!/\/inss\/multiproduto/.test(location.pathname) || !document.getElementById('customer_nu_cpf')) {
-        if (!/\/servicos/.test(location.pathname)) { const ls = [...document.querySelectorAll('a,span,li')].find(e => e.offsetParent && /^\s*Servi[çc]os\s*$/.test(e.textContent || '')); if (ls) { ls.click(); await hzS(1500); } }
-        if (!/\/servicos/.test(location.pathname)) { history.pushState({}, '', '/servicos'); window.dispatchEvent(new PopStateEvent('popstate')); await hzS(2000); }
-        const x2 = document.querySelector('.ant-modal-wrap:not([style*="none"]) .ant-modal-close'); if (x2 && x2.offsetParent) { x2.click(); await hzS(500); }
-        const ini = await hzW(() => hzB(/Iniciar digita/), 10000); if (!ini) throw new Error('não achei "Iniciar digitação" no portal');
-        ini.click();
-      }
-      let hzDesc = 0; const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d && hzDesc < 3) { hzDesc++; d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 30000);   // 11.82: clica Descartar no máximo 3x (a janela some com animação)
-      if (!pronto) throw new Error('a tela de Identificação do portal não abriu');
-      await hzS(1500); { const d2 = hzB(/N[ãa]o\s*-\s*Descartar/); if (d2) { d2.click(); await hzS(1200); } }   // 11.78: o 'Retomar digitação' aparece depois do formulário
-      // 2. CPF, celular e escolaridade
-      hzSet(document.getElementById('customer_nu_cpf'), q.cpf); await hzS(300);
-      hzSet(document.getElementById('customer_telefone_celular'), q.tel); await hzS(300);
-      const esc = document.getElementById('customer_escolaridade'); const sel = esc && esc.closest('.ant-select') && esc.closest('.ant-select').querySelector('.ant-select-selector');
-      if (sel) { sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); const op = await hzW(() => [...document.querySelectorAll('.ant-select-item-option')].find(o => /Fundamental/i.test(o.innerText || '')), 5000); if (op) op.click(); await hzS(800); }
-      const bc = await hzW(() => hzB(/Benef[íi]cios do consultor|Consultar benef[íi]cios|Buscar benef[íi]cios|^Consultar$/i), 8000); if (!bc) throw new Error('botão "Consultar benefícios" não habilitou (CPF/celular/escolaridade)');   // 11.78: o portal trocou o nome do botão (24/11 21:38)
-      bc.click();
-      // 3. benefício → IN100
-      const ben = String(q.ben || '').replace(/\D/g, '').replace(/^0+/, '');
-      const card = await hzW(() => { if (/n[ãa]o (possui|h[áa]|foram encontrad)|nenhum benef/i.test(document.body.innerText) && !/Bene(f[íi]cio)?\s*:/i.test(document.body.innerText)) return 'nenhum';
-        return [...document.querySelectorAll('div,section,article,li')].filter(e => e.offsetParent && /Bene(f[íi]cio)?\s*:/i.test(e.innerText || '') && /Esp[ée]cie/.test(e.innerText || '') && (!ben || (e.innerText || '').replace(/\D/g, ' ').split(/\s+/).some(n => n.replace(/^0+/, '') === ben))).sort((a, b) => a.innerText.length - b.innerText.length)[0]; }, 30000);
-      if (!card) throw new Error('o benefício ' + ben + ' não apareceu no portal');
-      if (card === 'nenhum') throw new Error('portal: cliente sem benefício disponível');
-      card.click(); await hzS(800);
-      const in1 = await hzW(() => hzB(/Autoriza[çc][ãa]o IN100/) || (hzB(/^Continuar/) && /AUTORIZADO/.test(document.body.innerText) ? 'ja' : null), 10000);
-      if (!in1) throw new Error('botão "Autorização IN100" não apareceu');
-      if (in1 !== 'ja') in1.click();
-      const r1 = await hzW(() => /AUTORIZADO/.test(document.body.innerText) ? 'ok' : /Autoriza[çc][ãa]o consulta|Link para solicita[çc][ãa]o da IN100/i.test(document.body.innerText) ? 'cliente' : ((document.querySelector('.ant-message-notice, .ant-notification-notice') || {}).innerText || null), 45000);
-      if (r1 === 'cliente') return { ok: 1, msg: 'portal chegou na tela "Autorização consulta" — isso já libera a digitação no New Corban (Stefany 24/11 21:48: não mandar link ao cliente)' };   // 11.81
-      if (r1 !== 'ok') throw new Error('IN100 no portal: ' + String(r1 || 'sem resposta em 45 s').replace(/\s+/g, ' ').slice(0, 140));
-      const marg = ((document.body.innerText.match(/Margem dispon[íi]vel\s*\n?\s*R\$\s*([\d.,]+)/i) || [])[1]) || '';
-      // 4. Continuar → simulação (é o que libera a digitação no New Corban)
-      const ct = await hzW(() => hzB(/^Continuar/), 10000); if (!ct) throw new Error('botão Continuar não apareceu depois da IN100');
-      ct.click();
-      const st = await hzW(() => /Analisando o perfil|Montando ofertas|Ofertas dispon|Simula[çc][ãa]o/i.test(document.body.innerText) && !document.getElementById('customer_nu_cpf') ? 1 : null, 30000);
-      if (!st) throw new Error('a simulação do portal não abriu');
-      await hzS(4000);
-      return { ok: 1, msg: 'IN100 autorizada e simulação aberta no portal' + (marg ? ' (margem R$ ' + marg + ')' : '') };
-    }
-    let hzHumano = 0; ['mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted && !(e.target && e.target.closest && e.target.closest('#dins-painel'))) hzHumano = Date.now(); }, true));   // 11.93 (Stefany 24/11 22:34: 'o sistema da Happy reinicia toda hora'): gente usando o portal → o robô espera
-    setInterval(async () => { if (window.__hzOcup) return; let q = null; try { q = GM_getValue('happy_portal_req', null); } catch (e) {} if (!q || !q.id || Date.now() - (+q.t || 0) > 5 * 60000) return;
-      if (Date.now() - hzHumano < 90000) return;   // 11.93: alguém mexeu no portal há menos de 1,5 min — não navega por cima
-      const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
-      if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: /validacao/i.test(location.pathname) ? 'portal Happy pede validação por QR Code — Stefany escaneia' : 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
-      window.__hzOcup = 1; hzBate();
-      hzLog('Pedido do New Corban: CPF …' + String(q.cpf).slice(-4));
-      try { const r = await hzFazer(q); hzResp(q.id, r); try { const OKH = GM_getValue('happy_ok', {}) || {}; OKH[q.cpf] = Date.now(); GM_setValue('happy_ok', OKH); } catch (e) {} hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
-      catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); hzLog(String(e.message || e), 'erro'); console.warn('[Dinseguro] 11.76 portal Happy', e); }
-      finally { window.__hzOcup = 0; hzBate(); } }, 3000);
   }
 
   // ============================================== DAYCOVAL e QUERO MAIS (Portal do Correspondente)
