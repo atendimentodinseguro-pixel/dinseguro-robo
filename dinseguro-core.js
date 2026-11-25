@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.02';
+  const VERSAO = '12.03';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1644,11 +1644,12 @@
       const txt1077 = k => String((k && k.content && (k.content.text || k.content.selectedButton || (k.content.media && '[mídia]') || k.content.type)) || '');
       const aud1077 = (h, nome, tipo, info) => { try { const A = GM_getValue('audit1077', []) || []; A.push({ t: Date.now(), h, nome: String(nome || '').slice(0, 30), tipo, info: String(info || '').slice(0, 160) }); while (A.length > 300) A.shift(); GM_setValue('audit1077', A); } catch (e) {} };
       const saud1077 = () => { const h = new Date().getHours(); return h < 12 ? 'bom dia! ☀️' : h < 18 ? 'boa tarde! ☀️' : 'boa noite! 🌙'; };
+      /* 12.03 (25/11 12:05: a API do Botmaker passou a devolver 5 páginas VAZIAS antes da 1ª com conversas — a ronda lia só 6 e via '0 abertas · 0 pendências'): listas de /chats seguem até 40 páginas */
       async function ronda1077(manual, seco) { const prev = [];
         const ag = Date.now(); const L = GM_getValue('r1077_lock', 0) || 0; if (!manual && ag - L < 4 * 60000) return { pulou: 'outra aba rodou há ' + Math.round((ag - L) / 60000) + ' min' }; GM_setValue('r1077_lock', ag);
         if (!window.dinsBmGet || !GM_getValue('bm_api_token', '')) return { erro: 'sem API' };
         const from = encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); let url = '/chats?from=' + from, itens = [], pg = 0;
-        while (url && pg++ < 6) { const r = await window.dinsBmGet(url); const j = (r && r.j) || {}; itens = itens.concat(j.items || []); url = j.nextPage ? String(j.nextPage).replace(/^https?:\/\/[^/]+(\/v2\.0)?/, '') : null; }
+        while (url && pg++ < 40) { const r = await window.dinsBmGet(url); const j = (r && r.j) || {}; itens = itens.concat(j.items || []); url = j.nextPage ? String(j.nextPage).replace(/^https?:\/\/[^/]+(\/v2\.0)?/, '') : null; }
         const O = GM_getValue('auto_ordens', {}) || {}; const RGx = GM_getValue('regua', {}) || {}; const AGS = GM_getValue('agenda_slots', {}) || {}; const agendados = new Set(Object.keys(AGS).filter(k => Date.parse(k.replace(' ', 'T')) > ag).map(k => AGS[k].hash));
         const FX = GM_getValue('fech1077', {}) || {}; const hh = new Date().getHours(); const horaOk = hh >= 8 && hh < 21;
         const pend = [], anom = []; let abertas = 0, enviados = 0;
@@ -3562,7 +3563,7 @@
         // que ainda não está no caderno entra, já classificada pela última mensagem: cliente → vermelho; fluxo do bot do Botmaker → 🤖; nossa → acompanhando.
         // "Não sou aposentado" (fila AUTONOMO) ou encerramento do bot ("Vamos encerrar este atendimento") → amarelo "encerrar pela regra" (07 / 01 C) até a Stefany liberar o fechamento automático.
         let novos931 = 0; try { if (!simular) { let rr = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString())); let pg = 0; const todas = [];
-            while (rr && rr.j && pg < 10) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
+            while (rr && rr.j && pg < 40) { todas.push(...(rr.j.items || [])); if (!rr.j.nextPage) break; rr = await window.dinsBmGet(String(rr.j.nextPage).replace(/^https:\/\/api\.botmaker\.com\/v2\.0/, '')); pg++; }
             const R3 = RG(); for (const c of todas) { const id = c.chat && c.chat.chatId; if (!id || (R3[id] && !FIM897.test(R3[id].estado || '')) || id === '__TESTE_LIBERADO_1022__' || protegido(id)) continue;   /* 9.97: registro antigo FECHADO não impede a volta (Em Nome De Jesus N7ZT8) — a regra 9.95 abaixo decide */ const q = String(c.queueId || ''); const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0; const tg = (c.tags || []).join('|');
               const luC995 = Date.parse(c.lastUserMessageDatetime || '') || 0; const e995 = FCH990 && FCH990[id]; const voltou995 = !!(e995 && e995.close && luC995 > e995.close + 30000);   // 9.95: escreveu depois de encerrada → entra de novo
               if (!(jf > ag) || (!voltou995 && (/^fechar_/.test(q) || (!q && !c.agentId) || (!c.agentId && /01_I_|01k_|SEM_MARGEM|Sem_margem|LoasSem|02_I|02_A|NaoIdentificado/i.test(tg))))) continue;
@@ -6080,7 +6081,7 @@
       try { const ag = Date.now(); const dono = GM_getValue('esp_api_dono', null); if (dono && dono.aba !== ABA && ag - dono.t < 9 * 60000) return; GM_setValue('esp_api_dono', { aba: ABA, t: ag });
         const get = window.dinsBmGet; if (!get) return;
         let p = '/chats?from=' + encodeURIComponent(new Date(ag - 24 * 3600000).toISOString()); const all = []; let k = 0;
-        while (p && k < 8) { const r = await get(p); if (!r || r.http !== 200) break; all.push(...((r.j && r.j.items) || [])); const np = r.j && r.j.nextPage; p = np ? String(np).replace('https://api.botmaker.com/v2.0', '') : null; k++; }
+        while (p && k < 40) { const r = await get(p); if (!r || r.http !== 200) break; all.push(...((r.j && r.j.items) || [])); const np = r.j && r.j.nextPage; p = np ? String(np).replace('https://api.botmaker.com/v2.0', '') : null; k++; }
         const VI = GM_getValue('esp_api_vistos3', {}) || {}; for (const id in VI) if (ag - (+VI[id].t || 0) > 30 * 3600000) delete VI[id];
         // 8.19 (Stefany 18/11 11:28: "tá lendo conversas que a janela de 24 h já fechou… isso é serviço do varredor"): só conversa com a janela do WhatsApp ABERTA
         const janAberta = c => { const w = Date.parse(c.whatsAppWindowCloseDatetime || 0); return w ? w > ag + 10 * 60000 : Date.parse(c.lastUserMessageDatetime || 0) > ag - 23 * 3600000; };
