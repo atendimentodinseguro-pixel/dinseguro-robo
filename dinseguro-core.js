@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.84';
+  const VERSAO = '11.85';
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
@@ -6974,7 +6974,7 @@
       if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: /validacao/i.test(location.pathname) ? 'portal Happy pede validação por QR Code — Stefany escaneia' : 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
       window.__hzOcup = 1; hzBate();
       hzLog('Pedido do New Corban: CPF …' + String(q.cpf).slice(-4));
-      try { const r = await hzFazer(q); hzResp(q.id, r); hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
+      try { const r = await hzFazer(q); hzResp(q.id, r); try { const OKH = GM_getValue('happy_ok', {}) || {}; OKH[q.cpf] = Date.now(); GM_setValue('happy_ok', OKH); } catch (e) {} hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
       catch (e) { hzResp(q.id, { ok: 0, erro: String(e.message || e) }); hzLog(String(e.message || e), 'erro'); console.warn('[Dinseguro] 11.76 portal Happy', e); }
       finally { window.__hzOcup = 0; hzBate(); } }, 3000);
   }
@@ -8187,6 +8187,8 @@
 
   // ---- 11.76 HAPPY: CPF pela lupa → matrícula/espécie → portal Happy (IN100 + simulação, libera a digitação) → Emitir In100 no New Corban
   async function portalHappy(f) {
+    { const OKH = GM_getValue('happy_ok', {}) || {}; const t0 = +OKH[so(f.cpf).padStart(11, '0')] || 0;
+      if (/^(1|sim)$/i.test(String(f.portal_ok || '')) || Date.now() - t0 < 3 * 3600000) { log('Portal Happy: este CPF já foi liberado no portal' + (t0 ? ' às ' + new Date(t0).toTimeString().slice(0, 5) : ' (portal_ok)') + ' — sigo no New Corban.', 'ok'); return; } }   // 11.85 (Stefany 24/11 21:58: 'no site Happy está ok, falta no New')
     const v0 = GM_getValue('happy_portal_vivo', {}) || {};
     if (Date.now() - (+v0.t || 0) > 60000) throw new Error('Portal Happy FECHADO: abrir portal.happyconsig.com.br (logado) numa aba do Chrome do atendimento — sem a simulação no portal o banco recusa ("Erro na criação da proposta").');
     if (!v0.logado) throw new Error('Portal Happy DESLOGADO: vigia clica em Continuar no login (o Chrome já preenche) e manda ficha_ok de novo.');
