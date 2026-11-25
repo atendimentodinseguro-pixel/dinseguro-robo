@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.81';
+  const VERSAO = '11.82';
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
   const VERSAO_11_79_NOTA = '';   // 11.79: portal Happy — card agora diz 'N° Benefício:' (antes 'N° Bene:').
@@ -6936,7 +6936,7 @@
         const ini = await hzW(() => hzB(/Iniciar digita/), 10000); if (!ini) throw new Error('não achei "Iniciar digitação" no portal');
         ini.click();
       }
-      const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d) { d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 20000);
+      let hzDesc = 0; const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d && hzDesc < 3) { hzDesc++; d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 30000);   // 11.82: clica Descartar no máximo 3x (a janela some com animação)
       if (!pronto) throw new Error('a tela de Identificação do portal não abriu');
       await hzS(1500); { const d2 = hzB(/N[ãa]o\s*-\s*Descartar/); if (d2) { d2.click(); await hzS(1200); } }   // 11.78: o 'Retomar digitação' aparece depois do formulário
       // 2. CPF, celular e escolaridade
