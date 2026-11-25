@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.86';
+  const VERSAO = '11.87';
+  const VERSAO_11_87_NOTA = '';   // 11.87 (Stefany 24/11 22:04): Happy NÃO faz invalidez — o robô recusa antes de começar.
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
@@ -8202,6 +8203,7 @@
     log('Portal Happy: ' + (r.msg || 'ok'), 'ok');
   }
   async function autoCompleteHappy(f) {
+    if (INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'))) throw new Error('⛔ Happy não faz benefício de INVALIDEZ (espécie ' + f.especie + ') — Stefany 24/11 22:04. Outro banco pelo roteiro.');   // 11.87
     const nascBR = d => { const s0 = String(d || '').trim(); let m = s0.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[3] + '/' + m[2] + '/' + m[1]; m = s0.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? s0 : ''; };
     setv('cpf_cliente', so(f.cpf).padStart(11, '0'));
     await sleep(400);
