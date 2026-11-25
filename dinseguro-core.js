@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.83';
+  const VERSAO = '11.84';
   const VERSAO_11_83_NOTA = '';   // 11.83: Happy no New Corban — DDD/telefone antes da IN100; 'Solicitar IN100' e depois 'Emitir In100' (2 cliques).
   const VERSAO_11_81_NOTA = '';   // 11.81 (Stefany 24/11 21:48): a tela 'Autorização consulta' do portal Happy JÁ libera a digitação — segue no New Corban; nunca mandar o link da IN100 ao cliente.
   const VERSAO_11_80_NOTA = '';   // 11.80: portal Happy — quando a IN100 pede autorização do CLIENTE (tela 'Autorização consulta' com link/SMS), o robô para e avisa (regra 11.03).
@@ -6906,7 +6906,7 @@
     const hzB = re => [...document.querySelectorAll('button')].find(b => b.offsetParent && !b.disabled && re.test((b.innerText || '').trim()));
     const hzW = async (fn, ms) => { for (let t = 0; t < ms; t += 400) { let r = null; try { r = fn(); } catch (e) {} if (r) return r; await hzS(400); } return null; };
     const hzSet = (e, v) => { const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; e.focus(); d.call(e, v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); };
-    const hzLogado = () => !/\/login/i.test(location.pathname) && !document.getElementById('password');
+    const hzLogado = () => !/\/(login|validacao)/i.test(location.pathname) && !document.getElementById('password');   // 11.84: /validacao = QR Code de identidade (Stefany escaneia)
     const hzBate = () => { try { GM_setValue('happy_portal_vivo', { t: Date.now(), logado: hzLogado(), ocupado: !!window.__hzOcup }); } catch (e) {} };
     hzBate(); setInterval(hzBate, 5000);
     // 11.77 (Stefany 24/11 21:36 "não aparece ficha no site da Happy"): painel no portal — situação do robô + ficha (Carregar ficha do Multicorban ou colar) e "Liberar digitação" à mão
@@ -6922,7 +6922,7 @@
           window.__hzOcup = 1; ev.target.disabled = true; hzLog('Liberando digitação de ' + (g('nome') || q.cpf.slice(-4)) + '…');
           try { const r = await hzFazer(q); hzLog(r.msg || 'ok', 'ok'); } catch (e) { hzLog(String(e.message || e), 'erro'); } finally { window.__hzOcup = 0; ev.target.disabled = false; } } });
     } catch (e) {} };
-    setInterval(() => { try { hzPainel(); const st = hzP && hzP.querySelector('#hz-st'); if (st) st.textContent = (hzLogado() ? '🟢 logado' : '🔴 DESLOGADO — clique em Continuar no login') + ' · ' + (window.__hzOcup ? '⏳ trabalhando…' : 'aguardando pedido do New Corban'); } catch (e) {} }, 2000);
+    setInterval(() => { try { hzPainel(); const st = hzP && hzP.querySelector('#hz-st'); if (st) st.textContent = (hzLogado() ? '🟢 logado' : /validacao/i.test(location.pathname) ? '🔴 VALIDAÇÃO por QR Code — Stefany escaneia e clica Atualizar' : '🔴 DESLOGADO — clique em Continuar no login') + ' · ' + (window.__hzOcup ? '⏳ trabalhando…' : 'aguardando pedido do New Corban'); } catch (e) {} }, 2000);
     let hzTentLogin = 0;
     setInterval(() => { try { if (hzLogado() || Date.now() - hzTentLogin < 20 * 60000) return; const pw = document.getElementById('password'); let auto = false; try { auto = pw && pw.matches(':-webkit-autofill'); } catch (e) {} if (!pw || !(auto || pw.value)) return;
       const bt = [...document.querySelectorAll('button')].find(b => /^\s*Continuar\s*$/i.test(b.textContent || '')); if (bt) { hzTentLogin = Date.now(); bt.click(); console.log('[Dinseguro] 11.76: portal Happy no login com dados do Chrome → cliquei Continuar'); } } catch (e) {} }, 15000);
@@ -6971,7 +6971,7 @@
     }
     setInterval(async () => { if (window.__hzOcup) return; let q = null; try { q = GM_getValue('happy_portal_req', null); } catch (e) {} if (!q || !q.id || Date.now() - (+q.t || 0) > 5 * 60000) return;
       const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
-      if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
+      if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: /validacao/i.test(location.pathname) ? 'portal Happy pede validação por QR Code — Stefany escaneia' : 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
       window.__hzOcup = 1; hzBate();
       hzLog('Pedido do New Corban: CPF …' + String(q.cpf).slice(-4));
       try { const r = await hzFazer(q); hzResp(q.id, r); hzLog(r.msg || 'ok', 'ok'); console.log('[Dinseguro] 11.76 portal Happy OK', q.id); }
