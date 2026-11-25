@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.77';
+  const VERSAO = '11.78';
+  const VERSAO_11_78_NOTA = '';   // 11.78: portal Happy — botão agora se chama 'Consultar benefícios'; 'Retomar digitação' tratado depois do formulário.
   const VERSAO_11_77_NOTA = '';   // 11.77 (Stefany 24/11 21:36): painel 'Happy — liberar digitação' no portal (situação, Carregar ficha, Liberar digitação à mão).
   const VERSAO_11_76_NOTA = '';   // 11.76 (Stefany 24/11 21:18): robô da HAPPY — portal.happyconsig.com.br faz CPF/celular/escolaridade → benefício → Autorização IN100 → Continuar (simulação, libera a digitação); a tela ?p=happyconsig do New Corban digita (lupa, matrícula, espécie, In100, parcela 108x, CEP da capital, UF/DDB, Histórico Auto-Complete, extrato = liberação, Gravar, Gerar Links). Ordem com banco HAPPY (bancoStefany 'HAPPY').
   const VERSAO_11_75_NOTA = '';   // 11.75 (Stefany 24/11 20:19): pediu menos que o máximo → simulação do MÁXIMO; sem resposta em 30 min → link do máximo (10.64). Sem negociação pelo vigia
@@ -6934,13 +6935,13 @@
       }
       const pronto = await hzW(() => { const d = hzB(/N[ãa]o\s*-\s*Descartar/); if (d) { d.click(); return null; } return document.getElementById('customer_nu_cpf'); }, 20000);
       if (!pronto) throw new Error('a tela de Identificação do portal não abriu');
-      await hzS(600);
+      await hzS(1500); { const d2 = hzB(/N[ãa]o\s*-\s*Descartar/); if (d2) { d2.click(); await hzS(1200); } }   // 11.78: o 'Retomar digitação' aparece depois do formulário
       // 2. CPF, celular e escolaridade
       hzSet(document.getElementById('customer_nu_cpf'), q.cpf); await hzS(300);
       hzSet(document.getElementById('customer_telefone_celular'), q.tel); await hzS(300);
       const esc = document.getElementById('customer_escolaridade'); const sel = esc && esc.closest('.ant-select') && esc.closest('.ant-select').querySelector('.ant-select-selector');
       if (sel) { sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); const op = await hzW(() => [...document.querySelectorAll('.ant-select-item-option')].find(o => /Fundamental/i.test(o.innerText || '')), 5000); if (op) op.click(); await hzS(800); }
-      const bc = await hzW(() => hzB(/Benef[íi]cios do consultor/), 8000); if (!bc) throw new Error('botão "Benefícios do consultor" não habilitou (CPF/celular/escolaridade)');
+      const bc = await hzW(() => hzB(/Benef[íi]cios do consultor|Consultar benef[íi]cios|Buscar benef[íi]cios|^Consultar$/i), 8000); if (!bc) throw new Error('botão "Consultar benefícios" não habilitou (CPF/celular/escolaridade)');   // 11.78: o portal trocou o nome do botão (24/11 21:38)
       bc.click();
       // 3. benefício → IN100
       const ben = String(q.ben || '').replace(/\D/g, '').replace(/^0+/, '');
