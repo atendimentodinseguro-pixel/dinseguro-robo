@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.78';
+  const VERSAO = '11.79';
+  const VERSAO_11_79_NOTA = '';   // 11.79: portal Happy — card agora diz 'N° Benefício:' (antes 'N° Bene:').
   const VERSAO_11_78_NOTA = '';   // 11.78: portal Happy — botão agora se chama 'Consultar benefícios'; 'Retomar digitação' tratado depois do formulário.
   const VERSAO_11_77_NOTA = '';   // 11.77 (Stefany 24/11 21:36): painel 'Happy — liberar digitação' no portal (situação, Carregar ficha, Liberar digitação à mão).
   const VERSAO_11_76_NOTA = '';   // 11.76 (Stefany 24/11 21:18): robô da HAPPY — portal.happyconsig.com.br faz CPF/celular/escolaridade → benefício → Autorização IN100 → Continuar (simulação, libera a digitação); a tela ?p=happyconsig do New Corban digita (lupa, matrícula, espécie, In100, parcela 108x, CEP da capital, UF/DDB, Histórico Auto-Complete, extrato = liberação, Gravar, Gerar Links). Ordem com banco HAPPY (bancoStefany 'HAPPY').
@@ -6945,8 +6946,8 @@
       bc.click();
       // 3. benefício → IN100
       const ben = String(q.ben || '').replace(/\D/g, '').replace(/^0+/, '');
-      const card = await hzW(() => { if (/n[ãa]o (possui|h[áa]|foram encontrad)|nenhum benef/i.test(document.body.innerText) && !/Bene:/.test(document.body.innerText)) return 'nenhum';
-        return [...document.querySelectorAll('div,section,article,li')].filter(e => e.offsetParent && /Bene:/.test(e.innerText || '') && /Esp[ée]cie/.test(e.innerText || '') && (!ben || (e.innerText || '').replace(/\D/g, ' ').split(/\s+/).some(n => n.replace(/^0+/, '') === ben))).sort((a, b) => a.innerText.length - b.innerText.length)[0]; }, 30000);
+      const card = await hzW(() => { if (/n[ãa]o (possui|h[áa]|foram encontrad)|nenhum benef/i.test(document.body.innerText) && !/Bene(f[íi]cio)?\s*:/i.test(document.body.innerText)) return 'nenhum';
+        return [...document.querySelectorAll('div,section,article,li')].filter(e => e.offsetParent && /Bene(f[íi]cio)?\s*:/i.test(e.innerText || '') && /Esp[ée]cie/.test(e.innerText || '') && (!ben || (e.innerText || '').replace(/\D/g, ' ').split(/\s+/).some(n => n.replace(/^0+/, '') === ben))).sort((a, b) => a.innerText.length - b.innerText.length)[0]; }, 30000);
       if (!card) throw new Error('o benefício ' + ben + ' não apareceu no portal');
       if (card === 'nenhum') throw new Error('portal: cliente sem benefício disponível');
       card.click(); await hzS(800);
