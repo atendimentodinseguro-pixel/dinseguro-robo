@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.00';
+  const VERSAO = '12.01';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -6151,7 +6151,7 @@
               const VM = GM_getValue('valor_msg_feito', {}) || {};
               // 8.82 (Walter 0FJCK 19/11 12:01: respondeu "1" a uma simulação mandada à mão pelo vigia e o robô não reconheceu): vale a simulação padrão que está NA CONVERSA, seja do robô ou do vigia
               const vm882 = VM[id] || (() => { const s8 = ms.slice(0, iC).filter(m => m.from !== 'user' && /simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(T(m))).pop(); return s8 ? Date.parse(s8.creationTime) || 0 : 0; })();
-              const resp8 = cU8.from === 'user' && vm882 && Date.parse(cU8.creationTime) > vm882 && !/n[ãa]o\s+desej|n[ãa]o\s+quero|n[ãa]o\s+tenho\s+interesse|encerrar/i.test(btn8 + ' ' + T(cU8));
+              const resp8 = cU8.from === 'user' && vm882 && Date.parse(cU8.creationTime) > vm882 && !/n[ãa]o\s+desej|n[ãa]o\s+quero|n[ãa]o\s+tenho\s+interesse|encerrar|^\s*n[ãa]o\W*(obrigad[oa])?\W*$|n[ãa]o,?\s+obrigad|sem\s+interesse|n[ãa]o\s+preciso/i.test(btn8 + ' ' + T(cU8));   /* 12.01 (Álcides 6FNHEK 25/11: respondeu 'Não obrigado' à simulação padrão e o robô tratou como resposta → análise reversa + pedido de CPF) */
               const RV = GM_getValue('reverso_feito', {}) || {};   // 9.57 (Stefany 20/11 10:54, "Trabalhando" TJL0G respondeu "1" e "Sim" à simulação padrão e ficou 27 min sem resposta): a análise reversa de ANTES da simulação não trava a resposta DEPOIS dela
               const valBot8 = Math.max(0, ...ms.filter(m => m.from === 'bot').map(m => { const v = (T(m).match(/R\$\s*([\d.]{5,}),\d{2}/) || [])[1]; return v ? +v.replace(/\./g, '') : 0; }));
               const aceite8 = ms.some(m => m.from === 'user' && /desejo contratar|quero contratar|sim,? quero|quero esse|aceito/i.test(String((m.content && (m.content.selectedButton || m.content.text)) || ''))) && valBot8 >= 10000;
