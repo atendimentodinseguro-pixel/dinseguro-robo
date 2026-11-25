@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.05';
+  const VERSAO = '12.06';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1109,6 +1109,20 @@
       const v = L.filter(x => (x.stage === 'paid' || ['awaiting_formalization', 'in_progress'].includes(x.stage)) && !/CANCEL|REPROV|RECUS/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 150 * 864e5);
       return { tem: v.map(x => (((x.proposal || {}).bank || {}).name || '') + ' ' + ((x.bank_reference || {}).proposal_number || '') + ' ' + (x.stage === 'paid' ? 'PAGO' : ((x.bank_reference || {}).bank_status || x.stage)) + ' de ' + String((x.dates || {}).created_at || '').slice(0, 10)).join('; ') }; } catch (e) { return { tem: '' }; } }   // 11.28
   window.dinsJaFez = jaFez1128;
+  // 12.06 (25/11 13:23, Oto RXUMH4: C6 980200487 REPROVADA 24/11 16:00 e a ordem ficou 'feito' — a régua seguiu dizendo "a sua proposta continua te esperando"
+  // e o vigia reenviou o link reprovado): ordem 'link'/'feito' com proposta → confere no New Corban a cada 10 min; banco REPROVOU/CANCELOU (sem ser cancelamento
+  // do vigia) → estado 'erro' com o motivo (o portão mostra e o vigia refaz no próximo banco) e a régua para de oferecer aquela proposta.
+  setInterval(async () => { try { if (!/botmaker/.test(location.host) || /^(atendimento)$/.test(sessionStorage.getItem('dins_papel') || '')) return; const AB6 = (sessionStorage.getItem('dins_papel') || 'tudo') + '_' + (window.__ab1206 = window.__ab1206 || Math.random().toString(36).slice(2, 7)); const L6 = GM_getValue('rep1206_dono', null); if (L6 && L6.aba !== AB6 && Date.now() - (+L6.t || 0) < 9 * 60000) return; GM_setValue('rep1206_dono', { aba: AB6, t: Date.now() });
+      const O = GM_getValue('auto_ordens', {}) || {}; const ag = Date.now(); const C = GM_getValue('rep1206_vist', {}) || {};
+      const alvo = Object.values(O).filter(x => x && /^(link|feito|link_enviado)$/.test(x.estado || '') && x.proposta && x.cpf && ag - (+x.t || 0) < 10 * 864e5 && !(ag - (+C[x.hash] || 0) < 60 * 60000)).slice(0, 6);
+      for (const x of alvo) { C[x.hash] = ag; const cN = so(x.cpf).replace(/^0+/, ''); let L = [];
+        try { const r = await ncReq('GET', '/proposals?search=' + cN + '&search_type=cpf&per_page=30'); L = ((r && r.data) || []).filter(p => String(((p || {}).bank_reference || {}).proposal_number || '') === String(x.proposta)); } catch (e) { continue; }
+        const p = L[0]; if (!p) continue; const st = String((p.bank_reference || {}).bank_status || '') + ' ' + String(p.stage || '');
+        if (/REPROV|CANCEL/i.test(st) && !(x.cancVigia || []).map(String).includes(String(x.proposta))) {
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || String(y.proposta) !== String(x.proposta)) continue;
+          y.estado = 'erro'; y.erro = '12.06: ' + (y.banco || '') + ' ' + String((p.bank_reference || {}).bank_status || p.stage) + ' a proposta ' + x.proposta + ' — NÃO reenviar esse link; refazer no próximo banco (mesmas condições e conta)'; y.linkMorto = y.link; y.link = '';
+          (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + y.erro); GM_setValue('auto_ordens', O2); try { diario(y.nomeReal || y.nome || x.hash.slice(0, 5), '⛔ ' + y.erro); } catch (e) {} } }
+      GM_setValue('rep1206_vist', C); } catch (e) {} }, 10 * 60000);
   window.dinsCanceleiVigia = (h, prop) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; const L = (O[h].cancVigia = O[h].cancVigia || []); if (!L.includes(String(prop))) L.push(String(prop)); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' 11.63: vigia cancelou a proposta ' + prop + ' (não reaproveitar o link nem tratar como reprovação)'); GM_setValue('auto_ordens', O); return L; };   // 11.63
   window.dinsJaTemProp = async cpf => { const r = await jaTemProp936({ cpf, banco: '' }); return r && (r.nada ? 'nenhuma proposta ativa' : r.adota ? 'ativa com link: Nº ' + r.adota.proposta : r.outra); };
   setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {}; const o = Object.values(O).find(x => x && x.estado === 'ficha_ok' && !x.chk936 && (x.aceite || x.simGravar || x.aceitouSim)); if (!o) return;
