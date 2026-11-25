@@ -97,7 +97,8 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.92';
+  const VERSAO = '11.93';
+  const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
   const VERSAO_11_92_NOTA = '';   // 11.92 (Stefany 24/11 22:34): Happy só digita das 6h às 22h (retorno da IN100 do INSS).
   const VERSAO_11_90_NOTA = '';   // 11.90: Happy — renda da ficha; conta inválida do Histórico não grava; aviso velho da IN100 fechado antes do Gravar; Gerar Links repete por ~5 min.
   const VERSAO_11_87_NOTA = '';   // 11.87 (Stefany 24/11 22:04): Happy NÃO faz invalidez — o robô recusa antes de começar.
@@ -589,7 +590,7 @@
     // ficha pronta 11:33 e a aba do C6 parada até 11:41 com o quadro da proposta do Luiz aberto): aba do New Corban (nunca Daycoval/Quero Mais)
     // livre → recarrega quando há ficha esperando há 3 min, ou a cada 20 min parada. Nunca com gente mexendo (5 min) nem no meio de uma ordem.
     const CARREGOU_NC = Date.now();
-    if (/newcorban/.test(location.host) && /[?&]p=(c6|facta|qualibank|presencabank|happyconsig)\b/.test(location.search)) setInterval(() => { try {
+    if (/newcorban/.test(location.host) && /[?&]p=(c6|facta|qualibank|presencabank)\b/.test(location.search)) setInterval(() => { try {
       if (ocupadoAuto || Date.now() - CARREGOU_NC < 2 * 60000) return;
       if (Date.now() - (ultDigitT || 0) < 5 * 60000) return;
       const O9 = GM_getValue('auto_ordens', {}) || {}; const vals = Object.values(O9).filter(Boolean);
@@ -6972,7 +6973,9 @@
       await hzS(4000);
       return { ok: 1, msg: 'IN100 autorizada e simulação aberta no portal' + (marg ? ' (margem R$ ' + marg + ')' : '') };
     }
+    let hzHumano = 0; ['mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted && !(e.target && e.target.closest && e.target.closest('#dins-painel'))) hzHumano = Date.now(); }, true));   // 11.93 (Stefany 24/11 22:34: 'o sistema da Happy reinicia toda hora'): gente usando o portal → o robô espera
     setInterval(async () => { if (window.__hzOcup) return; let q = null; try { q = GM_getValue('happy_portal_req', null); } catch (e) {} if (!q || !q.id || Date.now() - (+q.t || 0) > 5 * 60000) return;
+      if (Date.now() - hzHumano < 90000) return;   // 11.93: alguém mexeu no portal há menos de 1,5 min — não navega por cima
       const R = GM_getValue('happy_portal_res', {}) || {}; if (R.id === q.id) return;
       if (!hzLogado()) { hzResp(q.id, { ok: 0, erro: /validacao/i.test(location.pathname) ? 'portal Happy pede validação por QR Code — Stefany escaneia' : 'portal Happy deslogado — vigia: clicar Continuar no login (Chrome já preenche)' }); return; }
       window.__hzOcup = 1; hzBate();
