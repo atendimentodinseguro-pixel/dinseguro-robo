@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '11.96';
+  const VERSAO = '11.97';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -7736,6 +7736,7 @@
     // 7.29 (Stefany 16/11 16:24, casos José Maria, Jurandir, Marcos, Sandro, Ivan): sinal de vida do Multicorban NESTE navegador.
     // O Chrome da varredura (outro navegador, sem Multicorban) abria ordem e mandava "já estou consultando" — a ordem ficava presa lá.
     try { GM_setValue('mc_vivo', Date.now()); setInterval(() => { try { GM_setValue('mc_vivo', Date.now()); } catch (e) {} }, 20000); } catch (e) {}
+    if (/dashboard/i.test(location.pathname)) { setTimeout(() => { try { if (/dashboard/i.test(location.pathname)) location.href = '/search/form/inss'; } catch (e) {} }, 6000); return; }   /* 11.97 (25/11 09:47, 'resolva definitivo'): depois do login o Multicorban cai no painel; sem a tela de consulta o robô não consulta e as ordens ficam presas em 'nova' (Marcia, Marina, Alice, 🌹) → volta sozinho para a consulta INSS */
     if (!/\/search\//.test(location.pathname)) return;   // só na tela de consulta (não no login)
     const p = painel('Ficha do cliente');
     p.querySelector('#dins-corpo').innerHTML =
