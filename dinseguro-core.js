@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.15';
+  const VERSAO = '12.16';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1328,7 +1328,7 @@
   // 9.42 (Stefany 19/11 20:01: "toda vez que ele pegar alguém para atender, ele tem que ir lá e desligar o bot"): mandou mensagem nossa e o bot da conversa
   // continua LIGADO (API isBotMuted ≠ true) → fila 'desligar_bot942'; a aba do robô abre a conversa e clica no ⏻ (o botão do topo do chat).
   function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; const r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true || /^fechar_/.test(String(r.j.queueId || ''))) return;   /* 10.28: encerrada não desliga */
-    const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 15000); }
+    const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 4000); }
   window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
   function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -2968,6 +2968,10 @@
       try {
         if (rodando || localStorage.getItem('dins_ordem') || ((Date.now() - (+localStorage.getItem('dins_varrendo') || 0) < 2 * 60000) && !(Date.now() - (+localStorage.getItem('dins_varre_livre') || 0) < 12000) && !localStorage.getItem('dins_varre_pausa'))) return;   // 4.90: no intervalo da varredura (dins_varre_livre) as respostas do robô saem
         if (Date.now() - (+localStorage.getItem('dins_vigia_ocupado') || 0) < 2 * 60000) return;
+        // 12.16 (Stefany 25/11 21:01, caso Fátima: mandamos às 20:44 e o bot ainda mandou "Estou analisando…" às 20:53): desligar o bot vem PRIMEIRO na fila da tela
+        try { const DB = GM_getValue('desligar_bot942', {}) || {}; const NMb = GM_getValue('nao_mexer', {}) || {};
+          for (const k of Object.keys(DB)) { delete DB[k]; GM_setValue('desligar_bot942', DB); if (k === '__TESTE_LIBERADO_1022__' || NMb[k] || protegido(k)) continue;
+            localStorage.setItem('dins_ordem', JSON.stringify({ hash: k, acao: 'nada_bot', quem: 'robo', t: Date.now() })); return; } } catch (e) {}
         const O = GM_getValue('auto_ordens', {}) || {};
         const st = (() => { try { return JSON.parse(localStorage.getItem('dins_ordem_status') || 'null'); } catch (e) { return null; } })();
         let mud = false;
