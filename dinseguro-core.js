@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.42';
+  const VERSAO = '12.43';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -5900,6 +5900,8 @@
     window.dinsWaVoltar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /erro|pulado/.test(x.estado)) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; n++; } }); GM_setValue('wa_fila', f); return n; };   // 4.34
     window.dinsWaReativar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && x.estado === 'arquivado' && /tirado à mão/.test(x.motivo || '')) { x.estado = 'pendente'; x.motivoAntes = x.motivo; delete x.motivo; delete x.tentAbrir; delete x.foneAlt; n++; } }); GM_setValue('wa_fila', f); return n; };   // 7.22: desfaz o dinsWaTirar
     window.dinsWaTirar = hash => { const f = GM_getValue('wa_fila', []) || []; f.forEach(x => { if (x.hash === hash && x.estado === 'pendente') { x.estado = 'arquivado'; x.motivo = 'tirado à mão'; } }); GM_setValue('wa_fila', f); return true; };
+    window.dinsVarreAteHoje = h => { if (h === 0) { GM_setValue('varre_ate_hoje', null); return 'extensão desligada (volta a 17h)'; } if (h !== undefined) GM_setValue('varre_ate_hoje', { dia: new Date().toDateString(), h: +h }); const x = GM_getValue('varre_ate_hoje', null); return x && x.dia === new Date().toDateString() ? 'hoje a varredura vai até ' + x.h + 'h' : 'sem extensão hoje (17h)'; };   // 12.43: só com ordem da Stefany, vale só no dia
+    try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreAteHoje = window.dinsVarreAteHoje; } catch (e) {}
     window.dinsVarreContinua = on => { if (on !== undefined) GM_setValue('varre_continua', !!+on); return GM_getValue('varre_continua', false) ? 'contínua (20 em 20 min, 8h–16h)' : 'horários fixos (8/10/12/14/16h)'; };   // 7.21
     try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.dinsVarreContinua = window.dinsVarreContinua; } catch (e) {}
     window.dinsVarreLigada = on => { if (on !== undefined) GM_setValue('varredura_ligada', !!on); return GM_getValue('varredura_ligada', true); };   // 6.09: desliga a varredura neste perfil do Chrome (ela passa para o perfil 'varredura')
@@ -6827,7 +6829,8 @@
       const hora = new Date().getHours();
       // ⚠️ 3.62 (07/11 20:56) — Stefany: "Ele vai rodar, já decidi, de 2 em 2 horas, de
       // segunda-feira às 8 da manhã até às 4 da tarde." Substitui o 8h-20h da V3.
-      const foraDoHorario = hora < 8 || hora > HORA_FIM;
+      let fim1243 = HORA_FIM; try { const x = GM_getValue('varre_ate_hoje', null); if (x && x.dia === new Date().toDateString() && +x.h - 1 > fim1243 && +x.h <= 20) fim1243 = +x.h - 1; } catch (e) {}   /* 12.43 (Stefany 26/11 17:27 'hoje pode rodar até 18h'): extensão só do dia */
+      const foraDoHorario = hora < 8 || hora > fim1243;
       let excecaoHorario = false;
       if (foraDoHorario) {
         excecaoHorario = localStorage.getItem('dins_varrer_fora_do_horario') === '1';

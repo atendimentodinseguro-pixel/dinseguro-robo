@@ -1,4 +1,4 @@
-// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.9
+// Dinseguro — envio da varredura pelo WhatsApp Web (módulo baixado do GitHub pelo carregador 3.28+). Versão WA: 1.10
 // 1.0 (Stefany 16/11 12:41): "era melhor deixar o WhatsApp aberto… colocar o número naquele maisinho de nova conversa…
 //      de vez de ficar reabrindo o WhatsApp". Antes cada cliente = recarregar o WhatsApp Business (3+ min "mensagens sendo
 //      baixadas") e a marca vencia no meio → abria, fechava, abria… sem enviar.
@@ -35,7 +35,7 @@ const texto = (caso, nome) => {
 };
 const fila = () => { try { return GM_getValue('wa_fila', []) || []; } catch (e) { return []; } };
 const salva = f => { try { GM_setValue('wa_fila', f); } catch (e) {} };
-const horario = () => { const d = new Date(); return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < 17; };
+const horario = () => { const d = new Date(); let fim = 17; try { const x = GM_getValue('varre_ate_hoje', null); if (x && x.dia === d.toDateString() && +x.h > 17 && +x.h <= 20) fim = +x.h; } catch (e) {}   /* 1.10 (Stefany 26/11 17:27 'hoje pode rodar até 18h'): extensão só do dia, ligada por dinsVarreAteHoje(18) na aba [VARREDURA] */ return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < fim; };
 const marca = (it, mud) => { const f = fila(); const i = f.findIndex(x => x.hash === it.hash && x.criado === it.criado); if (i >= 0) { Object.assign(f[i], mud); salva(f); } };
 const vis = e => { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 const appPronto = () => !!document.querySelector('#pane-side, #side, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
