@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.16';
+  const VERSAO = '12.17';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1523,7 +1523,7 @@
       // nenhuma ordem fica presa em 'desfecho_chk891' (aba fechou no meio): 2 min → volta para 'desfecho'
       setInterval(() => { try { const O = GM_getValue('auto_ordens', {}) || {}; let m = false; for (const k in O) { const x = O[k]; if (x && x.estado === 'desfecho_chk891' && Date.now() - (+x.chk891T || (x.chk891T = Date.now())) > 120000) { x.estado = 'desfecho'; x.chk891 = 1; m = true; } else if (x && x.estado === 'desfecho_chk891' && !x.chk891T) m = true; } if (m) GM_setValue('auto_ordens', O); } catch (e) {} }, 30000); }
     window.dinsBmIntent = (chatId, intent) => new Promise(res => { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res({ erro: 'sem token' });
-      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !(/^(fechar|tag|so_tag)_[a-z0-9_]+$/.test(String(intent)) || ['Extrato de empréstimo', 'Video de avaliação'].includes(String(intent)))) return res({ erro: 'chat ou intenção inválidos' });   // 9.58: + fluxo 'Extrato de empréstimo'
+      if (!/^[A-Z0-9]{20}$/.test(String(chatId)) || !(/^(fechar|tag|so_tag|silenciar)_[a-z0-9_]+$/.test(String(intent)) || ['Extrato de empréstimo', 'Video de avaliação'].includes(String(intent)))) return res({ erro: 'chat ou intenção inválidos' });   // 9.58: + fluxo 'Extrato de empréstimo'
       try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
         data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: intent }),
         onload: r => { try { if (r.status >= 200 && r.status < 300 && /^(fechar_|tag_01[ac]$)/.test(String(intent))) { const FM = GM_getValue('fechadas888', {}) || {}; FM[chatId] = { t: Date.now(), lu: Date.now() }; GM_setValue('fechadas888', FM); } } catch (e) {} try { if (r.status >= 200 && r.status < 300 && /^fechar_/.test(String(intent))) { const R3 = GM_getValue('regua', {}) || {}; const x3 = R3[chatId]; if (x3 && x3.estado === 'alerta') { x3.estado = 'fechada'; delete x3.reler; delete x3.relerHist; (x3.hist = x3.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: fechada pela intenção ' + intent + ' → saiu do vermelho'); GM_setValue('regua', R3); } } } catch (e) {} res({ http: r.status, txt: String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } });
