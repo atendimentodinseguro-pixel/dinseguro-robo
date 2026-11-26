@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dinseguro - Digitação automática (Multicorban -> New Corban FACTA/C6/Qualibank, Quero Mais, Daycoval e BMG)
 // @namespace    dinseguro
-// @version      3.43
+// @version      3.44
 // @description  Carregador: busca sempre a versão mais nova do robô no GitHub (sem precisar atualizar o Tampermonkey).
 // @updateURL    https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
 // @downloadURL  https://raw.githubusercontent.com/atendimentodinseguro-pixel/dinseguro-robo/main/dinseguro.user.js
@@ -104,7 +104,7 @@
       };
       const fila = () => { try { return GM_getValue('wa_fila', []) || []; } catch (e) { return []; } };
       const salva = f => { try { GM_setValue('wa_fila', f); } catch (e) {} };
-      const horario = () => { const d = new Date(); return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < 17; };
+      const horario = () => { const d = new Date(); let fim = 17; try { const x = GM_getValue('varre_ate_hoje', null); if (x && x.dia === d.toDateString() && +x.h > 17 && +x.h <= 20) fim = +x.h; } catch (e) {}   /* 3.44: extensão só do dia (dinsVarreAteHoje) também na cópia embutida */ return d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < fim; };
       const marca = (it, mud) => { const f = fila(); const i = f.findIndex(x => x.hash === it.hash && x.criado === it.criado); if (i >= 0) { Object.assign(f[i], mud); salva(f); } };
       const vis = e => { if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
       const appPronto = () => !!document.querySelector('#pane-side, #side, [aria-label="Lista de conversas"], [data-testid="chat-list"]');
