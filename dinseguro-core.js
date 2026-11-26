@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.44';
+  const VERSAO = '12.45';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -6005,7 +6005,7 @@
       const tem = re => c.tags.some(t => re.test(t));
       const d01 = tem(/^01 D/i);
       const lib = (GM_getValue('varre_liberados', {}) || {})[id];
-      if (d01 && !lib) return { acao: 'revisar', motivo: 'tem 01 D (já contratou) — só com liberação nominal' };
+      if (d01 && !lib) return { acao: 'fecha', motivo: 'tem 01 D (fechou negócio) — só fechar, mantém a tag, sem mensagem (12.45, Stefany 26/11 17:4x)' };   /* 12.45: antes ficava 'revisar' para sempre (16 conversas paradas em 26/11) */
       if (d01 && lib === 'so_fechar') return { acao: 'fecha', motivo: '01 D liberada para fechar sem contato' };
       if (c.tags.some(t => DESF_TAG.test(t))) return { acao: 'fecha', motivo: 'já tinha desfecho (' + c.tags.filter(t => DESF_TAG.test(t)).join(', ') + ')' };
       if ((GM_getValue('wa_bloqueados', []) || []).includes(id)) return { acao: 'revisar', motivo: 'na lista de bloqueados do WhatsApp (texto à mão)' };
@@ -6018,7 +6018,7 @@
       // Recusa nas últimas mensagens do cliente → não manda follow-up; vai para revisar.
       const RECUSOU = /(?<![\wÀ-ÿ])(n[ãa]o (quero|desejo|tenho interesse|preciso|vou querer|vou fazer)|vou deixar|deixa (pra|para) l[áa]|sem interesse|desisto|desist[ií]|n[ãa]o me interessa|muito pouco|para de (me )?mandar|pare de (me )?mandar|me tira|n[ãa]o (me )?(mande|mandem|liguem))(?![\wÀ-ÿ])/i;
       const cliTxts = [...document.querySelectorAll('.entries [class*="entries-li"].left')].slice(-6).map(e => (e.innerText || '').replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '').trim());
-      if (cliTxts.some(t => RECUSOU.test(t))) return { acao: 'revisar', motivo: 'cliente recusou ("' + cliTxts.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
+      if (cliTxts.some(t => RECUSOU.test(t))) { const fr1245 = cliTxts.find(t => RECUSOU.test(t)).slice(0, 50); const mg1245 = tem(/^01 A|Com.?Margem/i) || c.temCpf || c.link || c.prop; return mg1245 ? { acao: 'fecha', motivo: 'cliente recusou ("' + fr1245 + '") com margem — 01 A + fechar, sem follow-up (12.45)' } : { acao: 'fecha', motivo: 'cliente recusou ("' + fr1245 + '") sem CPF — 01 C + fechar, sem follow-up (12.45)' }; }   /* 12.45 (Stefany 26/11 17:4x): recusou não fica mais em 'revisar' — com margem leva 01 A e fecha; sem CPF leva 01 C e fecha; nunca mensagem */
       const fe = faseEsteira(RG()[id] || {});
       if (fe && ['pago', 'recusada', 'falta desbloquear', 'falta anuência'].includes(fe.fase)) return { acao: 'revisar', motivo: 'esteira: ' + fe.fase + ' (' + (fe.real || '') + ')' };
       { const SM_RE = /sem margem dispon[ií]vel para um novo empr[ée]stimo|n[ãa]o h[áa] margem dispon[ií]vel|\*\*n[ãa]o h[áa] margem|est[áa] sem margem dispon[ií]vel/i; const nosT = [...document.querySelectorAll('.entries [class*="entries-li"]')].filter(e => !e.className.includes('left')).map(e => e.innerText || '');
@@ -6045,7 +6045,7 @@
         if (/^(Jair)/.test(String(it.nome || '').trim()) || /CONGELADO/i.test(it.nome || '')) return null;
         const tags = (cu.tags || []).map(String);
         const temTag = re => tags.some(t => re.test(t));
-        if (temTag(/01.?D|Fechou.?Neg/i)) return null;
+        if (temTag(/01.?D|Fechou.?Neg/i)) return (GM_getValue('bm_intents_on', []) || []).includes('fechar_so') ? { acao: 'fecha', motivo: 'tem 01 D (fechou negócio) — só fechar, mantém a tag, sem mensagem (12.45)' } : null;
         // 8.80 (Stefany 19/11 10:54, robô da VARREDURA com 91 na lista: "quem já está com a conversa encerrada não precisa"): a varredura só pega conversa com a janela vencida E ainda ABERTA.
         // Já encerrada (fila = intenção de fechar: fechar_* / tag_01a / tag_01c) → pula: não manda follow-up, não reabre, não conta.
         try { if (window.dinsBmGet && bmApiLigada()) { const rq880 = await window.dinsBmGet('/chats/' + it.id); const q880 = String((rq880 && rq880.j && rq880.j.queueId) || ''); if (/^fechar_[a-z0-9_]+$/.test(q880)) return { acao: 'pular', motivo: 'já encerrada (' + q880 + ') — não é da varredura (8.80)' }; } } catch (e) {}
@@ -6068,6 +6068,7 @@
         const cli6 = ms.filter(m => m.lado === 'cli').slice(-6).map(m => m.txt);
         if (cli6.some(t => RECUSOU.test(t))) { const cpfR = ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)); const margR = temTag(/ComMargem|01.?A/i) || cpfR;   // 8.56 (Stefany 18/11 21:09): recusou COM margem → 01 A; sem CPF → 01 C; nunca fechar sem tag
           // 8.61 (Stefany 18/11 21:47: "o cliente que não aceitou… tem margem e nesse caso faz follow-up"): recusou COM margem/CPF = potencial → segue para o follow-up (não fecha)
+          if (margR && ON829.includes('tag_01a')) return { acao: 'fecha', intent: 'tag_01a', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") com margem — 01 A + fechar, sem follow-up (12.45)' };   /* 12.45 (Stefany 26/11 17:4x) substitui a 8.61: quem disse que não quer não recebe follow-up no WhatsApp */
           if (!margR && !cpfR && ON829.includes('fechar_01c')) return { acao: 'fecha', intent: 'fechar_01c', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") sem CPF — 01 C + fechar, sem follow-up (8.56)' }; }
         if (cli6.some(t => RECUSOU.test(t)) && !(temTag(/ComMargem|01.?A/i) || ms.some(m => m.lado === 'cli' && CPFRE.test(m.txt)))) return ON829.includes('fechar_so') ? { acao: 'fecha', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — sem follow-up, fechada (8.31)' } : { acao: 'revisar', motivo: 'cliente recusou ("' + cli6.find(t => RECUSOU.test(t)).slice(0, 50) + '") — não mandar follow-up' };
         const fe = faseEsteira(RG()[it.id] || {});
