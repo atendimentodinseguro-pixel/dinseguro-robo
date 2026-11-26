@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.18';
+  const VERSAO = '12.19';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2915,7 +2915,7 @@
     // 7.55: lê pelo servidor se o cliente respondeu à simulação (sem abrir a tela). 1/sim → grava e manda o link já; 2 → vigia (carência);
     // 3/não desejo → pergunta o motivo; qualquer outra coisa (dúvida, outro valor) → vigia responde.
     setInterval(async () => { if (!faz('atendimento')) return; try {
-        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && (x.estado === 'sim_enviada' || (x.estado === 'sim_resp' && Date.now() - (+x.tSimEnv || +x.t || 0) < 864e5) || (x.estado === 'com_margem' && +x.tSimEnv > 0 && !x.erro && Date.now() - (+x.tSimEnv || 0) < 3 * 864e5)));   /* 10.07 (Stefany 21/11 00:33 'melhore e corrija', Marcus ONJNJ): resposta que chega DEPOIS dos 30 min (ordem já em com_margem, respondendo aos lembretes) também é entendida */
+        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && (x.estado === 'sim_enviada' || (x.estado === 'sim_resp' && Date.now() - (+x.tSimEnv || +x.t || 0) < 864e5) || (x.estado === 'com_margem' && +x.tSimEnv > 0 && !x.erro && Date.now() - (+x.tSimEnv || 0) < 3 * 864e5) || (x.estado === 'feito' && !x.op2Car948 && !x.carencia && x.ficha && Date.now() - (+x.t || 0) < 3 * 864e5)));   /* 12.19 (Stefany 25/11 22:04, Zelinha VCS28B: 'Quero opção 2' 2 dias depois do link ficou sem digitar) — ordem já com link também lê a resposta, mas SÓ age se for a opção 2 (carência) */   /* 10.07 (Stefany 21/11 00:33 'melhore e corrija', Marcus ONJNJ): resposta que chega DEPOIS dos 30 min (ordem já em com_margem, respondendo aos lembretes) também é entendida */
         for (const x of pend) { const j = await apiLer(x.hash, 15); if (!j || !Array.isArray(j.newMessages)) continue;
           const T = m => Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0;
           const tx = m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || '')); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/^\s*bolt\s*/i, '').trim(); };
@@ -2926,10 +2926,13 @@
              depois do "antes de você ir…" (sim_resp) o robô lê a resposta; valor pedido → simula ESSE valor e manda mensagem pessoal com ele */
           if (x.estado === 'sim_resp') { const DS0 = GM_getValue('desisti_resp', {}) || {}; const b0 = Math.max(+x.respLidaT || 0, +DS0[x.hash] || 0, +x.tSimEnv || 0); const nov = j.newMessages.filter(m => m.FROM !== 'me' && T(m) > b0 + 3000).sort((m1, m2) => T(m1) - T(m2)).map(tx).filter(Boolean);
             const comV = nov.filter(t => valorPedido1004(t) >= 500); if (!comV.length) continue; cli = [comV[comV.length - 1]]; }
-          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || !(y.estado === 'sim_enviada' || y.estado === 'com_margem' || y.estado === 'sim_resp')) continue;
+          const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || !(y.estado === 'sim_enviada' || y.estado === 'com_margem' || y.estado === 'sim_resp' || y.estado === 'feito')) continue;
           if (!cli.length) { y.chkOkT = Date.now(); if (y.estado === 'com_margem' && !y.respLidaT) y.respLidaT = Date.now();   /* 10.08: resposta antiga já tratada pelo vigia não é relida (Sirley FVNVK) */ GM_setValue('auto_ordens', O2); continue; }
           try { y.respLidaT = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); } catch (e) {}   // 10.07: não relê a mesma resposta
           let ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80);
+          if (y.estado === 'feito') { const u9 = String(ult).toLowerCase(); const op2Nos = j.newMessages.some(m => m.FROM === 'me' && /Op[çc][ãa]o 2️⃣/i.test(tx(m)));   // 12.19: depois do link, só a opção 2 explícita (palavra "opção"/"segunda"/"carência") vira digitação com carência; o resto fica com o vigia
+            if (op2Nos && !y.op2Car948 && !/n[ãa]o/.test(u9) && /op[çc][ãa]o\s*(2|dois|2️⃣)(?![\d])|segunda\s+op[çc][ãa]o|com\s+car[êe]ncia/.test(u9)) { ult = '2'; y.chk936 = Date.now(); y.link = ''; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 12.19: depois do link respondeu "' + String(cli[cli.length - 1]).slice(0, 40) + '" → opção 2 com carência (a proposta antiga fica aberta)'); }
+            else { GM_setValue('auto_ordens', O2); continue; } }
           // 10.06 (Stefany 21/11 00:32: "o robô entende só 1 e 2, não dá para ficar mais esperto?"): traduz a resposta do cliente para 1 / 2 / "não desejo" antes das regras
           try { const nos = j.newMessages.filter(m => m.FROM === 'me').sort((m1, m2) => T(m1) - T(m2)).map(tx); const ultNos2 = [...nos].reverse().find(t => /2️⃣|op[çc][ãa]o 2/i.test(t)) || '';
             const doisENao = /2️⃣\s*N[ãa]o desejo/i.test(ultNos2); const temOp2 = /Op[çc][ãa]o 2/i.test(ultNos2) && !doisENao; const u0 = ult.toLowerCase().trim().replace(/^0+(?=[1-9](\s*[.!]?)$)/, '');   /* 12.15 (Fátima 9NKN2G 25/11 20:33: respondeu "03"): zero à esquerda não atrapalha o número da opção */ if (u0 !== ult.toLowerCase().trim()) ult = u0;
@@ -2943,12 +2946,12 @@
               else if (/agora\s+n[ãa]o|n[ãa]o\s+tenho\s+interesse|n[ãa]o,?\s+obrigad|n[ãa]o\s+preciso|desisti|n[ãa]o\s+vou\s+querer|n[ãa]o\s+quero\s+(mais|empr[ée]stimo|n[ãa]o)/.test(u0)) ult = 'não desejo';
               if (ult !== cli[cli.length - 1]) (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 10.06: entendi "' + String(cli[cli.length - 1]).slice(0, 40) + '" como "' + ult + '"'); } } catch (e) {} (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
           const nmR = y.nomeReal || y.nome || '';
-          if (/^\s*(1|1️⃣|op[çc][ãa]o\s*1|quero a op[çc][ãa]o 1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
+          if (/^\s*(1|1️⃣|(quero\s+)?(a\s+)?op[çc][ãa]o\s*1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
             Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); }
           else if (ult === 'outro valor 12.10') { y.estado = 'sim_resp'; const nm4 = nomeCli(y);
             window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm4 ? nm4 + ', c' : 'C') + 'laro! Vamos simular outro valor 😊 Me diz *quanto você precisa* (ou a *parcela* que fica boa para você no benefício) que eu faço na hora.\n\n' + faixa1097(y) + ' sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
             diario(nmR, 'escolheu "2 Simular outro valor" → perguntei o valor (12.10)'); }
-          else if (/^\s*(2|2️⃣|op[çc][ãa]o\s*2|quero a op[çc][ãa]o 2)\s*[.!]?\s*$/i.test(ult)) {
+          else if (/^\s*(2|2️⃣|(quero\s+)?(a\s+)?op[çc][ãa]o\s*2)\s*[.!]?\s*$/i.test(ult)) {   // 12.19: 'Quero opção 2' (sem o 'a')
             /* 9.50 (Stefany 19/11 23:19: "a regra é a mesma do sem carência… a preferência era do C6 mesmo, ele tá certo, só faltou colocar carência"): opção 2 = MESMO banco
                que a regra escolheu (C6, FACTA, Qualibank…), só que na tabela COM carência de 90 dias. O robô digita sozinho e manda o link. Sem exceção de invalidez. */
             const fy = y.ficha || {};
