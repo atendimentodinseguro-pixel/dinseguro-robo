@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.29';
+  const VERSAO = '12.30';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -655,7 +655,25 @@
   if (location.host === 'portaldecredito.daycoval.com.br') { const lerDc1142 = () => { try { if (!/proposta-pesquisa/.test(location.pathname)) return; const t = (document.body.innerText || '').replace(/\s+/g, ' '); const parts = t.split(/(?=\b\d{9} ALN PROMOTORA)/); const E = GM_getValue('esteira_dc', {}) || {}; let n = 0;
       for (const r of parts) { const num = (r.match(/^(\d{9}) ALN/) || [])[1]; if (!num) continue; const st = (r.match(/Pendente Formaliza\S*|Pendente \S+|Pago\b|Paga\b|Integrad\S*|Cancelad\S*|Reprovad\S*|Recusad\S*|Em An[aá]lise|Aprovad\S*|Averba\S*|Aguardando [A-Za-zçãéí]+( [A-Za-zçãéí]+)?|Desbloqueio\S*/i) || [])[0] || ''; E[num] = { st, t: Date.now() }; n++; }
       for (const k in E) if (Date.now() - (+E[k].t || 0) > 3 * 864e5) delete E[k]; GM_setValue('esteira_dc', E); return n; } catch (e) { return 0; } };
-    setTimeout(lerDc1142, 15000); setInterval(lerDc1142, 120000); try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsDcLer = lerDc1142; } catch (e) {} }
+    setTimeout(lerDc1142, 15000); setInterval(lerDc1142, 120000); try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsDcLer = lerDc1142; } catch (e) {}
+    // 12.30 (Stefany 26/11 11:40 'deixar o robô cada vez mais independente'): a esteira do Daycoval se atualiza SOZINHA — a cada 10 min, na tela
+    // Minhas Propostas (nunca F5/URL), limpa os filtros de número/CPF e clica PESQUISAR; guarda status + 'Status Proposta Legado' (AGUARDA ANUENCIA,
+    // AGUARDA DESBLOQ…, AVERBA ONLINE) por proposta em GM 'esteira_dc2'. As rondas leem pelo Botmaker com F.dinsEsteiraDc(). Não roda se há ordem DAYCOVAL digitando.
+    const pesq1230 = async () => { try {
+      if (!/proposta-pesquisa/.test(location.pathname)) return 'fora da tela';
+      const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && /DAYCOVAL/i.test(String(o.banco || o.bancoStefany || '')) && /^(digitando|gravando|ficha_ok)$/.test(o.estado || ''))) return 'digitando';
+      document.querySelectorAll('.modal-backdrop,.cdk-overlay-backdrop').forEach(e => e.remove()); document.body.classList.remove('modal-open');
+      for (const inp of document.querySelectorAll('input')) { const lab = ((inp.closest('mat-form-field,div') || {}).innerText || '') + ' ' + (inp.getAttribute('placeholder') || '') + ' ' + (inp.getAttribute('formcontrolname') || ''); if (/Simula|N[ºo°]\s*Proposta|numeroProposta|CPF|Conv[eê]nio|digitador/i.test(lab) && inp.value) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } }
+      const b = [...document.querySelectorAll('button')].find(x => /PESQUISAR/i.test(x.textContent || '')); if (!b) return 'sem botão'; b.click();
+      await new Promise(r => setTimeout(r, 7000));
+      const t = (document.body.innerText || '').replace(/\s+/g, ' '); const parts = t.split(/(?=\b\d{8} \d{9} ALN PROMOTORA)|(?=\b\d{9} ALN PROMOTORA)/); const E = GM_getValue('esteira_dc2', {}) || {}; let n = 0;
+      for (const r of parts) { const num = (r.match(/(?:^|\s)(\d{9}) ALN PROMOTORA/) || [])[1]; if (!num) continue; const cpf = (r.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/) || [''])[0].replace(/\D/g, '');
+        const st = (r.match(/Pendente Formaliza\S*|Pendente \S+|Pago\b|Paga\b|Integrad\S*|Cancelad\S*|Reprovad\S*|Recusad\S*|Em An[aá]lise|Aprovad\S*|Formalizad\S*|Contratad\S*/i) || [''])[0];
+        const leg = (r.match(/AGUARDA [A-ZÇÃÉÍÓÚ.]+(?: [A-ZÇÃÉÍÓÚ.]+){0,3}|AVERBA[A-ZÇÃÉ ]*|DESBLOQ[A-Z. ]*|INTEGRAD[A-Z]*|PAGO\b|CANCELAD[A-Z]*|REPROVAD[A-Z]*/) || [''])[0].trim();
+        E[num] = { st, leg, cpf, t: Date.now() }; n++; }
+      for (const k in E) if (Date.now() - (+E[k].t || 0) > 30 * 864e5) delete E[k]; GM_setValue('esteira_dc2', E); GM_setValue('esteira_dc2_t', Date.now()); lerDc1142(); return 'ok ' + n;
+    } catch (e) { return 'erro ' + e.message; } };
+    setTimeout(pesq1230, 40000); setInterval(pesq1230, 10 * 60000); try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsDcPesq = pesq1230; } catch (e) {} }
 
   // ================================================================== 4.20 CONTORNO AUTOMÁTICO — EXECUTORES
   // Stefany 10/11 19:41 ("pode começar a construção"). Ordem em GM 'auto_ordens' (criada pelo quadro do Botmaker).
@@ -3891,7 +3909,8 @@
     const nomeProtegido = n => { const t = String(n || '').normalize('NFC').trim(); return !!t && NAO_MEXER_NOMES.some(re => re.test(t)); };
     // 7.16 (15/11 13:20: aba do robô CONGELAVA ao abrir conversa): protegido() lia a régua inteira (440 KB) a cada chamada, e os laços chamam
     // protegido() para cada um dos ~300 clientes → ~7 s de travamento por volta. Agora: leitura em cache de 3 s (só para consulta).
-    window.dinsEhProtegido = h => protegido(h);   // 9.32: ponte para o bloco de envio pela API
+    window.dinsEhProtegido = h => protegido(h);
+    window.dinsEsteiraDc = () => { const E = GM_getValue('esteira_dc2', {}) || {}; return { atualizado: new Date(+GM_getValue('esteira_dc2_t', 0) || 0).toLocaleTimeString('pt-BR'), propostas: E }; };   // 12.30: esteira do Daycoval (status + legado: AGUARDA ANUENCIA/DESBLOQ/AVERBA) para as rondas   // 9.32: ponte para o bloco de envio pela API
     const protegido = h => { try { if (h !== '__TESTE_LIBERADO_1022__' && (gmCache('prot_lib1016', {}) || {})[h]) return false;   /* 10.16 (Stefany 21/11 01:33): proteção vale só até a conversa ENCERRAR; o cliente voltou → atendimento normal (o chat de teste continua sempre protegido) */
       if (NAO_INTERFERIR_PADRAO.includes(h) || (gmCache('nao_interferir', []) || []).includes(h) || (gmCache('nao_mexer', {}) || {})[h]) return true;
       const x = (gmCache('regua', {}) || {})[h] || {}; if (nomeProtegido(x.nome) || nomeProtegido(x.nomeReal)) return true;
