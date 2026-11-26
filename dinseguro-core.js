@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.37';
+  const VERSAO = '12.38';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3769,7 +3769,15 @@
               else { est = 'acompanhando'; mot = 'última mensagem é nossa'; }
               R3[id] = { hash: id, nome: String(c.firstName || id.slice(0, 6)), estado: est, motivo: mot, toques: [], hist: [hhmm(ag) + ' 9.31: entrou pela conferência das conversas abertas — ' + mot], criadoT: ag, ultCliT: lu, botLuc: lu, junto: est === 'humano' ? mot : undefined };
               novos931++; }
-            if (novos931) { gravaRG(R3); diario('caderno', '🔎 9.31: ' + novos931 + ' conversa(s) aberta(s) fora do caderno entraram já classificadas'); } } } catch (e) {}
+            /* 12.38 (Stefany 26/11 14:43, Apolinário FWMAJ8: entrou no caderno às 14:27 como 'no bot (autoatendimento)'; às 14:29 o bot ENCERROU (LOAS que já fez empréstimo, fila Loas_Ja_Fez_Emprestimo) e ele continuou no caderno como 'follow-up atrasado — ficou mais alguma dúvida?'):
+               quem está no caderno como 'no bot' é conferido de novo a cada ronda — o bot encerrou → sai dos follow-ups (fila de encerramento do bot) ou vira 'encerrar pela regra' (o bot mandou a despedida), igual à 9.31. */
+            let enc1238 = 0; try { const AO38 = GM_getValue('auto_ordens', {}) || {}; for (const c of todas) { const id = c.chat && c.chat.chatId; const x = id && R3[id]; if (!x || FIM897.test(x.estado || '') || !/no bot \(autoatendimento\)|no atendimento do bot/i.test(String(x.motivo || '')) || protegido(id)) continue;
+                if (AO38[id] && !/desfecho_ok|feito/.test(String(AO38[id].estado || ''))) continue; const q = String(c.queueId || ''); const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; if (ag - lu < 3 * 60000) continue;
+                if (/^fechar_|Loas_Ja_Fez|Ja_Fez_Emprestimo/i.test(q)) { x.estado = 'encerrado'; x.motivo = 'encerrado pelo bot do Botmaker (fila ' + q + ') — nada a fazer'; x.toques = []; (x.hist = x.hist || []).push(hhmm(ag) + ' 12.38: o bot encerrou o atendimento → sai dos follow-ups'); enc1238++; continue; }
+                const m38 = await window.dinsBmGet('/messages?chat-id=' + id + '&from=' + encodeURIComponent(new Date(ag - 3 * 3600000).toISOString())); const ms38 = ((m38 && m38.j && m38.j.items) || []).sort((a1, b1) => Date.parse(a1.creationTime) - Date.parse(b1.creationTime)); const u38 = ms38[ms38.length - 1];
+                if (u38 && u38.from !== 'user' && /Vamos encerrar este atendimento|Se no futuro precisar de cr[ée]dito/i.test(String((u38.content && u38.content.text) || ''))) { x.estado = 'humano'; x.motivo = 'cliente encerrou no bot — encerrar pela regra: tag (01 C sem CPF) + fechar'; x.toques = []; (x.hist = x.hist || []).push(hhmm(ag) + ' 12.38: o bot mandou a despedida → sai dos follow-ups (encerrar pela regra)'); enc1238++; } } } catch (e) {}
+            if (enc1238) { try { diario('caderno', '🧹 12.38: ' + enc1238 + ' conversa(s) que o bot encerrou saíram dos follow-ups'); } catch (e) {} }
+            if (novos931 || enc1238) { gravaRG(R3); if (novos931) diario('caderno', '🔎 9.31: ' + novos931 + ' conversa(s) aberta(s) fora do caderno entraram já classificadas'); } } } catch (e) {}
         // 9.56 (Stefany 20/11 10:44–10:47: "bora colocar esse robô para trabalhar… você pediu a intenção e não sabe usar cada uma no seu momento?"):
         // o amarelo "encerrar pela regra" (bot já se despediu / não é do INSS) não espera gente — fecha pela intenção certa
         // (sem CPF → fechar_01c; com CPF → fechar_so; não é INSS → fechar_07). A trava 9.53 (conversa viva não fecha) continua valendo.
