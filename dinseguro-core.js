@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.33';
+  const VERSAO = '12.34';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -859,6 +859,13 @@
                 try { diario(ficha.nome || o.nome || '', '🔎 FullConsig achou outro benefício esp ' + outro.esp + ' margem R$ ' + brl(outro.margem) + ' → vigia (9.75)'); } catch (e) {} return; } } }
           const mg = num(ficha.margem), mot = (ficha.recusa || '').split('|')[0];
           const resumo = 'esp ' + (ficha.especie || '?') + ', ' + (ficha.idade || '?') + 'a, margem R$ ' + (ficha.margem || '?');
+          /* 12.34 (Stefany 26/11 13:46–13:47, Cassiano 8X75MZ: benefício com DDB de outubro, a consulta devolveu margem R$ 0,02 e o robô mandou 'sem margem' — falso negativo):
+             benefício com MENOS DE 90 DIAS de DDB e margem zerada na consulta → a base ainda não está atualizada; "nesses casos, dando erro, a gente pode considerar que o cliente tem um salário mínimo":
+             considera a margem de R$ 567,35 (parcela R$ 567,34) e segue o fluxo normal (1 vez por ordem). */
+          if (mot === 'SEM_MARGEM' && mg != null && mg < 25 && !o.ov1234) { try { const d34 = String(ficha.ddb || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); const t34 = d34 ? new Date(+d34[3], +d34[2] - 1, +d34[1]).getTime() : 0; const dias34 = t34 ? (Date.now() - t34) / 864e5 : -1;
+            if (dias34 >= 0 && dias34 < 90) { const M34 = GM_getValue('ficha_ovr_map', {}) || {}; const kc34 = String(o.cpf || '').replace(/\D/g, '').replace(/^0+/, ''); M34[kc34] = Object.assign({}, M34[kc34] || {}, { margem: 567.35, h: o.hash, t: Date.now(), auto: 1, ddb90: 1 }); GM_setValue('ficha_ovr_map', M34);
+              poeAO(o.hash, { estado: 'nova', ov1234: 1, erro: '', nomeReal: ficha.nome, resumo: '🆕 benefício com ' + Math.round(dias34) + ' dias (DDB ' + d34[0] + ') e margem R$ ' + (ficha.margem || '0') + ' na consulta → base desatualizada: considera o salário mínimo, margem R$ 567,35 (12.34)' });
+              try { diario(ficha.nome || o.nome || '', '🆕 DDB com menos de 90 dias e margem zerada → considera margem de R$ 567,35 e segue (12.34)'); } catch (e) {} return; } } catch (e) {} }
           let acao = '';
           if (mot === 'SEM_MARGEM' && mg != null && mg < 25) acao = 'sem_margem';
           else if (mot === 'LOAS' && mg != null && mg < 400) acao = 'loas_sem';   // 5.00 (claude/MENSAGEM-LOAS-COM-MARGEM.md): LOAS abaixo de R$ 400 → /n30 + 02 I + fechar (caso 💫✨ R$ 30,90)
