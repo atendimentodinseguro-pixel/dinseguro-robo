@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.41';
+  const VERSAO = '12.42';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1986,7 +1986,11 @@
               if (!oK.api879Abre) { await bmEnviarTexto(oK.hash, abreK); const Oa = GM_getValue('auto_ordens', {}) || {}; if (Oa[oK.hash]) { Oa[oK.hash].api879Abre = Date.now(); GM_setValue('auto_ordens', Oa); } await esp(1500); }
               // 10.23 (Stefany 21/11 02:30: "tem mensagem fixa para envio de link quando aceita proposta ou envia como parabéns — precisa corrigir"): o link sai no MODELO FIXO
               // /bn54n (cliente aceitou) ou /parabens (sem aceite), com as mesmas trocas da tela ({NOME}, {VALOR}, {BANCO}, "Cola link"). Sem o modelo salvo → texto antigo.
-              let fixo = ''; try { const RC10 = GM_getValue('rr_cache', {}) || {}; const at10 = (oK.aceite || oK.aceitouSim) ? '/bn54n' : '/parabens'; let tpl = String((RC10[at10] && RC10[at10].tx) || '');
+              let fixo = ''; try { const RC10 = GM_getValue('rr_cache', {}) || {}; const at10 = (oK.aceite || oK.aceitouSim) ? '/bn54n' : '/parabens'; let tpl = String((RC10[at10] && RC10[at10].tx) || '').replace(/^\s*\*?\[Dinseguro\]\*?\s*/i, '');
+                /* 12.42 (Stefany 26/11 17:03: 'o link não está saindo do jeito padronizado — parabéns para quem ainda não aceitou, aprovado para quem aceitou; depois que passou a enviar pela API não conseguiu mais'): o cache dos atalhos (rr_cache) só se enche quando o atalho sai pela TELA, e estava sem /parabens e /bn54n → saía o texto antigo. Os dois modelos agora ficam GRAVADOS no robô (recuperados das conversas: /parabens de 26/11, /bn54n de 17/11) e valem sempre que o cache não tiver o atalho. */
+                if (!tpl) tpl = at10 === '/bn54n'
+                  ? '✅ *Boa notícia' + (nmK ? ', {NOME}' : '') + '! Seu crédito foi aprovado.*\n\nValor *aprovado {VALOR}*' + (bcNome1131(oK.bancoConta) ? ' para você receber na sua conta do banco *{BANCO}.*' : ' para você receber na sua conta.') + '\n\nAgora falta apenas conferir e finalizar seu contrato. É bem simples:\n\n1️⃣ Toque no link abaixo para acessar.\n2️⃣ Quando o celular pedir, permita a localização e a câmera.\n3️⃣ Faça a selfie de segurança para confirmar sua identidade.\n\n*Acesse por aqui* ⤵️\n\ncolar link\n\n⏱️ Depois de concluir a formalização, a previsão de *liberação do valor na sua conta é de até 60 minutos*.'
+                  : '🎉 *' + (nmK ? '{NOME} sua' : 'Sua') + ' proposta já está pronta para você conferir.*\n\nNo botão abaixo você consegue ver com calma:\n\n✅ o valor que vai receber;\n✅ o valor das parcelas;\n✅ a quantidade de parcelas;\n✅ e as condições da proposta.\n\nSe estiver tudo certo para você, é só seguir as etapas.\n\nCola link\n\n📸 No final, será solicitada uma *selfie de segurança* para confirmar sua identidade e proteger a contratação.\n\n🔒 *Nada é concluído sem a sua confirmação.*\n\n⏰ A proposta fica disponível por até *30 minutos* para você concluir o processo.';
                 if (tpl) { const tr10 = at10 === '/bn54n' ? [['{NOME}', nmK || ''], ['{VALOR}', 'R$ ' + oK.liberado], ['{BANCO}', bcNome1131(oK.bancoConta)], ['colar link', oK.link], ['cola link', oK.link]] : [['{NOME}', nmK ? nmK + ',' : ''], ['Cola link', oK.link], ['colar link', oK.link]];
                   for (const [de, para] of tr10) tpl = tpl.replace(new RegExp(String(de).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), para);
                   tpl = tpl.replace(/R\$\s*R\$/g, 'R$'); if (!/\{NOME\}|\{VALOR\}|\{BANCO\}|col(a|ar) (o )?link/i.test(tpl) && tpl.includes(oK.link)) fixo = tpl; } } catch (e) {}
