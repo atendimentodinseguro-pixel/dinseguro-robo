@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.43';
+  const VERSAO = '12.44';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3541,6 +3541,14 @@
     // que vem da consulta) e, sem nota, o nome do contato apenas se parecer nome de pessoa (sem número, @, emoji, "Até R$"…,
     // palavra com inicial maiúscula de 3 a 12 letras). Na dúvida, cumprimenta SEM nome.
     const NAO_NOME = /^(dinseguro|seu|sua|oi|ola|olá|bom|boa|ate|até|consulte|novo|cliente|empresa|cred|credito|crédito|whats|usuario|usuário|sr|sra|dona|seguro|faço|faco|pra|pro|deus|jesus|amor|vida|mae|mãe|pai|filho|filha|tia|tio|vovo|vovó|eu|meu|minha|so|só|sou|nao|não|feliz|gratidao|gratidão|paz|fe|fé)$/i;
+    const APELIDO1244 = /(inho|inha|zito|zita)$|^(tonho|tonha|toinho|toinha|z[eé]|zeca|zez[eé]|chico|chica|nando|nanda|beto|beta|duda|dudu|juju|lulu|tati|gabi|rafa|dani|cris|malu|kaka|kak[aá]|tuca|tico|neco|nego|nega|neg[aã]o|preto|preta|gordo|gorda|baixinho|v[oó]|v[oô]|vov[oóô]|beb[eê]|nen[eê]|mano|mana|mainha|painho|guto|guga|xande|xanda|xandy|teca|tet[eé]|lala|lili|lol[oó]|nen[aã]|nino|nina|binho|bia|bibi|caca|cac[aá]|didi|dede|ded[eé]|fafa|gege|jojo|keke|mimi|nana|pepe|tata|vava|zaza|zizi|chiquinho|juca|quinho|tiao|ti[aã]o|bil|bill|bob|jr|junior|j[uú]nior|neto|filho)$/i;
+    /* 12.44: a varredura roda em outro perfil do Chrome e não tem o caderno do atendimento → o nome de verdade vem das NOSSAS mensagens na conversa (o robô do atendimento só escreve o nome da consulta do CPF: 'Antonio, boa noite!', 'Perfeito, Antonio!'). Precisa aparecer em 2 mensagens nossas (ou bater com o nome do perfil). */
+    async function nomeDasNossasMsgs1244(h, perfil) { try { if (!window.dinsBmGet) return ''; const r = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + new Date(Date.now() - 30 * 864e5).toISOString()); const it = (r && r.j && r.j.items) || []; const cont = {};
+        const NAO = /^(perfeito|pronto|bom|boa|oi|ol[aá]|que|tudo|anotado|combinado|certo|obrigad[oa]|parab[eé]ns|segue|passando|s[oó]|para|sua|seu|novo|valor|conseguiu|fico|entendi|claro|sim|n[aã]o|desculpe|ainda|aqui|assim|agora|hoje|proposta|simula[cç][aã]o|cr[eé]dito|aten[cç][aã]o|importante|dinseguro)$/i;
+        for (const x of it) { if (x.from === 'user') continue; const t = String((x.content && x.content.text) || '').replace(/^\s*\*?\[Dinseguro\]\*?\s*/i, '').replace(/^[^\p{L}]+/u, ''); const m = t.match(/^(?:(?:Oi|Ol[aá]|Bom dia|Boa tarde|Boa noite|Perfeito|Pronto|Que bom|Tudo bem|Anotado|Combinado|Certo|Boa not[ií]cia|Obrigad[oa] por confirmar),\s+)?([A-ZÀ-Ú][a-zà-úç]{2,14})[,!]/); if (!m || NAO.test(m[1]) || NAO_NOME.test(m[1])) continue; cont[m[1]] = (cont[m[1]] || 0) + 1; }
+        const sem = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); const pf = sem(String(perfil || '').trim().split(/\s+/)[0]);
+        const ord = Object.entries(cont).sort((a, b) => b[1] - a[1]); const top = ord[0]; if (!top) return ''; if (top[1] >= 2 || (pf && sem(top[0]) === pf)) return top[0]; } catch (e) {} return ''; }
+    window.dinsNomeVarredura = async (h, perfil) => (await nomeDasNossasMsgs1244(h, perfil)) || nomeSeguro(perfil, true);   // 12.44: nome do atendimento/CPF primeiro; depois o nome do perfil, só se for nome de verdade; senão sem nome
     function nomeSeguro(nomeContato, semNotas) {
       if (!semNotas) try {
         const ent = (document.querySelector('.entries') || {}).innerText || '';
@@ -3553,6 +3561,7 @@
       const p = n.split(/\s+/)[0];
       if (!/^[A-ZÁ-Ú][a-zá-úç]{2,11}$/.test(p) || NAO_NOME.test(p)) return '';
       if (/^(.{2})\1$/i.test(p) || /(.)\1\1/i.test(p)) return '';   // apelido tipo Zaza, Lulu
+      if (APELIDO1244.test(p)) return '';   // 12.44 (Stefany 26/11 17:28: 'chamou de Toninho… não deve chamar por apelido ou outra coisa que não seja o nome')
       return p;
     }
     // 7.15: toques/follow-ups usam primeiro o NOME REAL da consulta (AO.nomeReal / régua), depois o nome seguro do contato
@@ -5882,6 +5891,7 @@
     // 4.29 — fila do WhatsApp à vista e controle (o envio mora no carregador 3.7, aba do WhatsApp Web)
     window.dinsWaVer = () => (GM_getValue('wa_fila', []) || []).map(x => ({ nome: x.nome, caso: x.caso, estado: x.estado, quem: x.quem || 'antiga', fone: x.fone ? '…' + String(x.fone).slice(-4) : '', hash: x.hash, criado: x.criado ? new Date(x.criado).toLocaleString('pt-BR').slice(0, 16) : '', quando: x.quando ? new Date(x.quando).toLocaleString('pt-BR').slice(0, 16) : '', motivo: x.motivo || '', fechado: x.fechado || '' }));
     window.dinsWaArquivarAntigas = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente' && x.quem !== 'varredura 4.27') { x.estado = 'arquivado'; x.motivo = 'fila antiga (antes da 4.27) — não enviar'; n++; } }); GM_setValue('wa_fila', f); return n; };
+    window.dinsWaNomesCertos = async () => { const f = GM_getValue('wa_fila', []) || []; const out = []; for (const x of f.filter(y => y.estado === 'pendente')) { const nm = await window.dinsNomeVarredura(x.hash, x.nomeOriginal || x.nome); if (nm !== x.nome) { const g = GM_getValue('wa_fila', []) || []; g.forEach(y => { if (y.hash === x.hash && y.estado === 'pendente') { y.nomeOriginal = y.nomeOriginal || y.nome; y.nome = nm; } }); GM_setValue('wa_fila', g); out.push(x.hash.slice(0, 6) + ': ' + (x.nome || '(sem nome)') + ' → ' + (nm || '(sem nome)')); } } return out; };   // 12.44: corrige o nome de quem já está na fila do WhatsApp
     window.dinsWaLimparNomes = () => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.estado === 'pendente') { const ns = nomeSeguro(x.nome, true); if (ns !== x.nome) { x.nomeOriginal = x.nome; x.nome = ns; n++; } } }); GM_setValue('wa_fila', f); return n; };   // 4.31
     // 8.39 (18/11 14:42, José/Drika "não enviou"): devolver para a fila quem foi dado como enviado sem ter saído; recarregar a aba do WhatsApp de fora; ver o estado do envio
     window.dinsWaReenviar = hash => { const f = GM_getValue('wa_fila', []) || []; let n = 0; f.forEach(x => { if (x.hash === hash && /enviado|erro/.test(x.estado)) { x.estado = 'pendente'; x.motivo = 'devolvido à fila (não tinha saído) ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5); delete x.quando; delete x.preOk; delete x.tentAbrir; n++; } }); GM_setValue('wa_fila', f); return n; };
@@ -6207,7 +6217,7 @@
               if (dA.acao === 'fecha' || dA.acao === 'c01') { const rF = await executarOrdemVarredura(it.id, dA.acao === 'c01' ? 'classifica_fecha' : 'fecha', varreNota(dA.motivo)); if (rF === 'ok') { if (dA.acao === 'c01') placar.c01++; else placar.fechadas++; } else placar.erros++; salva(); continue; }   // 8.29: fecha pela intenção sem abrir a tela
               if (dA.acao === 'wa' && loteCheio) { placar.wa_depois = (placar.wa_depois || 0) + 1; salva(); continue; }   // fica para a próxima rodada
               if (dA.acao === 'wa') { const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
-                if (!ja) { f.push({ hash: it.id, fone: dA.fone, nome: nomeSeguro(it.nome), caso: dA.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
+                if (!ja) { let nm1244 = ''; try { nm1244 = await window.dinsNomeVarredura(it.id, it.nome); } catch (e) { nm1244 = nomeSeguro(it.nome, true); } const f = GM_getValue('wa_fila', []) || []; f.push({ hash: it.id, fone: dA.fone, nome: nm1244, caso: dA.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); GM_setValue('wa_fila', f); }
                 placar.wa++; salva(); continue; } } }
           if (!await abrirHash(it.id)) { placar.nao_abriu++; salva(); plano.itens.push({ id: it.id, nome: it.nome, acao: 'revisar', motivo: 'não abriu' }); continue; }
           placar.abertos++;
@@ -6223,7 +6233,7 @@
           if (d.acao === 'wa' && loteCheio) { placar.wa_depois = (placar.wa_depois || 0) + 1; salva(); continue; }   // fica para a próxima rodada
           if (d.acao === 'wa') {
             const f = GM_getValue('wa_fila', []) || []; const ja = f.find(x => x.hash === it.id && ['pendente', 'enviado'].includes(x.estado) && Date.now() - (x.criado || 0) < 7 * 86400000);
-            if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeSeguro(nomeDoContato() || it.nome), caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); /* 4.31: só nome de verdade (vazio = sem nome) */ GM_setValue('wa_fila', f); }
+            if (!ja) { f.push({ hash: it.id, fone: c.fone, nome: nomeSeguro(nomeDoContato() || it.nome), caso: d.caso, estado: 'pendente', criado: Date.now(), quem: 'varredura 4.27' }); try { const pf1244 = nomeDoContato() || it.nome, h1244 = it.id; window.dinsNomeVarredura(h1244, pf1244).then(nm => { const g = GM_getValue('wa_fila', []) || []; let m = 0; g.forEach(y => { if (y.hash === h1244 && y.estado === 'pendente' && y.nome !== nm) { y.nome = nm; m++; } }); if (m) GM_setValue('wa_fila', g); }).catch(() => {}); } catch (e) {}   /* 12.44 */ /* 4.31: só nome de verdade (vazio = sem nome) */ GM_setValue('wa_fila', f); }
             placar.wa++; salva();
           }
         }
