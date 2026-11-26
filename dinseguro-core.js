@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.28';
+  const VERSAO = '12.29';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1356,7 +1356,8 @@
     try { const P = GM_getValue('promessa_link', {}) || {};
       if (/https?:\/\//i.test(texto)) { if (P[chatId]) { delete P[chatId]; GM_setValue('promessa_link', P); } return texto; }
       if (PROMETE1101.test(texto)) { P[chatId] = { t: Date.now(), txt: texto.slice(0, 80) }; GM_setValue('promessa_link', P); return texto; }
-      if (/\blink\b/i.test(texto)) { const O7 = GM_getValue('auto_ordens', {}) || {}; const lk = String((O7[chatId] || {}).link || ''); if (/^https?:\/\//.test(lk)) { if (P[chatId]) { delete P[chatId]; GM_setValue('promessa_link', P); } return texto.replace(/\s+$/, '') + '\n\n👉 ' + lk; } }
+      if (/\blink\b/i.test(texto)) { try { const ja1229 = typeof window.dinsJaAssinou === 'function' ? window.dinsJaAssinou(chatId) : ''; if (ja1229) return texto; } catch (e) {}   /* 12.29 (Stefany 26/11 11:26, Marcelo RDLWQV: 'Não se manda link para quem já assinou proposta, a não ser que for outra proposta') — cliente que já assinou nunca recebe o link anexado sozinho */
+        const O7 = GM_getValue('auto_ordens', {}) || {}; const lk = String((O7[chatId] || {}).link || ''); if (/^https?:\/\//.test(lk)) { if (P[chatId]) { delete P[chatId]; GM_setValue('promessa_link', P); } return texto.replace(/\s+$/, '') + '\n\n👉 ' + lk; } }
     } catch (e) {} return texto; }
   window.dinsPromessasLink = (hTira) => { const P = GM_getValue('promessa_link', {}) || {}; if (hTira) { delete P[hTira]; GM_setValue('promessa_link', P); return 'tirada (11.29: promessa condicional, ex.: link depois que o cliente mandar a conta)'; } return Object.keys(P).map(h => h.slice(0, 6) + ' há ' + Math.round((Date.now() - P[h].t) / 60000) + ' min: ' + P[h].txt).join('\n') || 'nenhuma'; };
   async function bmEnviarTexto(chatId, texto) { trava1095(chatId, texto); texto = linkNoTexto1101(chatId, texto); { const k58 = 'txt_' + chatId + '_' + String(texto || '').replace(/\s+/g, ' ').slice(0, 120); if (!trava870(k58, 15 * 60000)) throw new Error('mesma mensagem já enviada a este chat há menos de 15 min — não repito (10.58)'); var k1165 = k58; } const solta1165 = () => { try { const k = 'dins_trava870_' + k1165; const T = GM_getValue('trava870g', {}) || {}; delete T[k]; GM_setValue('trava870g', T); localStorage.removeItem(k); } catch (e) {} };   /* 11.65 (Creusa 24/11 15:48): a trava 10.58 era gravada ANTES do envio — envio que falhava travava as novas tentativas como 'já enviada' e o sem margem caía para a tela. Agora envio que falha solta a trava. */ if (await canalSuspenso(chatId)) { solta1165(); throw new Error('canal SUSPENSO (0800 191 2261) — não envio'); } if (GM_getValue('bm_api_on', 1) === 0) { solta1165(); throw new Error('envio pela API desligado'); } let r942; try { r942 = await bmEnviarTexto0(chatId, texto); } catch (e) { solta1165(); throw e; } try { marcaDesligarBot942(chatId); } catch (e) {} try { if (/estou encerrando o seu atendimento/i.test(String(texto))) { const E44 = GM_getValue('enc1044', {}) || {}; E44[chatId] = Date.now(); GM_setValue('enc1044', E44); } } catch (e) {} return r942; }
