@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.31';
+  const VERSAO = '12.32';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3142,7 +3142,7 @@
             const tem = re => x.tags01.some(t => re.test(t)); let nova = '';
             const ao = AOt[k]; const comProposta = (x.link && !x.semLink) || (ao && ['com_margem', 'link', 'link_enviado', 'feito', 'gravada', 'pronto'].includes(ao.estado));
             let fe = null; try { fe = faseEsteira(x); } catch (e) {}
-            if (tem(/^01 A/i) && fe && !['não assinou', 'andamento', 'recusada'].includes(fe.fase) && !tem(/^01 D/i)) nova = '01 D - Inss Fechou*';
+            if (tem(/^01 A/i) && fe && !['não assinou', 'andamento', 'recusada', 'em análise'].includes(fe.fase) && !tem(/^01 D/i)) nova = '01 D - Inss Fechou*';   /* 12.32 (Stefany 26/11 13:36, Elisangela 30DZ4B: ganhou 01 D antes de assinar — o C6 fica em 'ANALISE CREDITO' logo depois de gravar, antes da selfie; 'em análise' não prova assinatura) */
             else if (tem(/^01 C/i) && comProposta && !tem(/^01 (A|D)/i)) nova = '01 A - Inss Com Margem - SEM 87 E 88';
             else if (tem(/^01 C/i) && tem(/^01 (A|D|I|k)|^0[237]/i)) nova = (x.tags01.find(t => /^01 (A|D|I|k)|^0[237]/i.test(t)) || '');   // sobrou a 01 C junto com outra → reaplica a outra (tira a 01 C)
             if (!nova) continue;
