@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.24';
+  const VERSAO = '12.25';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1111,6 +1111,19 @@
       const v = L.filter(x => (x.stage === 'paid' || ['awaiting_formalization', 'in_progress'].includes(x.stage)) && !/CANCEL|REPROV|RECUS/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 150 * 864e5);
       return { tem: v.map(x => (((x.proposal || {}).bank || {}).name || '') + ' ' + ((x.bank_reference || {}).proposal_number || '') + ' ' + (x.stage === 'paid' ? 'PAGO' : ((x.bank_reference || {}).bank_status || x.stage)) + ' de ' + String((x.dates || {}).created_at || '').slice(0, 10)).join('; ') }; } catch (e) { return { tem: '' }; } }   // 11.28
   window.dinsJaFez = jaFez1128;
+  // 12.25 (Stefany 26/11 09:01, Estefania 3CXHYN: "erro clássico — ela fez empréstimo com a gente recente, com essa margem; o Multicorban não atualiza a margem tão rápido,
+  // vai parecer que tem margem mas não tem. Tem que ter essa maldade, você e o robô"): antes de simular/digitar, procura no New Corban proposta NOSSA do mesmo CPF
+  // contratada nos últimos 120 dias (paga, em andamento/averbação, ou APROVADA/INTEGRADA no banco). Achou → a margem da consulta está velha: NÃO simula nem digita, vai para o vigia.
+  async function margemUsada1225(o) { try { const cN = so(o.cpf).replace(/^0+/, ''); if (!cN) return ''; const r = await ncReq('GET', '/proposals?search=' + cN + '&search_type=cpf&per_page=30'); const L = ((r && r.data) || []).filter(x => so(((x || {}).customer || {}).cpf).replace(/^0+/, '') === cN);
+      const ben = so((o.ficha || {}).beneficio || (o.ficha || {}).matricula || ''); const ag = Date.now();
+      const usou = L.filter(x => { const st = String((x.bank_reference || {}).bank_status || ''); const dt = Date.parse(String(((x.dates || {}).payment_date) || (x.dates || {}).created_at || '').replace(' ', 'T')) || 0;
+        if (/CANCEL|REPROV|RECUS/i.test(st) || x.stage === 'canceled') return false; if (!(ag - dt < 120 * 864e5)) return false;
+        const rb = so(((x.benefit || {}).registration_number) || ''); if (ben && rb && rb.replace(/^0+/, '') !== ben.replace(/^0+/, '')) return false;
+        return x.stage === 'paid' || x.stage === 'in_progress' || /APROVAD|AVERBAD|INTEGRAD|PAGO|DESBLOQ/i.test(st); });
+      if (!usou.length) return '';
+      const x = usou[0]; return 'JÁ CONTRATOU com a gente: ' + String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' (' + (x.stage === 'paid' ? 'PAGO' : String((x.bank_reference || {}).bank_status || x.stage)) + ' ' + String(((x.dates || {}).payment_date || (x.dates || {}).created_at || '')).slice(0, 10) + ', parcela R$ ' + brl(+((x.proposal || {}).installment_amount || 0)) + ') — a margem do Multicorban está velha: NÃO simular/digitar; vigia confere a margem real (extrato/IN100)';
+    } catch (e) { return ''; } }
+  window.dinsMargemUsada = margemUsada1225;
   // 12.06 (25/11 13:23, Oto RXUMH4: C6 980200487 REPROVADA 24/11 16:00 e a ordem ficou 'feito' — a régua seguiu dizendo "a sua proposta continua te esperando"
   // e o vigia reenviou o link reprovado): ordem 'link'/'feito' com proposta → confere no New Corban a cada 10 min; banco REPROVOU/CANCELOU (sem ser cancelamento
   // do vigia) → estado 'erro' com o motivo (o portão mostra e o vigia refaz no próximo banco) e a régua para de oferecer aquela proposta.
@@ -1203,6 +1216,7 @@
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API'); try { const VP = GM_getValue('video_aval_pend', {}) || {}; if (o && o.hash && !VP[o.hash]) { VP[o.hash] = Date.now(); GM_setValue('video_aval_pend', VP); } } catch (e) {}   // 9.93
       try { if ((o.aceite || o.simGravar) && !o.op2Car948) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
+        { const mu = await margemUsada1225(o); if (mu) { poe(o.hash, { estado: 'com_margem', erro: '', margemUsada1225: mu, resumo: (o.resumo || '') + ' · ⛔ 12.25: ' + mu }, '12.25 ' + mu); try { diario(o.nomeReal || o.nome || '', '⛔ ' + mu + ' (12.25)'); } catch (e) {} ocupApi = false; return; } }
         const r = await ncDigitaOrdem(o);
         if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
         else if (r.link) poe(o.hash, Object.assign({ estado: 'link', link: r.link }, r.dados), 'gravou no ' + o.banco + ' pela API Nº ' + r.dados.proposta + ' R$ ' + r.dados.liberado + ' — link na hora');
