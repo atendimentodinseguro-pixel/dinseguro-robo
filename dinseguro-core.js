@@ -668,7 +668,7 @@
       await new Promise(r => setTimeout(r, 7000));
       const t = (document.body.innerText || '').replace(/\s+/g, ' '); const parts = t.split(/(?=\b\d{8} \d{9} ALN PROMOTORA)|(?=\b\d{9} ALN PROMOTORA)/); const E = GM_getValue('esteira_dc2', {}) || {}; let n = 0;
       for (const r of parts) { const num = (r.match(/(?:^|\s)(\d{9}) ALN PROMOTORA/) || [])[1]; if (!num) continue; const cpf = (r.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/) || [''])[0].replace(/\D/g, '');
-        const st = (r.match(/Pendente Formaliza\S*|Pendente \S+|Pago\b|Paga\b|Integrad\S*|Cancelad\S*|Reprovad\S*|Recusad\S*|Em An[aá]lise|Aprovad\S*|Formalizad\S*|Contratad\S*/i) || [''])[0];
+        const st = (r.match(/Pendente \S+|Formaliza[çc][ãa]o Conclu[íi]da|Pago\b|Paga\b|Integrad\S*|Cancelad\S*|Reprovad\S*|Recusad\S*|Em An[aá]lise|Aprovad\S*/i) || [''])[0];   /* 'Não Contratado' é a coluna do SEGURO — não é status */
         const leg = (r.match(/AGUARDA [A-ZÇÃÉÍÓÚ.]+(?: [A-ZÇÃÉÍÓÚ.]+){0,3}|AVERBA[A-ZÇÃÉ ]*|DESBLOQ[A-Z. ]*|INTEGRAD[A-Z]*|PAGO\b|CANCELAD[A-Z]*|REPROVAD[A-Z]*/) || [''])[0].trim();
         E[num] = { st, leg, cpf, t: Date.now() }; n++; }
       for (const k in E) if (Date.now() - (+E[k].t || 0) > 30 * 864e5) delete E[k]; GM_setValue('esteira_dc2', E); GM_setValue('esteira_dc2_t', Date.now()); lerDc1142(); return 'ok ' + n;
