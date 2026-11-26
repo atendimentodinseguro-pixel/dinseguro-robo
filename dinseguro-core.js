@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.48';
+  const VERSAO = '12.49';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2378,7 +2378,7 @@
     // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
     // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
     // Não fecha a conversa: quem encerra é o próprio fluxo.
-    idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false },
+    idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false, tagsAntes: true },   /* 12.49 (Francisco HWUXJG 26/11 18:13): o flow rodou ANTES da tag e mandou o menu de boas-vindas ('Eu sou a Sara…') a um cliente já recusado — a tag vai PRIMEIRO, como no representante (6.55), para o flow reconhecer e encerrar */
     // 4.72 (Stefany 11/11 17:02, caso Jamerson): CPF não localizado no Multicorban (como CPF e como matrícula) →
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     // 11.51 (Stefany 24/11 08:51, caso Adrovani/Magrão SA7BGF: "todo dia tem isso de forma errada, pede CPF de quem já mandou"): o flow "Inicio do atendimento" recomeçava o bot e PEDIA O CPF DE NOVO.
