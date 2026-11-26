@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.22';
+  const VERSAO = '12.23';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3527,7 +3527,7 @@
       const cand = Object.values(R).filter(x => x && x.hash && FE[x.hash] !== hoje && !x.assinouT && !x.comQuem && !x.humano924 && !['fechada', 'cancelada', 'concluída', 'encerrado', 'humano'].includes(x.estado)
         && +x.ultCliT >= iniHoje - 24 * H && +x.ultCliT < iniHoje && Date.now() - (+x.ultCliT) < 23 * H
         && O[x.hash] && /^(feito|link|link_enviado|com_margem|sim_enviada|sim_resp)$/.test(O[x.hash].estado || '') && !(O[x.hash].estado === 'com_margem' && (O[x.hash].proposta || O[x.hash].link))   /* com_margem com proposta = caso do vigia (aprovado/desbloqueio), não é negociação */
-        && !(x.toques || []).some(q => !q.feito && +q.quando >= iniHoje && +q.quando < iniHoje + 24 * H)).sort((a, b) => (+a.ultCliT) - (+b.ultCliT));
+        && !(x.link && ['ativa', 'respondido', 'acompanhando', 'pausada'].includes(x.estado) && (x.toques || []).some(q => !q.feito && +q.quando >= iniHoje && +q.quando < iniHoje + 24 * H))).sort(   /* 12.23 (Joarez MCCNP0 26/11): toque pendente numa régua SEM link nunca sai (o executor ignora) — não pode segurar o follow-up da manhã */(a, b) => (+a.ultCliT) - (+b.ultCliT));
       for (const x of cand.slice(0, 2)) { const h = x.hash; const o = O[h];
         const marca = st => { const F2 = GM_getValue('manha1222', {}) || {}; F2[h] = hoje; GM_setValue('manha1222', F2); const R2 = GM_getValue('regua', {}) || {}; if (R2[h]) { (R2[h].hist = R2[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.22 manhã da negociação: ' + st); GM_setValue('regua', R2); } };
         try { if (typeof window.dinsEhProtegido === 'function' && window.dinsEhProtegido(h)) { marca('pulado (protegida)'); continue; } } catch (e) {}
