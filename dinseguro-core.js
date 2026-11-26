@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.30';
+  const VERSAO = '12.31';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1770,6 +1770,7 @@
           // FECHAMENTO do link não assinado
           const rg = RGx[h]; const link = (rg && rg.link) || o.link || ''; if (!link || !/feito|link/.test(String(o.estado))) continue;
           if (rg && (rg.faseFeita || /cancelada|conclu/.test(String(rg.estado || '')))) continue;   // assinou / acabou
+          try { if (typeof window.dinsJaAssinou === 'function' && window.dinsJaAssinou(h)) continue; } catch (e) {}   /* 12.31 (Stefany 26/11, Marcelo RDLWQV 12:53: o fechamento 'abrir o link e tirar a selfie' saiu para quem já tinha assinado) — quem já assinou nunca recebe toque de assinatura */
           if (agendados.has(h) || (o.reverso && !o.aceite) || (+((GM_getValue('nao_fechar1077', {}) || {})[h]) || 0) > ag) continue;   // 10.81: agendado à mão pelo vigia (dinsNaoFechar)
           const negU = ms.some((k, i) => { if (k.from !== 'user' || ag - Date.parse(k.creationTime) >= 24 * 3600000) return false; const t = txt1077(k); if (!NEG1077.test(t)) return false;
             if (/^\s*(2|3|n[aã]o|nao)\s*[.!]*\s*$/i.test(t)) { const ant = [...ms.slice(0, i)].reverse().find(x => x.from !== 'user'); return !!ant && /Cr[ée]dito Dispon[íi]vel|proposta|link|op[çc][ãa]o|Quero a op|Sim, quero contratar|N[ãa]o desejo|o que pesou|o que te fez desistir/i.test(txt1077(ant)); }   /* 10.89 (Gylmmar BU360 23/11: 'Não' respondido a uma pergunta do bot virou 'recusou') */
@@ -1790,8 +1791,9 @@
           if (enviados >= 8) break;   // no máximo 8 por ronda
         } catch (e) {} }
         for (const k in FX) if (ag - Math.max(+FX[k].t || 0, +FX[k].neg || 0) > 4 * 864e5) delete FX[k];
-        if (seco) return { seco: 1, abertas, prev, pend, anom }; if (!itens.length) { GM_setValue('ronda_vazia1204', { t: ag }); return { erro: '12.04: a API devolveu 0 conversas — ronda NÃO gravada (não é "0 pendências")' }; } GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
+        if (seco) return { seco: 1, abertas, prev, pend, anom }; if (!itens.length) { GM_setValue('ronda_vazia1204', { t: ag }); return { erro: '12.04: a API devolveu 0 conversas — ronda NÃO gravada (não é "0 pendências")' }; } GM_setValue('fech1077', FX); const R = { t: ag, abertas, enviados, pend, anom }; GM_setValue('pend1077', R); try { const E1231 = GM_getValue('espera1231', []) || []; const ce = pend.filter(p => p.tipo === 'cliente_esperando'); E1231.push({ t: ag, n: ce.length, max: ce.reduce((m, p) => Math.max(m, +p.min || 0), 0), q: ce.map(p => String(p.nome || '').split(' ')[0] + ' ' + (p.min || 0)).slice(0, 8).join(', ') }); GM_setValue('espera1231', E1231.slice(-600)); } catch (e) {}   /* 12.31: medidor — a cada ronda do robô (5 min), quantos clientes esperam resposta há mais de 8 min e o maior tempo */ aud1077('', 'ronda', 'ronda', abertas + ' abertas · ' + pend.length + ' pendências · ' + anom.length + ' anomalias · ' + enviados + ' fechamentos'); return R; }
       window.dinsRonda1077 = (seco) => ronda1077(true, !!seco);
+      window.dinsMedida = (horas) => { const de = Date.now() - (+horas || 6) * 3600000; const E = (GM_getValue('espera1231', []) || []).filter(x => x.t >= de); const com = E.filter(x => x.n > 0); return { rondasRobo: E.length, comClienteEsperando: com.length, maiorEsperaMin: E.reduce((m, x) => Math.max(m, x.max), 0), mediaDoMaiorMin: com.length ? Math.round(com.reduce((a, x) => a + x.max, 0) / com.length) : 0, piores: com.sort((a, b) => b.max - a.max).slice(0, 5).map(x => new Date(x.t).toTimeString().slice(0, 5) + ' ' + x.q) }; };   /* 12.31: resumo do medidor de espera */
       // 10.86 (Stefany 22/11 22:48, Marcelo 763AB: aceitou a simulação do BOT — R$ 10.000 em 108x de R$ 229,93, 'Sim desejo contratar' — e o robô mandou OUTRA
       // simulação de 2 opções; ele aceitou de novo e o link nunca chegou): várias portas de criação da ordem gravam aceite:false. Agora, toda ordem nova sem aceite
       // confere UMA vez pela API se a última simulação do bot ('Receba: R$ X / Pague em: N x R$ Y') teve 'Sim desejo contratar' depois (sem 'nova simulação'/'outro valor'
