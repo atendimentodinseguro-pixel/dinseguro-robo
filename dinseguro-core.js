@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.19';
+  const VERSAO = '12.20';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2931,7 +2931,7 @@
           try { y.respLidaT = Math.max(...j.newMessages.filter(m => m.FROM !== 'me').map(T)); } catch (e) {}   // 10.07: não relê a mesma resposta
           let ult = cli[cli.length - 1]; y.respSim = ult.slice(0, 80);
           if (y.estado === 'feito') { const u9 = String(ult).toLowerCase(); const op2Nos = j.newMessages.some(m => m.FROM === 'me' && /Op[çc][ãa]o 2️⃣/i.test(tx(m)));   // 12.19: depois do link, só a opção 2 explícita (palavra "opção"/"segunda"/"carência") vira digitação com carência; o resto fica com o vigia
-            if (op2Nos && !y.op2Car948 && !/n[ãa]o/.test(u9) && /op[çc][ãa]o\s*(2|dois|2️⃣)(?![\d])|segunda\s+op[çc][ãa]o|com\s+car[êe]ncia/.test(u9)) { ult = '2'; y.chk936 = Date.now(); y.link = ''; (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 12.19: depois do link respondeu "' + String(cli[cli.length - 1]).slice(0, 40) + '" → opção 2 com carência (a proposta antiga fica aberta)'); }
+            if (op2Nos && !y.op2Car948 && !/n[ãa]o/.test(u9) && /op[çc][ãa]o\s*(2|dois|2️⃣)(?![\d])|segunda\s+op[çc][ãa]o|com\s+car[êe]ncia/.test(u9)) { ult = '2'; y.chk936 = Date.now(); y.link = ''; Object.assign(y, { api879Abre: 0, api879T: 0, linkApi879: 0, api879Falhou: 0, api879Prox: 0 });   /* 12.20: sem isso a abertura da proposta NOVA era pulada (marca do link antigo) */ (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 12.19: depois do link respondeu "' + String(cli[cli.length - 1]).slice(0, 40) + '" → opção 2 com carência (a proposta antiga fica aberta)'); }
             else { GM_setValue('auto_ordens', O2); continue; } }
           // 10.06 (Stefany 21/11 00:32: "o robô entende só 1 e 2, não dá para ficar mais esperto?"): traduz a resposta do cliente para 1 / 2 / "não desejo" antes das regras
           try { const nos = j.newMessages.filter(m => m.FROM === 'me').sort((m1, m2) => T(m1) - T(m2)).map(tx); const ultNos2 = [...nos].reverse().find(t => /2️⃣|op[çc][ãa]o 2/i.test(t)) || '';
