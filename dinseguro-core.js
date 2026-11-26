@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.26';
+  const VERSAO = '12.27';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1114,6 +1114,18 @@
   // 12.25 (Stefany 26/11 09:01, Estefania 3CXHYN: "erro clássico — ela fez empréstimo com a gente recente, com essa margem; o Multicorban não atualiza a margem tão rápido,
   // vai parecer que tem margem mas não tem. Tem que ter essa maldade, você e o robô"): antes de simular/digitar, procura no New Corban proposta NOSSA do mesmo CPF
   // contratada nos últimos 120 dias (paga, em andamento/averbação, ou APROVADA/INTEGRADA no banco). Achou → a margem da consulta está velha: NÃO simula nem digita, vai para o vigia.
+  // 12.27 (Stefany 26/11 09:58, Alexandre 8IAWNA: informou "Caixa Agencia 4151 Conta … Poupança" e o Daycoval saiu na conta do benefício derivada da agência):
+  // HIERARQUIA DA CONTA NA DIGITAÇÃO: 1º extrato de empréstimo atualizado (nem gasta flash) → 2º consulta flash → 3º conta COMPLETA que o cliente informou → 4º aleatória (só Pix/nada).
+  const BANCOS1227 = [[/caixa|\bcef\b/i, '104'], [/banco do brasil|\bbb\b/i, '001'], [/bradesco/i, '237'], [/ita[uú]/i, '341'], [/santander/i, '033'], [/nu ?bank/i, '260'], [/sicoob|bancoob/i, '756'], [/sicredi/i, '748'], [/mercantil/i, '389'], [/\binter\b/i, '077'], [/\bc6\b/i, '336'], [/banrisul/i, '041'], [/mercado ?pago/i, '323'], [/pic ?pay/i, '380'], [/agibank|agiplan/i, '121'], [/\bpan\b/i, '623'], [/\bbmg\b/i, '318'], [/\bnext\b/i, '237'], [/\bneon\b/i, '655'], [/pagbank|pagseguro/i, '290'], [/banco do nordeste|\bbnb\b/i, '004'], [/banestes/i, '021'], [/\bbrb\b/i, '070'], [/daycoval/i, '707'], [/safra/i, '422'], [/\boriginal\b/i, '212'], [/digio/i, '335'], [/cresol/i, '133'], [/unicred/i, '136']];
+  function contaDoTexto1227(t) { t = String(t || '').replace(/\s+/g, ' '); if (t.length < 10) return null;
+    let bc = ''; for (const [re, c] of BANCOS1227) if (re.test(t)) { bc = c; break; }
+    if (!bc) { const m = t.match(/\bbanco\s*(?:n[ºo°.]?\s*)?:?\s*(\d{3})\b/i); if (m) bc = m[1]; }
+    const ag = (t.match(/\bag(?:[eê]ncia|\.)?\s*(?:n[ºo°.]?\s*)?[:\-]?\s*(\d{3,5})(?:\s*-\s*[\dxX])?\b/i) || [])[1];
+    const ctM = t.match(/\b(?:conta|c\/c|cc)\s*(?:corrente|poupan[çc]a|sal[áa]rio)?\s*(?:n[ºo°.]?\s*)?[:\-]?\s*(\d[\d.\s]*\d(?:\s*-\s*[\dxX])?)/i);
+    const ct = ctM ? ctM[1].replace(/[^\dxX]/g, '').replace(/[xX]$/, '0') : '';
+    if (!bc || !ag || ct.length < 4) return null;
+    return { banco: bc, agencia: ag, conta: ct, tipo_conta: /poupan/i.test(t) ? 'POUPANCA' : 'CORRENTE' }; }
+  window.dinsContaDoTexto = contaDoTexto1227;
   async function margemUsada1225(o) { try { const cN = so(o.cpf).replace(/^0+/, ''); if (!cN) return ''; const r = await ncReq('GET', '/proposals?search=' + cN + '&search_type=cpf&per_page=30'); const L = ((r && r.data) || []).filter(x => so(((x || {}).customer || {}).cpf).replace(/^0+/, '') === cN);
       const ben = so((o.ficha || {}).beneficio || (o.ficha || {}).matricula || ''); const ag = Date.now();
       const usou = L.filter(x => { const st = String((x.bank_reference || {}).bank_status || ''); const dt = Date.parse(String(((x.dates || {}).payment_date) || (x.dates || {}).created_at || '').replace(' ', 'T')) || 0;
@@ -3537,6 +3549,31 @@
       x.toques = TOQUES.map(q => ({ tipo: q.tipo, quando: q.tipo === '60' ? t + 70 * M : q.dt(t), feito: 0, st: '' }));
       x.hist.push(hhmm(t) + ' retomada: contagem recomeça agora'); gravaRG(r); desenharRegua(); return true; };
     window.dinsRegua = () => Object.values(RG());
+    // 12.27 (Stefany 26/11 09:58): conta COMPLETA que o cliente informou no chat (ou a do extrato de empréstimo lido) entra na ordem ANTES de digitar —
+    // vence a conta do Multicorban, a derivada da agência e a aleatória. Só a consulta FLASH feita (com conta) vence a do cliente. Nunca mexe em ordem digitando/gravando.
+    setInterval(async () => { try {
+      if (!/botmaker/.test(location.host) || !window.dinsBmGet) return;
+      const eu = window.__ab1227 = window.__ab1227 || Math.random().toString(36).slice(2, 7); const L = GM_getValue('c1227_dono', null); if (L && L.id !== eu && Date.now() - (+L.t || 0) < 4 * 60000) return; GM_setValue('c1227_dono', { id: eu, t: Date.now() });
+      const O = GM_getValue('auto_ordens', {}) || {}; const V = GM_getValue('conta1227_visto', {}) || {}; let n = 0;
+      for (const o of Object.values(O)) { if (n >= 6) break; if (!o || !o.hash || o.tipo !== 'cpf') continue;
+        if (!/^(nova|consultando|ficha_ok|com_margem|simulada|sim_enviada|sim_resp|aguarda_extrato|pendente)$/.test(o.estado || '')) continue;
+        if (Date.now() - (+o.t || +o.cpfT || 0) > 7 * 864e5) continue;
+        if (o.contaFix && !o.contaFix.origem1227) continue;   // conta decidida pelo vigia/regra (ex.: C6 agência 0001) → não mexe
+        if (Date.now() - (+V[o.hash] || 0) < 5 * 60000) continue; V[o.hash] = Date.now(); n++;
+        const r = await window.dinsBmGet('/messages?chat-id=' + o.hash + '&from=' + new Date(Date.now() - 7 * 864e5).toISOString());
+        const us = ((r && r.j && r.j.items) || []).filter(x => x.from === 'user').map(x => String((x.content && x.content.text) || ''));
+        let c = null; for (let i = us.length - 1; i >= 0 && !c; i--) c = contaDoTexto1227(us[i]) || (i > 0 ? contaDoTexto1227(us[i - 1] + ' | ' + us[i]) : null) || (i > 1 ? contaDoTexto1227(us[i - 2] + ' | ' + us[i - 1] + ' | ' + us[i]) : null);
+        const cx = o.extratoLido ? contaDoTexto1227(o.extratoLido) : null; if (cx) { c = cx; c.origem1227 = 'extrato'; } else if (c) c.origem1227 = 'cliente';
+        if (!c) continue;
+        const O2 = GM_getValue('auto_ordens', {}) || {}; const g = O2[o.hash]; if (!g || /^(digitando|gravando)$/.test(g.estado || '')) continue;
+        const f = g.ficha; if (f && c.origem1227 === 'cliente' && /feita agora/i.test(String(f.flash || '')) && so(f.conta).length >= 3) continue;   // 2º: flash feita com conta vence o cliente
+        if (g.contaFix && g.contaFix.conta === c.conta && g.contaFix.agencia === c.agencia && g.contaFix.banco === c.banco) continue;
+        g.contaFix = c; if (f) { f.banco = c.banco; f.agencia = c.agencia; f.conta = c.conta; f.tipo_conta = c.tipo_conta; f.conta_origem = c.origem1227 === 'extrato' ? 'extrato de empréstimo (12.27)' : 'informada pelo cliente no chat (12.27)'; }
+        (g.hist = g.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.27: conta ' + c.banco + ' ag ' + c.agencia + ' ' + c.tipo_conta.toLowerCase() + ' (' + c.origem1227 + ') → vale na digitação');
+        GM_setValue('auto_ordens', O2); try { diario(g.nomeReal || g.nome || '', '🏦 12.27: conta ' + c.banco + '/' + c.agencia + ' (' + c.origem1227 + ') entra na digitação'); } catch (e) {}
+      }
+      GM_setValue('conta1227_visto', V);
+    } catch (e) {} }, 90 * 1000);
     // 12.22 (Stefany 26/11 08:45–08:46, Emerson PVTMD7: "muita gente de ontem que ficou em negociação deveria estar classificada e receber o follow-up de manhã… não erre mais"):
     // quem NEGOCIOU ontem (escreveu ontem, janela de 24 h ainda aberta), está com simulação ou link pendente e a ÚLTIMA mensagem é nossa recebe UM follow-up de manhã (8h–12h),
     // mesmo com a régua 'respondido'/'esgotada' (antes a régua parava quando o cliente respondia e ninguém mais chamava no dia seguinte). Assinou/pagou/cancelou → não sai.
