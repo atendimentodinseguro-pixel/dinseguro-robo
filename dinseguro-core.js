@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.20';
+  const VERSAO = '12.21';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1104,7 +1104,9 @@
       at.length = 0; at.push(...atIg);
       const bN = String(o.banco || '').toUpperCase().replace(/\s/g, ''); const mesmo = at.find(x => String(((x.proposal || {}).bank || {}).name || '').toUpperCase().replace(/\s/g, '').indexOf(bN) >= 0 && /^https?:\/\//.test(String((x.bank_reference || {}).formalization_link || '')));
       if (mesmo) { const pp = mesmo.proposal || {}; return { adota: { link: mesmo.bank_reference.formalization_link, proposta: String(mesmo.bank_reference.proposal_number || ''), propNc: mesmo.id, liberado: brl(+pp.released_amount), parcela: brl(+pp.installment_amount), prazo: String(pp.term || ''), adotada936: 1 } }; }
-      const x = at[0]; return { outra: String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' (' + String((x.bank_reference || {}).bank_status || x.stage) + ', de ' + String((x.dates || {}).created_at || '').slice(0, 10) + ', R$ ' + brl(+((x.proposal || {}).released_amount || 0)) + ')' }; } catch (e) { return null; } }
+      /* 12.21 (PADRAO-PROPOSTA-ANTIGA-SO-C6, Stefany 25/11 16:09; Estefania 3CXHYN 26/11: Happy antiga de 19/11 travou a opção 2): só proposta antiga do C6 atrapalha — Daycoval/FACTA/Quali/Happy/Presença antigas não impedem a nova */
+      const atC6 = at.filter(x => /C6/i.test(String(((x.proposal || {}).bank || {}).name || ''))); if (!atC6.length) return { nada: 1, antigas: at.map(x => String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id)).join('; ') };
+      const x = atC6[0]; return { outra: String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' (' + String((x.bank_reference || {}).bank_status || x.stage) + ', de ' + String((x.dates || {}).created_at || '').slice(0, 10) + ', R$ ' + brl(+((x.proposal || {}).released_amount || 0)) + ')' }; } catch (e) { return null; } }
   async function jaFez1128(cpf) { try { const cN = so(cpf).replace(/^0+/, ''); if (!cN) return { tem: '' }; let L = []; for (const q of ['?search=' + cN + '&search_type=cpf&per_page=30', '?busca=' + cN + '&tipo_busca=cpf&per_page=30']) { try { const r = await ncReq('GET', '/proposals' + q); const d = (r && r.data) || []; L = d.filter(x => so(((x || {}).customer || {}).cpf).replace(/^0+/, '') === cN); if (L.length || (d.length && d.length < 30)) break; } catch (e) {} }
       const v = L.filter(x => (x.stage === 'paid' || ['awaiting_formalization', 'in_progress'].includes(x.stage)) && !/CANCEL|REPROV|RECUS/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 150 * 864e5);
       return { tem: v.map(x => (((x.proposal || {}).bank || {}).name || '') + ' ' + ((x.bank_reference || {}).proposal_number || '') + ' ' + (x.stage === 'paid' ? 'PAGO' : ((x.bank_reference || {}).bank_status || x.stage)) + ' de ' + String((x.dates || {}).created_at || '').slice(0, 10)).join('; ') }; } catch (e) { return { tem: '' }; } }   // 11.28
