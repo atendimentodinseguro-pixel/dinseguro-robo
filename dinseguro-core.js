@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.34';
+  const VERSAO = '12.35';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -596,7 +596,7 @@
         const real = badge ? (badge.getAttribute('data-bs-content') || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
         const status = c[4] ? c[4].innerText.trim() : '';
         const banco = ((c[2].innerText.match(/Banco ([A-Za-z0-9 ]+)|(FACTA|C6|QUALIBANK|Quali[a-z]*|Quero Mais|Daycoval|Presen[cç]a|BMG)/i) || [])[0] || '').replace(/\s+INSS$/, '').trim();
-        const reg = { cpf, nome, link, banco, status, statusBanco, real, t: agora, t0: ((link && E['L:' + link] && (E['L:' + link].t0 || E['L:' + link].t)) || agora) };   // 11.06: t0 = 1ª vez que o link apareceu (o t é renovado a cada leitura)
+        const reg = { cpf, nome, link, banco, status, statusBanco, real, t: agora, t0: ((link && E['L:' + link] && (E['L:' + link].t0 || E['L:' + link].t)) || agora) }; { const ant35 = link && E['L:' + link]; reg.tReal = (ant35 && String(ant35.real || ant35.statusBanco) === String(real || statusBanco)) ? (ant35.tReal || ant35.t0 || ant35.t || agora) : agora; }   /* 12.35: tReal = desde quando a proposta está nesta etapa */   // 11.06: t0 = 1ª vez que o link apareceu (o t é renovado a cada leitura)
         if (link) E['L:' + link] = reg; if (cpf) E['C:' + cpf + ':' + (link || status)] = reg; n++;
       }
       for (const k in E) if (agora - (E[k].t || 0) > 3 * 24 * 3600000) delete E[k];   // limpa o que tem mais de 3 dias
@@ -637,16 +637,18 @@
     // NUVEM DA ESTEIRA — de 20 em 20 min (7h–22h) a aba ?p=propostas consulta no banco TODA proposta da lista que ainda não terminou (uma a cada 4 s, até 80),
     // e relê a lista. Assim a fase (assinou, análise, desbloqueio, anuência, pago, recusada) fica real para a régua, as fases e o portão do vigia.
     let nuvemRodando1141 = false;
-    const nuvemTodas1141 = async (forca) => { if (nuvemRodando1141 || !/[?&]p=propostas/.test(location.search)) return 'ocupada/fora'; const hh = new Date().getHours(); if (!forca && (hh < 7 || hh >= 22)) return 'fora do horário';
+    const nuvemTodas1141 = async (forca, soQuentes) => { if (nuvemRodando1141 || !/[?&]p=propostas/.test(location.search)) return 'ocupada/fora'; const hh = new Date().getHours(); if (!forca && (hh < 7 || hh >= 22)) return 'fora do horário';
       const W = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window); if (typeof W.consultarProposta !== 'function') return 'sem consultarProposta';
       nuvemRodando1141 = true; let n = 0; try { W.confirm = () => true;
-        const ids = []; for (const tr of document.querySelectorAll('table tbody tr')) { const c = [...tr.children]; if (c.length < 6) continue; const sb = ((c[5] && c[5].innerText) || '') + ' ' + ((c[5] && c[5].querySelector('.badge') && c[5].querySelector('.badge').getAttribute('data-bs-content')) || '');
-          if (/\bPAG[OA]\b|INTEGRAD|CANCELAD|REPROVAD|FINALIZAD|RECUSAD/i.test(sb)) continue; const oc = [...tr.querySelectorAll('[onclick]')].map(e => e.getAttribute('onclick') || '').find(t => /consultarProposta\('\d+'\)/.test(t)); const id = oc && (oc.match(/consultarProposta\('(\d+)'\)/) || [])[1]; if (id && !ids.includes(id)) ids.push(id); }
-        for (const id of ids.slice(0, 80)) { if (document.querySelector('.modal.show')) await new Promise(r => setTimeout(r, 8000)); try { W.consultarProposta(id); n++; } catch (e) {} await new Promise(r => setTimeout(r, 4000)); }
+        const ids = []; const quentes1235 = []; for (const tr of document.querySelectorAll('table tbody tr')) { const c = [...tr.children]; if (c.length < 6) continue; const sb = ((c[5] && c[5].innerText) || '') + ' ' + ((c[5] && c[5].querySelector('.badge') && c[5].querySelector('.badge').getAttribute('data-bs-content')) || '');
+          if (/\bPAG[OA]\b|INTEGRAD|CANCELAD|REPROVAD|FINALIZAD|RECUSAD/i.test(sb)) continue; const oc = [...tr.querySelectorAll('[onclick]')].map(e => e.getAttribute('onclick') || '').find(t => /consultarProposta\('\d+'\)/.test(t)); const id = oc && (oc.match(/consultarProposta\('(\d+)'\)/) || [])[1]; if (id && !ids.includes(id)) { ids.push(id); if (!/PENDENTE FORMALIZA|AGUARD\w* FORM|AGUARD\w* ASSINATURA|N[ÃA]O INICIADO/i.test(sb) || /SELFIE|ASSINAD|CONCLU/i.test(sb)) quentes1235.push(id); } }
+        /* 12.35 (Stefany 26/11 14:15–14:20 'acompanhamento de proposta não ficou legal… direcionar… manter o fluxo quente do cliente que assinou'): LISTA QUENTE = proposta que já saiu de 'aguardando formalização' (assinada / em análise / desbloqueio / anuência / averbação) e ainda não foi paga nem cancelada. As quentes são consultadas no banco de 15 em 15 min e SEMPRE primeiro; a lista inteira, de hora em hora. */
+        const ordem1235 = soQuentes ? quentes1235 : quentes1235.concat(ids.filter(x => !quentes1235.includes(x)));
+        for (const id of ordem1235.slice(0, 80)) { if (document.querySelector('.modal.show')) await new Promise(r => setTimeout(r, 8000)); try { W.consultarProposta(id); n++; } catch (e) {} await new Promise(r => setTimeout(r, 4000)); }
         await new Promise(r => setTimeout(r, 6000)); const b = document.getElementById('esteira_refresh'); if (b) b.click(); await new Promise(r => setTimeout(r, 8000)); try { lerEsteira(); } catch (e) {}
-        GM_setValue('nuvem1141', { t: Date.now(), n, total: ids.length });
+        { const u35 = GM_getValue('nuvem1141', {}) || {}; GM_setValue('nuvem1141', { t: soQuentes ? (+u35.t || 0) : Date.now(), tQ: Date.now(), n, total: ids.length, quentes: quentes1235.length }); }
       } finally { nuvemRodando1141 = false; } return 'consultei ' + n; };
-    setTimeout(() => nuvemTodas1141(), 90000); setInterval(() => { try { const u = GM_getValue('nuvem1141', {}) || {}; if (Date.now() - (+u.t || 0) > 20 * 60000) nuvemTodas1141(); } catch (e) {} }, 60000);
+    setTimeout(() => nuvemTodas1141(), 90000); setInterval(() => { try { const u = GM_getValue('nuvem1141', {}) || {}; if (Date.now() - (+u.t || 0) > 60 * 60000) nuvemTodas1141(); else if (Date.now() - Math.max(+u.tQ || 0, +u.t || 0) > 15 * 60000) nuvemTodas1141(false, true); } catch (e) {} }, 60000);   /* 12.35: quentes de 15 em 15 min; lista inteira de hora em hora (antes: tudo de 20 em 20, até 80, sem prioridade) */
     try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsNuvemTodas = () => nuvemTodas1141(true); } catch (e) {}
     window.dinsEsteiraLer = lerEsteira; try { if (typeof unsafeWindow !== 'undefined') { unsafeWindow.dinsEsteiraLer = lerEsteira; unsafeWindow.dinsEsteiraVer = () => GM_getValue('esteira', {}); } } catch (e) {}
   }
@@ -673,6 +675,12 @@
         E[num] = { st, leg, cpf, t: Date.now() }; n++; }
       for (const k in E) if (Date.now() - (+E[k].t || 0) > 30 * 864e5) delete E[k]; GM_setValue('esteira_dc2', E); GM_setValue('esteira_dc2_t', Date.now()); lerDc1142(); return 'ok ' + n;
     } catch (e) { return 'erro ' + e.message; } };
+    /* 12.35 (26/11: o robô digitou o Cassiano às 13:51 e a aba ficou na tela de formalização — a leitura da esteira parou): depois de 5 min sem digitação do Daycoval e sem ninguém mexendo na aba, volta sozinha para 'Minhas Propostas' PELO MENU (nunca por URL: desloga). */
+    { let ultMex1235 = Date.now(); ['mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultMex1235 = Date.now(); }, true)); let tFora1235 = 0;
+      setInterval(() => { try { if (/proposta-pesquisa|login/i.test(location.pathname)) { tFora1235 = 0; return; } if (!tFora1235) tFora1235 = Date.now(); if (Date.now() - tFora1235 < 5 * 60000 || Date.now() - ultMex1235 < 5 * 60000) return;
+        const O = GM_getValue('auto_ordens', {}) || {}; if (Object.values(O).some(o => o && /DAYCOVAL/i.test(String(o.banco || o.bancoStefany || '')) && /^(digitando|gravando|ficha_ok|gravada)$/.test(o.estado || '') && Date.now() - (+o.t || 0) < 3 * 3600000)) return;
+        const ta = document.querySelector('textarea'); if (ta && ta.value && ta.value.trim()) return;
+        const m = [...document.querySelectorAll('a, button, li, span')].find(e => /^Minhas Propostas$/i.test((e.innerText || '').trim()) && e.offsetParent); if (m) { tFora1235 = Date.now(); m.click(); } } catch (e) {} }, 60000); }
     setTimeout(pesq1230, 40000); setInterval(pesq1230, 10 * 60000); try { (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).dinsDcPesq = pesq1230; } catch (e) {} }
 
   // ================================================================== 4.20 CONTORNO AUTOMÁTICO — EXECUTORES
@@ -3430,6 +3438,7 @@
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '', video: e.video || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    window.dinsListaQuente = () => { try { const R = RG(); const ag = Date.now(); const out = []; for (const h in R) { const x = R[h]; if (!x || !x.link) continue; let fe = null; try { fe = faseEsteira(x); } catch (e) {} if (!fe || ['não assinou', 'andamento', 'pago', 'recusada'].includes(fe.fase)) continue; const e = (gmCache('esteira', {}) || {})['L:' + x.link] || {}; const hs = Math.round((ag - (+e.tReal || +e.t0 || ag)) / 360000) / 10; out.push({ h, nome: String(x.nome || fe.nome || '').split(' ').slice(0, 2).join(' '), banco: fe.banco || '', fase: fe.fase, real: String(fe.real || '').slice(0, 60), horasNaEtapa: hs, acao: fe.acao || '', cobrar: (/desbloquear|anu[êe]ncia|documento|v[íi]deo|conta recusada/.test(fe.fase) && hs >= 4) || hs >= 24 }); } const n = GM_getValue('nuvem1141', {}) || {}; return { atualizadoQuentes: n.tQ ? new Date(n.tQ).toTimeString().slice(0, 5) : '', atualizadoTudo: n.t ? new Date(n.t).toTimeString().slice(0, 5) : '', lista: out.sort((a, b) => b.horasNaEtapa - a.horasNaEtapa) }; } catch (e) { return { erro: String(e && e.message || e) }; } };   /* 12.35: lista quente para a ronda — quem assinou e ainda não recebeu, a etapa, há quantas horas e se já é hora de cobrar (ação do cliente parada 4 h, ou qualquer etapa parada 24 h) */
     window.dinsEsteiraC6 = () => ({ atualizado: (GM_getValue('esteira_c62_t', 0) ? new Date(GM_getValue('esteira_c62_t', 0)).toTimeString().slice(0, 5) : ''), propostas: GM_getValue('esteira_c62', {}) || {} });   /* 12.33 */
     window.dinsFaseDoLink = link => link ? faseEsteira({ link }) : null;   // 11.41
     // 11.40: cliente que JÁ ASSINOU — o vigia avisa o robô (dinsAssinou) e o robô também deduz pela esteira / aprovado90 / pós-pagamento
