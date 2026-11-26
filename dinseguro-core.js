@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.49';
+  const VERSAO = '12.50';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2378,7 +2378,9 @@
     // Acima de 76 anos (Stefany, 07/11 15:59): fluxo "Início do atendimento", que resolve
     // tudo sozinho, mais a tag "Acima De 80 Anos" (o nome da tag está errado, mas é essa).
     // Não fecha a conversa: quem encerra é o próprio fluxo.
-    idade_77:         { fluxo: 'Início do atendimento', tags: ['Acima De 80 Anos'], fechar: false, tagsAntes: true },   /* 12.49 (Francisco HWUXJG 26/11 18:13): o flow rodou ANTES da tag e mandou o menu de boas-vindas ('Eu sou a Sara…') a um cliente já recusado — a tag vai PRIMEIRO, como no representante (6.55), para o flow reconhecer e encerrar */
+    /* 12.50 (Stefany 26/11 18:24: 'Ainda não temos [o ramo do fluxo para a tag de idade], pode fazer normal; me lembra depois de criar uma intenção'): idade acima de 76 = MENSAGEM padrão pela API + tag 'Acima De 80 Anos' + FECHAR, SEM chamar o fluxo 'Início do atendimento' (em 26/11 18:13 o fluxo mandou o menu de boas-vindas ao Francisco HWUXJG, já recusado). Quando ela criar a intenção de idade no Botmaker, ligar aqui para tag + fechar saírem pela API. */
+    idade_77:         { atalho: null, tags: ['Acima De 80 Anos'], fechar: true,
+                        texto: 'Obrigado por aguardar{NOME_V} 🙏\n\nConsultei aqui com carinho: os bancos com que trabalhamos fazem o empréstimo consignado *até os 76 anos de idade* e, por isso, infelizmente hoje não consigo te fazer uma proposta.\n\nPrefiro te falar com sinceridade do que te fazer esperar. Muito obrigado pela confiança em nos procurar 🤝' },
     // 4.72 (Stefany 11/11 17:02, caso Jamerson): CPF não localizado no Multicorban (como CPF e como matrícula) →
     // TAG 07 PRIMEIRO, depois o flow "Inicio do atendimento" (o flow fecha; depois dele não se mexe mais — erro 60).
     // 11.51 (Stefany 24/11 08:51, caso Adrovani/Magrão SA7BGF: "todo dia tem isso de forma errada, pede CPF de quem já mandou"): o flow "Inicio do atendimento" recomeçava o bot e PEDIA O CPF DE NOVO.
@@ -3397,7 +3399,7 @@
         const o = Object.values(O).find(x => x.tipo === 'cpf' && !x.reverso && !protegido(x.hash) && x.estado === 'desfecho' && (!bmApiLigada() || !DESFECHOS[x.acao] || !(DESFECHOS[x.acao].texto || DESFECHOS[x.acao].atalho === '/n30')) &&   /* 11.65 (Stefany 24/11 15:53, Creusa: 'tag na mão e digitando pela tela — já pedi milhares de vezes pela API'): com a API ligada o sem margem NUNCA cai para a tela (antes: 3 falhas ou 4 min → tela). Falhou → 8.18 tenta de novo e o portão do vigia mostra o desfecho parado (9.91). */ !(x.api800T && !x.msgApi && !x.api800Falhou && Date.now() - x.api800T < 60000));   // 8.00: retorno saindo pela API → espera
         if (o) {
           const d = new Date(), dd = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
-          if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm' || o.acao === 'idade_77') {   /* 12.46: idade acima de 76 → tag 'Acima De 80 Anos' + flow 'Início do atendimento' (o flow dá o retorno e fecha) */   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
+          if (o.acao === 'nao_localizado' || o.acao === 'representante' || o.acao === 'representante_sm') {   /* 12.46: idade acima de 76 → tag 'Acima De 80 Anos' + flow 'Início do atendimento' (o flow dá o retorno e fecha) */   // 6.55: representante igual ao não localizado (tag primeiro, flow depois)   // 4.72: tag 07 + flow "Inicio do atendimento", sem linha cordial e sem nota (o flow fecha a conversa)
             localStorage.setItem('dins_ordem', JSON.stringify({ hash: o.hash, acao: o.acao, t: Date.now() }));   // 6.84 (caso Tania 14:05: ia como 'nao_localizado' e levava a tag 07 no lugar da 03)
           } else if (o.acao === 'sem_beneficio') {   // 7.54: retorno + 07 - Nao Identificado + fechar
             const nota = dd + ' ' + hhmm(Date.now()) + ' [robô 7.54] ' + (o.nomeReal || o.nome || '') + ' · ' + (o.resumo || '') + ' → não é nosso público: retorno + tag 07 + fechar.';
