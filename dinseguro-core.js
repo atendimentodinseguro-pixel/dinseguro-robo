@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.32';
+  const VERSAO = '12.33';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3419,9 +3419,11 @@
       else if (/ASSINATURA DIGITAL OK|AVERBE JA|AGUARDA AVERBA|PROPOSTA ASSINADA|FORMALIZA\S* CONCLU|A?VERBA\S* ON-? ?LINE/.test(t)) { fase = 'falta desbloquear';   /* 7.47 (Stefany 16/11 19:22, Édina Daycoval): 'Formalização concluída' / 'averba online' = aprovado → desbloqueio */   /* 7.27 (Stefany 16/11 16:04): 'Proposta Assinada' já pede o desbloqueio */ acao = 'mandar linha pessoal + /dsg25a + /dsg25'; }
       else if (/AGUARD\w* DESBLOQ\w* ENTRANTE|ANALISE CR[EÉ]DITO|AN[AÁ]LISE (DE )?CR[EÉ]DITO|EM AN[AÁ]LISE|\bAPROVAD[AO]\b/.test(t)) { fase = 'em análise'; }   // 11.40 (Stefany 23/11 19:13, Ana Viana: assinou, doc anexado e o robô cobrou o link de novo) — já assinou: sem cobrança de link
       else if (/AGUARD\w* ASSINATURA|AGUARDA FORM|PENDENTE ASSINATURA|FORMALIZA/.test(t)) { fase = 'não assinou'; }
+      if (fase === 'em análise' && /C6/i.test(String(e.banco || ''))) { try { const C33 = gmCache('esteira_c62', {}, 30000) || {}; const pr33 = String(((gmCache('auto_ordens', {}) || {})[x.hash] || {}).proposta || '').replace(/\D/g, ''); const c33 = pr33 && C33[pr33]; if (c33 && Date.now() - c33.t < 15 * 60000 && c33.form && !/CONCLU/i.test(c33.form)) fase = 'não assinou'; } catch (er) {} }   /* 12.33 (Stefany 26/11 13:39): no C6 'ANALISE CREDITO' aparece antes da selfie — só conta como assinado com a formalização CONCLUÍDA no Autorizador (leitura com menos de 15 min; sem leitura fica como antes) */
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '', video: e.video || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    window.dinsEsteiraC6 = () => ({ atualizado: (GM_getValue('esteira_c62_t', 0) ? new Date(GM_getValue('esteira_c62_t', 0)).toTimeString().slice(0, 5) : ''), propostas: GM_getValue('esteira_c62', {}) || {} });   /* 12.33 */
     window.dinsFaseDoLink = link => link ? faseEsteira({ link }) : null;   // 11.41
     // 11.40: cliente que JÁ ASSINOU — o vigia avisa o robô (dinsAssinou) e o robô também deduz pela esteira / aprovado90 / pós-pagamento
     window.dinsJaAssinou = h => { try { const x = RG()[h] || {}; if (x.assinouT) return 'vigia marcou assinado'; const A = GM_getValue('aprovado90', {}) || {}; if (A[h]) return 'aprovado (dinsAprovado90)'; const P = GM_getValue('pos_pago', {}) || {}; if (P[h]) return 'pago'; const fe = faseEsteira(x); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) return 'esteira: ' + fe.fase; } catch (e) {} return ''; };
@@ -8858,11 +8860,23 @@
       const r = rows.slice(1).find(tr => tr.innerText.toUpperCase().includes(nome)); if (!r) return { achou: false };
       const c = [...r.children]; return { achou: true, r, ativ: iA >= 0 && c[iA] ? c[iA].innerText.trim() : '', sit: iS >= 0 && c[iS] ? c[iS].innerText.trim() : '',
         link: [...r.querySelectorAll('a')].find(a => /^AVERBE JA$/i.test(a.innerText.trim())) }; };
+    const T0_1233 = Date.now();
     const tick = () => {
       try {
         try { W.confirm = () => true; W.alert = () => {}; } catch (e) {}
         const a = A(); const ativos = Object.keys(a).filter(k => a[k].ativo); let st = ST();
         if (st && Date.now() - st.t > 3 * 60000) { setST(null); st = null; }
+        /* 12.33 (Stefany 26/11 13:39, Elisangela 30DZ4B): o New Corban não mostra se o cliente do C6 já fez a selfie; o Autorizador mostra (coluna STATUS FORMALIZAÇÃO).
+           A aba do Autorizador lê a grade da Aprovação / Consulta a cada ~4 min e guarda por nº de proposta: situação, atividade e formalização. */
+        try { const naT33 = /AprovacaoConsulta/i.test(location.pathname); const tRef = Math.max(T0_1233, +sessionStorage.getItem('dins_c6_ref') || 0); const ag33 = Date.now();
+          if (!st && !naT33 && location.pathname.replace(/\/+$/, '') === '/WebAutorizador' && ag33 - (+sessionStorage.getItem('dins_c6_nav') || 0) > 4 * 60000) { const l33 = [...document.querySelectorAll('a')].find(x => /Aprova[çc][ãa]o \/ Consulta$/i.test((x.innerText || x.textContent || '').trim())); if (l33 && l33.href) { sessionStorage.setItem('dins_c6_nav', String(ag33)); location.href = l33.href; return; } }
+          if (naT33) { const g33 = document.querySelector('#ctl00_Cph_AprCons_grdConsulta');
+            if (g33 && ag33 - tRef > 6000 && sessionStorage.getItem('dins_c6_lido') !== String(tRef)) { const rs = [...g33.querySelectorAll('tr')]; const hd = rs[0] ? [...rs[0].children].map(c => c.innerText.trim().toUpperCase()) : [];
+              const iP = hd.indexOf('PROPOSTA'), iS = hd.findIndex(h => /^SITUA/.test(h)), iA = hd.indexOf('ATIVIDADE'), iF = hd.findIndex(h => /^STATUS FORMALIZA/.test(h));
+              if (iP >= 0 && iF >= 0) { sessionStorage.setItem('dins_c6_lido', String(tRef)); const C = GM_getValue('esteira_c62', {}) || {};
+                rs.slice(1).forEach(tr => { const c = [...tr.children]; const n = (c[iP] ? c[iP].innerText : '').replace(/\D/g, ''); if (n.length >= 8 && c[iF]) C[n] = { sit: c[iS] ? c[iS].innerText.trim() : '', ativ: c[iA] ? c[iA].innerText.trim() : '', form: c[iF].innerText.trim(), t: tRef }; });
+                for (const k in C) if (ag33 - C[k].t > 5 * 864e5) delete C[k]; GM_setValue('esteira_c62', C); GM_setValue('esteira_c62_t', tRef); } }
+            if (!st && !ativos.length && ag33 - tRef > 4 * 60000) { const b33 = [...document.querySelectorAll('a,button,input,span,td')].find(e => /^Atualizar$/i.test(String(e.innerText || e.value || '').trim())); sessionStorage.setItem('dins_c6_ref', String(ag33)); if (b33) { b33.click(); return; } } } } catch (e) {}
         if (!ativos.length && !st) return;
         const naTela = /AprovacaoConsulta/i.test(location.pathname);
         const devido = ativos.find(k => Date.now() - (a[k].ultT || 0) >= (a[k].cada || 60000));
