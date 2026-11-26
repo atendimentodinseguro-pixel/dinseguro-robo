@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.51';
+  const VERSAO = '12.52';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1572,6 +1572,9 @@
           onload: r => { try { const j = JSON.parse(r.responseText); if (!j || !j.consulta) return res(''); const tx = new DOMParser().parseFromString(j.consulta, 'text/html').body.textContent; const c = (tx.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/g) || []).map(x => x.replace(/\D/g, '')).find(cpfDigitoOk); res(c || ''); } catch (e) { res(''); } },
           onerror: () => res(''), ontimeout: () => res('') }); } catch (e) { res(''); } }); }
     async function reverso847(fone) { const f = foneDe847(fone); if (!f) return { cpf: '', fonte: 'sem telefone' }; let c = await ncPorFone847(f); if (c) return { cpf: c, fonte: 'New Corban' }; c = await fcPorFone847(f); if (c) return { cpf: c, fonte: 'FullConsig' }; return { cpf: '', fonte: 'não achou' }; }
+    // 12.52: cria a ordem de um cliente do Zap Responder de uma vez — marca a ponte, acha o CPF (o informado, senão o reverso pelo telefone) e põe a ordem 'nova'. Só pede CPF ao cliente quando devolver { erro: 'sem cpf' }.
+    window.dinsZrOrdem = async (chatId, fone, sid, conv, nome, cpf) => { const pt = window.dinsZrPonte(chatId, fone, sid, conv); if (!pt || pt.erro) return pt || { erro: 'ponte' }; let c = String(cpf || '').replace(/\D/g, ''); let fonte = 'informado'; if (c.length !== 11) { const r = await reverso847(fone); c = r.cpf || ''; fonte = r.fonte; } if (c.length !== 11) { window.dinsZrPonte(chatId, null); return { erro: 'sem cpf', fonte }; }
+      const O = GM_getValue('auto_ordens', {}) || {}; const o0 = O[chatId]; if (o0 && !/^(desfecho_ok|feito|erro)$/.test(String(o0.estado)) ) return { erro: 'já tem ordem em ' + o0.estado }; const ok = window.dinsAutoCpf(chatId, c, nome || '', 0, false, { fone: String(fone).replace(/\D/g, ''), acolheu: 1, zr1251: 1, reverso: fonte === 'informado' ? 0 : 1 }); return { ok, fonte, cpf: '***' + c.slice(-5) }; };
     window.dinsReversoTeste = async fone => { const r = await reverso847(fone); return { fonte: r.fonte, cpf: r.cpf ? '***' + r.cpf.slice(-5) : '' }; };
     // 9.83 (Stefany 20/11 15:40, caso Sônia TCB5K: CPF achado pelo telefone deu sem margem → pediu o CPF; ela mandou o MESMO CPF às 15:38 e ninguém respondeu — a ordem ficou parada em 'reverso_conferir'):
     // cliente mandou o CPF dela → mesmo CPF: solta o desfecho guardado (vira ordem normal); CPF diferente: apaga a ordem do telefone para abrir consulta nova
