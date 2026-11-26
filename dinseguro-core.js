@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.40';
+  const VERSAO = '12.41';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -2962,7 +2962,7 @@
           if (esp2 !== '00' && id2) { if (atual2 === 'C6') prox2 = inval2 ? ((id2 >= 40 && id2 <= 57) ? 'DAYCOVAL' : id2 >= 60 ? 'FACTA' : (id2 >= 58 ? 'QUALIBANK' : '')) : 'FACTA'; else if (atual2 === 'FACTA') prox2 = 'QUALIBANK'; else if (atual2 === 'DAYCOVAL' && id2 >= 58) prox2 = 'QUALIBANK'; }
           const hh2 = new Date().getHours(); const min2 = Math.round((Date.now() - (+o.tGrav)) / 60000);
           if (prox2 === 'DAYCOVAL' && !(hh2 >= 8 && hh2 < 20)) prox2 = '';
-          if (!prox2) { o.semProx1240 = 1; (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + min2 + ' min sem link no ' + atual2 + ' e sem próximo banco automático → segue esperando; vigia olha'); mud = true; diario(o.nomeReal || o.nome || h.slice(0, 5), min2 + ' min sem link no ' + atual2 + ', sem próximo banco automático (12.40)'); continue; }
+          if (!prox2) { o.semProx1240 = 1; try { if (inval2 && id2 && id2 < 40 && typeof window.dinsParaStefany === 'function') window.dinsParaStefany(h, 'invalidez ' + id2 + ' anos: ' + atual2 + ' Nº ' + (o.proposta || '') + ' gravada há ' + min2 + ' min e o link não saiu — não há próximo banco automático (Stefany 26/11 16:56: consultar ela)', o.nomeReal || o.nome || ''); } catch (e) {}   /* 12.41: invalidez até 39 anos sem link → consulta a Stefany */ (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + min2 + ' min sem link no ' + atual2 + ' e sem próximo banco automático → segue esperando; vigia olha'); mud = true; diario(o.nomeReal || o.nome || h.slice(0, 5), min2 + ' min sem link no ' + atual2 + ', sem próximo banco automático (12.40)'); continue; }
           const velha = String(o.proposta || '');
           Object.assign(o, { estado: 'nova', bancoStefany: prox2, banco: '', proposta: '', link: '', erro: '', ficha: null, propNc: null, viaApi: 0, aguardaLista: 0, tGrav: 0, fallbacks: (o.fallbacks || 0) + 1, propSemLink1240: atual2 + ' ' + velha, t: Date.now() });
           (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + atual2 + ' Nº ' + velha + ' gravada há ' + min2 + ' min e o link não saiu → refazendo no ' + prox2 + ' (a do ' + atual2 + ' fica aberta, sem cancelar)'); mud = true;
