@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.23';
+  const VERSAO = '12.24';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -6476,7 +6476,7 @@
       for (const id of Object.keys(FD)) { const f = FD[id]; if (ag < (+f.t || 0)) continue; delete FD[id]; mud = true;
         const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) { FD[id] = Object.assign(f, { t: ag + 10 * 60000 }); continue; }
         const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const q = String(c.queueId || '');
-        if (/^fechar_/.test(q) || (!q && !c.agentId)) { diario(f.nome, '01 D sem margem: a conversa já estava fechada (9.11)'); continue; }
+        if (/^fechar_/.test(q) || (/01.?k|01k_/i.test((c.tags || []).join('|')))) { diario(f.nome, '01 D sem margem: a conversa já estava fechada com 01 k (9.11)'); continue; }   /* 12.24 (Shelzia NN5WXH 26/11: conversa SEM fila (queueId vazio, fora do atendimento) era tratada como 'já fechada' e ficou aberta sem 01 k — só conta como fechada se a fila for fechar_* ou já tiver a 01 k) */
         if (lu > (+f.de || 0) + 60000 || c.agentId) { diario(f.nome, '01 D sem margem: o cliente escreveu depois do retorno (ou está com atendente) → NÃO fechei; vigia confere (9.11)'); continue; }
         const ON = GM_getValue('bm_intents_on', []) || []; if (!ON.includes(f.it)) { diario(f.nome, '⚠️ 01 D sem margem: intenção ' + f.it + ' desligada → fechar com 01 k à mão (9.11)'); continue; }
         const ri = await window.dinsBmIntent(id, f.it); diario(f.nome, (ri && ri.http >= 200 && ri.http < 300) ? '01 D sem margem: 2 h depois do retorno → 01 k e fechou ✓ (9.11)' : '⚠️ 01 D sem margem: a intenção ' + f.it + ' não aceitou → fechar à mão (9.11)');
@@ -6495,7 +6495,7 @@
           if (DV[id] && ag - (+DV[id].v || 0) < 20 * 60000) continue;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; DV[id] = Object.assign(DV[id] || {}, { v: ag }); const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
-          if (!lu || /^fechar_/.test(q) || (!q && !c.agentId) || (R[id] && R[id].humano924) || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
+          if (!lu || /^fechar_/.test(q) || (!q && !c.agentId && /01_I_|01k_|Sem_?margem|LoasSem|02_I|02_A|NaoIdentificado/i.test((c.tags || []).join('|'))) || (R[id] && R[id].humano924) || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
           // 9.23 (Stefany 19/11 17:05, Cléria e Sônia: "teve o primeiro follow-up; nesse segundo já é o encerramento — avisa que encerrou, se precisar chama, e fecha tagueada"):
           // 1 h depois do "ficou mais alguma dúvida?" sem resposta → aviso de encerramento + tag + fecha (sem CPF: fechar_01c; com CPF: fechar_so)
           if (DV[id].t && !DV[id].enc && lu <= (+DV[id].t || 0) && ag - (+DV[id].t || 0) >= 60 * 60000) { try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa, é só chamar a gente aqui. Vai ser um prazer te atender!'); DV[id].enc = ag; n++;
@@ -6605,7 +6605,7 @@
         for (const id of Object.keys(CAND)) { const t = CAND[id].t; if ((EN[id] && (+EN[id].t || 0) > t) || ag - t < CAND[id].lim * 60000 || ag - t > 24 * 3600000 || protegido(id) || id === '__TESTE_LIBERADO_1022__' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
-          if (/^fechar_/.test(q) || (!q && !c.agentId) || c.agentId || lu > t + 30000 || !jf || jf < ag + 2 * 60000 || /01.?A|01.?D|FechouNeg|SimulacaoEnviada/i.test(tg)) { EN[id] = { t: ag, pulou: 1 }; continue; }
+          if (/^fechar_/.test(q) || (!q && !c.agentId && /01_I_|01k_|Sem_?margem|LoasSem|02_I|02_A|NaoIdentificado/i.test((c.tags || []).join('|'))) || c.agentId || lu > t + 30000 || !jf || jf < ag + 2 * 60000 || /01.?A|01.?D|FechouNeg|SimulacaoEnviada/i.test(tg)) { EN[id] = { t: ag, pulou: 1 }; continue; }
           try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!');
             EN[id] = { t: ag }; n++; let fechou = '';
             try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'fechar_01c'); fechou = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C e fechou ✓' : ' — ⚠️ a intenção fechar_01c não aceitou'; } else fechou = ' — ⚠️ intenção fechar_01c desligada: fechar à mão'; } catch (e) {}
