@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.50';
+  const VERSAO = '12.51';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1405,7 +1405,16 @@
     if (await silenciar1218(chatId)) { await new Promise(z => setTimeout(z, 5000)); r = await window.dinsBmGet('/chats/' + chatId); if (r && r.j && r.j.isBotMuted === true) return; }
     const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 800); }
   window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
-  function bmEnviarTexto0(chatId, texto) { return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
+  // 12.51 (Stefany 26/11 19:11: "coloque um robô lá" / "quem já passou por atendimento, dá para pegar pelo telefone, já manda a simulação logo"): PONTE Zap Responder.
+  // Cliente que respondeu a campanha no Zap Responder e tem conversa no Botmaker: o vigia marca a ponte (dinsZrPonte) e cria a ordem normal (dinsAutoCpf).
+  // O robô consulta, simula e digita como sempre; só a SAÍDA da mensagem vai pelo Zap Responder (onde o cliente está), em vez do Botmaker (janela fechada).
+  function zrPonte1251(chatId) { try { const M = GM_getValue('zr_ponte', {}) || {}; const p = M[chatId]; return (p && /^55\d{10,11}$/.test(String(p.fone || '')) && p.sid && Date.now() - (p.t || 0) < 3 * 86400000) ? p : null; } catch (e) { return null; } }
+  try { const W1251 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+    W1251.dinsZrPonte = (chatId, fone, sid, conv) => { if (!/^[A-Z0-9]{20}$/.test(String(chatId))) return { erro: 'chat inválido' }; const M = GM_getValue('zr_ponte', {}) || {}; if (fone === null) { delete M[chatId]; GM_setValue('zr_ponte', M); return { tirou: chatId }; } const n = String(fone || '').replace(/\D/g, ''); if (!/^55\d{10,11}$/.test(n) || !sid) return { erro: 'telefone ou sessão inválidos' }; for (const k in M) if (Date.now() - (M[k].t || 0) > 3 * 86400000) delete M[k]; M[chatId] = { fone: n, sid: String(sid), conv: String(conv || ''), t: Date.now(), env: 0 }; GM_setValue('zr_ponte', M); return M[chatId]; };
+    W1251.dinsZrPonteVer = () => GM_getValue('zr_ponte', {}) || {}; } catch (e) {}
+  function bmEnviarTexto0(chatId, texto) { const pz1251 = zrPonte1251(chatId); if (pz1251) return new Promise((res, rej) => { const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return rej(new Error('ponte Zap Responder: fora do horário (8h–21h)')); const t = String(texto).replace(/^\s*\*?\[Dinseguro\]\*?\s*\n?/, '');
+      zrReq('POST', '/api/whatsapp/message/' + encodeURIComponent(pz1251.sid), { type: 'text', number: pz1251.fone, message: t, showInChat: true }).then(r => { if (r && r.http >= 200 && r.http < 300) { try { const M = GM_getValue('zr_ponte', {}) || {}; if (M[chatId]) { M[chatId].env = (M[chatId].env || 0) + 1; M[chatId].tEnv = Date.now(); M[chatId].ult = t.slice(0, 80); GM_setValue('zr_ponte', M); } } catch (e) {} console.log('[Dinseguro] 12.51 ponte Zap Responder: mensagem enviada', chatId); res('zr'); } else rej(new Error('ponte Zap Responder: ' + ((r && (r.erro || ('HTTP ' + r.http + ' ' + JSON.stringify(r.j || r.txt || '').slice(0, 120)))) || 'falhou'))); }); });
+    return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
       data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: (/^\s*\[/.test(String(texto)) ? '' : '[Dinseguro]\n') + String(texto) }] }),   // 8.06: pela API a mensagem chega como 'Bot' → leva o [Dinseguro] (igual à tela) e o robô reconhece como resposta nossa
       onload: r => (r.status >= 200 && r.status < 300) ? res(r.responseText) : rej(new Error('API Botmaker HTTP ' + r.status + ' ' + String(r.responseText || '').slice(0, 120))),
