@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.39';
+  const VERSAO = '12.40';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1126,7 +1126,7 @@
   // senão → para e avisa o vigia com o banco, o número e o status. Sem resposta da API → segue (não trava o atendimento).
   async function jaTemProp936(o) { try { const cN = so(o.cpf).replace(/^0+/, ''); if (!cN) return null; let L = [];
       for (const q of ['?search=' + cN + '&search_type=cpf&per_page=30', '?busca=' + cN + '&tipo_busca=cpf&per_page=30']) { try { const r = await ncReq('GET', '/proposals' + q); const d = (r && r.data) || []; L = d.filter(x => so(((x || {}).customer || {}).cpf).replace(/^0+/, '') === cN); if (L.length || (d.length && d.length < 30)) break; } catch (e) {} }
-      const cv1163 = (o.cancVigia || []).map(String); const at = L.filter(x => !cv1163.includes(String((x.bank_reference || {}).proposal_number || '')) && ['awaiting_formalization', 'in_progress'].includes(x.stage) && !/CANCEL|REPROV|PAGO/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 30 * 864e5)
+      const cv1163 = (o.cancVigia || []).map(String); { const sl1240 = (String(o.propSemLink1240 || '').match(/(\d+)\s*$/) || [])[1] || ''; if (sl1240) cv1163.push(sl1240); }   /* 12.40: a proposta que ficou 10 min sem link não impede a redigitação no próximo banco */ const at = L.filter(x => !cv1163.includes(String((x.bank_reference || {}).proposal_number || '')) && ['awaiting_formalization', 'in_progress'].includes(x.stage) && !/CANCEL|REPROV|PAGO/i.test(String((x.bank_reference || {}).bank_status || '')) && Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 30 * 864e5)
         .sort((a, b) => (Date.parse(String(b.dates.created_at).replace(' ', 'T')) || 0) - (Date.parse(String(a.dates.created_at).replace(' ', 'T')) || 0));
       if (!at.length) return { nada: 1 };
       // 9.37 (Stefany 19/11 18:18: "pode ser proposta antiga já reprovada — reprovado, faz outra; se mudou o valor, faz outra"): reprovada/cancelada já fica de fora (acima);
@@ -2955,6 +2955,18 @@
     setInterval(() => { try { if (!faz('atendimento')) return; const O = GM_getValue('auto_ordens', {}) || {}; const E = Object.values(GM_getValue('esteira', {}) || {}); let mud = false;
       for (const h in O) { const o = O[h]; if (!o || !o.proposta || !o.cpf || !['gravada', 'erro'].includes(o.estado) || Date.now() - (+o.t || 0) > 6 * 3600000) continue;
         if (o.estado === 'gravada' && Date.now() - (+o.tGrav || +o.t || 0) < 4 * 60000) continue;
+        /* 12.40 (Stefany 26/11 16:52, José Carlos 1JDBXE: link do C6 levou 50 min — 'se conseguiu finalizar e o link não sai em 10 minutos, passa para a digitação do próximo banco'; vale para todos os bancos; mesma regra de bancos da reprovação; a proposta antiga fica aberta, sem cancelar) */
+        if (o.estado === 'gravada' && !o.link && +o.tGrav && Date.now() - (+o.tGrav) >= 10 * 60000 && (o.fallbacks || 0) < 2 && !o.semProx1240) { try {
+          const f2 = o.ficha || {}; const mE2 = String(o.resumo || '').match(/esp\s*(\d+),\s*(\d+)a/i); const esp2 = String(f2.especie || (mE2 && mE2[1]) || '').padStart(2, '0'); const id2 = parseInt(f2.idade || (mE2 && mE2[2])) || 0; const inval2 = ['32', '92'].includes(esp2);
+          const atual2 = String(o.banco || '').toUpperCase(); let prox2 = '';
+          if (esp2 !== '00' && id2) { if (atual2 === 'C6') prox2 = inval2 ? ((id2 >= 40 && id2 <= 57) ? 'DAYCOVAL' : id2 >= 60 ? 'FACTA' : (id2 >= 58 ? 'QUALIBANK' : '')) : 'FACTA'; else if (atual2 === 'FACTA') prox2 = 'QUALIBANK'; else if (atual2 === 'DAYCOVAL' && id2 >= 58) prox2 = 'QUALIBANK'; }
+          const hh2 = new Date().getHours(); const min2 = Math.round((Date.now() - (+o.tGrav)) / 60000);
+          if (prox2 === 'DAYCOVAL' && !(hh2 >= 8 && hh2 < 20)) prox2 = '';
+          if (!prox2) { o.semProx1240 = 1; (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + min2 + ' min sem link no ' + atual2 + ' e sem próximo banco automático → segue esperando; vigia olha'); mud = true; diario(o.nomeReal || o.nome || h.slice(0, 5), min2 + ' min sem link no ' + atual2 + ', sem próximo banco automático (12.40)'); continue; }
+          const velha = String(o.proposta || '');
+          Object.assign(o, { estado: 'nova', bancoStefany: prox2, banco: '', proposta: '', link: '', erro: '', ficha: null, propNc: null, viaApi: 0, aguardaLista: 0, tGrav: 0, fallbacks: (o.fallbacks || 0) + 1, propSemLink1240: atual2 + ' ' + velha, t: Date.now() });
+          (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + atual2 + ' Nº ' + velha + ' gravada há ' + min2 + ' min e o link não saiu → refazendo no ' + prox2 + ' (a do ' + atual2 + ' fica aberta, sem cancelar)'); mud = true;
+          diario(o.nomeReal || o.nome || h.slice(0, 5), atual2 + ' ' + min2 + ' min sem link → refazendo no ' + prox2 + ' (12.40)'); continue; } catch (e) {} }
         const c = String(o.cpf).replace(/\D/g, ''); const ev = E.filter(y => y && String(y.cpf || '').replace(/\D/g, '') === c && (+y.t || 0) > (+o.t || 0) - 3600000).sort((a, b) => (+b.t || 0) - (+a.t || 0))[0]; if (!ev) continue;
         const txt = (ev.real || '') + ' ' + (ev.statusBanco || '') + ' ' + (ev.status || '');
         if (/REPROV|RECUS|NEGAD|CANCEL/i.test(txt)) { if ((o.fallbacks || 0) >= 2) continue; if ((o.cancVigia || []).map(String).includes(String(ev.proposta || ev.numero || o.proposta || ''))) continue;   /* 11.63: proposta que o VIGIA cancelou para refazer não é reprovação do banco */
