@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.25';
+  const VERSAO = '12.26';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1216,6 +1216,13 @@
       if (!o) return;
       ocupApi = true; poe(o.hash, { estado: 'digitando', aba: 'api', viaApi: 1 }, 'digitando no ' + o.banco + ' pela API'); try { const VP = GM_getValue('video_aval_pend', {}) || {}; if (o && o.hash && !VP[o.hash]) { VP[o.hash] = Date.now(); GM_setValue('video_aval_pend', VP); } } catch (e) {}   // 9.93
       try { if ((o.aceite || o.simGravar) && !o.op2Car948) { const ad = await adota887(o); if (ad) { poe(o.hash, Object.assign({ estado: 'link', erro: '' }, ad), 'já existe proposta ativa do mesmo CPF no ' + o.banco + ' (Nº ' + ad.proposta + ') → reenvia o link dela, sem digitar outra (8.87)'); return; } }
+        /* 12.26 (Stefany 26/11 09:25, Francisca K94HNB: cliente 01 D esperando o dinheiro recebeu simulação nova; "todos com 01 D o robô passa para você, ele não vai saber atender";
+           "01 A tem que ficar esperto: já mandou CPF, já teve simulação — não é cliente novo") */
+        { let tg26 = ''; try { const g26 = window.dinsBmGet ? await window.dinsBmGet('/chats/' + o.hash) : null; tg26 = ((g26 && g26.j && g26.j.tags) || []).join('|'); } catch (e) {}
+          if (/01.?D\b|01_D|FechouNeg/i.test(tg26) && !o.vigiaForcou1226) { poe(o.hash, { estado: 'erro', erro: '12.26: cliente 01 D (já contratou com a gente) — VIGIA atende; o robô não consulta, não simula e não digita', resumo: (o.resumo || '') + ' · ⛔ 12.26: 01 D → vigia' }, '12.26 01 D → vigia'); try { window.dinsReguaCancelar && window.dinsReguaCancelar(o.hash, '12.26: 01 D → vigia'); } catch (e) {} ocupApi = false; return; }
+          if (/InssComMargem|01.?A\b|01_A/i.test(tg26) && !o.vigiaForcou1226 && !(o.aceite || o.simGravar || o.aceitouSim) && /SERVIDOR|8\.15|7\.04|pedido de CPF|follow-up de CPF|último contato|voltou/i.test((o.hist || []).join(' '))) {
+            try { const cN = so(o.cpf).replace(/^0+/, ''); const rr = await ncReq('GET', '/proposals?search=' + cN + '&search_type=cpf&per_page=30'); const L = ((rr && rr.data) || []).filter(x => Date.now() - (Date.parse(String((x.dates || {}).created_at || '').replace(' ', 'T')) || 0) < 45 * 864e5);
+              if (L.length) { const x = L[0]; poe(o.hash, { estado: 'erro', erro: '12.26: cliente 01 A que VOLTOU e já teve proposta nos últimos 45 dias (' + String(((x.proposal || {}).bank || {}).name || '?') + ' Nº ' + String((x.bank_reference || {}).proposal_number || x.id) + ' — ' + String((x.bank_reference || {}).bank_status || x.stage) + ') — VIGIA lê a conversa e decide; o robô não manda simulação nova', resumo: (o.resumo || '') + ' · ⛔ 12.26: 01 A com histórico → vigia' }, '12.26 01 A com histórico → vigia'); ocupApi = false; return; } } catch (e) {} } }
         { const mu = await margemUsada1225(o); if (mu) { poe(o.hash, { estado: 'com_margem', erro: '', margemUsada1225: mu, resumo: (o.resumo || '') + ' · ⛔ 12.25: ' + mu }, '12.25 ' + mu); try { diario(o.nomeReal || o.nome || '', '⛔ ' + mu + ' (12.25)'); } catch (e) {} ocupApi = false; return; } }
         const r = await ncDigitaOrdem(o);
         if (r.simulada) poe(o.hash, Object.assign({ estado: 'simulada', tSim: Date.now() }, r.dados), 'simulou no ' + o.banco + ' pela API (R$ ' + r.dados.liberado + ') SEM gravar → vai só a simulação');
@@ -1889,6 +1896,7 @@
         const oA = Object.values(O).find(x => x && x.tipo === 'cpf' && !x.acolheu && !x.acol793Falhou && ['nova', 'consultando'].includes(x.estado) && !x.tMc && !x.resumo && Date.now() - (+x.t || 0) < 40000 && !x.valorVigia);   /* 7.96 (Nozeli 22:45: o 'já estou consultando' saiu DEPOIS do sem margem) — só nos primeiros 40 s e antes da consulta acabar */
         if (oA && !trava870('acolhe_' + oA.hash)) { oA.acolheu = Date.now(); GM_setValue('auto_ordens', O); return; }
         if (oA) { ocup790 = true; oA.acolheu = Date.now(); GM_setValue('auto_ordens', O);
+          try { if (window.dinsBmGet && !oA.vigiaForcou1226) { const g26 = await window.dinsBmGet('/chats/' + oA.hash); const tg26 = ((g26 && g26.j && g26.j.tags) || []).join('|'); if (/01.?D\b|01_D|FechouNeg/i.test(tg26)) { const O26 = GM_getValue('auto_ordens', {}) || {}; if (O26[oA.hash]) { O26[oA.hash].estado = 'erro'; O26[oA.hash].erro = '12.26: cliente 01 D (já contratou com a gente) escreveu — VIGIA atende; o robô não consulta nem simula'; (O26[oA.hash].hist = O26[oA.hash].hist || []).push(hhmm(Date.now()) + ' 12.26: 01 D → vigia (sem "já estou consultando")'); GM_setValue('auto_ordens', O26); } try { diario(oA.nome || '', '⛔ cliente 01 D escreveu → vigia atende (12.26)'); } catch (e) {} ocup790 = false; return; } } } catch (e) {}
           try { const nmA = oA.nomeReal ? primeiroNome(oA.nomeReal) : ''; const hA = new Date().getHours(); const sA = hA < 5 ? 'Boa noite' : hA < 12 ? 'Bom dia' : hA < 18 ? 'Boa tarde' : 'Boa noite';
             await bmEnviarTexto(oA.hash, sA + (nmA ? ', ' + nmA : '') + '! 😊 Aqui é da Dinseguro.\n\n' + (cpfAntigo810(oA) ? 'Já tenho o seu CPF aqui do nosso último contato e já estou consultando para você agora.' : 'Recebi o seu CPF e já estou consultando aqui para você.') + ' Em poucos minutos eu te mando a melhor condição disponível.\n\n🔒 Sua segurança vem primeiro: a Dinseguro não cobra nada antes, nunca pede a senha do seu banco nem do Meu INSS, e nada é feito sem a sua confirmação.\n\nJá volto com a resposta 🤝');
             diario(oA.nomeReal || oA.nome || '', 'CPF recebido → "já estou consultando" NA HORA pela API (' + Math.round((Date.now() - (+oA.t || Date.now())) / 1000) + ' s)');
