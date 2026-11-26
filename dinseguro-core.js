@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.21';
+  const VERSAO = '12.22';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -3515,6 +3515,41 @@
       x.toques = TOQUES.map(q => ({ tipo: q.tipo, quando: q.tipo === '60' ? t + 70 * M : q.dt(t), feito: 0, st: '' }));
       x.hist.push(hhmm(t) + ' retomada: contagem recomeça agora'); gravaRG(r); desenharRegua(); return true; };
     window.dinsRegua = () => Object.values(RG());
+    // 12.22 (Stefany 26/11 08:45–08:46, Emerson PVTMD7: "muita gente de ontem que ficou em negociação deveria estar classificada e receber o follow-up de manhã… não erre mais"):
+    // quem NEGOCIOU ontem (escreveu ontem, janela de 24 h ainda aberta), está com simulação ou link pendente e a ÚLTIMA mensagem é nossa recebe UM follow-up de manhã (8h–12h),
+    // mesmo com a régua 'respondido'/'esgotada' (antes a régua parava quando o cliente respondia e ninguém mais chamava no dia seguinte). Assinou/pagou/cancelou → não sai.
+    setInterval(async () => { try {
+      if (!/botmaker/.test(location.host) || !window.dinsBmGet || !window.dinsBmEnviar) return; const pp = sessionStorage.getItem('dins_papel') || 'tudo'; if (/^(vigia|varredura|atendimento)$/.test(pp)) return;
+      const hh = new Date().getHours(); if (hh < 8 || hh >= 12) return;
+      const eu = window.__ab1222 = window.__ab1222 || Math.random().toString(36).slice(2, 7); const L = GM_getValue('m1222_dono', null); if (L && L.id !== eu && Date.now() - (+L.t || 0) < 5 * 60000) return; GM_setValue('m1222_dono', { id: eu, t: Date.now() });
+      const hoje = new Date().toDateString(); const d0 = new Date(); d0.setHours(0, 0, 0, 0); const iniHoje = d0.getTime(); const H = 3600000;
+      const FE = GM_getValue('manha1222', {}) || {}; const R = GM_getValue('regua', {}) || {}; const O = GM_getValue('auto_ordens', {}) || {};
+      const cand = Object.values(R).filter(x => x && x.hash && FE[x.hash] !== hoje && !x.assinouT && !x.comQuem && !x.humano924 && !['fechada', 'cancelada', 'concluída', 'encerrado', 'humano'].includes(x.estado)
+        && +x.ultCliT >= iniHoje - 24 * H && +x.ultCliT < iniHoje && Date.now() - (+x.ultCliT) < 23 * H
+        && O[x.hash] && /^(feito|link|link_enviado|com_margem|sim_enviada|sim_resp)$/.test(O[x.hash].estado || '') && !(O[x.hash].estado === 'com_margem' && (O[x.hash].proposta || O[x.hash].link))   /* com_margem com proposta = caso do vigia (aprovado/desbloqueio), não é negociação */
+        && !(x.toques || []).some(q => !q.feito && +q.quando >= iniHoje && +q.quando < iniHoje + 24 * H)).sort((a, b) => (+a.ultCliT) - (+b.ultCliT));
+      for (const x of cand.slice(0, 2)) { const h = x.hash; const o = O[h];
+        const marca = st => { const F2 = GM_getValue('manha1222', {}) || {}; F2[h] = hoje; GM_setValue('manha1222', F2); const R2 = GM_getValue('regua', {}) || {}; if (R2[h]) { (R2[h].hist = R2[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.22 manhã da negociação: ' + st); GM_setValue('regua', R2); } };
+        try { if (typeof window.dinsEhProtegido === 'function' && window.dinsEhProtegido(h)) { marca('pulado (protegida)'); continue; } } catch (e) {}
+        const c = await window.dinsBmGet('/chats/' + h); const cj = (c && c.j) || {}; if (!c || c.http !== 200) continue;
+        const lu = Date.parse(cj.lastUserMessageDatetime || 0) || 0; if (lu >= iniHoje) { marca('pulado (cliente já escreveu hoje — é atendimento)'); continue; }
+        if (/^fechar_/.test(String(cj.queueId || ''))) { marca('pulado (conversa encerrada com desfecho)'); continue; }
+        { let ms = []; try { const rm = await window.dinsBmGet('/messages?chat-id=' + h + '&from=' + encodeURIComponent(new Date(iniHoje - 36 * H).toISOString())); ms = ((rm && rm.j && (rm.j.items || rm.j)) || []); } catch (e) {} if (!Array.isArray(ms)) ms = [];
+          const nossa = m => m && m.from !== 'user' && /\[Dinseguro\]|👤/.test(String((m.content && m.content.text) || '')); const tx = m => String((m.content && m.content.text) || '');
+          if (ms.some(m => nossa(m) && Date.parse(m.creationTime || 0) >= iniHoje)) { marca('pulado (já falamos com ele hoje)'); continue; }
+          if (ms.some(m => nossa(m) && /aprovad|desbloque|j[aá] assinou|foi pag|caiu na (sua )?conta|parab[eé]ns pela/i.test(tx(m)))) { marca('pulado (aprovado/desbloqueio — caso do vigia, não é negociação)'); continue; } }
+        if (o.proposta && o.cpf) { try { const cN = String(o.cpf).replace(/\D/g, '').replace(/^0+/, ''); const rr = await ncReq('GET', '/proposals?search=' + cN + '&search_type=cpf&per_page=30'); const pp2 = ((rr && rr.data) || []).find(p => String(((p || {}).bank_reference || {}).proposal_number || '') === String(o.proposta));
+            if (pp2 && (pp2.stage !== 'awaiting_formalization' || /CANCEL|REPROV|ASSIN|APROV|PAGO|DESBLOQ/i.test(String((pp2.bank_reference || {}).bank_status || '')))) { marca('pulado (proposta ' + o.proposta + ': ' + (pp2.stage || '') + ' ' + String((pp2.bank_reference || {}).bank_status || '') + ')'); continue; } } catch (e) {} }
+        const nm = (String(o.nomeReal || x.nome || '').trim().split(/\s+/)[0] || ''); const nome = nm.length >= 3 && /^[\p{L}]+$/u.test(nm) ? nm[0].toUpperCase() + nm.slice(1).toLowerCase() : '';
+        const temLink = /^https?:\/\//.test(String(o.link || '')) && /^(feito|link|link_enviado)$/.test(o.estado || '');
+        const txt = temLink
+          ? '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Passando para saber se ficou alguma dúvida sobre a sua proposta' + (o.liberado ? ' de *R$ ' + o.liberado + '*' + (o.prazo && o.parcela ? ' em ' + o.prazo + 'x de *R$ ' + o.parcela + '*' : '') : '') + '. Ela continua separada para você 🙏\n\n👉 É só tocar no link e concluir pelo celular:\n' + o.link + '\n\nPosso te ajudar em alguma coisa? É só me responder aqui 🤝'
+          : '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Ficou alguma dúvida sobre a simulação que te mandei ontem? Se quiser, já deixo a sua proposta pronta — é só me responder *SIM* 🤝';
+        const r = await window.dinsBmEnviar(h, txt, false);
+        if (r && r.ok) { marca('enviado (' + (temLink ? 'link' : 'simulação') + ')'); try { diario(o.nomeReal || x.nome || h.slice(0, 5), 'follow-up da manhã da negociação de ontem (12.22)'); } catch (e) {} }
+        else { const F3 = GM_getValue('manha1222_erro', {}) || {}; F3[h] = (F3[h] || 0) + 1; GM_setValue('manha1222_erro', F3); if (F3[h] >= 3) marca('erro: ' + String((r && r.erro) || '?').slice(0, 80)); }
+        await new Promise(z => setTimeout(z, 20000)); }
+    } catch (e) {} }, 2 * 60000);
     // 8.97 (Stefany 19/11 14:00–14:01: "de onde está saindo essas 652 pessoas?… se estiver fechado, mesmo na janela de 24 h, ele não vai acompanhar"):
     // o caderno (régua) guardava toda conversa que o robô já leu e era relido inteiro várias vezes por minuto → aba lenta. Fica no caderno SÓ:
     //   (a) conversa ABERTA com o cliente ativo nas últimas 24 h (atendimento);
