@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.93';
+  const VERSAO = '12.94';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1285,10 +1285,12 @@
           y.prop1_1293 = { proposta: y.proposta || '', banco: y.banco || '', ben: String((y.ficha || {}).beneficio || ''), t: Date.now() }; y.b2Feito1293 = Date.now();
           Object.assign(y, { estado: 'nova', matVigia: String(y.ben2.nb), ficha: null, proposta: '', link: '', banco: '', liberado: '', parcela: '', aceite: true, aceitouSim: 1, simGravar: 1, juntos1265: 1, ben2Quer: 'os 2 (2º benefício)', apiFalhou: 0, fallbacks: 0, api879Abre: 0, api879T: 0, linkApi879: 0, api879Falhou: 0, api879Prox: 0, erro: '', t: Date.now() });
           (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.93: 1º link entregue (' + y.prop1_1293.banco + ' ' + y.prop1_1293.proposta + ') → digitando o 2º benefício …' + String(y.ben2.nb).slice(-4));
+          try { const M94 = GM_getValue('zr_ponte', {}) || {}; if (M94[y.hash]) { M94[y.hash].vez = 0; GM_setValue('zr_ponte', M94); } y.b2Vez1293 = 1; } catch (e) {}   /* 12.94: o 1º link põe vez=3 (fim do follow-up) e barrava o aviso e o 2º link */
           try { const nm = String(y.nomeReal || y.nome || '').replace(/[^A-Za-zÀ-ÿ ]/g, ' ').trim().split(/\s+/)[0] || ''; const n = nm.length >= 3 ? nm.charAt(0).toUpperCase() + nm.slice(1).toLowerCase() : ''; const t = (n ? n + ', esse' : 'Esse') + ' primeiro link é do 1º benefício 😊\n\nJá estou fazendo a proposta do seu *2º benefício*. Em poucos minutos te mando o outro link.';
             if (y.zr1251 && zrPonte1251(y.hash)) zrEnviar1256(y.hash, zrPonte1251(y.hash), t, true).catch(() => {}); else if (typeof window.dinsFilaVigia === 'function') window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: t, atalhos: [] }); } catch (e) {}
           try { diario(y.nomeReal || y.nome || '', '2º benefício: digitando sozinho depois do 1º link (12.93)'); } catch (e) {} mud = true; }
         if (mud) { GM_setValue('auto_ordens', O); return; } }
+      { let m94 = false; const M94 = GM_getValue('zr_ponte', {}) || {}; for (const y of Object.values(O)) { if (!y || !y.b2Feito1293 || y.b2Vez1293 || !M94[y.hash]) continue; M94[y.hash].vez = 0; y.b2Vez1293 = 1; m94 = true; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.94: liberado o envio do 2º link no Zap'); } if (m94) { GM_setValue('zr_ponte', M94); GM_setValue('auto_ordens', O); } }
       const o = Object.values(O).find(x => x && x.estado === 'nova' && elegivel1287(x) && x.cpf && x.chk1270 && !x.bloq1270); if (!o) return;
       ocup1287 = true; const marca = (campos, linha) => { const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y) return null; Object.assign(y, campos); if (linha) (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + linha); GM_setValue('auto_ordens', O2); return y; };
       if (!marca({ rapida1287: 'fazendo', t: Date.now() }, '12.87: consulta rápida no FullConsig')) return;
