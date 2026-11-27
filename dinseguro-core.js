@@ -97,7 +97,11 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.72';
+  const VERSAO = '12.73';
+  // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
+  // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
+  // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
+  const soAtend1273 = () => { try { if (!/botmaker/i.test(location.host)) return false; const p = sessionStorage.getItem('dins_papel') || 'tudo'; return p === 'atendimento' || p === 'tudo'; } catch (e) { return false; } };
   // 12.72 (Stefany 27/11 09:44, Oscar 6SEVR: 'esse erro é que estão deixando o bot ligado ao responder o cliente'): a conversa dele estava na fila fechar_so (encerrada ontem depois do link); hoje ele voltou,
   // a ronda respondeu 09:39 com uma pergunta, ele respondeu 'Isto' e o BOT entrou por cima ('Bem-vindo de volta… aguarde um atendente'). A 10.28 não silenciava conversa encerrada.
   // Agora: mensagem do vigia/ronda (dinsBmEnviar) SEMPRE silencia o bot, mesmo com a conversa na fila fechar_*; nas mensagens do robô, encerrada só fica com o bot ligado se o cliente está parado há mais de 3 h.
@@ -1220,7 +1224,7 @@
       GM_setValue('rep1206_vist', C); } catch (e) {} }, 10 * 60000);
   window.dinsCanceleiVigia = (h, prop) => { const O = GM_getValue('auto_ordens', {}) || {}; if (!O[h]) return false; const L = (O[h].cancVigia = O[h].cancVigia || []); if (!L.includes(String(prop))) L.push(String(prop)); (O[h].hist = O[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' 11.63: vigia cancelou a proposta ' + prop + ' (não reaproveitar o link nem tratar como reprovação)'); GM_setValue('auto_ordens', O); return L; };   // 11.63
   window.dinsJaTemProp = async cpf => { const r = await jaTemProp936({ cpf, banco: '' }); return r && (r.nada ? 'nenhuma proposta ativa' : r.adota ? 'ativa com link: Nº ' + r.adota.proposta : r.outra); };
-  setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {}; const o = bmAntes1259(Object.values(O)).find(x => x && x.estado === 'ficha_ok' && !x.chk936 && (x.aceite || x.simGravar || x.aceitouSim)); if (!o) return;
+  setInterval(async () => { try { if (!soAtend1273()) return; const O = GM_getValue('auto_ordens', {}) || {}; const o = bmAntes1259(Object.values(O)).find(x => x && x.estado === 'ficha_ok' && !x.chk936 && (x.aceite || x.simGravar || x.aceitouSim)); if (!o) return;
       const r = await jaTemProp936(o); const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y || y.estado !== 'ficha_ok') return; y.chk936 = Date.now();
       if (r && r.adota) { Object.assign(y, r.adota, { estado: 'link', erro: '' }); (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 9.36: já tinha proposta ativa no ' + y.banco + ' (Nº ' + r.adota.proposta + ') → reaproveita o link, sem digitar outra'); }
       else if (r && r.outra) { y.estado = 'erro'; y.erro = '9.36: já tem proposta em andamento — ' + r.outra + ' → NÃO digitei outra; vigia decide (reenviar o link dela ou cancelar)'; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + y.erro); try { diario(y.nomeReal || y.nome || '', '⛔ ' + y.erro); } catch (e) {} }
@@ -1235,7 +1239,7 @@
       return { tem: at.map(x => (((x.proposal || {}).bank || {}).name || '') + ' Nº ' + ((x.bank_reference || {}).proposal_number || '') + ' ' + ((x.bank_reference || {}).bank_status || x.stage) + ' de ' + String((x.dates || {}).created_at || '').slice(0, 10).split('-').reverse().join('/') + ' — R$ ' + (((x.proposal || {}).released_amount) || '') + ' em ' + (((x.proposal || {}).term) || '') + 'x de R$ ' + (((x.proposal || {}).installment_amount) || '')).join('; ') }; } catch (e) { return null; } }
   const ANTES1270 = ['nova', 'consultando', 'com_margem', 'ficha_ok', 'simulada'];
   let t1270 = {};
-  setInterval(async () => { try { if (typeof meuPapel === 'function' && meuPapel() === 'vigia') return; const O = GM_getValue('auto_ordens', {}) || {};
+  setInterval(async () => { try { if (!soAtend1273()) return; const O = GM_getValue('auto_ordens', {}) || {};
       /* vigia/ronda reativou um pedido travado sem jaFezOk → volta para erro */
       let mudou = false; for (const y of Object.values(O)) { if (y && y.bloq1270 && !y.jaFezOk && ANTES1270.includes(y.estado)) { y.estado = 'erro'; y.erro = y.bloq1270; (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.70: reativado sem jaFezOk → travado de novo'); mudou = true; } } if (mudou) { GM_setValue('auto_ordens', O); return; }
       const o = Object.values(O).find(x => x && x.cpf && !x.chk1270 && !x.jaFezOk && ANTES1270.includes(x.estado) && !(Date.now() - (+t1270[x.hash] || 0) < 30000)); if (!o) return; t1270[o.hash] = Date.now();
