@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.89';
+  const VERSAO = '12.90';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -880,6 +880,8 @@
         }
         for (let i = 0; i < 66 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(300);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
+        /* 12.90 (Stefany 27/11 15:47 'esses 3 números… não gastar consulta flash com eles, nunca'): pedido dos números de teste marca o CPF como SEM FLASH por 24 h */
+        try { const T90 = ['5531989446187', '5531997640836', '5531971395811']; const pz90 = (GM_getValue('zr_ponte', {}) || {})[o.hash] || {}; const f90 = String(pz90.fone || o.fone || ''); const eh90 = T90.some(t => f90 === t || String(o.hash || '').endsWith(t)); if (eh90) { const M90 = GM_getValue('sem_flash1290', {}) || {}; const ag90 = Date.now(); Object.keys(M90).forEach(k => { if (ag90 - M90[k] > 864e5) delete M90[k]; }); M90[String(o.cpf || '').replace(/\D/g, '')] = ag90; GM_setValue('sem_flash1290', M90); try { localStorage.removeItem('dins_aceite'); } catch (e) {} } } catch (e) {}
         if (o.tipo === 'cpf' && o.aceite && (+o.valorBot || 0) >= 10000) { try { localStorage.setItem('dins_aceite', o.cpf + '|' + new Date().toISOString().slice(0, 10)); } catch (e) {} }   // 4.75: aceite no bot → flash pelos critérios
         const g = botaoRobo('Gerar ficha'); if (!g) throw new Error('painel do robô (Gerar ficha) não está na tela'); g.click();
         let ta = null; for (let i = 0; i < 250; i++) { await zz(300); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
@@ -8535,6 +8537,7 @@
       const h = new Date().getHours();
       if (f.recusa) return 'cliente recusado (' + f.recusa.split('|')[0] + ')';
       if (margem < 25) return 'sem margem';
+      try { const M90 = GM_getValue('sem_flash1290', {}) || {}; const c90 = String(f.cpf || '').replace(/\D/g, ''); const t90 = M90[c90] || M90[c90.replace(/^0+/, '')]; if (t90 && Date.now() - t90 < 864e5) return 'número de teste (nunca gasta flash — 12.90)'; } catch (e) {}
       // trava de reforço: nada de consulta paga para quem a tabela de bancos já descarta
       const dd = decidirBanco(f);
       if (dd.banco === 'NAO' || dd.banco === 'HUMANO') return 'fora dos critérios (' + dd.motivo + ')';
