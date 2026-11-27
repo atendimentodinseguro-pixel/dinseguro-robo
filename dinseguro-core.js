@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.73';
+  const VERSAO = '12.74';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1496,12 +1496,36 @@
       const nm = ms.filter(m => m && m.autor !== 'system' && !m.isRemoved).map(m => { const mm = m.mensagem || {}; const tp = String(mm.type || 'text').toLowerCase(); const txt = tp === 'text' ? String(mm.mensagem || '') : (/audio|ptt|voice/.test(tp) ? '__audio__' : /image|sticker/.test(tp) ? '__image__' : /video/.test(tp) ? '__video__' : '__file__'); return { FROM: m.autor === 'usuario' ? 'user' : 'me', MESSAGE: txt, CREATION_TIME: m.createdAt }; });
       try { const tc = Math.max(0, ...nm.filter(m => m.FROM !== 'me').map(m => Date.parse(m.CREATION_TIME) || 0)); if (tc) zrCliEscreveu1256(chatId, tc); if (cv !== String(pz.conv || '')) { const M = GM_getValue('zr_ponte', {}) || {}; if (M[chatId]) { M[chatId].conv = cv; GM_setValue('zr_ponte', M); } } } catch (e) {}
       return { zr: 1, customer: { zr: 1 }, newMessages: nm }; } catch (e) { return null; } }
-  function bmEnviarTexto0(chatId, texto) { const pz1251 = zrPonte1251(chatId); if (pz1251) return zrEnviar1256(chatId, pz1251, texto, false);
+  /* 12.74 (Stefany 27/11 11:54, Sonia Maria G0LJYV: "está há mais de 1 hora sem resposta"): ela escrevia no BOTMAKER ("300% de juros?", "Opção 1") e o robô mandava as
+     respostas pelo ZAP RESPONDER (outro número, onde ela não lia), porque o vigia do Zap tinha ligado a conversa dela à do Zap pelo telefone (ponte). Havia 61 conversas do
+     Botmaker com essa ponte. Agora: antes de mandar pela ponte, confere no Botmaker quando o cliente escreveu por último; se foi DEPOIS do que escreveu no Zap, a ponte
+     é desfeita e a mensagem sai pelo Botmaker. E uma limpeza (só na aba de atendimento, 5 conversas por minuto) desfaz as pontes de quem voltou a falar no Botmaker. */
+  function bmEnviarTexto0(chatId, texto) { const pz1251 = zrPonte1251(chatId);
+    if (pz1251 && !/^ZR0/.test(String(chatId))) return bmUltCli1274(chatId).then(tb => { if (tb && tb > (+pz1251.cliT || 0)) { tiraPonte1274(chatId, 'cliente falou por último no BOTMAKER → a resposta sai pelo Botmaker (ponte do Zap desfeita)'); return bmEnviarDireto1274(chatId, texto); } return zrEnviar1256(chatId, pz1251, texto, false); });
+    if (pz1251) return zrEnviar1256(chatId, pz1251, texto, false); return bmEnviarDireto1274(chatId, texto); }
+  function bmEnviarDireto1274(chatId, texto) {
     return new Promise((res, rej) => { const tk = GM_getValue('bm_api_token', ''); if (!tk || !chatId) return rej(new Error('sem token/chat'));
     try { GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/send-messages', timeout: 20000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' },
       data: JSON.stringify({ chat: { chatId: chatId }, messages: [{ text: (/^\s*\[/.test(String(texto)) ? '' : '[Dinseguro]\n') + String(texto) }] }),   // 8.06: pela API a mensagem chega como 'Bot' → leva o [Dinseguro] (igual à tela) e o robô reconhece como resposta nossa
       onload: r => (r.status >= 200 && r.status < 300) ? res(r.responseText) : rej(new Error('API Botmaker HTTP ' + r.status + ' ' + String(r.responseText || '').slice(0, 120))),
       onerror: () => rej(new Error('API Botmaker sem resposta')), ontimeout: () => rej(new Error('API Botmaker demorou')) }); } catch (e) { rej(e); } }); }
+  function bmUltCli1274(chatId) { return new Promise(res => { try { const tk = GM_getValue('bm_api_token', ''); if (!tk || !/^[A-Z0-9]{20}$/.test(String(chatId)) || /^ZR0/.test(String(chatId))) return res(0);
+      GM_xmlhttpRequest({ method: 'GET', url: 'https://api.botmaker.com/v2.0/chats/' + chatId, timeout: 15000, headers: { 'access-token': tk, Accept: 'application/json' },
+        onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res(Date.parse((j && (j.lastUserMessageDatetime || (j.chat && j.chat.lastUserMessageDatetime))) || '') || 0); }, onerror: () => res(0), ontimeout: () => res(0) }); } catch (e) { res(0); } }); }
+  function tiraPonte1274(chatId, motivo) { try { const M = GM_getValue('zr_ponte', {}) || {}; if (M[chatId]) { delete M[chatId]; GM_setValue('zr_ponte', M); }
+      const O = GM_getValue('auto_ordens', {}) || {}; const x = O[chatId]; if (x && x.zr1251) { x.zr1251 = 0; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.74: ' + motivo); GM_setValue('auto_ordens', O); }
+      console.log('[Dinseguro] 12.74 ponte do Zap desfeita', chatId); } catch (e) {} }
+  { let fila1274 = [], ocup1274 = false; setInterval(async () => { if (ocup1274) return; try { if (!soAtend1273()) return; } catch (e) { return; } ocup1274 = true;
+      try { if (!fila1274.length) { const M = GM_getValue('zr_ponte', {}) || {}; fila1274 = Object.keys(M).filter(k => /^[A-Z0-9]{20}$/.test(k) && !/^ZR0/.test(k)); }
+        for (const k of fila1274.splice(0, 5)) { const p = zrPonte1251(k); if (!p) continue; const tb = await bmUltCli1274(k); if (tb && tb > (+p.cliT || 0) + 60000) tiraPonte1274(k, 'cliente voltou a falar no BOTMAKER → atendimento volta para o Botmaker (ponte do Zap desfeita)'); }
+      } catch (e) {} finally { ocup1274 = false; } }, 60000); }
+  /* 12.74 (Stefany 27/11 11:51, Silvana: mandou o CPF às 11:02 e ficou 45 min parada porque o FullConsig estava deslogado depois da queda do Chrome e o pedido foi para o
+     vigia): FullConsig sem resposta → o robô consulta de novo sozinho a cada 2 min, até 3 vezes; só depois disso o pedido fica para o vigia. */
+  setInterval(() => { try { if (!soAtend1273()) return; const O = GM_getValue('auto_ordens', {}) || {}; const ag = Date.now(); let mud = false;
+      for (const k in O) { const x = O[k]; if (!x || x.estado !== 'com_margem' || !/FullConsig N[ÃA]O RESPONDEU/.test(String(x.resumo || ''))) continue; const n = +x.fcTent1274 || 0; if (n >= 3) continue;
+        if (!x.fcT1274) { x.fcT1274 = ag; mud = true; continue; } if (ag - (+x.fcT1274) < 120000) continue;
+        x.fcTent1274 = n + 1; x.fcT1274 = ag; x.estado = 'nova'; x.resumo = ''; x.tMc = 0; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.74: FullConsig não tinha respondido → consulta de novo (tentativa ' + (n + 1) + ' de 3)'); mud = true; }
+      if (mud) GM_setValue('auto_ordens', O); } catch (e) {} }, 30000);
 
   // ================================================================== 12.56 ABA DO ZAP RESPONDER (Stefany 26/11 23:03: "dá pra colocar na aba só do Zap Responder, pra não ficar misturando… e eu consigo ver por lá")
   // Aqui o robô SÓ lê e mostra: (1) lê a fila de atendimento e as pendentes repetindo o pedido que a própria tela faz (igual ao 6.01 do Botmaker: o cabeçalho de login
@@ -2431,7 +2455,7 @@
     // com 2 ou mais → por ordem de id: atendimento, followup, varredura (os papéis que nenhuma aba fixa tem). A aba do vigia é sempre fixa.
     const papelAuto = () => { const p = sessionStorage.getItem('dins_papel'); return !p || sessionStorage.getItem('dins_papel_auto') === '1'; };
     const autoPapel = () => { if (!papelAuto()) return; const V = abasVivas(); V[ABA] = { papel: meuPapel(), auto: 1, t: Date.now() };
-      const fixos = Object.values(V).filter(v => !v.auto).map(v => v.papel); const falta = ['atendimento', 'followup', 'varredura'].filter(r => !fixos.includes(r));
+      const fixos = Object.values(V).filter(v => !v.auto).map(v => v.papel); const falta = (consultaViva() ? ['atendimento', 'followup'] : ['atendimento', 'followup', 'varredura']).filter(r => !fixos.includes(r));   /* 12.74 (27/11 11:46: depois da queda do Chrome as abas ficaram 'tudo, vigia, vigia'): no Chrome do atendimento (com Multicorban) não se faz varredura — aba automática vira atendimento ou follow-up, nunca varredura parada */
       const autos = Object.keys(V).filter(k => V[k].auto).sort(); let novo = 'tudo';
       if (autos.length > 1 || fixos.some(f => f !== 'vigia')) { const i = autos.indexOf(ABA); novo = falta[i] || 'tudo'; }
       if (novo !== meuPapel()) { sessionStorage.setItem('dins_papel', novo); sessionStorage.setItem('dins_papel_auto', '1'); } };
