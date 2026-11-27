@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.53';
+  const VERSAO = '12.54';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -256,6 +256,27 @@
     const out = []; for (const nb of nbs.slice(0, 4)) { const j2 = await fcPost975({ valor: nb, nb: 'true', id_data_campanha: '' }); if (j2 && j2.consulta) out.push(Object.assign({ nb: String(nb) }, ler(j2.consulta))); } return out; }
   // 9.78 (Stefany 20/11 14:57): entre vários benefícios vale o ATIVO (suspenso/cessado não serve), COM margem, e o de DDB mais recente; vale para LOAS (87/88) e para os outros
   const fcMelhor978 = (lista, filtro) => (lista || []).filter(b => (!b.sit || b.sit === 'ATIVO') && filtro(b)).sort((a, b) => ((b.margem || 0) >= 25) - ((a.margem || 0) >= 25) || (b.ddb || 0) - (a.ddb || 0) || (b.margem || 0) - (a.margem || 0))[0];
+  // 12.54 (Stefany 26/11 21:03: 'vamos embora fazer aí essa consulta' — consulta RÁPIDA em paralelo, sem tela e sem mexer em ordem nenhuma):
+  // dinsFcFicha(cpf) lê a consulta do FullConsig (≈2 s) e devolve tudo o que a simulação precisa: nome, nascimento, idade, benefício, espécie, situação,
+  // bloqueio, DDB, valor do benefício, base, margem e os CONTRATOS (banco, nº, parcela, taxa, pagas/total, restantes, quitação). Só leitura — não cria nem altera ordem.
+  function fcLer1254(html) { const d = new DOMParser().parseFromString(html || '', 'text/html'); d.querySelectorAll('style,script').forEach(e => e.remove()); const tx = (d.body.textContent || '').replace(/\s+/g, ' ');
+    const num = v => v ? parseFloat(String(v).replace(/\./g, '').replace(',', '.')) : null; const g = re => ((tx.match(re) || [])[1] || '').trim();
+    const o = { nome: g(/ Nome ([A-ZÀ-Ú][A-ZÀ-Ú' ]{4,70}?) Nome da M[ãa]e /), mae: g(/Nome da M[ãa]e ([A-ZÀ-Ú][A-ZÀ-Ú' ]{4,70}?) Nascimento /), nascimento: g(/Nascimento (\d{2}\/\d{2}\/\d{4})/), idade: +g(/Nascimento \d{2}\/\d{2}\/\d{4} · (\d{1,3}) Anos/) || null,
+      beneficio: g(/Situação (\d{8,11}) \d{1,2} - /), especie: g(/Situação \d{8,11} (\d{1,2}) - /).padStart(2, '0'), especieNome: g(/Situação \d{8,11} \d{1,2} - ([A-ZÀ-Ú ]{4,70}?) (?:Não|Sim)/),
+      situacao: (g(/Situação \d{8,11} \d{1,2} - [A-ZÀ-Ú ]{4,70}? (?:Não|Sim) (?:Não|Sim) (?:Não|Sim) ([A-Z]+)/) || g(/\b(ATIVO|SUSPENSO|CESSADO)\b/)).toUpperCase(),
+      representante: g(/Situação \d{8,11} \d{1,2} - [A-ZÀ-Ú ]{4,70}? (Não|Sim)/), bloqueado: g(/Situação \d{8,11} \d{1,2} - [A-ZÀ-Ú ]{4,70}? (?:Não|Sim) (Não|Sim)/), pensaoAlim: g(/Situação \d{8,11} \d{1,2} - [A-ZÀ-Ú ]{4,70}? (?:Não|Sim) (?:Não|Sim) (Não|Sim)/),
+      ddb: g(/DDB .{0,90}?(\d{2}\/\d{2}\/\d{4}) Valor Benef/) || g(/(\d{2}\/\d{2}\/\d{4}) Valor Benef[íi]cio/), valorBeneficio: num(g(/Valor Benef[íi]cio R\$ ?([\d.,]+)/)), base: num(g(/Valor Base de C[áa]lculo R\$ ?([\d.,]+)/)),
+      margem: num(g(/Margem Dispon[íi]vel R\$ ?(-?[\d.,]+)/)), margemComprometida: num(g(/Margem Comprometida R\$ ?([\d.,]+)/)), contratos: [] };
+    const re = /(\d{1,3}) - ([A-Z .]+?) ([\d-]{5,22}(?: \d)?) (\d{2}\/\d{2}\/\d{4}) (\d{2}\/\d{4}) (\d{2}\/\d{4}) R\$ ([\d.,]+) ([\d,]+)% R\$ ([\d.,]+) (\d+)\/(\d+) - (\d+) Restantes R\$ ([\d.,]+)/g; let m; const visto = {};
+    while ((m = re.exec(tx))) { if (visto[m[3]]) continue; visto[m[3]] = 1; o.contratos.push({ banco: m[1].padStart(3, '0'), bancoNome: m[2].trim(), contrato: m[3], inicio: m[5], fim: m[6], taxa: num(m[8]), parcela: num(m[9]), pagas: +m[10], total: +m[11], restantes: +m[12], quitacao: num(m[13]) }); }
+    return o; }
+  async function fcFicha1254(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); if (c.length !== 11) return { erro: 'cpf inválido' }; const fm = c.slice(0, 3) + '.' + c.slice(3, 6) + '.' + c.slice(6, 9) + '-' + c.slice(9);
+    const j = await fcPost975({ consulta: 'inss', id_data_campanha: '', valor: fm, valorTelefone: '', telefone: 'false' }); if (!j) return { erro: 'FullConsig não respondeu (deslogado?)' }; if (!j.consulta) return { erro: String(j.title || 'não encontrado') };
+    const nbs = [...new DOMParser().parseFromString(j.consulta, 'text/html').querySelectorAll('[onclick]')].map(b => (String(b.getAttribute('onclick')).match(/consultar_nb\('(\d+)'\)/) || [])[1]).filter(Boolean);
+    if (!nbs.length) return Object.assign({ beneficios: 1 }, fcLer1254(j.consulta));
+    const todos = []; for (const nb of nbs.slice(0, 4)) { const j2 = await fcPost975({ valor: nb, nb: 'true', id_data_campanha: '' }); if (j2 && j2.consulta) todos.push(fcLer1254(j2.consulta)); }
+    const ativos = todos.filter(b => !b.situacao || b.situacao === 'ATIVO'); const melhor = (ativos.length ? ativos : todos).sort((a, b) => (b.margem || 0) - (a.margem || 0))[0]; return melhor ? Object.assign({ beneficios: todos.length, outros: todos.filter(x => x !== melhor).map(x => ({ beneficio: x.beneficio, especie: x.especie, situacao: x.situacao, margem: x.margem })) }, melhor) : { erro: 'sem benefício legível' }; }
+  try { const W1254 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window; W1254.dinsFcFicha = fcFicha1254; window.dinsFcFicha = fcFicha1254; } catch (e) {}
   try { window.dinsFcBeneficios = async cpf => { const r = await fcBeneficios975(cpf); return (r || []).map(b => ({ nb: '…' + String(b.nb).slice(-4), esp: b.esp, margem: b.margem, sit: b.sit, ddb: b.ddb ? new Date(b.ddb).toISOString().slice(0, 10) : '' })); }; } catch (e) {}
 
   // A janela de fim de semana (Stefany, 07/11/2026 14:55) foi REVOGADA por ela em
