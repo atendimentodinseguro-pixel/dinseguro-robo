@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.77';
+  const VERSAO = '12.78';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -962,7 +962,7 @@
             else if (!{ C6: 1, FACTA: 1, QUALIBANK: 1, DAYCOVAL: 1 }[bd]) porque = 'banco ' + (bd || '?') + ' é à mão';   // 5.11: DAYCOVAL automático (portal do Daycoval)
             else if (num(f3.valor) > 0 && !(vb >= 10000) && !(vb > 0 && vb < 10000 && Math.round(num(f3.valor)) === 10000)) porque = 'ficha já tem valor escolhido — vigia confere';   /* 8.77: os R$ 10 mil do contorno automático passam */
             if (porque) poeAO(o.hash, { estado: 'com_margem', nomeReal: ficha.nome, resumo: resumo + ' · não digitei: ' + porque });
-            else { try { const Oa = GM_getValue('auto_ordens', {}) || {}; const oa = Oa[o.hash] || o; if (oa.aceite && +oa.parcBot > 0) { const mgA = num(f3.margem) || 0; if (!(mgA > 0) || oa.parcBot <= mgA - 0.01 + 1e-9) f3.parcela = brl(+oa.parcBot); if (oa.prazoBot) f3.prazo = String(oa.prazoBot); if (oa.carencia) f3.carencia = oa.carencia; } } catch (e) {} }   // 10.94: aceite do bot já visto → a ficha já nasce na parcela/prazo aceitos
+            else { try { const Oa = GM_getValue('auto_ordens', {}) || {}; const oa = Oa[o.hash] || o; if (oa.endVigia && typeof oa.endVigia === 'object') { ['cep', 'endereco', 'numero', 'bairro', 'cidade', 'uf', 'complemento'].forEach(k78 => { if (oa.endVigia[k78]) f3[k78] = String(oa.endVigia[k78]); }); }   /* 12.78 (Stefany 27/11 12:58, Cassiano 5515996817154: 'digitar com o endereço certo para ele'): endereço que o cliente mandou entra na ficha antes da digitação */ if (oa.aceite && +oa.parcBot > 0) { const mgA = num(f3.margem) || 0; if (!(mgA > 0) || oa.parcBot <= mgA - 0.01 + 1e-9) f3.parcela = brl(+oa.parcBot); if (oa.prazoBot) f3.prazo = String(oa.prazoBot); if (oa.carencia) f3.carencia = oa.carencia; } } catch (e) {} }   // 10.94: aceite do bot já visto → a ficha já nasce na parcela/prazo aceitos
             if (!porque) poeAO(o.hash, { estado: 'ficha_ok', banco: bd, nomeReal: f3.nome, ficha: f3,   /* 5.18: a ficha vai na ordem (outra consulta no meio troca a ficha_atual) */ resumo: resumo + (vb >= 10000 ? ' · valor do bot R$ ' + brl(vb) + (o.aceite ? ' (aceitou)' : '') : ' · máximo'), maximo: vb >= 10000 ? 0 : 1, flash: f3.flash || '' });
           }
           else poeAO(o.hash, { estado: 'erro', erro: 'consultado: ' + mot + ' (' + resumo + ') — decisão do vigia', nomeReal: ficha.nome });
