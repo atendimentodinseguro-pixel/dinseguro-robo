@@ -97,7 +97,10 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.71';
+  const VERSAO = '12.72';
+  // 12.72 (Stefany 27/11 09:44, Oscar 6SEVR: 'esse erro é que estão deixando o bot ligado ao responder o cliente'): a conversa dele estava na fila fechar_so (encerrada ontem depois do link); hoje ele voltou,
+  // a ronda respondeu 09:39 com uma pergunta, ele respondeu 'Isto' e o BOT entrou por cima ('Bem-vindo de volta… aguarde um atendente'). A 10.28 não silenciava conversa encerrada.
+  // Agora: mensagem do vigia/ronda (dinsBmEnviar) SEMPRE silencia o bot, mesmo com a conversa na fila fechar_*; nas mensagens do robô, encerrada só fica com o bot ligado se o cliente está parado há mais de 3 h.
   // 12.71 (Stefany 27/11 09:26 'a conversa baixou correto mas os arquivos deram erro'): os arquivos soltos saíam SEM EXTENSÃO ('… jpg' em vez de '.jpg' — a limpeza do nome tirava o ponto) e o PDF do cliente ficou com 0 KB:
   // o caminho passou do limite do Windows (260 letras: pasta do OneDrive + mês + dia + cliente + Arquivos + nome comprido). Agora: extensão certa, nomes curtos (pasta do cliente até ~70, arquivo solto até 40),
   // se a gravação falhar tenta de novo com nome mínimo e nunca deixa arquivo de 0 KB para trás.
@@ -1449,7 +1452,8 @@
   function silenciar1218(chatId) { return new Promise(res => { try { const tk = GM_getValue('bm_api_token', ''); if (!tk) return res(0); GM_xmlhttpRequest({ method: 'POST', url: 'https://api.botmaker.com/v2.0/chats-actions/trigger-intent', timeout: 15000, headers: { 'access-token': tk, 'Content-Type': 'application/json', Accept: 'application/json' }, data: JSON.stringify({ chat: { chatId: chatId }, intentIdOrName: 'silenciar_bot_robo' }), onload: r => res(r.status >= 200 && r.status < 300 ? 1 : 0), onerror: () => res(0), ontimeout: () => res(0) }); } catch (e) { res(0); } }); }
   // 12.18 (Stefany 25/11 21:08–21:11: criou a intenção 'silenciar_bot_robo' — só silencia o bot, não manda nada; testada na Renata UEQCK6: isBotMuted false → true, 0 mensagens):
   // depois de mensagem nossa o bot é silenciado NA HORA pela API; o clique no ⏻ (fila 9.42) fica só de reserva se a API não silenciar
-  function marcaDesligarBot942(chatId) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; let r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true || /^fechar_/.test(String(r.j.queueId || ''))) return;   /* 10.28: encerrada não desliga */
+  function marcaDesligarBot942(chatId, vivo72) { if (!chatId || chatId === '__TESTE_LIBERADO_1022__') return; setTimeout(async () => { try { if (typeof window.dinsBmGet !== 'function') return; let r = await window.dinsBmGet('/chats/' + chatId); if (!r || r.http !== 200 || !r.j || r.j.isBotMuted === true) return; if (/^fechar_/.test(String(r.j.queueId || '')) && !vivo72 && !(Date.now() - (Date.parse(String(r.j.lastUserMessageDatetime || '')) || 0) < 3 * 3600000)) return;   /* 10.28: encerrada não desliga · 12.72: salvo mensagem do vigia/ronda ou cliente que escreveu nas últimas 3 h (conversa viva) */
+    if (/^fechar_/.test(String(r.j.queueId || ''))) { try { const V72 = GM_getValue('vivo1272', {}) || {}; V72[chatId] = Date.now(); for (const k in V72) if (Date.now() - V72[k] > 24 * 3600000) delete V72[k]; GM_setValue('vivo1272', V72); } catch (e) {} }   /* 12.72: a 10.28 não religa o bot desta conversa enquanto ela estiver viva (até alguém encerrar de novo com fechar_*) */
     if (await silenciar1218(chatId)) { await new Promise(z => setTimeout(z, 5000)); r = await window.dinsBmGet('/chats/' + chatId); if (r && r.j && r.j.isBotMuted === true) return; }
     const DB = GM_getValue('desligar_bot942', {}) || {}; if (DB[chatId]) return; DB[chatId] = Date.now(); for (const k in DB) if (Date.now() - DB[k] > 6 * 3600000) delete DB[k]; GM_setValue('desligar_bot942', DB); } catch (e) {} }, 800); }
   window.dinsDesligarBot = h => { const DB = GM_getValue('desligar_bot942', {}) || {}; DB[h] = Date.now(); GM_setValue('desligar_bot942', DB); return Object.keys(DB); };
@@ -1973,6 +1977,7 @@
     // numa conversa que está com a gente (ordem viva), confere em 15 s e põe na fila de desligar o bot (9.42).
     { const orig1160 = window.dinsBmIntent;
       window.dinsBmIntent = async (chatId, intent) => { const r = await orig1160(chatId, intent);
+        try { if (/^fechar_/.test(String(intent)) && r && r.http >= 200 && r.http < 300) { const V72 = GM_getValue('vivo1272', {}) || {}; if (V72[chatId]) { delete V72[chatId]; GM_setValue('vivo1272', V72); } } } catch (e) {}   /* 12.72: encerrou de novo → a 10.28 volta a valer */
         try { if (/^(tag|so_tag)_/.test(String(intent)) && r && r.http >= 200 && r.http < 300) { const o = (GM_getValue('auto_ordens', {}) || {})[chatId];
           if (o && !/^desfecho|nao_localizado|cancel/i.test(String(o.estado || '')) && !(typeof window.dinsEhProtegido === 'function' && window.dinsEhProtegido(chatId))) marcaDesligarBot942(chatId); } } catch (e) {}
         return r; }; }
@@ -2027,7 +2032,7 @@
         try { const MV = JSON.parse(localStorage.getItem('dins_msg_vigia_t') || '{}'); const ag37 = Date.now(); for (const k in MV) if (ag37 - (+MV[k] || 0) > 3600000) delete MV[k]; MV[chatId] = ag37; localStorage.setItem('dins_msg_vigia_t', JSON.stringify(MV));
           const F37 = JSON.parse(localStorage.getItem('dins_fila_vigia') || '[]'); const G37 = F37.filter(x => !(x && x.hash === chatId && x.acao === 'pedir_cpf')); if (G37.length !== F37.length) localStorage.setItem('dins_fila_vigia', JSON.stringify(G37));
           const c37 = JSON.parse(localStorage.getItem('dins_ordem') || 'null'); if (c37 && c37.hash === chatId && c37.acao === 'pedir_cpf' && !c37.feito) localStorage.removeItem('dins_ordem'); } catch (e) {}
-        await bmEnviarTexto(chatId, String(texto)); try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
+        await bmEnviarTexto(chatId, String(texto)); try { marcaDesligarBot942(chatId, true); } catch (e) {}   /* 12.72: vigia/ronda respondeu → bot silenciado sempre */ try { diario('vigia', 'mensagem do vigia pela API (8.76) — ' + String(chatId).slice(0, 5)); } catch (e) {}
         try { const R2 = GM_getValue('regua', {}) || {}; const x2 = R2[chatId]; if (x2 && x2.estado === 'alerta') { x2.estado = 'respondido'; delete x2.reler; delete x2.relerHist; (x2.hist = x2.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 8.82: o vigia respondeu pela API → saiu do vermelho'); GM_setValue('regua', R2); } } catch (e) {}
         try { if (/simula[çc][ãa]o gratuita|Separei \*duas op[çc][õo]es\*/i.test(String(texto))) { const VM2 = GM_getValue('valor_msg_feito', {}) || {}; VM2[chatId] = Date.now(); GM_setValue('valor_msg_feito', VM2); } } catch (e) {}
         // 8.94 (Stefany 19/11 13:21, Maurilio AOQNQ: "veja o erro do porque não tagueou ele"): link de proposta / simulação real mandada pela API não passava pela tela, que é quem punha a 01 A → agora a tag vai pela intenção so_tag_01a (não fecha)
@@ -7075,8 +7080,8 @@
         if (mud) GM_setValue('enc1044', E); } catch (e) {} }, 2 * 60000);
     // 10.28: a cada 5 min (aba de follow-up), procura pela API conversas ENCERRADAS (fila fechar_*) nas últimas 12 h com o bot desligado → fila para religar
     setInterval(async () => { try { if (typeof window.dinsBmGet !== 'function' || !faz('followup')) return; const ag = Date.now(); const FT = GM_getValue('religar_feito1028', {}) || {};
-        const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 12 * 3600000).toISOString())); const it = (r && r.j && r.j.items) || []; const LB = GM_getValue('religar_bot1028', {}) || {}; let n = 0;
-        for (const c of it) { const id = c.chatId || (c.chat || {}).chatId; if (!id || c.isBotMuted !== true || !/^fechar_/.test(String(c.queueId || '')) || c.agentId || protegido(id)) continue;
+        const r = await window.dinsBmGet('/chats?from=' + encodeURIComponent(new Date(ag - 12 * 3600000).toISOString())); const it = (r && r.j && r.j.items) || []; const LB = GM_getValue('religar_bot1028', {}) || {}; let n = 0; const V72 = GM_getValue('vivo1272', {}) || {};
+        for (const c of it) { const id = c.chatId || (c.chat || {}).chatId; if (!id || c.isBotMuted !== true || !/^fechar_/.test(String(c.queueId || '')) || c.agentId || protegido(id)) continue; if (V72[id] && ag - V72[id] < 12 * 3600000) continue;   /* 12.72: conversa viva (vigia/ronda/robô falando com o cliente) → não religa o bot */
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; if (FT[id] && FT[id] >= lu) continue; FT[id] = ag; LB[id] = ag; n++; }
         for (const k in FT) if (ag - FT[k] > 3 * 864e5) delete FT[k]; GM_setValue('religar_feito1028', FT); if (n) GM_setValue('religar_bot1028', LB); } catch (e) {} }, 5 * 60000);
     // 11.60: VARREDURA DO BOT LIGADO — a cada 5 min (aba de follow-up) lista pela API as conversas das últimas 24 h; conversa com ordem VIVA
