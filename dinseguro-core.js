@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.96';
+  const VERSAO = '12.97';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -711,12 +711,20 @@
       for (const inp of document.querySelectorAll('input')) { const lab = ((inp.closest('mat-form-field,div') || {}).innerText || '') + ' ' + (inp.getAttribute('placeholder') || '') + ' ' + (inp.getAttribute('formcontrolname') || ''); if (/Simula|N[ºo°]\s*Proposta|numeroProposta|CPF|Conv[eê]nio|digitador/i.test(lab) && inp.value) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } }
       const b = [...document.querySelectorAll('button')].find(x => /PESQUISAR/i.test(x.textContent || '')); if (!b) return 'sem botão'; b.click();
       await new Promise(r => setTimeout(r, 7000));
-      const t = (document.body.innerText || '').replace(/\s+/g, ' '); const parts = t.split(/(?=\b\d{8} \d{9} ALN PROMOTORA)|(?=\b\d{9} ALN PROMOTORA)/); const E = GM_getValue('esteira_dc2', {}) || {}; let n = 0;
+      const E = GM_getValue('esteira_dc2', {}) || {}; let n = 0;
+      /* 12.97 (Stefany 27/11 16:42 'na última lista o Cassiano não veio'): a tela mostra 20 por página (56 propostas em 5 dias) e o robô lia SÓ a 1ª página → agora lê todas as páginas e volta para a 1ª */
+      const btn97 = re => [...document.querySelectorAll('button')].find(x => x.offsetParent && (re.test(x.className || '') || re.test(x.getAttribute('aria-label') || '')));
+      const vistos97 = new Set(); let pag97 = 0;
+      for (; pag97 < 15; pag97++) {
+      const t = (document.body.innerText || '').replace(/\s+/g, ' '); const parts = t.split(/(?=\b\d{8} \d{9} ALN PROMOTORA)|(?=\b\d{9} ALN PROMOTORA)/); let novos97 = 0;
       for (const r of parts) { const num = (r.match(/(?:^|\s)(\d{9}) ALN PROMOTORA/) || [])[1]; if (!num) continue; const cpf = (r.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/) || [''])[0].replace(/\D/g, '');
         const st = (r.match(/Pendente \S+|Formaliza[çc][ãa]o Conclu[íi]da|Pago\b|Paga\b|Integrad\S*|Cancelad\S*|Reprovad\S*|Recusad\S*|Em An[aá]lise|Aprovad\S*/i) || [''])[0];   /* 'Não Contratado' é a coluna do SEGURO — não é status */
         const leg = (r.match(/AGUARDA [A-ZÇÃÉÍÓÚ.]+(?: [A-ZÇÃÉÍÓÚ.]+){0,3}|AVERBA[A-ZÇÃÉ ]*|DESBLOQ[A-Z. ]*|INTEGRAD[A-Z]*|PAGO\b|CANCELAD[A-Z]*|REPROVAD[A-Z]*/) || [''])[0].trim();
-        E[num] = { st, leg, cpf, t: Date.now() }; n++; }
-      for (const k in E) if (Date.now() - (+E[k].t || 0) > 30 * 864e5) delete E[k]; GM_setValue('esteira_dc2', E); GM_setValue('esteira_dc2_t', Date.now()); lerDc1142(); return 'ok ' + n;
+        E[num] = { st, leg, cpf, t: Date.now() }; n++; if (!vistos97.has(num)) { vistos97.add(num); novos97++; } }
+      const prox97 = btn97(/navigation-next|Next page|Pr[óo]xima/i); if (!prox97 || prox97.disabled || prox97.getAttribute('aria-disabled') === 'true' || (pag97 > 0 && !novos97)) break;
+      prox97.click(); await new Promise(r => setTimeout(r, 3500)); }
+      try { for (let i = 0; i < pag97; i++) { const pr = btn97(/navigation-first|First page|Primeira/i) || btn97(/navigation-previous|Previous page|Anterior/i); if (!pr || pr.disabled) break; pr.click(); await new Promise(r => setTimeout(r, 1500)); if (/first|Primeira/i.test((pr.className || '') + (pr.getAttribute('aria-label') || ''))) break; } } catch (e) {}
+      for (const k in E) if (Date.now() - (+E[k].t || 0) > 30 * 864e5) delete E[k]; GM_setValue('esteira_dc2', E); GM_setValue('esteira_dc2_t', Date.now()); lerDc1142(); return 'ok ' + vistos97.size + ' propostas em ' + (pag97 + 1) + ' página(s)';
     } catch (e) { return 'erro ' + e.message; } };
     /* 12.35 (26/11: o robô digitou o Cassiano às 13:51 e a aba ficou na tela de formalização — a leitura da esteira parou): depois de 5 min sem digitação do Daycoval e sem ninguém mexendo na aba, volta sozinha para 'Minhas Propostas' PELO MENU (nunca por URL: desloga). */
     { let ultMex1235 = Date.now(); ['mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, e => { if (e.isTrusted) ultMex1235 = Date.now(); }, true)); let tFora1235 = 0;
