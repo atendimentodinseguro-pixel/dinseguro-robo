@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.98';
+  const VERSAO = '12.99';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -783,7 +783,7 @@
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
       if (sessionStorage.getItem('dins_mc_manual') === '1') return;   // 5.75 (Stefany 21:02: "uma para você e uma para ele"): aba do Multicorban do VIGIA — o robô não pega ordem aqui
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
-      const o = bmAntes1259(Object.values(AO())).find(x => x.estado === 'nova' && !espera1287(x) && x.rapida1287 !== 'fazendo'); if (!o) return;   // 12.87: pedido novo espera a consulta rápida (FullConsig) decidir
+      const o = bmAntes1259(Object.values(AO())).find(x => x.estado === 'nova' && !espera1287(x) && !(x.rapida1287 === 'fazendo' && Date.now() - (+x.t || 0) < 60000)); if (!o) return;   // 12.87: pedido novo espera a consulta rápida (FullConsig) decidir
       ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
       try { fcBeneficios975(o.cpf).catch(() => null); } catch (e) {}   // 12.84: FullConsig em paralelo
       try {
@@ -1311,7 +1311,7 @@
       const o = Object.values(O).find(x => x && x.estado === 'nova' && elegivel1287(x) && x.cpf && x.chk1270 && !x.bloq1270); if (!o) return;
       ocup1287 = true; const marca = (campos, linha) => { const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y) return null; Object.assign(y, campos); if (linha) (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + linha); GM_setValue('auto_ordens', O2); return y; };
       if (!marca({ rapida1287: 'fazendo', t: Date.now() }, '12.87: consulta rápida no FullConsig')) return;
-      const t0 = Date.now(); let f = null; try { f = await fcFicha1254(o.cpf); } catch (e) { f = { erro: String((e && e.message) || e) }; }
+      const t0 = Date.now(); let f = null; try { f = await Promise.race([fcFicha1254(o.cpf), new Promise(r => setTimeout(() => r({ erro: 'FullConsig não respondeu em 25 s' }), 25000))]); } catch (e) { f = { erro: String((e && e.message) || e) }; }   /* 12.99: consulta rápida com tempo máximo (27/11 16:46 ficou presa 4 min em 'fazendo' e o pedido não andava) */
       const nao = motivo => { marca({ rapida1287: 'falhou', t: Date.now() }, '12.87: ' + motivo + ' → caminho de sempre (Multicorban)'); };
       if (!f || f.erro) return nao('FullConsig: ' + String((f && f.erro) || 'sem resposta').slice(0, 60));
       const esp = String(f.especie || '').padStart(2, '0'), idade = +f.idade || 0, marg = +f.margem || 0; const ddb = (String(f.ddb || '').match(/(\d{2})\/(\d{2})\/(\d{4})/) || []); const ddbT = ddb[3] ? Date.parse(ddb[3] + '-' + ddb[2] + '-' + ddb[1]) : 0;
