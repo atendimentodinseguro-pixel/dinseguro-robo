@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.01';
+  const VERSAO = '13.02';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -8321,6 +8321,8 @@
           }
           if (!st) throw new Error('a digitação no Daycoval não terminou em 10 min');
           if (st.st === 'erro' && /inconsist[êe]ncia na gera[çc][ãa]o/i.test(String(st.erro || '')) && !o.c61114) { const fx = Object.assign({}, o.ficha, { banco_ordem_stefany: 'C6', banco_destino: 'C6' }); poeAOd(o.hash, { estado: 'ficha_ok', erro: '', banco: 'C6', bancoStefany: 'C6', ficha: fx, c61114: Date.now(), t: Date.now() - 120000 }); return; }   /* 11.14 (Stefany 23/11 14:22, Rosilene: Daycoval "Margem ⚠ / inconsistência" ao Gerar → fazer no C6) */
+          /* 13.02 (Stefany 27/11 20:50 'nunca repita isso' — Raquel C4LQP: Daycoval recusou às 17:43 'CPF fora da política de crédito' e o pedido ficou 3 h voltando para o Daycoval): recusa de política do banco → próximo banco na hora, sem vigia */
+          if (st.st === 'erro' && /pol[íi]tica de cr[ée]dito|fora da pol[íi]tica/i.test(String(st.erro || '') + ' ' + ((document.body && document.body.innerText) || '').slice(-3000)) && !o.dcPol1302) { const fp = o.ficha || {}; const espP = String(fp.especie || '').padStart(2, '0'); const idP = parseInt(fp.idade) || 0; const invP = ['32', '92'].includes(espP); const prox = invP ? (idP >= 60 ? 'FACTA' : idP >= 58 ? 'QUALIBANK' : 'C6') : 'C6'; const fx = Object.assign({}, fp, { banco_ordem_stefany: prox, banco_destino: prox, recusa: '' }); poeAOd(o.hash, { estado: 'ficha_ok', erro: '', banco: prox, bancoStefany: prox, ficha: fx, dcPol1302: Date.now(), chk936: 0, t: Date.now() }); try { diario(o.nomeReal || o.nome || '', 'Daycoval: CPF fora da política de crédito → refazendo no ' + prox + ' (13.02)'); } catch (e) {} try { const m = [...document.querySelectorAll('a')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e))); if (m) m.click(); } catch (e) {} return; }
           if (st.st === 'erro') throw new Error(st.erro || 'erro no portal');
           const f = o.ficha, so0 = x => String(x || '').replace(/\D/g, ''), bc = so0(f.banco).padStart(3, '0');
           const real = f.banco && so0(f.conta).length >= 3 && f.banco !== '000' && !/derivada|sem conta aqui/i.test(f.conta_origem || '');
