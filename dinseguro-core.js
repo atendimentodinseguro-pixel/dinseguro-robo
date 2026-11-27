@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.80';
+  const VERSAO = '12.81';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1819,7 +1819,7 @@
             const anota = (ac, det, extra) => { V[it.cv] = Object.assign({}, V[it.cv] || {}, { tm: it.tm, t: Date.now(), ac, det: String(det || '').slice(0, 120), nome: it.nome || '', fone: it.fone, modo }, extra || {}); GM_setValue('zr_visto', V); };
             try { /* 12.61 (Stefany 26/11 23:41: a simulação da Vera saiu por OUTRO número — 'tem que ser no mesmo, sempre'): o envio usa o departamento (número) DA CONVERSA em que o cliente escreveu, nunca um fixo */ let sid = String(it.dep || ''); if (!sid) { try { const rc61 = await zrReq('GET', '/api/v2/conversations/' + it.cv); const c61 = rc61 && rc61.j && rc61.j.conversation; const d61 = c61 && c61.departamento_responsavel_atendimento; sid = String((d61 && typeof d61 === 'object') ? (d61._id || '') : (d61 || '')); } catch (e) {} }
               const nm = pn56(it.nome); const O = GM_getValue('auto_ordens', {}) || {}; const M = GM_getValue('zr_ponte', {}) || {}; let h = Object.keys(M).filter(k => M[k] && String(M[k].fone).slice(-8) === String(it.fone).slice(-8) && O[k]).sort((a, b) => (+O[b].t || 0) - (+O[a].t || 0))[0] || ''; const x = h ? O[h] : null;
-              const txt = String(it.txt || '').trim(); const cpfT = (txt.replace(/[.\-\s]/g, '').match(/(?:^|\D)(\d{11})(?!\d)/) || [])[1] || ''; const cpf = cpfT && cpfDigitoOk(cpfT) ? cpfT : ''; const clique = /^(clique aqui|quero saber mais|ol[áa]|oi+|bom dia|boa tarde|boa noite)[.!]*$/i.test(txt);
+              const txt = String(it.txt || '').trim(); const cpfT = (txt.replace(/[.\-\s]/g, '').match(/(?:^|\D)(\d{11})(?!\d)/) || [])[1] || ''; const cpfZ81 = /^\d{9,10}$/.test(txt.replace(/[.\-\s]/g, '')) ? txt.replace(/[.\-\s]/g, '').padStart(11, '0') : ''; const cpf = cpfT && cpfDigitoOk(cpfT) ? cpfT : (cpfZ81 && cpfDigitoOk(cpfZ81) ? cpfZ81 : '');   /* 12.81 (Stefany 27/11 14:29 'tem gente que tem o cpf menor por causa do zero a esquerda'): mensagem só com 9 ou 10 dígitos → completa com zeros à esquerda e vale se o dígito do CPF bater */ const clique = /^(clique aqui|quero saber mais|ol[áa]|oi+|bom dia|boa tarde|boa noite)[.!]*$/i.test(txt);
               if (x && sid && modo === 2 && M[h] && (String(M[h].conv || '') !== String(it.cv) || String(M[h].sid || '') !== sid)) { try { window.dinsZrPonte(h, it.fone, sid, it.cv); } catch (e) {} }   /* cliente voltou por outra conversa/outro número → a resposta passa a sair por lá */
               if (x && /^(nova|consultando|ficha_ok|digitando|pronto|gravando|gravada|link|simulada)$/.test(String(x.estado))) { zrCliEscreveu1256(h, it.tm); anota('andamento', 'pedido em andamento: ' + x.estado); continue; }
               if (x && !cpf && /^(sim_enviada|sim_resp)$/.test(String(x.estado))) { zrCliEscreveu1256(h, it.tm); anota('resposta', 'respondeu (' + x.estado + ') → o robô lê a resposta no Zap e trata'); continue; }
