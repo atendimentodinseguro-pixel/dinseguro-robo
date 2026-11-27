@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.54';
+  const VERSAO = '12.55';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1076,7 +1076,7 @@
       onload: r => { let j = null; try { j = JSON.parse(r.responseText); } catch (e) {} res({ http: r.status, j, txt: j ? '' : String(r.responseText || '').slice(0, 300) }); }, onerror: () => res({ erro: 'sem resposta' }), ontimeout: () => res({ erro: 'demorou' }) }); } catch (e) { res({ erro: e.message }); } }); }
   try { const W0 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
     W0.dinsZrTem = () => !!GM_getValue('zr_api_token', '');
-    W0.dinsZrGet = p => /^\/api\/(departamento\/all|whatsapp\/[\w-]+$|atendentes|etiquetas|contatos(\/phone\/\d+)?$|v2\/conversations\/)/.test(String(p)) ? zrReq('GET', p) : Promise.resolve({ erro: 'caminho não liberado' });   // só leitura
+    W0.dinsZrGet = p => /^\/api\/(departamento\/all|whatsapp\/[\w-]+$|atendentes|etiquetas|contatos(\/phone\/\d+)?$|v2\/conversations\/|conversa\/findByAtendente\?|conversation\/tabsCount\?)/.test(String(p)) ? zrReq('GET', p) : Promise.resolve({ erro: 'caminho não liberado' });   // só leitura
     W0.dinsZrSessao = id => { if (id !== undefined) GM_setValue('zr_session', String(id || '')); return GM_getValue('zr_session', ''); };
     W0.dinsZrEnviar = (numero, texto) => { const sid = GM_getValue('zr_session', ''); const n = String(numero || '').replace(/\D/g, ''); if (!sid) return Promise.resolve({ erro: 'sessão do Zap Responder não definida (dinsZrSessao)' }); if (!/^55\d{10,11}$/.test(n) || !String(texto || '').trim()) return Promise.resolve({ erro: 'número ou texto inválido' });
       const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return Promise.resolve({ erro: 'fora do horário (8h–21h)' }); return zrReq('POST', '/api/whatsapp/message/' + encodeURIComponent(sid), { type: 'text', number: n, message: String(texto), showInChat: true }); };
@@ -3394,7 +3394,7 @@
             if (dt > 22 * 3600000 || (dt > 2 * 3600000 && !x.chkOkT)) { x.estado = 'erro'; x.erro = 'simulação enviada às ' + hhmm(x.tSimEnv) + ' e não deu para confirmar a resposta (7.55) → vigia'; GM_setValue('auto_ordens', O); continue; }
             if (!okH || !lido) continue;
             // 7.67 (Stefany 17/11 12:42): proposta ABAIXO de R$ 5.000 → sem confirmação do cliente NÃO digita nem manda /parabens (segue só os toques; aceite → digita)
-            if (dt >= 30 * 60000) { const v767 = parseFloat(String(x.liberado || '').replace(/\./g, '').replace(',', '.')) || 0; if ((v767 > 0 && v767 < 5000) || x.reverso) { if (!x.semPar767) {   /* 10.33 (Stefany 21/11 09:50, Janilsa): CPF achado pelo telefone (análise reversa) — o cliente NÃO mandou o CPF → sem aceite não digita nem manda /parabens; segue a régua 10.30 */ x.semPar767 = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta, mas R$ ' + x.liberado + ' < 5 mil → NÃO digita sem confirmação (7.67)'); GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', 'simulação abaixo de R$ 5 mil sem resposta → não digita sem o cliente confirmar (7.67)'); } continue; } }
+            if (dt >= 30 * 60000) { const v767 = parseFloat(String(x.liberado || '').replace(/\./g, '').replace(',', '.')) || 0; if ((v767 > 0 && v767 < 5000) || (x.reverso && !x.zr1251 /* 12.55 (Stefany 26/11 21:26): no Zap Responder o CPF achado pelo telefone DIGITA depois dos 30 min; no Botmaker segue a regra 10.33 */)) { if (!x.semPar767) {   /* 10.33 (Stefany 21/11 09:50, Janilsa): CPF achado pelo telefone (análise reversa) — o cliente NÃO mandou o CPF → sem aceite não digita nem manda /parabens; segue a régua 10.30 */ x.semPar767 = Date.now(); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta, mas R$ ' + x.liberado + ' < 5 mil → NÃO digita sem confirmação (7.67)'); GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', 'simulação abaixo de R$ 5 mil sem resposta → não digita sem o cliente confirmar (7.67)'); } continue; } }
             if (dt >= 30 * 60000) { const r773 = respSync(x); if (r773 === 'wait') continue; if (r773) { x.estado = 'com_margem'; x.resumo = (x.resumo || '') + ' · cliente respondeu à simulação (visto na hora dos 30 min) → VIGIA responde (7.73)'; GM_setValue('auto_ordens', O); diario(x.nomeReal || x.nome || '', '🔴 respondeu à simulação → não digitou; vigia responde (7.73)'); continue; } }
             if (dt >= 30 * 60000) { Object.assign(x, { estado: 'ficha_ok', simGravar: 1, t: Date.now() }); (x.hist = x.hist || []).push(hhmm(Date.now()) + ' 30 min sem resposta à simulação → digitar + /parabens'); GM_setValue('auto_ordens', O);
               diario(x.nomeReal || x.nome || '', '30 min sem resposta à simulação → digitar e mandar /parabens (7.55)'); return; }
