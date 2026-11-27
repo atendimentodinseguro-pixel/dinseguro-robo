@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.88';
+  const VERSAO = '12.89';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -2461,7 +2461,8 @@
         // 9.15 (19/11, Oscar: link pronto 3 vezes e não saiu sozinho): um pedido antigo em 'link' esperando a leitura do extrato ('wait') era sempre o PRIMEIRO da lista
         // e dava return — segurava o link de TODOS os outros clientes. Agora quem está em 'wait' é pulado e o próximo link sai.
         { const oK = Object.values(O).find(x => x && x.tipo === 'cpf' && x.estado === 'link' && !protegido(x.hash) && !x.api879Falhou && !(+x.api879Prox > Date.now()) && /^https?:\/\//.test(String(x.link || '')) && x.liberado && x.parcela && x.prazo && !/undefined/.test(String(x.liberado) + x.parcela + x.prazo) && extrSync(x) !== 'wait' && !(x.in100Pedido && !x.in100 && Date.now() - x.in100Pedido < 10 * 60000));   // 10.68: espera a IN100 até 10 min
-          if (oK) { const exK = extrSync(oK); if (exK === 'wait') return; if (await window.dinsBotAtivo(oK.hash)) return;   /* 9.28: proposta pronta; o link sai quando o bot do Botmaker parar */
+          let pula1289 = false; try { pula1289 = !!(oK && (extrSync(oK) === 'wait' || await window.dinsBotAtivo(oK.hash))); } catch (e) { pula1289 = true; }   /* 12.89 (27/11 15:40: simulações do Zap paradas 15 min): link esperando o bot do Botmaker dava return e segurava TODAS as simulações de trás → agora só pula */
+          if (oK && !pula1289) { const exK = extrSync(oK);   /* 9.28: proposta pronta; o link sai quando o bot do Botmaker parar */
             if (exK) { oK.estado = 'com_margem'; oK.resumo = (oK.resumo || '') + ' · ⛔ proposta gravada, mas o cliente mandou ARQUIVO (extrato) → vigia confere a margem antes de mandar o link (7.71)'; GM_setValue('auto_ordens', O); diario(oK.nomeReal || oK.nome || '', '⛔ mandou extrato → link NÃO enviado; vigia lê o extrato (7.71)'); return; }
             if (!trava870('link879_' + oK.hash, 3 * 60000)) return;
             ocup790 = true; oK.api879T = Date.now(); GM_setValue('auto_ordens', O);
