@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.66';
+  const VERSAO = '12.67';
   // 12.59 (Stefany 26/11 23:32, sobre a fila única de consulta/digitação: "resolva"): cliente do BOTMAKER (atendimento ao vivo) passa NA FRENTE dos pedidos do Zap Responder (remarketing) na consulta e na digitação.
   // Um disparo grande no Zap não atrasa mais o Botmaker: no máximo ele espera o pedido que já está em andamento.
   const bmAntes1259 = a => { const L = (a || []).filter(Boolean); return L.filter(x => !x.zr1251).concat(L.filter(x => x.zr1251)); };
@@ -1608,7 +1608,8 @@
         const nome = limpaNome63(x.nomeReal || it.nome || x.nome || ''); const r = await WZ.dinsZrPdfConversa(cv, nome || '', { semBaixar: 1, devolveBlob: 1, renderPdf: renderPdf63 }); if (!r || !r.ok) return r || { erro: 'não gerou' };
         const cpf = String(x.cpf || '').replace(/\D/g, ''); const prop = limpaNome63(x.proposta || ''); const ag = new Date(); const carimbo = ag.getFullYear() + '-' + String(ag.getMonth() + 1).padStart(2, '0') + '-' + String(ag.getDate()).padStart(2, '0') + ' ' + String(ag.getHours()).padStart(2, '0') + 'h' + String(ag.getMinutes()).padStart(2, '0');
         const pasta = [limpaNome63(r.nome || nome || 'Cliente'), r.fone, 'CPF ' + (cpf.length === 11 ? cpf : 'nao informado'), 'Proposta ' + (prop || 'sem proposta')].join(' - ').slice(0, 150); const arquivo = 'Conversa ' + carimbo + (motivo && motivo !== 'botao' ? ' (' + motivo + ')' : '') + '.pdf'; let onde = '';
-        if (await pastaOk63(false)) { try { const d = await PASTA63.getDirectoryHandle(pasta, { create: true }); const fh = await d.getFileHandle(arquivo, { create: true }); const wr = await fh.createWritable(); await wr.write(r.blob); await wr.close(); onde = 'pasta: ' + pasta + ' / ' + arquivo; } catch (e) { onde = ''; } }
+        /* 12.67 (Stefany 27/11 00:47 'colocar o dia certinho para a gente ver… subpasta dentro do dia certo'): o PDF já é salvo em MÊS / DIA / cliente — ex.: 2026-11 / 27-11-2026 / NOME - telefone - CPF - Proposta / Conversa … .pdf (dia = dia em que o PDF foi gerado: assinatura, pagamento ou clique) */
+        if (await pastaOk63(false)) { try { const p2 = n => String(n).padStart(2, '0'); const mes67 = ag.getFullYear() + '-' + p2(ag.getMonth() + 1); const dia67 = p2(ag.getDate()) + '-' + p2(ag.getMonth() + 1) + '-' + ag.getFullYear(); const dM = await PASTA63.getDirectoryHandle(mes67, { create: true }); const dD = await dM.getDirectoryHandle(dia67, { create: true }); const d = await dD.getDirectoryHandle(pasta, { create: true }); const fh = await d.getFileHandle(arquivo, { create: true }); const wr = await fh.createWritable(); await wr.write(r.blob); await wr.close(); onde = 'pasta: ' + mes67 + ' / ' + dia67 + ' / ' + pasta + ' / ' + arquivo; } catch (e) { onde = ''; } }
         if (!onde) { const a = document.createElement('a'); a.href = URL.createObjectURL(r.blob); a.download = pasta + ' - ' + arquivo; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 3000); onde = 'Downloads: ' + pasta + ' - ' + arquivo; }
         try { const L = GM_getValue('zr_pdf_log', []) || []; L.push({ t: Date.now(), nome: (r.nome || nome || '').slice(0, 30), fone4: String(r.fone).slice(-4), motivo: motivo || '', pag: r.paginas, onde: onde.slice(0, 160) }); GM_setValue('zr_pdf_log', L.slice(-40)); } catch (e) {}
         return { ok: 1, onde, paginas: r.paginas, imagens: r.imagens, anexos: r.anexos, falhas: r.falhas };
