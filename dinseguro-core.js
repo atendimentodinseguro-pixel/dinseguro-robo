@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.74';
+  const VERSAO = '12.75';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1493,7 +1493,7 @@
   // 12.56: lê as mensagens do cliente NO ZAP RESPONDER, no mesmo formato da leitura do Botmaker (FROM / MESSAGE / CREATION_TIME). Vem a página mais recente (10 mensagens).
   async function apiLerZr1256(chatId, pz) { try { let cv = String(pz.conv || '');   /* 12.61 (Stefany 26/11 23:41 'tem que ser no mesmo, sempre'): lê a MESMA conversa em que o cliente escreveu (a busca pelo telefone devolvia a conversa de outro número/departamento) */ if (!cv) { const rc = await zrReq('GET', '/api/v2/conversations/chatId/' + pz.fone); const c = rc && rc.j && rc.j.conversation; if (c && c._id) cv = String(c._id); } if (!cv) return null;
       const r = await zrReq('GET', '/api/v2/conversations/' + cv + '/messages'); const ms = r && r.http === 200 && r.j && r.j.messages; if (!Array.isArray(ms)) return null;
-      const nm = ms.filter(m => m && m.autor !== 'system' && !m.isRemoved).map(m => { const mm = m.mensagem || {}; const tp = String(mm.type || 'text').toLowerCase(); const txt = tp === 'text' ? String(mm.mensagem || '') : (/audio|ptt|voice/.test(tp) ? '__audio__' : /image|sticker/.test(tp) ? '__image__' : /video/.test(tp) ? '__video__' : '__file__'); return { FROM: m.autor === 'usuario' ? 'user' : 'me', MESSAGE: txt, CREATION_TIME: m.createdAt }; });
+      const nm = ms.filter(m => m && m.autor !== 'system' && !m.isRemoved).map(m => { const mm = m.mensagem || {}; const tp = String(mm.type || 'text').toLowerCase(); const tr74 = String(m.transcription || mm.transcription || mm.transcricao || '').trim(); const txt = tp === 'text' ? String(mm.mensagem || '') : (tr74 && /audio|ptt|voice|file/.test(tp)) ? tr74 : (/audio|ptt|voice/.test(tp) ? '__audio__' : /image|sticker/.test(tp) ? '__image__' : /video/.test(tp) ? '__video__' : '__file__'); return { FROM: m.autor === 'usuario' ? 'user' : 'me', MESSAGE: txt, CREATION_TIME: m.createdAt }; });
       try { const tc = Math.max(0, ...nm.filter(m => m.FROM !== 'me').map(m => Date.parse(m.CREATION_TIME) || 0)); if (tc) zrCliEscreveu1256(chatId, tc); if (cv !== String(pz.conv || '')) { const M = GM_getValue('zr_ponte', {}) || {}; if (M[chatId]) { M[chatId].conv = cv; GM_setValue('zr_ponte', M); } } } catch (e) {}
       return { zr: 1, customer: { zr: 1 }, newMessages: nm }; } catch (e) { return null; } }
   /* 12.74 (Stefany 27/11 11:54, Sonia Maria G0LJYV: "está há mais de 1 hora sem resposta"): ela escrevia no BOTMAKER ("300% de juros?", "Opção 1") e o robô mandava as
@@ -1542,7 +1542,8 @@
     let TOT56 = 0, ocup56 = false;
     const ronda56 = async () => { if (ocup56) return; ocup56 = true; try { const ag = Date.now(); const itens = []; const vistos = {}; let erro = ''; const AQ = 'atlas-api.zapresponder.com.br';
         const depDe61 = d => String((d && typeof d === 'object') ? (d._id || d.id || '') : (d || ''));
-        const poe = (cv, fone, nome, de, lm, ent, dep) => { cv = String(cv || ''); if (!cv || vistos[cv] || !lm) return; const tm = Date.parse(lm.createdAt) || 0; if (!tm || ag - tm > 24 * 3600000) return; vistos[cv] = 1; const tp = String(lm.type || 'text').toLowerCase();
+        const poe = (cv, fone, nome, de, lm, ent, dep) => { cv = String(cv || ''); if (!cv || vistos[cv] || !lm) return; const tm = Date.parse(lm.createdAt) || 0; if (!tm || ag - tm > 24 * 3600000) return; vistos[cv] = 1; let tp = String(lm.type || 'text').toLowerCase();
+          { const tr74 = String(lm.transcription || lm.transcricao || (lm.mensagem && (lm.mensagem.transcription || lm.mensagem.transcricao)) || '').trim(); if (tr74 && /audio|ptt|voice|file/.test(tp)) { tp = 'text'; lm = Object.assign({}, lm, { content: tr74 }); } }   /* 12.74 (Stefany 27/11 12:02 "sim"): o Zap já transcreve o áudio do cliente → o robô lê a transcrição como texto (antes via só "[áudio]" e não fazia nada — Djanira, Celmo, Antonio) */
           itens.push({ cv, fone: String(fone || '').replace(/\D/g, ''), nome: String(nome || '').slice(0, 40), de, autor: String(lm.autor || ''), tipo: tp, txt: tp === 'text' ? String(lm.content || '').replace(/\s+/g, ' ').slice(0, 160) : '[' + tp + ']', tm, ent: ent || 0, dep: depDe61(dep) }); };
         // fila de atendimento: vem das mais antigas para as mais novas → as de agora estão na última página
         const pgFila = p => pede56(AQ, '/chat/support-queues?scope=all&page=' + p + '&limit=50');
