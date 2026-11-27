@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.99';
+  const VERSAO = '13.00';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -827,6 +827,9 @@
         if (temDetalhe()) {
           if (!/Situa[çc][ãa]o\s*\n?\s*ATIVO\b/.test(document.body.innerText)) {   // 7.05 (Maninho 14/11 21:50: esp 31 SUSPENSO → robô parou e deixou o cliente esperando)
             const esp1 = ((document.body.innerText.match(/Descri[çc][ãa]o da Esp[ée]cie\s*\n?\s*(\d{1,2})\s*-/) || [])[1] || '').padStart(2, '0');
+            /* 13.00 (Stefany 27/11 17:15 'erro grave, olha ele no Full': Multicorban mostrou só um esp 31 não ativo; no FullConsig o mesmo CPF tem esp 32 ATIVO (aposentadoria nova) → o robô mandou 'não dá' para quem tem crédito). Antes de qualquer resposta negativa, confere o FullConsig. */
+            { let fc00 = null; try { fc00 = await fcBeneficios975(o.cpf); } catch (e) {} const at00 = (fc00 || []).filter(b => b && b.sit === 'ATIVO' && (ESPECIES_OK.includes(String(b.esp).padStart(2, '0')) || LOAS.includes(String(b.esp).padStart(2, '0'))));
+              if (at00.length) { const b00 = at00[0]; poeAO(o.hash, { estado: 'com_margem', erro: '', resumo: '🛠️ Multicorban desatualizado (esp ' + esp1 + ' não ativo); FullConsig: benefício …' + String(b00.nb).slice(-4) + ' esp ' + b00.esp + ' ATIVO' + (b00.ddb ? ' DDB ' + b00.ddb : '') + ' → VIGIA simula pelo FullConsig (13.00)' }); try { diario(o.nome || '', '🔴 Multicorban desatualizado x FullConsig ATIVO → vigia (13.00)'); } catch (e) {} return; } }
             if (esp1 !== '00' && !ESPECIES_OK.includes(esp1) && !['87', '88'].includes(esp1)) { poeAO(o.hash, { estado: 'desfecho', acao: 'especie_fora', resumo: 'único benefício: espécie ' + esp1 + ' (não consignável) e não ATIVO' }); return; }
             throw new Error('benefício não está ATIVO — 🔴 vigia responde o cliente (ele recebeu "já estou consultando")');
           }
