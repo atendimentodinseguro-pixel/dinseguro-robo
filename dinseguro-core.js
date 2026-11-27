@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.78';
+  const VERSAO = '12.79';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1804,7 +1804,8 @@
               const txt = String(it.txt || '').trim(); const cpfT = (txt.replace(/[.\-\s]/g, '').match(/(?:^|\D)(\d{11})(?!\d)/) || [])[1] || ''; const cpf = cpfT && cpfDigitoOk(cpfT) ? cpfT : ''; const clique = /^(clique aqui|quero saber mais|ol[áa]|oi+|bom dia|boa tarde|boa noite)[.!]*$/i.test(txt);
               if (x && sid && modo === 2 && M[h] && (String(M[h].conv || '') !== String(it.cv) || String(M[h].sid || '') !== sid)) { try { window.dinsZrPonte(h, it.fone, sid, it.cv); } catch (e) {} }   /* cliente voltou por outra conversa/outro número → a resposta passa a sair por lá */
               if (x && /^(nova|consultando|ficha_ok|digitando|pronto|gravando|gravada|link|simulada)$/.test(String(x.estado))) { zrCliEscreveu1256(h, it.tm); anota('andamento', 'pedido em andamento: ' + x.estado); continue; }
-              if (x && !cpf && (/^(sim_enviada|sim_resp)$/.test(String(x.estado)) || (/^(com_margem|feito)$/.test(String(x.estado)) && !clique))) { zrCliEscreveu1256(h, it.tm); anota('resposta', 'respondeu (' + x.estado + ') → o robô lê a resposta no Zap e trata'); continue; }
+              if (x && !cpf && /^(sim_enviada|sim_resp)$/.test(String(x.estado))) { zrCliEscreveu1256(h, it.tm); anota('resposta', 'respondeu (' + x.estado + ') → o robô lê a resposta no Zap e trata'); continue; }
+              if (x && !cpf && /^(com_margem|feito)$/.test(String(x.estado)) && !clique) { zrCliEscreveu1256(h, it.tm); if (cortesia1258(txt)) { anota('cortesia', 'só agradeceu/confirmou → nada a fazer'); continue; } anota('gente', 'respondeu em texto livre depois da proposta/link (' + x.estado + ') → precisa de gente (12.79)'); continue; }   /* 12.79 (Stefany 27/11 13:17 'por que os agentes do Zap não estão funcionando'): 'Vou pensar' (Simone) e 'Só em janeiro' (Rinaldo) ficavam como 'o robô trata', mas o leitor só trata 1/2/3 da simulação — ninguém respondia */
               if (!cpf && cortesia1258(txt)) { anota('cortesia', 'só agradeceu/confirmou → nada a fazer'); continue; }
               if (modo === 1) { anota('sombra', 'faria: ' + (cpf ? 'consultar o CPF que ele mandou' : x && x.link ? 'reenviar o link que já existe (se não assinou)' : 'procurar no Botmaker e o CPF pelo telefone → simular; não achou → pedir o CPF')); continue; }
               if (!sid) { anota('erro', 'não achei o departamento (número) desta conversa → não envio'); continue; }
