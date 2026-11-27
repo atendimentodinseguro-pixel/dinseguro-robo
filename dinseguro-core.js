@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.61';
+  const VERSAO = '12.62';
   // 12.59 (Stefany 26/11 23:32, sobre a fila única de consulta/digitação: "resolva"): cliente do BOTMAKER (atendimento ao vivo) passa NA FRENTE dos pedidos do Zap Responder (remarketing) na consulta e na digitação.
   // Um disparo grande no Zap não atrasa mais o Botmaker: no máximo ele espera o pedido que já está em andamento.
   const bmAntes1259 = a => { const L = (a || []).filter(Boolean); return L.filter(x => !x.zr1251).concat(L.filter(x => x.zr1251)); };
@@ -1499,7 +1499,7 @@
           let velha = false; L.forEach(v => { const lm = v.lastMessage || null; if (lm && ag - (Date.parse(lm.createdAt) || 0) > 24 * 3600000) velha = true; poe(v._id, v.chatId, (v.contato && v.contato.name) || (lm && lm.pushName) || '', 'pend', lm, 0, v.departamento_responsavel_atendimento); }); if (velha || L.length < 15) break; }
         GM_setValue('zr_fila', { t: ag, erro, totFila: TOT56, itens });
       } catch (e) { try { GM_setValue('zr_fila', { t: Date.now(), erro: 'erro na leitura: ' + String((e && e.message) || e).slice(0, 80), itens: [] }); } catch (e2) {} } finally { ocup56 = false; } };
-    setTimeout(ronda56, 7000); setInterval(ronda56, 30000);
+    setTimeout(ronda56, 5000); setInterval(ronda56, 12000);   // 12.62: 30 s → 12 s (os dois primeiros clientes levaram 2 a 3 min para ter resposta)
     // ---- quadro
     const esc56 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const ha56 = t => { const m = Math.max(0, Math.round((Date.now() - (+t || 0)) / 60000)); return m < 1 ? 'agora' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
@@ -1592,11 +1592,13 @@
       /* 12.57: link/resposta entregue À MÃO pelo vigia (ex.: depois das 21h, 26/11) → marca a ponte como 'já falamos' (o robô não repete nem faz toque até o cliente escrever) e a ordem com link vira 'feito' */
       window.dinsZrEntregue = h => { const M = GM_getValue('zr_ponte', {}) || {}; if (!M[h]) return { erro: 'sem ponte' }; M[h].vez = 3; M[h].tEnv = Date.now(); GM_setValue('zr_ponte', M); const O = GM_getValue('auto_ordens', {}) || {}; const x = O[h]; if (x && x.link && /^(link|gravada)$/.test(String(x.estado))) { x.estado = 'feito'; (x.hist = x.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.57: link entregue à mão pelo vigia → feito; robô em silêncio até o cliente escrever'); GM_setValue('auto_ordens', O); } return { ok: 1, estado: x ? x.estado : '' }; }; } catch (e) {}
     { let ocupV56 = false; const pn56 = n => { const t = String(n || '').replace(/[^A-Za-zÀ-ÿ ]/g, ' ').trim().split(/\s+/)[0] || ''; return t.length >= 3 ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : ''; };
-      const T56 = { acolhe: nm => 'Olá' + (nm ? ', ' + nm : '') + '! Recebi a sua mensagem ✅\n\nAqui é da *Dinseguro*. Já estou consultando o seu benefício e te mando o valor liberado em instantes.',
-        cpf: nm => 'Olá' + (nm ? ', ' + nm : '') + '! Que bom falar com você 😊\n\nPara eu consultar o valor liberado no seu benefício, me envie por favor o seu *CPF* (só os números). A consulta é gratuita e leva menos de 1 minuto.',
+      const T56 = { acolhe: nm => 'Olá' + (nm ? ', ' + nm : '') + '! Recebi a sua mensagem ✅\n\nAqui é da *Dinseguro*. Só um instante que eu já estou vendo o seu atendimento.',
+        cpf: nm => 'Para eu consultar o valor liberado no seu benefício' + (nm ? ', ' + nm : '') + ', me envie por favor o seu *CPF* (só os números). A consulta é gratuita e leva menos de 1 minuto. 😊',
         link: (nm, r) => '*' + (nm ? nm + ', p' : 'P') + 'arabéns! Sua proposta está pronta* 🎉\n\n💰 Valor na conta: *R$ ' + r.liberado + '*\n📆 ' + (r.prazo || 108) + 'x de *R$ ' + r.parcela + '*\n\nPara finalizar, é só assinar pelo link abaixo 👇\n' + r.link + '\n\n✅ Aprovação em até 60 minutos depois de assinar.' };
-      const achaChat56 = async (fone, O) => { const fs = [fone]; if (fone.length === 13) fs.push(fone.slice(0, 4) + fone.slice(5)); else if (fone.length === 12) fs.push(fone.slice(0, 4) + '9' + fone.slice(4)); const ach = [];
-        for (const ch of ['credsegurobank-whatsapp-558006860086', 'credsegurobank-whatsapp-558001912261', 'credsegurobank-whatsapp-553131600120']) for (const f of fs) { try { const r = await window.dinsBmGet('/chats?channel-id=' + ch + '&contact-id=' + f); const it = r && r.j && r.j.items && r.j.items[0]; const id = it && it.chat && String(it.chat.chatId || ''); if (/^[A-Z0-9]{20}$/.test(id) && !ach.includes(id)) ach.push(id); } catch (e) {} }
+      const achaChat56 = async (fone, O) => { const fs = [fone]; if (fone.length === 13) fs.push(fone.slice(0, 4) + fone.slice(5)); else if (fone.length === 12) fs.push(fone.slice(0, 4) + '9' + fone.slice(4)); const pares = [];
+        for (const ch of ['credsegurobank-whatsapp-558006860086', 'credsegurobank-whatsapp-558001912261', 'credsegurobank-whatsapp-553131600120']) for (const f of fs) pares.push([ch, f]);
+        const rs = await Promise.all(pares.map(([ch, f]) => window.dinsBmGet('/chats?channel-id=' + ch + '&contact-id=' + f).then(r => { const it = r && r.j && r.j.items && r.j.items[0]; const id = it && it.chat && String(it.chat.chatId || ''); return /^[A-Z0-9]{20}$/.test(id) ? id : ''; }).catch(() => '')));   // 12.62: as 6 buscas juntas (antes uma de cada vez)
+        const ach = [...new Set(rs.filter(Boolean))];
         return ach.find(id => O[id] && (O[id].link || O[id].proposta)) || ach.find(id => O[id]) || ach[0] || ('ZR' + ('000000000000000000' + fone).slice(-18)); };   // sem conversa no Botmaker → id próprio do Zap
       setInterval(async () => { if (ocupV56) return; try { const modo = +GM_getValue('zr_vigia', 1) || 0; if (!modo || !faz('atendimento') || typeof window.dinsZrOrdem !== 'function' || typeof window.dinsBmGet !== 'function') return;
           const F = GM_getValue('zr_fila', null); if (!F || Date.now() - (+F.t || 0) > 3 * 60000) return; ocupV56 = true; const ag = Date.now(); const V = GM_getValue('zr_visto', {}) || {}; for (const k in V) if (ag - (+V[k].t || 0) > 3 * 864e5) delete V[k];
@@ -1612,9 +1614,15 @@
               if (!cpf && cortesia1258(txt)) { anota('cortesia', 'só agradeceu/confirmou → nada a fazer'); continue; }
               if (modo === 1) { anota('sombra', 'faria: ' + (cpf ? 'consultar o CPF que ele mandou' : x && x.link ? 'reenviar o link que já existe (se não assinou)' : 'procurar no Botmaker e o CPF pelo telefone → simular; não achou → pedir o CPF')); continue; }
               if (!sid) { anota('erro', 'não achei o departamento (número) desta conversa → não envio'); continue; }
+              /* 12.62: resposta na hora (antes das buscas), uma vez por conversa */
+              if (!(v0 && v0.acolheu && ag - v0.acolheu < 12 * 3600000) && !(x && x.link)) { try { await zrEnviar1256(h || ('ZR' + ('000000000000000000' + String(it.fone)).slice(-18)), { fone: String(it.fone), sid, conv: it.cv, cliT: it.tm, depOk: it.dep ? it.cv : '' }, T56.acolhe(nm), true); V[it.cv] = Object.assign({}, V[it.cv] || {}, { acolheu: Date.now() }); GM_setValue('zr_visto', V); } catch (e) {} }
               if (!h) h = await achaChat56(String(it.fone), O);
+              /* 12.62 (Stefany 26/11 23:54, teste: o telefone de teste bateu com um pedido antigo de OUTRA pessoa no Botmaker e o robô reenviou o link dela): pedido/proposta achado só pelo TELEFONE vale quando o nome do WhatsApp bate com o nome do pedido OU o cliente informou o mesmo CPF. Senão: CPF diferente informado → pedido novo, separado; nada informado → pede o CPF (1 vez) e depois vai para gente */
+              { const y62 = O[h]; if (y62 && (y62.nomeReal || y62.cpf) && !/^ZR0/.test(h)) { const bate62 = nomeBate1256(it.nome, y62.nomeReal || y62.nome); const cpfIgual62 = !!cpf && String(y62.cpf || '').replace(/\D/g, '') === cpf;
+                  if (!bate62 && !cpfIgual62) { if (cpf) h = 'ZR' + ('000000000000000000' + String(it.fone)).slice(-18);
+                    else { if (v0 && v0.pediuCpf && ag - v0.pediuCpf < 12 * 3600000) anota('gente', 'telefone bate com pedido de ' + String(y62.nomeReal || '?').split(' ')[0] + ', nome do WhatsApp é "' + String(it.nome || '?').slice(0, 16) + '" e não mandou o CPF → precisa de gente'); else { try { await zrEnviar1256('ZR' + ('000000000000000000' + String(it.fone)).slice(-18), { fone: String(it.fone), sid, conv: it.cv, cliT: it.tm, depOk: it.dep ? it.cv : '' }, T56.cpf(''), true); anota('pediu_cpf', 'telefone bate com pedido de outra pessoa (' + String(y62.nomeReal || '?').split(' ')[0] + ') → pedi o CPF para confirmar', { pediuCpf: Date.now() }); } catch (e) { anota('erro', 'pedir CPF não saiu: ' + String((e && e.message) || e).slice(0, 70)); } } continue; } } } }
               const r = await window.dinsZrOrdem(h, it.fone, sid, it.cv, it.nome || '', cpf); const pz = zrPonte1251(h) || { fone: String(it.fone), sid, conv: it.cv, cliT: it.tm };
-              if (r && r.ok) { zrCliEscreveu1256(h, it.tm); anota('pedido', 'pedido criado (CPF ' + (r.fonte || '') + ') → consultando'); if (!(v0 && v0.acolheu && ag - v0.acolheu < 12 * 3600000)) { try { await zrEnviar1256(h, pz, T56.acolhe(nm), true); V[it.cv].acolheu = Date.now(); GM_setValue('zr_visto', V); } catch (e) {} } }
+              if (r && r.ok) { zrCliEscreveu1256(h, it.tm); anota('pedido', 'pedido criado (CPF ' + (r.fonte || '') + ') → consultando'); }
               else if (r && r.erro === 'sem cpf') { if (v0 && v0.pediuCpf && ag - v0.pediuCpf < 12 * 3600000) anota('gente', 'já pedi o CPF e veio outra coisa → precisa de gente'); else { try { await zrEnviar1256(h, pz, T56.cpf(nm), true); anota('pediu_cpf', 'não achei o CPF pelo telefone → pedi o CPF', { pediuCpf: Date.now() }); } catch (e) { anota('erro', 'pedir CPF não saiu: ' + String((e && e.message) || e).slice(0, 70)); } } }
               else if (r && r.erro === 'ja tem proposta') { zrCliEscreveu1256(h, it.tm); if (r.assinou) anota('gente', 'já ASSINOU e voltou a falar → precisa de gente');
                 else if (r.link && r.liberado && r.parcela && !(v0 && v0.reenviou && ag - v0.reenviou < 12 * 3600000)) { try { await zrEnviar1256(h, zrPonte1251(h) || pz, T56.link(pn56(r.nome) || nm, r), true); anota('link', 'já tinha proposta → link reenviado (R$ ' + r.liberado + ')', { reenviou: Date.now() }); } catch (e) { anota('erro', 'reenvio do link não saiu: ' + String((e && e.message) || e).slice(0, 70)); } }
@@ -1622,7 +1630,7 @@
               else if (r && r.erro === 'ja tem simulacao') { zrCliEscreveu1256(h, it.tm); anota('resposta', 'já tem simulação → o robô lê a resposta no Zap'); }
               else anota('andamento', String((r && r.erro) || 'sem retorno').slice(0, 80));
             } catch (e) { anota('erro', String((e && e.message) || e).slice(0, 90)); } }
-        } catch (e) {} finally { ocupV56 = false; } }, 30000);
+        } catch (e) {} finally { ocupV56 = false; } }, 8000);   // 12.62: 30 s → 8 s
       // 12.56 (Stefany 26/11 23:11 "ok"): CPF achado pelo telefone com nome diferente do WhatsApp → encerra esse pedido e pede o CPF (o envio já fica barrado na ponte)
       setInterval(() => { try { if (!faz('atendimento')) return; const O = GM_getValue('auto_ordens', {}) || {}; const pedir = []; let mud = false;
           for (const h in O) { const x = O[h]; if (!x || !x.zr1251 || !x.reverso || !x.nomeReal || x.nomeNaoBate1256 || x.link || x.proposta || !/^(simulada|sim_enviada|com_margem|desfecho|ficha_ok)$/.test(String(x.estado)) || nomeBate1256(x.nome, x.nomeReal)) continue;
