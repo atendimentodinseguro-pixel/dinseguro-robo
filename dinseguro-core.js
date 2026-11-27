@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.57';
+  const VERSAO = '12.58';
   const VERSAO_11_95_NOTA = '';   // 11.95 (Stefany 24/11 22:39): Happy roda POR FORA (só quando mandarmos), tickets menores; não faz invalidez nem benefício com menos de 90 dias.
   const VERSAO_11_94_NOTA = '';   // 11.94 (Stefany 24/11 22:36): no portal.happyconsig.com.br o robô roda só o bloco da Happy (return logo depois) — isola o portal do resto.
   const VERSAO_11_93_NOTA = '';   // 11.93 (Stefany 24/11 22:34): a aba ?p=happyconsig não leva mais o F5 automático de 20 min; o robô do portal Happy espera quando há gente mexendo no portal.
@@ -1438,6 +1438,9 @@
   //  (b) SEM follow-up neste número: toque/lembrete não sai, e no máximo 3 mensagens nossas seguidas sem resposta do cliente (acolhida, simulação, link);
   //  (c) CPF achado pelo telefone com nome diferente do nome do WhatsApp (Raimundo veio como "Marcus Vinicius") → NÃO envia nada dessa consulta; pede o CPF;
   //  (d) as respostas do cliente são lidas NO ZAP (apiLerZr1256), não no Botmaker — "sim", "quero 10 mil", opção 2 (casos Allyne e Carlos).
+  // 12.58: cliente que só agradeceu/confirmou por último ("Show", "Obrigado", "Certo", "Ok, aguardo então") NÃO está esperando resposta → o vigia do Zap não cria pedido nem pede CPF por causa disso
+  const CORT1258 = /^(ok+|okay|oki|show( de bola)?|certo|cert[íi]ssimo|blz|beleza|joia|j[óo]ia|(muito |muit[íi]ssimo )?obrigad[oa]( viu| mesmo| pela aten[çc][ãa]o)?|obg|brigad[oa]|valeu|vlw|t[áa] bom|t[áa] certo|t[áa] [óo]timo|tudo bem|tudo certo|entendi|entendido|combinado|perfeito|[óo]timo|am[ée]m|gra[çc]as a deus|deus (te |lhe |os )?aben[çc]oe|(ok,? )?(eu )?(fico no |no )?aguardo( ent[ãa]o)?|ok,? obrigad[oa]|de nada|igualmente|pra voc[êe] tamb[ée]m|para voc[êe] tamb[ée]m)[\s.,!🙏👍❤️😊🤝💙🙌]*$/iu;
+  const cortesia1258 = t => { const x = String(t || '').trim(); return !!x && (CORT1258.test(x) || /^[\s🙏👍❤️😊🤝💙🙌👏✅]+$/u.test(x)); };
   const nn1256 = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
   function nomeBate1256(zap, real) { const a = nn1256(zap).split(' ').filter(t => t.length >= 3 && !/^(DOS|DAS)$/.test(t)); const b = nn1256(real).split(' ').filter(t => t.length >= 3); if (!a.length || !b.length) return false; return b.includes(a[0]) || a.includes(b[0]); }
   function zrCliEscreveu1256(chatId, t) { try { const M = GM_getValue('zr_ponte', {}) || {}; if (M[chatId] && (+t || 0) > (+M[chatId].cliT || 0)) { M[chatId].cliT = +t; GM_setValue('zr_ponte', M); } } catch (e) {} }
@@ -1501,14 +1504,15 @@
         const porFone = {}; for (const h in M) { const x = O[h]; if (x && M[h] && M[h].fone) { const k = String(M[h].fone).slice(-8); if (!porFone[k] || (+x.t || 0) > (+porFone[k].t || 0)) porFone[k] = x; } }
         const cab = '<div data-min="1" style="cursor:pointer;padding:7px 10px;font-weight:700;background:' + (modo === 2 ? '#0a7d33' : modo === 1 ? '#8a6d00' : '#777') + ';color:#fff;border-radius:9px 9px 0 0">🤖 Robô Dinseguro · Zap Responder — ' + ['DESLIGADO', 'MODO SOMBRA (não envia)', 'LIGADO'][modo] + '</div>';
         if (localStorage.getItem('dins_zr_min') === '1') { box.innerHTML = cab; return; }
-        const itens = (F.itens || []).filter(i => i && i.autor === 'usuario').sort((a, b) => a.tm - b.tm); const lin = [];
+        const todos56 = (F.itens || []).filter(i => i && i.autor === 'usuario' && !(cortesia1258(i.txt) && !porFone[String(i.fone).slice(-8)])).sort((a, b) => b.tm - a.tm); const itens = todos56.filter(i => ag - i.tm <= 2 * 3600000); const velhos56 = todos56.filter(i => ag - i.tm > 2 * 3600000); const lin = [];
         const idade = F.t ? Math.round((ag - F.t) / 1000) : -1; lin.push('<div style="padding:5px 10px;color:#555;border-bottom:1px solid #eee">Fila lida há ' + (idade < 0 ? '—' : idade + ' s') + (F.erro ? ' · <b style="color:#b00">' + esc56(F.erro) + '</b>' : '') + ' · na fila do Zap: ' + (F.totFila || 0) + '</div>');
         lin.push('<div style="padding:6px 10px 2px;font-weight:700">Cliente esperando resposta (' + itens.length + ')</div>');
         itens.slice(0, 20).forEach(i => { const x = porFone[String(i.fone).slice(-8)]; const v = V[i.cv]; let st = '', cor = '#555'; const esp = ag - i.tm;
           if (x && /^(nova|consultando|simulada|ficha_ok|digitando|pronto|gravando|gravada|link)$/.test(String(x.estado))) { st = '🤖 ' + (EST56[x.estado] || x.estado); cor = '#0a5'; }
           else if (v && +v.tm >= +i.tm) { st = (v.ac === 'sombra' ? '🕶 ' : v.ac === 'gente' || v.ac === 'erro' ? '🔴 ' : '🤖 ') + v.det; cor = v.ac === 'gente' || v.ac === 'erro' ? '#b00' : v.ac === 'sombra' ? '#8a6d00' : '#0a5'; if (v.ac === 'resposta' && esp > 4 * 60000) { st = '🔴 respondeu e ninguém tratou há ' + ha56(i.tm) + ' → precisa de gente'; cor = '#b00'; } }
-          else if (esp > 2 * 3600000) { st = 'escreveu há mais de 2 h (o robô só pega as últimas 2 h)'; cor = '#999'; } else { st = 'na vez do robô…'; }
+          else { st = 'na vez do robô…'; }
           lin.push('<div data-cv="' + esc56(i.cv) + '" style="cursor:pointer;padding:4px 10px;border-top:1px solid #f1f1f1"><b>' + esc56(i.nome || 'sem nome') + '</b> · final ' + esc56(String(i.fone).slice(-4)) + ' · ' + ha56(i.tm) + (i.de === 'fila' ? ' · <span style="color:#06c">fila</span>' : '') + '<br><span style="color:#333">“' + esc56(i.txt.slice(0, 70)) + '”</span><br><span style="color:' + cor + '">' + esc56(st) + '</span></div>'); });
+        if (velhos56.length) { lin.push('<div style="padding:8px 10px 2px;font-weight:700;color:#777">Escreveram há mais de 2 h e ficaram sem resposta (' + velhos56.length + ') — o robô não mexe, é com você</div>'); velhos56.slice(0, 12).forEach(i => lin.push('<div data-cv="' + esc56(i.cv) + '" style="cursor:pointer;padding:3px 10px;border-top:1px solid #f4f4f4;color:#555"><b>' + esc56(i.nome || 'sem nome') + '</b> · final ' + esc56(String(i.fone).slice(-4)) + ' · ' + ha56(i.tm) + (i.de === 'fila' ? ' · fila' : '') + ' · “' + esc56(i.txt.slice(0, 50)) + '”</div>')); }
         const ords = Object.keys(M).map(h => O[h]).filter(x => x && x.zr1251 && ag - (+x.t || 0) < 24 * 3600000).sort((a, b) => (+b.t || 0) - (+a.t || 0));
         const grupo = (tit, f, cor) => { const L = ords.filter(f); if (!L.length) return; lin.push('<div style="padding:8px 10px 2px;font-weight:700;color:' + cor + '">' + tit + ' (' + L.length + ')</div>'); L.slice(0, 15).forEach(x => { const p = M[x.hash] || {}; lin.push('<div ' + (p.conv ? 'data-cv="' + esc56(p.conv) + '" ' : '') + 'style="cursor:pointer;padding:3px 10px;border-top:1px solid #f4f4f4"><b>' + esc56(String(x.nomeReal || x.nome || '?').split(' ').slice(0, 2).join(' ')) + '</b> · final ' + esc56(String(p.fone || '').slice(-4)) + (x.liberado ? ' · R$ ' + esc56(x.liberado) : '') + '<br><span style="color:#555">' + esc56(EST56[x.estado] || x.estado) + (x.erro ? ' · ' + esc56(String(x.erro).slice(0, 70)) : '') + '</span></div>'); }); };
         grupo('🔴 Precisa de gente', x => /^(com_margem|erro)$/.test(String(x.estado)), '#b00');
@@ -1597,6 +1601,7 @@
               const txt = String(it.txt || '').trim(); const cpfT = (txt.replace(/[.\-\s]/g, '').match(/(?:^|\D)(\d{11})(?!\d)/) || [])[1] || ''; const cpf = cpfT && cpfDigitoOk(cpfT) ? cpfT : ''; const clique = /^(clique aqui|quero saber mais|ol[áa]|oi+|bom dia|boa tarde|boa noite)[.!]*$/i.test(txt);
               if (x && /^(nova|consultando|ficha_ok|digitando|pronto|gravando|gravada|link|simulada)$/.test(String(x.estado))) { zrCliEscreveu1256(h, it.tm); anota('andamento', 'pedido em andamento: ' + x.estado); continue; }
               if (x && !cpf && (/^(sim_enviada|sim_resp)$/.test(String(x.estado)) || (/^(com_margem|feito)$/.test(String(x.estado)) && !clique))) { zrCliEscreveu1256(h, it.tm); anota('resposta', 'respondeu (' + x.estado + ') → o robô lê a resposta no Zap e trata'); continue; }
+              if (!cpf && cortesia1258(txt)) { anota('cortesia', 'só agradeceu/confirmou → nada a fazer'); continue; }
               if (modo === 1) { anota('sombra', 'faria: ' + (cpf ? 'consultar o CPF que ele mandou' : x && x.link ? 'reenviar o link que já existe (se não assinou)' : 'procurar no Botmaker e o CPF pelo telefone → simular; não achou → pedir o CPF')); continue; }
               if (!sid) { anota('erro', 'sessão do Zap Responder não definida (dinsZrSessao)'); continue; }
               if (!h) h = await achaChat56(String(it.fone), O);
