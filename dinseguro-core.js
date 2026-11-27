@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.86';
+  const VERSAO = '12.87';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -775,7 +775,7 @@
     if (/multicorban\.com/.test(location.host)) setInterval(async () => {
       if (sessionStorage.getItem('dins_mc_manual') === '1') return;   // 5.75 (Stefany 21:02: "uma para você e uma para ele"): aba do Multicorban do VIGIA — o robô não pega ordem aqui
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
-      const o = bmAntes1259(Object.values(AO())).find(x => x.estado === 'nova'); if (!o) return;
+      const o = bmAntes1259(Object.values(AO())).find(x => x.estado === 'nova' && !espera1287(x) && x.rapida1287 !== 'fazendo'); if (!o) return;   // 12.87: pedido novo espera a consulta rápida (FullConsig) decidir
       ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
       try { fcBeneficios975(o.cpf).catch(() => null); } catch (e) {}   // 12.84: FullConsig em paralelo
       try {
@@ -1264,6 +1264,44 @@
       const r = await antiga1270(o); if (!r) return; const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y) return; y.chk1270 = Date.now();
       if (r.tem && !y.jaFezOk) { y.bloq1270 = '12.70: JÁ TEM PROPOSTA NOSSA em andamento — ' + r.tem + ' → NADA de simulação nova nem outro banco. Vigia: ler a conversa dos dias anteriores e responder sobre ESSA proposta (se ele espera a data de desbloqueio, só confirmar). Só refaz com ordem da Stefany (jaFezOk).'; if (ANTES1270.includes(y.estado)) { y.estado = 'erro'; y.erro = y.bloq1270; } (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + y.bloq1270.slice(0, 200)); try { diario(y.nomeReal || y.nome || '', '⛔ ' + y.bloq1270); } catch (e) {} }
       GM_setValue('auto_ordens', O2); } catch (e) {} }, 4000);
+  /* 12.87 (Stefany 27/11 15:28–15:33: 'o primeiro contato é só de simulação… usava só o FullConsig… simularia quem está com margem através do coeficiente… na hora da digitação faz a consulta completa no Multicorban'):
+     CONSULTA RÁPIDA — pedido novo de CPF: lê o FullConsig (sem tela) e manda a simulação pelo COEFICIENTE do banco (aprendido das propostas de verdade; 'o coeficiente é válido para todos').
+     O Multicorban só entra quando o cliente aceita ou dá os 30 min (ficha_ok sem ficha → volta a 'nova' com o aceite → consulta completa → digita → link).
+     Não serve (FullConsig falhou, sem margem, LOAS, suspenso, bloqueado, DDB < 90 dias, 71+ anos, banco sem coeficiente, já pediu valor/aceitou) → caminho de sempre (Multicorban). Liga/desliga: GM 'rapida1287_off'. */
+  const COEF0_1287 = { FACTA: 0.02252, C6: 0.02250 };   // 27/11 (108x, já com IOF): FACTA 567,34 / 25.194,96 · C6 567,34 / 25.212,49
+  const elegivel1287 = x => x && x.tipo === 'cpf' && !GM_getValue('rapida1287_off', 0) && !x.rapida1287 && !x.aceite && !x.simGravar && !x.aceitouSim && !x.juntos1265 && !x.valorVigia && !x.valorPedidoCli && !x.valorBot && !x.bancoStefany && !x.matVigia && !x.ficha && !(+x.fallbacks > 0) && !x.op2Car948 && !x.contorno10;
+  const espera1287 = x => elegivel1287(x) && Date.now() - (+x.t || 0) < 30000;   // o Multicorban espera até 30 s a consulta rápida decidir
+  const coef1287 = (banco, inval) => { try { const C = GM_getValue('coef1287', {}) || {}; const k = banco + (inval ? '_INV' : ''); if (C[k] && Date.now() - C[k].t < 3 * 864e5) return +C[k].c; } catch (e) {} return inval ? 0 : (COEF0_1287[banco] || 0); };
+  let ocup1287 = false;
+  setInterval(async () => { if (ocup1287) return; try { if (!soAtend1273()) return; const O = GM_getValue('auto_ordens', {}) || {}; const numL = v => parseFloat(String(v || '').replace(/\./g, '').replace(',', '.')) || 0;
+      /* aprende o coeficiente das propostas de verdade (108x, banco FACTA/C6) */
+      try { const C = GM_getValue('coef1287', {}) || {}; let mud = false; for (const y of Object.values(O)) { if (!y || y.rapida1287Sim || !(y.link || y.proposta) || !/^(FACTA|C6)$/.test(String(y.banco || '')) || +y.prazo !== 108) continue; const L = numL(y.liberado), P = numL(y.parcela); if (!(L > 1000 && P > 20)) continue; const inv = INVALIDEZ.includes(String((y.ficha || {}).especie || y.especie || '').padStart(2, '0')); const k = y.banco + (inv ? '_INV' : ''); const c = Math.round(P / L * 1e6) / 1e6; if (c > 0.015 && c < 0.04 && (!C[k] || (+y.t || 0) > C[k].t)) { C[k] = { c, t: +y.t || Date.now(), de: String(y.nomeReal || y.nome || '').split(' ')[0] }; mud = true; } } if (mud) GM_setValue('coef1287', C); } catch (e) {}
+      /* fichas de pedido rápido sem ficha do Multicorban que viraram ficha_ok (aceitou / 30 min) → consulta completa antes de digitar */
+      { let mud = false; for (const y of Object.values(O)) { if (y && y.rapida1287 === 'ok' && y.estado === 'ficha_ok' && !y.ficha) { y.estado = 'nova'; y.t = Date.now(); (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.87: aceitou/30 min → consulta completa no Multicorban antes de digitar'); mud = true; } } if (mud) { GM_setValue('auto_ordens', O); return; } }
+      const o = Object.values(O).find(x => x && x.estado === 'nova' && elegivel1287(x) && x.cpf && x.chk1270 && !x.bloq1270); if (!o) return;
+      ocup1287 = true; const marca = (campos, linha) => { const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[o.hash]; if (!y) return null; Object.assign(y, campos); if (linha) (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' ' + linha); GM_setValue('auto_ordens', O2); return y; };
+      if (!marca({ rapida1287: 'fazendo', t: Date.now() }, '12.87: consulta rápida no FullConsig')) return;
+      const t0 = Date.now(); let f = null; try { f = await fcFicha1254(o.cpf); } catch (e) { f = { erro: String((e && e.message) || e) }; }
+      const nao = motivo => { marca({ rapida1287: 'falhou', t: Date.now() }, '12.87: ' + motivo + ' → caminho de sempre (Multicorban)'); };
+      if (!f || f.erro) return nao('FullConsig: ' + String((f && f.erro) || 'sem resposta').slice(0, 60));
+      const esp = String(f.especie || '').padStart(2, '0'), idade = +f.idade || 0, marg = +f.margem || 0; const ddb = (String(f.ddb || '').match(/(\d{2})\/(\d{2})\/(\d{4})/) || []); const ddbT = ddb[3] ? Date.parse(ddb[3] + '-' + ddb[2] + '-' + ddb[1]) : 0;
+      if (/^(87|88)$/.test(esp)) return nao('LOAS');
+      if (f.situacao && f.situacao !== 'ATIVO') return nao('benefício ' + f.situacao);
+      if (/^sim$/i.test(String(f.bloqueado || ''))) return nao('benefício bloqueado');
+      if (!ddbT || Date.now() - ddbT < 90 * 864e5) return nao('DDB com menos de 90 dias (ou sem DDB)');
+      if (!(marg >= 25)) return nao('margem R$ ' + brl(marg) + ' (sem margem → o Multicorban confirma e manda o desfecho)');
+      if (!idade || idade >= 71) return nao('idade ' + (idade || '?') + ' (prazo pela idade)');
+      const parc = Math.floor((marg - 0.01) * 100) / 100; const inval = INVALIDEZ.includes(esp);
+      const dec = decidirBanco({ especie: esp, idade: String(idade), parcela: brl(parc) }); const banco = String((dec && dec.banco) || '');
+      const c = coef1287(banco, inval); if (!/^(FACTA|C6)$/.test(banco) || !c) return nao('banco ' + (banco || '?') + ' sem coeficiente');
+      const lib = Math.floor(parc / c * 0.99 * 100) / 100;   // folga de 1% para baixo: o banco libera igual ou mais
+      const ben2 = (f.outros || []).filter(b => b && (!b.situacao || b.situacao === 'ATIVO') && +b.margem >= 25 && !/^(87|88)$/.test(String(b.especie || '').padStart(2, '0'))).sort((a, b) => b.margem - a.margem)[0];
+      const camp = { estado: 'simulada', rapida1287: 'ok', rapida1287Sim: 1, banco, liberado: brl(lib), parcela: brl(parc), prazo: 108, tSim: Date.now(), especie: esp, nomeReal: f.nome || o.nomeReal || '', resumo: 'esp ' + esp + ', ' + idade + 'a, margem R$ ' + brl(marg) + ' · máximo · simulação rápida (FullConsig + coeficiente ' + c + ', ' + Math.round((Date.now() - t0) / 100) / 10 + ' s) 12.87', t: Date.now() };
+      if (ben2) Object.assign(camp, { b2_1282: 1, ben2: { nb: String(ben2.beneficio || ''), esp: String(ben2.especie || '').padStart(2, '0'), margem: +ben2.margem } });
+      marca(camp, '12.87: simulação pelo coeficiente — ' + banco + ' R$ ' + brl(lib) + ' em 108x de R$ ' + brl(parc) + (ben2 ? ' (+ 2º benefício R$ ' + brl(+ben2.margem) + ')' : ''));
+      try { diario(f.nome || o.nome || '', '⚡ simulação rápida (FullConsig + coeficiente) em ' + Math.round((Date.now() - t0) / 1000) + ' s → ' + banco + ' R$ ' + brl(lib) + ' (12.87)'); } catch (e) {}
+    } catch (e) {} finally { ocup1287 = false; } }, 2000);
+  window.dinsRapida = on => { if (on !== undefined) GM_setValue('rapida1287_off', on ? 0 : 1); return { ligada: !GM_getValue('rapida1287_off', 0), coef: GM_getValue('coef1287', {}) }; };
   window.dinsAntiga1270 = async cpf => { const r = await antiga1270({ cpf }); return r ? (r.tem || 'nenhuma proposta antiga em andamento') : 'New Corban não respondeu'; };
   async function ncDigitaOrdem(o) {
     const banco = { C6: 'c6', FACTA: 'facta', QUALIBANK: 'qualibank' }[o.banco]; const f = o.ficha;
