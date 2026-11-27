@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.85';
+  const VERSAO = '12.86';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -395,7 +395,8 @@
     // Mudança da Stefany, 07/11/2026 12:53, "por enquanto": não sendo invalidez,
     // ACIMA de R$ 6.000 vai para o C6. Antes o corte era R$ 20.000.
     // 10.50 (Stefany 21/11 14:30, Nelson H4FQ3 esp 41 66a R$ 10,8 mil — o C6 reprovou: 'faz no Facta · para o tipo de benefício e idade a regra é essa'): não invalidez de R$ 6 a 20 mil → FACTA; C6 só acima de R$ 20 mil
-    if (liberado > 20000) return { banco: 'C6', motivo: 'Acima de R$ 20 mil e não é invalidez: C6' + nota };
+    /* 12.86 (Stefany 27/11 15:21 'benefícios normais acima de 20 mil, a prioridade agora passa a ser do Facta no lugar do banco C6. Os demais permanecem sem alteração'): não invalidez acima de R$ 20 mil → FACTA; se a FACTA reprovar → C6 → Qualibank */
+    if (liberado > 20000) return { banco: 'FACTA', motivo: 'Acima de R$ 20 mil e não é invalidez: FACTA (Stefany 27/11 15:21; reprovou → C6)' + nota };
     if (liberado >= 6000) return { banco: 'FACTA', motivo: 'Não é invalidez, de R$ 6 a 20 mil: FACTA (Stefany 21/11 14:30)' + nota };
     // Mudança da Stefany, 07/11/2026 14:41: abaixo de R$ 6 mil pode ir para a QUALIBANK,
     // desde que não caia na regra de invalidez (tratada acima) nem na de pensão abaixo
@@ -451,6 +452,7 @@
     const CADEIA = ['C6', 'FACTA', 'QUALIBANK'];
     const inval = (typeof INVALIDEZ !== 'undefined') && INVALIDEZ.includes(String(f.especie || '').padStart(2, '0'));
     if (!inval && CADEIA.includes(dest) && CADEIA.indexOf(aqui) > CADEIA.indexOf(dest)) return '';
+    if (!inval && dest === 'FACTA' && aqui === 'C6' && (parseFloat(String(f.valor || f.liberado || '').replace(/\./g, '').replace(',', '.')) || 0) > 20000) return '';   // 12.86: acima de 20 mil a cadeia é FACTA → C6 → Qualibank
     return `⛔ BANCO ERRADO: a ficha é para ${dest} (espécie ${f.especie || '?'}, ${f.idade || '?'} anos) e esta tela é ${aqui}. ` +
       `Invalidez: ≤39 C6 · 40–52 DAYCOVAL · 53–57 C6 · 58–59 QUALIBANK · 60–73 FACTA. Não invalidez: C6 → FACTA → Qualibank.`;
   }
@@ -3414,7 +3416,7 @@
         if (o.estado === 'gravada' && !o.link && +o.tGrav && Date.now() - (+o.tGrav) >= 10 * 60000 && (o.fallbacks || 0) < 2 && !o.semProx1240) { try {
           const f2 = o.ficha || {}; const mE2 = String(o.resumo || '').match(/esp\s*(\d+),\s*(\d+)a/i); const esp2 = String(f2.especie || (mE2 && mE2[1]) || '').padStart(2, '0'); const id2 = parseInt(f2.idade || (mE2 && mE2[2])) || 0; const inval2 = ['32', '92'].includes(esp2);
           const atual2 = String(o.banco || '').toUpperCase(); let prox2 = '';
-          if (esp2 !== '00' && id2) { if (atual2 === 'C6') prox2 = inval2 ? ((id2 >= 40 && id2 <= 57) ? 'DAYCOVAL' : id2 >= 60 ? 'FACTA' : (id2 >= 58 ? 'QUALIBANK' : '')) : 'FACTA'; else if (atual2 === 'FACTA') prox2 = 'QUALIBANK'; else if (atual2 === 'DAYCOVAL' && id2 >= 58) prox2 = 'QUALIBANK'; }
+          if (esp2 !== '00' && id2) { if (atual2 === 'C6') prox2 = inval2 ? ((id2 >= 40 && id2 <= 57) ? 'DAYCOVAL' : id2 >= 60 ? 'FACTA' : (id2 >= 58 ? 'QUALIBANK' : '')) : 'FACTA'; else if (atual2 === 'FACTA') prox2 = (!inval2 && !o.c6Depois1286 && (parseFloat(String(o.liberado || '').replace(/\./g, '').replace(',', '.')) || 0) > 20000) ? 'C6' : 'QUALIBANK';   /* 12.86: acima de 20 mil, FACTA reprovou → C6 */ else if (atual2 === 'DAYCOVAL' && id2 >= 58) prox2 = 'QUALIBANK'; }
           const hh2 = new Date().getHours(); const min2 = Math.round((Date.now() - (+o.tGrav)) / 60000);
           if (prox2 === 'DAYCOVAL' && !(hh2 >= 8 && hh2 < 20)) prox2 = '';
           if (!prox2) { o.semProx1240 = 1; try { if (inval2 && id2 && id2 < 40 && typeof window.dinsParaStefany === 'function') window.dinsParaStefany(h, 'invalidez ' + id2 + ' anos: ' + atual2 + ' Nº ' + (o.proposta || '') + ' gravada há ' + min2 + ' min e o link não saiu — não há próximo banco automático (Stefany 26/11 16:56: consultar ela)', o.nomeReal || o.nome || ''); } catch (e) {}   /* 12.41: invalidez até 39 anos sem link → consulta a Stefany */ (o.hist = o.hist || []).push(hhmm(Date.now()) + ' 12.40: ' + min2 + ' min sem link no ' + atual2 + ' e sem próximo banco automático → segue esperando; vigia olha'); mud = true; diario(o.nomeReal || o.nome || h.slice(0, 5), min2 + ' min sem link no ' + atual2 + ', sem próximo banco automático (12.40)'); continue; }
@@ -3427,7 +3429,7 @@
         if (/REPROV|RECUS|NEGAD|CANCEL/i.test(txt)) { if ((o.fallbacks || 0) >= 2) continue; if ((o.cancVigia || []).map(String).includes(String(ev.proposta || ev.numero || o.proposta || ''))) continue;   /* 11.63: proposta que o VIGIA cancelou para refazer não é reprovação do banco */
           const f = o.ficha || {}; const esp = String(f.especie || '').padStart(2, '0'); const id = parseInt(f.idade) || 0; const inval = ['32', '92'].includes(esp);
           const atual = String(o.banco || '').toUpperCase(); let prox = '';
-          if (atual === 'C6') prox = inval ? ((id >= 40 && id <= 52) ? 'DAYCOVAL' : id >= 60 ? 'FACTA' : (id >= 58 ? 'QUALIBANK' : (id >= 53 ? 'DAYCOVAL' : ''))) : 'FACTA';   /* 11.63 (Stefany 24/11 13:04, Felipe Mello 38a invalidez: 'o Daycoval não faz'): invalidez até 39 anos só C6 — reprovou → vigia; 40–52 e 53–57 → Daycoval; 58–59 → Qualibank; 60+ → FACTA */ else if (atual === 'FACTA') prox = 'QUALIBANK'; else if (atual === 'DAYCOVAL' && id >= 58) prox = 'QUALIBANK';
+          if (atual === 'C6') prox = inval ? ((id >= 40 && id <= 52) ? 'DAYCOVAL' : id >= 60 ? 'FACTA' : (id >= 58 ? 'QUALIBANK' : (id >= 53 ? 'DAYCOVAL' : ''))) : (o.c6Depois1286 ? 'QUALIBANK' : 'FACTA');   /* 11.63 (Stefany 24/11 13:04, Felipe Mello 38a invalidez: 'o Daycoval não faz'): invalidez até 39 anos só C6 — reprovou → vigia; 40–52 e 53–57 → Daycoval; 58–59 → Qualibank; 60+ → FACTA */ else if (atual === 'FACTA') { prox = (!inval && !o.c6Depois1286 && (parseFloat(String(o.liberado || '').replace(/\./g, '').replace(',', '.')) || 0) > 20000) ? 'C6' : 'QUALIBANK'; if (prox === 'C6') o.c6Depois1286 = 1; } else if (atual === 'DAYCOVAL' && id >= 58) prox = 'QUALIBANK';   /* 12.86: acima de 20 mil → FACTA → C6 → Qualibank */
           if (!prox) { o.estado = 'erro'; o.erro = atual + ' ' + (ev.real || 'reprovada') + ' e sem próximo banco automático → vigia (7.37)'; mud = true; continue; }
           Object.assign(o, { estado: 'nova', bancoStefany: prox, banco: '', proposta: '', link: '', erro: '', ficha: null, fallbacks: (o.fallbacks || 0) + 1 }); (o.hist = o.hist || []).push(hhmm(Date.now()) + ' ' + atual + ' ' + (ev.real || 'reprovada') + ' → refazendo no ' + prox + ' (7.37)'); mud = true;
           diario(o.nomeReal || o.nome || h.slice(0, 5), atual + ' reprovou → refazendo no ' + prox + ' (7.37)'); continue; }
