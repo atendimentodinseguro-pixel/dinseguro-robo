@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.82';
+  const VERSAO = '12.83';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1816,9 +1816,14 @@
       let ocup1280 = false;
       setInterval(async () => { if (ocup1280) return; const N = nuvem1280(); if (!N || !faz('atendimento') || typeof window.dinsZrOrdem !== 'function') return; ocup1280 = true;
         try { const r = await fetch(N.base + '/ordens/' + N.seg); if (!r.ok) return; const L = await r.json();
-          for (const o of (Array.isArray(L) ? L : [])) { if (!o || !/^55\d{10,11}$/.test(String(o.fone || '')) || !/^\d{11}$/.test(String(o.cpf || ''))) continue;
-            const h = 'ZR' + ('000000000000000000' + String(o.fone)).slice(-18); let res = null;
-            try { res = await window.dinsZrOrdem(h, String(o.fone), o.sid, o.conv, o.nome || '', o.cpf, o.fonte === 'informado' ? '' : String(o.fonte || ''), null, o.fonte === 'New Corban' ? 1 : 0); } catch (e) { res = { erro: String((e && e.message) || e).slice(0, 80) }; }
+          for (const o of (Array.isArray(L) ? L : [])) { if (!o || !/^55\d{10,11}$/.test(String(o.fone || ''))) continue; const busca83 = !/^\d{11}$/.test(String(o.cpf || '')); if (busca83 && o.fonte !== 'busca') continue;
+            const hZ = 'ZR' + ('000000000000000000' + String(o.fone)).slice(-18); let h = hZ; let res = null;
+            /* 12.83 (Stefany 27/11 15:07 'quando o cliente não manda o CPF, ele tenta achar pelo telefone… isso segue?'): a nuvem não achou no New Corban → aqui procura na conversa antiga do Botmaker e no FullConsig (12.64), igual ao vigia; não achou → pede o CPF */
+            if (busca83) { try { h = await achaChat56(String(o.fone), GM_getValue('auto_ordens', {}) || {}); } catch (e) { h = hZ; } }
+            try { res = await window.dinsZrOrdem(h, String(o.fone), o.sid, o.conv, o.nome || '', busca83 ? '' : o.cpf, busca83 ? '' : (o.fonte === 'informado' ? '' : String(o.fonte || '')), busca83 ? (async () => { const c65 = await cpfBm1264(h); return { cpf: c65, juntos: !!(c65 && INFO64[h] && INFO64[h].jaSim) }; }) : null, o.fonte === 'New Corban' ? 1 : 0); } catch (e) { res = { erro: String((e && e.message) || e).slice(0, 80) }; }
+            const pz83 = { fone: String(o.fone), sid: o.sid, conv: o.conv, cliT: +o.t || Date.now(), depOk: o.conv };
+            if (busca83 && res && res.erro === 'sem cpf') { try { await zrEnviar1256(hZ, pz83, T56.cpf(pn56(o.nome)), true); } catch (e) {} }
+            else if (res && res.erro === 'ja tem proposta' && res.link && res.liberado && res.parcela && !res.assinou) { try { await zrEnviar1256(h, zrPonte1251(h) || pz83, T56.link(pn56(res.nome) || pn56(o.nome), res), true); } catch (e) {} }
             try { diario(o.nome || '', '12.80: pedido da nuvem (Zap) → ' + (res && res.ok ? 'pedido criado' : 'não criou: ' + String((res && res.erro) || '?').slice(0, 60))); } catch (e) {}
             await fetch(N.base + '/ordem_ok/' + N.seg + '?fone=' + encodeURIComponent(o.fone), { method: 'POST' }); } }
         catch (e) {} finally { ocup1280 = false; } }, 5000);
