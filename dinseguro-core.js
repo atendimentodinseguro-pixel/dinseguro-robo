@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.94';
+  const VERSAO = '12.95';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -1281,7 +1281,8 @@
       /* fichas de pedido rápido sem ficha do Multicorban que viraram ficha_ok (aceitou / 30 min) → consulta completa antes de digitar */
       { let mud = false; for (const y of Object.values(O)) { if (y && y.rapida1287 === 'ok' && y.estado === 'ficha_ok' && !y.ficha) { y.estado = 'nova'; y.t = Date.now(); (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.87: aceitou/30 min → consulta completa no Multicorban antes de digitar'); mud = true; } } if (mud) { GM_setValue('auto_ordens', O); return; } }
       /* 12.93 (Stefany 27/11 16:18 'quem tem dois benefícios aceitou os dois mas precisa receber link dos dois'): 1º link entregue → o MESMO pedido digita o 2º benefício sozinho e manda o 2º link */
-      { let mud = false; for (const y of Object.values(O)) { if (!y || y.ben2Quer !== 'os 2' || !y.ben2 || !y.ben2.nb || y.b2Feito1293 || y.estado !== 'feito' || !(y.link || y.proposta)) continue;
+      /* 12.95: DESLIGADO até corrigir — no teste das 16:20 a ficha do 2º saiu com o benefício do 1º (2 propostas duplicadas na FACTA). Liga com GM b2auto1293=1 */
+      if (GM_getValue('b2auto1293', 0)) { let mud = false; for (const y of Object.values(O)) { if (!y || y.ben2Quer !== 'os 2' || !y.ben2 || !y.ben2.nb || y.b2Feito1293 || y.estado !== 'feito' || !(y.link || y.proposta)) continue;
           y.prop1_1293 = { proposta: y.proposta || '', banco: y.banco || '', ben: String((y.ficha || {}).beneficio || ''), t: Date.now() }; y.b2Feito1293 = Date.now();
           Object.assign(y, { estado: 'nova', matVigia: String(y.ben2.nb), ficha: null, proposta: '', link: '', banco: '', liberado: '', parcela: '', aceite: true, aceitouSim: 1, simGravar: 1, juntos1265: 1, ben2Quer: 'os 2 (2º benefício)', apiFalhou: 0, fallbacks: 0, api879Abre: 0, api879T: 0, linkApi879: 0, api879Falhou: 0, api879Prox: 0, erro: '', t: Date.now() });
           (y.hist = y.hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.93: 1º link entregue (' + y.prop1_1293.banco + ' ' + y.prop1_1293.proposta + ') → digitando o 2º benefício …' + String(y.ben2.nb).slice(-4));
@@ -3574,7 +3575,7 @@
               if (ult !== cli[cli.length - 1]) (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 10.06: entendi "' + String(cli[cli.length - 1]).slice(0, 40) + '" como "' + ult + '"'); } } catch (e) {} (y.hist = y.hist || []).push(hhmm(Date.now()) + ' respondeu à simulação: "' + y.respSim + '"');
           const nmR = y.nomeReal || y.nome || '';
           if (/^\s*(1|1️⃣|(quero\s+)?(a\s+)?op[çc][ãa]o\s*1|sim,? quero contratar)\s*[.!]?\s*$/i.test(ult) || (/^\s*(sim|quero|aceito|pode (fazer|digitar|mandar|seguir)|vamos|bora|quero sim|sim quero|ok,? pode|ok+|okay|t[áa] bom|tudo bem|beleza|blz|certo|fechado|pode ser|perfeito|[oó]timo|gostei|top|👍)(?![A-Za-zÀ-ÿ])[^?\d]{0,25}$/iu.test(ult) && !/n[ãa]o|depois|pensar|caro|alto|menos|mais|outro|qual|quanto/i.test(ult))) {
-            Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); try { y.msgAceite1292 = msgAceite1292(y); } catch (e) {} if (y.ben2Quer) diario(nmR, 'quer OS 2 benefícios → o robô digita o 1º e, depois do 1º link, o 2º sozinho (…' + String(y.ben2.nb).slice(-4) + ' esp ' + y.ben2.esp + ') — vigia NÃO digita (12.93)'); }
+            Object.assign(y, { estado: 'ficha_ok', aceite: true, aceitouSim: 1, simGravar: 1, t: Date.now() }); diario(nmR, 'aceitou a simulação → digitar e mandar o link já (7.55)'); try { y.msgAceite1292 = msgAceite1292(y); } catch (e) {} if (y.ben2Quer) diario(nmR, 'quer OS 2 benefícios → o robô digita o 1º e, depois do 1º link, o 2º sozinho (…' + String(y.ben2.nb).slice(-4) + ' esp ' + y.ben2.esp + ') — vigia digita o 2º por enquanto (12.95)'); }
           else if (ult === 'ben2 12.82') { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · escolheu SÓ o 2º benefício (…' + String(y.ben2.nb).slice(-4) + ' esp ' + y.ben2.esp + ' R$ ' + brl(+y.ben2.margem) + ') → VIGIA digita nesse benefício (12.82)' }); diario(nmR, '🔴 escolheu só o 2º benefício → vigia digita nele (12.82)'); }
           else if (ult === 'outro valor 12.10') { y.estado = 'sim_resp'; const nm4 = nomeCli(y);
             window.dinsFilaVigia({ hash: y.hash, acao: 'fase_msg', quem: 'robo', nome: y.nome || '', linha: (nm4 ? nm4 + ', c' : 'C') + 'laro! Vamos simular outro valor 😊 Me diz *quanto você precisa* (ou a *parcela* que fica boa para você no benefício) que eu faço na hora.\n\n' + faixa1097(y) + ' sem compromisso. 🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.', atalhos: [] });
