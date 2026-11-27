@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.65';
+  const VERSAO = '12.66';
   // 12.59 (Stefany 26/11 23:32, sobre a fila única de consulta/digitação: "resolva"): cliente do BOTMAKER (atendimento ao vivo) passa NA FRENTE dos pedidos do Zap Responder (remarketing) na consulta e na digitação.
   // Um disparo grande no Zap não atrasa mais o Botmaker: no máximo ele espera o pedido que já está em andamento.
   const bmAntes1259 = a => { const L = (a || []).filter(Boolean); return L.filter(x => !x.zr1251).concat(L.filter(x => x.zr1251)); };
@@ -1548,6 +1548,7 @@
     y = H - 78 - 14; RR(M, y - info.length * 15 - 8, W - 2 * M, info.length * 15 + 14, 6, '0.96 0.97 0.98', '0.82 0.85 0.88'); let yy = y - 8; for (const [k, v] of info) { T(limpa(k + ':'), M + 10, yy, 9, 'F2', '0.25 0.3 0.38'); T(limpa(v), M + 130, yy, 9.5, 'F1', '0 0 0'); yy -= 15; } y = yy - 16;
     let nImg = 0, nArq = 0, nAud = 0, falhas = 0, diaAtual = ''; const anexos = [];
     for (const m of msgs) { const mm = m.mensagem || {}; const tp = String(mm.type || 'text').toLowerCase(); const dt = new Date(m.createdAt); const dia = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'long' }); const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      if (!opts.comNotas && (m.autor === 'comentario' || /comment|note|interna/.test(tp))) continue;   /* 12.66 (Stefany 27/11 00:44 'nota interna ainda vem nos pdf de conversa'): nota interna NÃO entra no PDF (só com opts.comNotas) */
       if (dia !== diaAtual) { diaAtual = dia; if (y - 30 < M + RODAPE) nova(); const tx = limpa(dia); const tw = larg(tx, 8, true) + 18; RR((W - tw) / 2, y - 16, tw, 15, 7, '0.88 0.91 0.95'); T(tx, (W - tw) / 2 + 9, y - 12, 8, 'F2', '0.25 0.3 0.38'); y -= 26; }
       const bruto = String(mm.mensagem || ''); const midia = !/^(text|template|interactive|button|list)/.test(tp); const url = (midia && /^https?:\/\//.test(bruto.trim())) ? bruto.trim() : (/^https?:/.test(String(mm.src_location || '')) ? String(mm.src_location) : '');   // o endereço do arquivo pode ter espaço no nome (ex.: 'Identidade Nova Com CID.pdf')
       const nota = m.autor === 'comentario' || /comment|note|interna/.test(tp);
