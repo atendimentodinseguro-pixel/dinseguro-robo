@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.76';
+  const VERSAO = '12.77';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -5067,7 +5067,7 @@
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
       { const ja = window.dinsJaAssinou(alvo.hash); if (ja) { reg('pulado (' + ja + ' — 11.40)', true); return; } }
       // 10.62 (Stefany 22/11 10:21, JOÃO REIS: "será cancelada" saiu 3x no mesmo minuto 17:23 — várias abas mandando o mesmo toque): trava ÚNICA (Tampermonkey, todas as abas) por conversa + toque + link; a 2ª e a 3ª aba não mandam
-      if (!trava870('toque62_' + alvo.hash + '_' + toque.tipo + '_' + String(alvo.link || '').slice(-12), 3 * 3600000)) { reg('não saiu de novo: este toque já foi mandado por outra aba (10.62)', true); return; }
+      if (!trava870('toque62_' + alvo.hash + '_' + toque.tipo + '_' + String(alvo.link || '').slice(-12), 20 * 60000)) {   /* 12.77 (Stefany 27/11 12:46 'follow-up do Botmaker não pedi para parar'): a trava valia 3 h e era gravada ANTES do envio — quando o toque era adiado (10.27: mensagem nossa na última 1 h, ex.: o próprio link) ou não saía, ele morria como 'já mandado por outra aba'. Agora 20 min: segura só abas mandando juntas; o que já saiu fica barrado pelo 'feito' (4.19) */ reg('não saiu de novo: este toque já foi mandado por outra aba (10.62)', true); return; }
       // 10.54 (Francisca K94HN 21/11 18:02: recebeu "proposta será cancelada" com a C6 já em ANALISE CREDITO — documento anexado e aprovado — e respondeu "3 = cancelar"): confere a proposta pela API antes do toque
       try { const OO54 = GM_getValue('auto_ordens', {}) || {}; const o54 = OO54[alvo.hash]; if (o54 && o54.propNc) { const p54 = await ncReq('GET', '/proposals/' + o54.propNc); const d54 = (p54 && p54.data) || p54 || {}; const br54 = d54.bank_reference || {}; if (o54.proposta && String(br54.proposal_number || '') !== String(o54.proposta)) throw new Error('11.11 propNc antigo');   /* 12.11 (Vitória SC58KD 25/11: propNc era de uma proposta ANTIGA cancelada; a ativa é a Daycoval 833980268 — só vale o status da MESMA proposta do link) */
           const s54 = ((br54.bank_status || '') + ' ' + (br54.bank_status_description || '') + ' ' + (((d54.proposal || {}).status || {}).name || '')).trim();
