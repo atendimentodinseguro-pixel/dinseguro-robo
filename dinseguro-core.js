@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '12.83';
+  const VERSAO = '12.84';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -263,7 +263,9 @@
         if (ult && Date.now() - ult > 60000 && (!f5 || Date.now() - f5 > 10 * 60000)) { sessionStorage.setItem('dins_dvc_f5', Date.now()); sessionStorage.removeItem('dins_dvc_login'); try { diario('Daycoval', '🔑 login não passou em 60 s → recarreguei a página (11.22)'); } catch (e) {} location.reload(); return; }
         if (ult && Date.now() - ult < 60000) return; sessionStorage.setItem('dins_dvc_login', Date.now());
         const b = [...document.querySelectorAll('button, input[type=submit]')].find(x => /entrar|login/i.test(x.innerText || x.value || '')); if (b) { b.click(); try { diario('Daycoval', '🔑 Daycoval deslogado → cliquei em ENTRAR com os dados salvos do Chrome (11.22)'); } catch (e) {} } } catch (e) {} }, 15000); } } catch (e) {}
-  async function fcBeneficios975(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); if (c.length !== 11) return null; const fm = c.slice(0, 3) + '.' + c.slice(3, 6) + '.' + c.slice(6, 9) + '-' + c.slice(9);
+  /* 12.84 (Stefany 27/11 15:10 '45 a 60 segundos, muito exagerado'): a consulta do FullConsig (≈20 s) começa JUNTO com a do Multicorban e é reaproveitada (mesmo CPF, 5 min) */
+  const FC1284 = {}; function fcBeneficios975(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); const m = FC1284[c]; if (m && Date.now() - m.t < 5 * 60000) return m.p; const p = fcBen0_1284(cpf).then(r => { if (!r) delete FC1284[c]; return r; }); FC1284[c] = { t: Date.now(), p }; return p; }
+  async function fcBen0_1284(cpf) { const c = String(cpf || '').replace(/\D/g, '').padStart(11, '0'); if (c.length !== 11) return null; const fm = c.slice(0, 3) + '.' + c.slice(3, 6) + '.' + c.slice(6, 9) + '-' + c.slice(9);
     const j = await fcPost975({ consulta: 'inss', id_data_campanha: '', valor: fm, valorTelefone: '', telefone: 'false' }); if (!j || !j.consulta) return null; const P = new DOMParser();
     const ler = html => { const d = P.parseFromString(html || '', 'text/html'); d.querySelectorAll('style,script').forEach(e => e.remove()); const tx = (d.body.textContent || '').replace(/\s+/g, ' ');
       const m = (tx.match(/Margem Dispon[íi]vel[^R]{0,30}R\$\s?([\d.,]+)/i) || [])[1]; const esp = (tx.match(/\b(\d{1,2}) - [A-ZÇÃÉÍÓÚÂÊÔ]{4}/) || [])[1];
@@ -773,6 +775,7 @@
       if (ocupadoAuto || !/search\/form\/inss/.test(location.pathname + location.href) || !ninguemMexendo()) return;
       const o = bmAntes1259(Object.values(AO())).find(x => x.estado === 'nova'); if (!o) return;
       ocupadoAuto = true; ocupadoT = Date.now(); poeAO(o.hash, { estado: 'consultando', tMc: Date.now() });
+      try { fcBeneficios975(o.cpf).catch(() => null); } catch (e) {}   // 12.84: FullConsig em paralelo
       try {
         const off0 = document.getElementById('offline'); if (off0 && !off0.checked) { off0.click(); await zz(800); }   // 4.72: sempre consulta normal (nunca flash sem querer)
         const r = document.getElementById('cpf'); if (r && !r.checked) { r.click(); await zz(800); }
@@ -780,7 +783,8 @@
         const inp = document.getElementById('input'); if (!inp) throw new Error('campo de busca não apareceu (sessão caiu?)');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, o.cpf); inp.dispatchEvent(new Event('input', { bubbles: true }));
         await zz(500); const loc = document.getElementById('localizar'); if (!loc) throw new Error('botão Localizar não apareceu'); loc.click();
-        await zz(9000);
+        await zz(1200); for (let i84 = 0; i84 < 26; i84++) { const b84 = document.body.innerText; if (/não localizamos/i.test(b84) || /Descri[çc][ãa]o da Esp[ée]cie/.test(b84) || [...document.querySelectorAll('tr')].some(tr => [...tr.querySelectorAll('button,a')].some(e => /^Consultar$/i.test(e.innerText.trim())))) break; await zz(300); }   // 12.84: antes 9 s fixos
+        await zz(400);
         const naoAchou = [...document.querySelectorAll('.swal2-title,h2')].some(e => /Aten[çc][ãa]o/.test(e.innerText)) && /não localizamos/i.test(document.body.innerText);
         if (naoAchou) {
           const f = [...document.querySelectorAll('button')].find(b => /^Fechar$/.test(b.innerText.trim())); f && f.click(); await zz(1000);
@@ -872,11 +876,11 @@
           }
           [...document.querySelectorAll('textarea')].forEach(t => { if (/^cpf:/m.test(t.value)) t.value = ''; });   // não aproveitar ficha de outro benefício
         }
-        for (let i = 0; i < 20 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(1000);
+        for (let i = 0; i < 66 && !/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText); i++) await zz(300);
         if (!/Descri[çc][ãa]o da Esp[ée]cie/.test(document.body.innerText)) throw new Error('a consulta do benefício não abriu');
         if (o.tipo === 'cpf' && o.aceite && (+o.valorBot || 0) >= 10000) { try { localStorage.setItem('dins_aceite', o.cpf + '|' + new Date().toISOString().slice(0, 10)); } catch (e) {} }   // 4.75: aceite no bot → flash pelos critérios
         const g = botaoRobo('Gerar ficha'); if (!g) throw new Error('painel do robô (Gerar ficha) não está na tela'); g.click();
-        let ta = null; for (let i = 0; i < 75; i++) { await zz(1000); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
+        let ta = null; for (let i = 0; i < 250; i++) { await zz(300); ta = [...document.querySelectorAll('textarea')].find(t => new RegExp('^cpf: *0*' + o.cpf.replace(/^0+/, ''), 'm').test(t.value)); if (ta) break; }
         if (!ta) throw new Error('a ficha não foi gerada');
         await zz(1500);
         const ficha = textoParaFicha(ta.value);
@@ -993,7 +997,7 @@
         poeAO(o.hash, { estado: 'ficha_ok', banco: (f2.banco_destino || '').toUpperCase(), nomeReal: f2.nome });
       } catch (e) { poeAO(o.hash, { estado: 'erro', erro: String(e.message || e) }); }
       finally { ocupadoAuto = false; ocupadoT = 0; }
-    }, 15000);
+    }, 3000);   // 12.84: pega o pedido em até 3 s (antes 15 s)
     // ---------- New Corban (só a aba de digitação; a de ?p=propostas fica só na esteira)
     if (/newcorban\.com\.br/.test(location.host)) setInterval(async () => {
       // 7.83 (17/11 15:50, aba C6 parada com a janela "Proposta gerada" aberta → ninguemMexendo() = false para sempre): aba livre fecha a janela velha de proposta gerada
