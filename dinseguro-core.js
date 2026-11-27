@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.00';
+  const VERSAO = '13.01';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -3560,8 +3560,12 @@
       return '*' + (nm ? nm + ', ' : '') + 'Novo Crédito Disponível* 🎉' + c10 + '\n\nSeparei *duas opções* para você:\n\n*Opção 1️⃣*\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + o.prazo + 'x de *R$ ' + o.parcela + '*\n🗓️ 1ª parcela: *janeiro/2027*\n\n*Opção 2️⃣*\n💰 Valor na conta: *' + (o2.pediu ? '' : 'aprox. ') + 'R$ ' + v2 + '*\n📆 ' + o.prazo + 'x de *' + (o2.pediu ? 'aprox. ' : '') + 'R$ ' + o2.p2 + '*\n🗓️ 1ª parcela: *abril/2027*' + seg + '\n\n1️⃣ Quero a opção 1\n2️⃣ Quero a opção 2\n3️⃣ Simular outro valor\n\nÉ só responder com o número 🤝'; }
     // 7.55: lê pelo servidor se o cliente respondeu à simulação (sem abrir a tela). 1/sim → grava e manda o link já; 2 → vigia (carência);
     // 3/não desejo → pergunta o motivo; qualquer outra coisa (dúvida, outro valor) → vigia responde.
-    setInterval(async () => { if (!faz('atendimento')) return; try {
-        const O0 = GM_getValue('auto_ordens', {}) || {}; const pend = Object.values(O0).filter(x => x && x.tipo === 'cpf' && (x.estado === 'sim_enviada' || (x.estado === 'sim_resp' && Date.now() - (+x.tSimEnv || +x.t || 0) < 864e5) || (x.estado === 'com_margem' && +x.tSimEnv > 0 && !x.erro && Date.now() - (+x.tSimEnv || 0) < 3 * 864e5) || (x.estado === 'feito' && !x.op2Car948 && !x.carencia && x.ficha && Date.now() - (+x.t || 0) < 3 * 864e5)));   /* 12.19 (Stefany 25/11 22:04, Zelinha VCS28B: 'Quero opção 2' 2 dias depois do link ficou sem digitar) — ordem já com link também lê a resposta, mas SÓ age se for a opção 2 (carência) */   /* 10.07 (Stefany 21/11 00:33 'melhore e corrija', Marcus ONJNJ): resposta que chega DEPOIS dos 30 min (ordem já em com_margem, respondendo aos lembretes) também é entendida */
+    /* 13.01 (Stefany 27/11 17:35 'Zap Responder não está rápido como combinamos'): o leitor rodava de 60 em 60 s e um cliente por vez — o '1' do aceite esperava até 2 min.
+       Agora roda de 5 em 5 s só para quem do Zap escreveu depois da nossa última leitura; a volta completa (todos) continua a cada 60 s. */
+    let ocup1301 = false, cheio1301 = 0;
+    setInterval(async () => { if (!faz('atendimento') || ocup1301) return; const cheio = Date.now() - cheio1301 >= 60000; if (cheio) cheio1301 = Date.now(); ocup1301 = true; try {
+        const O0 = GM_getValue('auto_ordens', {}) || {}; const M1301 = GM_getValue('zr_ponte', {}) || {}; const quente1301 = x => { const p = M1301[x.hash]; return !!(p && +p.cliT && +p.cliT > Math.max(+x.respLidaT || 0, +x.tSimEnv || 0, +x.chkOkT || 0)); };
+        const pend = Object.values(O0).filter(x => x && (cheio || quente1301(x)) && x.tipo === 'cpf' && (x.estado === 'sim_enviada' || (x.estado === 'sim_resp' && Date.now() - (+x.tSimEnv || +x.t || 0) < 864e5) || (x.estado === 'com_margem' && +x.tSimEnv > 0 && !x.erro && Date.now() - (+x.tSimEnv || 0) < 3 * 864e5) || (x.estado === 'feito' && !x.op2Car948 && !x.carencia && x.ficha && Date.now() - (+x.t || 0) < 3 * 864e5)));   /* 12.19 (Stefany 25/11 22:04, Zelinha VCS28B: 'Quero opção 2' 2 dias depois do link ficou sem digitar) — ordem já com link também lê a resposta, mas SÓ age se for a opção 2 (carência) */   /* 10.07 (Stefany 21/11 00:33 'melhore e corrija', Marcus ONJNJ): resposta que chega DEPOIS dos 30 min (ordem já em com_margem, respondendo aos lembretes) também é entendida */
         for (const x of pend) { const j = await lerCli1256(x, 15); if (!j || !Array.isArray(j.newMessages)) continue;
           const T = m => Date.parse(m.CREATION_TIME) || +m.CREATION_TIME || 0;
           const tx = m => { let t0 = String(typeof m.MESSAGE === 'string' ? m.MESSAGE : JSON.stringify(m.MESSAGE || '')); if (/^\{/.test(t0)) { try { const j0 = JSON.parse(t0); t0 = String(j0.button || j0.text || j0.title || ''); } catch (e) { t0 = ''; } } return t0.replace(/^\s*bolt\s*/i, '').trim(); };
@@ -3621,7 +3625,7 @@
           else { Object.assign(y, { estado: 'com_margem', resumo: (y.resumo || '') + ' · respondeu à simulação: "' + y.respSim + '" → VIGIA responde (7.55)' }); diario(nmR, '🔴 respondeu à simulação → vigia (7.55)'); }
           GM_setValue('auto_ordens', O2);
         }
-      } catch (e) {} }, 60000);
+      } catch (e) {} finally { ocup1301 = false; } }, 5000);
     setInterval(() => {
       if (!faz('atendimento')) return;   // 5.64 papel da aba
       try {
@@ -7138,6 +7142,7 @@
         } catch (e) { const O2 = GM_getValue('auto_ordens', {}) || {}; if (O2[oM.hash]) { O2[oM.hash].sm818Tent = (+O2[oM.hash].sm818Tent || 0) + 1; O2[oM.hash].sm818Prox = Date.now() + 120000; O2[oM.hash].sm818Erro = String((e && e.message) || e).slice(0, 160); GM_setValue('auto_ordens', O2); }
           /* 11.66 (Stefany 24/11 18:30, Onias AENX0F: 'aguardando mais de 13 min — isso não pode ocorrer'): o 8.18 ficou 4x preso na trava 10.58 ('já enviada') sem o retorno estar na conversa.
              Agora: trava 10.58 no retorno → confere a conversa pela API; se NÃO tem retorno nosso depois do resultado, solta as travas deste chat e tenta de novo em 20 s; se tem, marca msgApi (o 11.65 fecha pela intenção). */
+          try { const pz1301 = /10\.58/.test(String((e && e.message) || e)) && zrPonte1251(oM.hash); if (pz1301) { const O5 = GM_getValue('auto_ordens', {}) || {}; const y5 = O5[oM.hash]; if (y5) { if (+pz1301.tEnv > (+oM.t || 0)) { y5.msgApi = 1; y5.estado = 'desfecho_ok'; (y5.hist = y5.hist || []).push(hhmm(Date.now()) + ' 13.01: Zap — retorno já saiu pela conversa do Zap'); } else { y5.sm818Prox = Date.now() + 5000; } GM_setValue('auto_ordens', O5); } throw 0; } } catch (x1301) { if (x1301 === 0) return; }   /* 13.01: pedido do Zap não tem retorno no Botmaker — o 11.66 ficava 3 min tentando e segurava a fila de envio de todo mundo */
           try { if (/10\.58/.test(String((e && e.message) || e)) && window.dinsBmGet) { const ini1166 = new Date((+oM.t || Date.now()) - 120000).toISOString(); const g1166 = await window.dinsBmGet('/messages?chat-id=' + oM.hash + '&from=' + encodeURIComponent(ini1166)); const it1166 = ((g1166 && g1166.j && (g1166.j.items || g1166.j.messages)) || []);
               const tem1166 = it1166.some(m => { const t = String(((m.content || {}).text) || ''); return /^\s*\[Dinseguro\]/.test(t) && /margem|consultei|benef[ií]cio/i.test(t) && !/estou consultando|j[aá] estou consultando/i.test(t); });
               const O4 = GM_getValue('auto_ordens', {}) || {}; const y4 = O4[oM.hash];
