@@ -104,7 +104,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.22';
+  const VERSAO = '13.23';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -1648,6 +1648,25 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
         zrEnviar1256(h, Object.assign({}, pz, { fu1315: 1 }), txt, false).then(() => { try { diario(o.nomeReal || o.nome || '', '💬 follow-up humanizado no Zap (' + (tipo === 'sim' ? '1 h depois da simulação' : '40 min depois do link') + ') — 13.15'); } catch (e) {} }).catch(e => { try { diario(o.nomeReal || o.nome || '', '⚠️ follow-up do Zap não saiu: ' + String(e.message || e).slice(0, 90)); } catch (e2) {} });
         return; }   // um por volta
     } catch (e) {} }, 60000); } catch (e) {}
+  /* 13.23 (Stefany 28/11 18:14 'sim'): MODO SOMBRA das cobranças do Zap (AVERBE JÁ / ANUÊNCIA). NÃO ENVIA NADA — só anota o que o robô mandaria e quando
+     (AVERBE JÁ: 30 min, +1 h, dia seguinte 8h · ANUÊNCIA: 30 min, +1 h, +2 h, dia seguinte 8h), para comparar com o que a ronda fez antes de ligar de verdade.
+     Ver: __R.dinsSombra1323(). */
+  try { if (/botmaker/.test(location.host)) setInterval(() => { try {
+      const pap = sessionStorage.getItem('dins_papel') || 'tudo'; if (/^(vigia|varredura)$/.test(pap)) return; if (typeof window.dinsFaseLink1323 !== 'function') return;
+      const ag = Date.now(); const AB = pap + '_' + (window.__ab1323 = window.__ab1323 || Math.random().toString(36).slice(2, 7)); const L = GM_getValue('sombra1323_dono', null); if (L && L.aba !== AB && ag - (+L.t || 0) < 5 * 60000) return; GM_setValue('sombra1323_dono', { aba: AB, t: ag });
+      const O = GM_getValue('auto_ordens', {}) || {}; const S = GM_getValue('sombra1323', {}) || {}; let mud = false;
+      const dia8 = t => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); };
+      const plano = (fase, t0) => fase === 'falta desbloquear' ? [t0 + 30 * 60000, t0 + 90 * 60000, dia8(t0)] : [t0 + 30 * 60000, t0 + 90 * 60000, t0 + 210 * 60000, dia8(t0)];
+      for (const h in O) { const o = O[h]; if (!o || !o.zr1251 || !/^https?:\/\//.test(String(o.link || '')) || ag - (+o.t || 0) > 15 * 864e5) continue;
+        const fe = window.dinsFaseLink1323(o.link, h); const fase = fe && fe.fase; if (!/^falta (desbloquear|anuência)$/.test(String(fase || ''))) { if (S[h] && !S[h].saiu) { S[h].saiu = ag; S[h].saiuPara = fase || '?'; mud = true; } continue; }
+        if (!S[h] || S[h].fase !== fase) { S[h] = { nome: String(o.nomeReal || o.nome || '').split(' ')[0], fase, t0: ag, n: 0, log: [] }; mud = true; }
+        const x = S[h]; const P = plano(fase, x.t0); const pz = zrPonte1251(h); const resp = !!(pz && +pz.cliT > x.t0);
+        while (x.n < P.length && ag >= P[x.n]) { const hh = new Date(P[x.n]).getHours(); x.log.push({ n: x.n + 1, previsto: P[x.n], visto: ag, fora: (hh < 8 || hh >= 21) ? 1 : 0, respondeu: resp ? 1 : 0 }); x.n++; mud = true; }
+      }
+      for (const k in S) if (ag - (+S[k].t0 || 0) > 7 * 864e5) { delete S[k]; mud = true; }
+      if (mud) GM_setValue('sombra1323', S);
+    } catch (e) {} }, 2 * 60000); } catch (e) {}
+  try { const W23 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window; W23.dinsSombra1323 = () => { const S = GM_getValue('sombra1323', {}) || {}; const hm = t => t ? new Date(t).toLocaleString('pt-BR').slice(0, 17) : ''; return Object.entries(S).map(([h, x]) => ({ h, nome: x.nome, fase: x.fase, desde: hm(x.t0), cobrancas: (x.log || []).map(l => l.n + 'ª ' + hm(l.previsto) + (l.respondeu ? ' (cliente tinha respondido → não mandaria)' : '') + (l.fora ? ' (fora do horário → esperaria as 8h)' : '')), saiu: x.saiu ? hm(x.saiu) + ' → ' + x.saiuPara : '' })); }; } catch (e) {}
   /* 12.92 (Stefany 27/11 16:13 'quando o cliente confirmar a simulação, ele tem que receber uma mensagem rapidinha que a gente já está fazendo a proposta'): aviso curto no aceite, pelo mesmo canal da conversa */
   function msgAceite1292(y) { try { if (!y || !y.hash) return ''; const nm = String(y.nomeReal || y.nome || '').replace(/[^A-Za-zÀ-ÿ ]/g, ' ').trim().split(/\s+/)[0] || ''; const n = globalThis.__dinsNomeOk1308(nm.length >= 3 ? nm.charAt(0).toUpperCase() + nm.slice(1).toLowerCase() : ''); const t = 'Perfeito' + (n ? ', ' + n : '') + '! 🙏\n\nJá estou fazendo a sua proposta. Em poucos minutos te mando o link para você assinar.';
     if (y.zr1251 && zrPonte1251(y.hash)) { zrEnviar1256(y.hash, zrPonte1251(y.hash), t, true).catch(() => {}); return 'zap'; }
@@ -4154,6 +4173,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       return { fase, acao, real: e.real || e.statusBanco, banco: e.banco, t: e.t, nome: e.nome || '', video: e.video || '' };
     };
     window.dinsFaseEsteira = h => faseEsteira(RG()[h]);
+    window.dinsFaseLink1323 = (link, h) => { try { return faseEsteira({ link, hash: h }); } catch (e) { return null; } };   // 13.23: fase da esteira pelo link (pedidos do Zap)
     window.dinsListaQuente = () => { try { const R = RG(); const ag = Date.now(); const out = []; for (const h in R) { const x = R[h]; if (!x || !x.link) continue; let fe = null; try { fe = faseEsteira(x); } catch (e) {} if (!fe || ['não assinou', 'andamento', 'pago', 'recusada'].includes(fe.fase)) continue; const e = (gmCache('esteira', {}) || {})['L:' + x.link] || {}; const hs = Math.round((ag - (+e.tReal || +e.t0 || ag)) / 360000) / 10; out.push({ h, nome: String(x.nome || fe.nome || '').split(' ').slice(0, 2).join(' '), banco: fe.banco || '', fase: fe.fase, real: String(fe.real || '').slice(0, 60), horasNaEtapa: hs, acao: fe.acao || '', cobrar: (/desbloquear|anu[êe]ncia|documento|v[íi]deo|conta recusada/.test(fe.fase) && hs >= 4) || hs >= 24 }); } const n = GM_getValue('nuvem1141', {}) || {}; return { atualizadoQuentes: n.tQ ? new Date(n.tQ).toTimeString().slice(0, 5) : '', atualizadoTudo: n.t ? new Date(n.t).toTimeString().slice(0, 5) : '', lista: out.sort((a, b) => b.horasNaEtapa - a.horasNaEtapa) }; } catch (e) { return { erro: String(e && e.message || e) }; } };   /* 12.35: lista quente para a ronda — quem assinou e ainda não recebeu, a etapa, há quantas horas e se já é hora de cobrar (ação do cliente parada 4 h, ou qualquer etapa parada 24 h) */
     window.dinsEsteiraC6 = () => ({ atualizado: (GM_getValue('esteira_c62_t', 0) ? new Date(GM_getValue('esteira_c62_t', 0)).toTimeString().slice(0, 5) : ''), propostas: GM_getValue('esteira_c62', {}) || {} });   /* 12.33 */
     window.dinsFaseDoLink = link => link ? faseEsteira({ link }) : null;   // 11.41
