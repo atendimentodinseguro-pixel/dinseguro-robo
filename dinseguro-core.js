@@ -98,7 +98,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.14';
+  const VERSAO = '13.15';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -367,6 +367,13 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
     return c6Off(f, r); }
   // 7.08 (Stefany 15/11 10:15: "O C6 está travando [VALIDAR COMISSAO]… os clientes que couberem no critério de outro banco, a gente pode fazer"):
   // GM 'c6_off' = 1 → o que ia para o C6 vai para a FACTA; invalidez abaixo de 60 anos → vigia decide. Ligar/desligar: __R.dinsC6Off(1/0).
+  // 13.15 (Stefany 28/11 15:52: "CPF pendente de aprovação é porque esse cliente não passa no Daycoval. Tem que tentar em outro banco, se tiver banco que faça.
+  // E se travou um, tem que seguir os próximos da lista"): próximo banco da régua que ainda não recusou o cliente. '' = nenhum banco sobrou (→ vigia/Stefany).
+  function proxBanco1315(o, falhou) { try { const fp = (o && o.ficha) || {}; const esp = String(fp.especie || '').padStart(2, '0'); const id = parseInt(fp.idade) || 0; const inv = INVALIDEZ.includes(esp);
+      const ja = new Set([...((o && o.bancosFalhos1315) || []), falhou].filter(Boolean).map(x => String(x).toUpperCase()));
+      ((o && o.hist) || []).forEach(l => { const t = String(l); if (!/reprov|recus|pol[íi]tica|pendente de aprova/i.test(t)) return; (t.match(/\b(C6|FACTA|QUALIBANK|DAYCOVAL)\b/gi) || []).slice(0, 1).forEach(b => ja.add(b.toUpperCase())); });
+      const lista = inv ? [id >= 60 ? 'FACTA' : '', id >= 58 ? 'QUALIBANK' : '', (id < 40 || id >= 53) ? 'C6' : ''] : ['FACTA', 'C6', 'QUALIBANK'];   // invalidez 40–52: o C6 reprova (6.74/10.42)
+      return lista.filter(Boolean).find(b => !ja.has(b)) || ''; } catch (e) { return ''; } }
   function c6Off(f, r) { try { if (r && r.banco === 'C6' && GM_getValue('c6_off', 0) && String(f.banco_ordem_stefany || '').toUpperCase().trim() !== 'C6') {
       const esp9 = String(f.especie || '').padStart(2, '0'); const id9 = +String(f.idade || '').replace(/\D/g, '') || 0;
       // 7.11 (Stefany 15/11 10:48: "não é só a idade, é o tipo de benefício"): critério da FACTA (REGRAS-BANCO-FACTA item 1):
@@ -2276,6 +2283,8 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
           // 10.64 (Roberta POQJD 22/11: ficou 'simulada' das 08:05 às 10:20 — a simulação NUNCA saiu e o relógio dos 30 min não começou): 'simulada' há 15 min sem envio → manda a simulação pela API e começa os 30 min (sim_enviada)
           if (o.estado === 'simulada' && o.tipo === 'cpf' && o.liberado && o.parcela && !o.tSimEnv && !o.api790T && !o.simParada1061 && ag - (+o.tSim || SN[h].t) > 15 * 60000 && ag - SN[h].t > 2 * 60000 && !protegido(h)) { Object.assign(o, { simParada1061: ag, api790T: ag, estado: 'sim_enviada', tSimEnv: ag, chkOkT: ag }); (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 10.64: simulação não tinha saído → mandada pela API; 30 min sem resposta → digita + /parabens'); mudO = true; const nm64 = primeiroNome(o.nomeReal || '') || '';
             bmEnviarTexto(h, (nm64 ? nm64 + ', ' : '') + 'já consultei o seu benefício e você tem crédito disponível 😊\n\n💰 Valor na conta: *R$ ' + o.liberado + '*\n📆 ' + (o.prazo || '108') + 'x de *R$ ' + o.parcela + '*\n\n✅ Simulação gratuita e sem compromisso\n🔒 A Dinseguro não cobra nada adiantado e nada é feito sem a sua confirmação.\n\nPosso preparar a sua proposta para você conferir pelo celular? É só responder *SIM* 🤝').then(() => { try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛟 simulação estava parada → mandada pela API; 30 min sem resposta → digita + /parabens (10.64)'); } catch (e) {} }).catch(() => {}); continue; }
+          /* 13.15 (Stefany 28/11 15:52 'se travou um, tem que seguir os próximos da lista'): pedido do Daycoval parado 10 min com o portal fora (deslogado/sem aba) → próximo banco da régua que faz o cliente; sem banco → segue o amarelo do vigia */
+          if (o.estado === 'ficha_ok' && o.banco === 'DAYCOVAL' && o.tipo === 'cpf' && o.ficha && !o.dcFora1315 && ag - SN[h].t > 10 * 60000 && ag - (+GM_getValue('dcy_vivo', 0) || 0) > 10 * 60000) { const pb = proxBanco1315(o, 'DAYCOVAL'); if (pb) { o.dcFora1315 = ag; o.ficha = Object.assign({}, o.ficha, { banco_ordem_stefany: pb, banco_destino: pb }); o.banco = pb; o.bancoStefany = pb; o.chk936 = 0; o.t = ag; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 13.15: Daycoval fora do ar há 10 min → ' + pb); mudO = true; delete SN[h]; mud = true; try { diario(o.nomeReal || o.nome || h.slice(0, 5), 'Daycoval fora do ar (deslogado) há 10 min → refazendo no ' + pb + ' (13.15)'); } catch (e) {} continue; } }
           if (!SN[h].av && ag - SN[h].t > LIM[o.estado] * 60000) { SN[h].av = 1; mud = true; o.erro = 'pedido parado em "' + o.estado + '" há ' + LIM[o.estado] + ' min (9.91) — vigia confere'; (o.hist = o.hist || []).push(new Date(ag).toLocaleTimeString('pt-BR').slice(0, 5) + ' 9.91: parado em ' + o.estado + ' → vigia'); o.estado = 'erro'; mudO = true;
             try { diario(o.nomeReal || o.nome || h.slice(0, 5), '🛠️ pedido parado em "' + sig.split('|')[0] + '" há ' + LIM[sig.split('|')[0]] + ' min → amarelo do vigia (9.91)'); } catch (e) {} } }
         for (const h in SN) if (!O[h]) { delete SN[h]; mud = true; }
@@ -7883,7 +7892,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
   // → Resumo → Gerar → Formalizar → link. Muda o endereço, o vendedor, a tabela e a conta aleatória.
   // Usa a ficha salva no Multicorban ("Salvar ficha"). Não recarregue a página: o portal perde o login no F5.
   if (/^portaldecredito\.(daycoval|queromaisconsignado)\.com\.br$/.test(location.host)) {
-    try { GM_setValue('dcy_vivo', Date.now()); setInterval(() => { try { GM_setValue('dcy_vivo', Date.now()); } catch (e) {} }, 20000); } catch (e) {}   // 10.37: sinal de vida do portal Daycoval/Quero Mais
+    try { const viv1315 = () => { try { if (!/\/login/.test(location.pathname)) GM_setValue('dcy_vivo', Date.now()); } catch (e) {} }; viv1315(); setInterval(viv1315, 20000); } catch (e) {}   /* 13.15: aba na tela de login não conta como viva */   // 10.37: sinal de vida do portal Daycoval/Quero Mais
     // 8.81 (19/11: o Daycoval deslogou sozinho ~20 min depois da proposta da Ariana): batida do portal — aberto? logado? — para o quadro avisar NA HORA, sem esperar um pedido ficar parado
     // 8.83 (Stefany 19/11 12:17: "pode clicar sozinho"): portal na tela de login com usuário e senha JÁ preenchidos pelo Chrome → o robô clica em ENTRAR. Não digita nada; 1 tentativa por hora (se não entrar, o quadro avisa e o vigia clica).
     if (/daycoval/.test(location.host)) setInterval(() => { try { if (!/\/login/i.test(location.pathname)) return; const pw = document.querySelector('input[type="password"]'); const bt = [...document.querySelectorAll('button')].find(b => /^\s*entrar\s*$/i.test(b.textContent || '')); if (!pw || !bt) return; let auto = false; try { auto = pw.matches(':-webkit-autofill'); } catch (e) {} if (!auto && !pw.value) return;
@@ -8008,9 +8017,12 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       }
       const cpf = await esperar(() => document.querySelector('input[formcontrolname=cpf]'));
       if (so(cpf.value) !== f.cpf) { await digitar(cpf, f.cpf); const pr = botaoTxt(/^PRÓXIMO$/); if (pr) pr.click(); }
-      await esperar(() => document.querySelector('input[formcontrolname=nome]'));
+      await esperar(() => document.querySelector('input[formcontrolname=nome]') || alertas().length);
+      { const al15 = alertas().join(' | ');   /* 13.15 (Marcelo 28/11 15:38: 'Cliente pendente de aprovação' no CPF → o robô quebrava em 'reading value') */
+        if (!document.querySelector('input[formcontrolname=nome]') && al15) { await fecharAlertas(); throw new Error(/pendente de aprova/i.test(al15) ? 'CPF pendente de aprovação no ' + PORTAL.nome + ' (o cliente não passa aqui)' : 'CPF: ' + al15.replace(/close|warning|cancel|×|OK, ENTENDI/g, '').trim().slice(0, 150)); } }
       await sleep(1500);
       const nome = document.querySelector('input[formcontrolname=nome]');
+      if (!nome) throw new Error('A tela de dados do cliente não abriu depois do CPF');
       if (!nome.value) await digitar(nome, f.nome);
       const nasc = document.querySelector('input[formcontrolname=dataNascimento]');
       if (nasc && !so(nasc.value)) { if (!f.nascimento) throw new Error('Falta data de nascimento na ficha'); await digitar(nasc, so(f.nascimento)); }
@@ -8222,7 +8234,8 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
         if (!dlg && k >= 2) break; }
       const re = new RegExp(c.conta + '/' + c.dv);
       const sbn = secao(/^Dados do Benef[íi]cio$/);
-      if (f.uf) { let lu = lista(/^UF Do Benef[íi]cio$/, sbn); for (let k = 0; !lu && k < 8; k++) { await sleep(800); lu = lista(/^UF Do Benef[íi]cio$/, secao(/^Dados do Benef[íi]cio$/) || sbn); } await escolher(lu, new RegExp('^' + f.uf + '$'), f.uf); }   /* 12.08: espera a seção abrir */
+      if (f.uf) { const ufIn = () => entrada(/^UF Do Benef[íi]cio$/i, secao(/^Dados do Benef[íi]cio$/) || sbn); let lu = lista(/^UF Do Benef[íi]cio$/i, sbn); for (let k = 0; !lu && !ufIn() && k < 8; k++) { await sleep(800); lu = lista(/^UF Do Benef[íi]cio$/i, secao(/^Dados do Benef[íi]cio$/) || sbn); }
+        if (lu) await escolher(lu, new RegExp('^' + f.uf + '$'), f.uf); else { const ui = ufIn(); if (!ui) throw new Error('Campo UF do Benefício não apareceu'); if (!ui.disabled && !ui.readOnly && !String(ui.value || '').trim()) await digitar(ui, f.uf); log('UF do Benefício: ' + (ui.value || f.uf) + ' (agora é campo de texto, o portal já preenche — 13.15)'); } }   /* 12.08: espera a seção abrir · 13.15 (28/11 15:37 Andreia: virou campo de texto travado e já preenchido → 'Lista não encontrada: /^RJ$/') */   /* 12.08: espera a seção abrir */
       const esp = String(f.especie || '').padStart(2, '0');
       await escolher(lista(/^Tipo de Benef/, sbn), new RegExp('^' + esp + ' -'), esp + ' -');
       // 6.82 (caso Simone Daycoval 13:39: 'Opção não encontrada (/39\/8/). Tem: ' — a conta incluída ainda não estava na lista): espera e, se precisar, INCLUIR de novo
@@ -8374,6 +8387,8 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
             } else sessionStorage.setItem('dins_dcy_menu', 0);
           }
         } catch (e) {}
+        /* 13.15 (Stefany 28/11 15:52 'se travou um, não trava todos'): aviso de erro de um cliente que ficou aberto na tela segurava a fila inteira → fecha o 'Alerta' parado há 30 s */
+        try { if (!autoD && !rodando) { const al = [...document.querySelectorAll('.cdk-overlay-pane, .modal.show')].filter(e => vis(e) && /^\s*Alerta/i.test(tx(e)) && [...e.querySelectorAll('button')].some(b => /OK,?\s*ENTENDI|^\s*OK\s*$|FECHAR/i.test(tx(b)))); if (al.length) { const t0 = +sessionStorage.getItem('dins_al1315') || Date.now(); sessionStorage.setItem('dins_al1315', t0); if (Date.now() - t0 > 30000) { sessionStorage.removeItem('dins_al1315'); al.forEach(e => { const b = [...e.querySelectorAll('button')].find(x => /OK,?\s*ENTENDI|^\s*OK\s*$|FECHAR/i.test(tx(x))); if (b) b.click(); }); log('Aviso parado na tela fechado para a fila seguir (13.15).', 'aviso'); } } else sessionStorage.removeItem('dins_al1315'); } } catch (e) {}
         if (autoD || rodando || /\/login/.test(location.pathname) || [...document.querySelectorAll('.cdk-overlay-pane .mat-mdc-dialog-container, .modal.show')].some(e => vis(e))) return;
         // recuperação: proposta gerada aqui pelo painel (à mão) para um cliente cuja ordem parou em "banco DAYCOVAL é à mão" → devolve o link ao Botmaker
         try { const r = GM_getValue('daycoval_resultado', null); const cp = x => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
@@ -8407,7 +8422,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
           if (!st) throw new Error('a digitação no Daycoval não terminou em 10 min');
           if (st.st === 'erro' && /inconsist[êe]ncia na gera[çc][ãa]o/i.test(String(st.erro || '')) && !o.c61114) { const fx = Object.assign({}, o.ficha, { banco_ordem_stefany: 'C6', banco_destino: 'C6' }); poeAOd(o.hash, { estado: 'ficha_ok', erro: '', banco: 'C6', bancoStefany: 'C6', ficha: fx, c61114: Date.now(), t: Date.now() - 120000 }); return; }   /* 11.14 (Stefany 23/11 14:22, Rosilene: Daycoval "Margem ⚠ / inconsistência" ao Gerar → fazer no C6) */
           /* 13.02 (Stefany 27/11 20:50 'nunca repita isso' — Raquel C4LQP: Daycoval recusou às 17:43 'CPF fora da política de crédito' e o pedido ficou 3 h voltando para o Daycoval): recusa de política do banco → próximo banco na hora, sem vigia */
-          if (st.st === 'erro' && /pol[íi]tica de cr[ée]dito|fora da pol[íi]tica/i.test(String(st.erro || '') + ' ' + ((document.body && document.body.innerText) || '').slice(-3000)) && !o.dcPol1302) { const fp = o.ficha || {}; const espP = String(fp.especie || '').padStart(2, '0'); const idP = parseInt(fp.idade) || 0; const invP = ['32', '92'].includes(espP); const prox = invP ? (idP >= 60 ? 'FACTA' : idP >= 58 ? 'QUALIBANK' : 'C6') : 'C6'; const fx = Object.assign({}, fp, { banco_ordem_stefany: prox, banco_destino: prox, recusa: '' }); poeAOd(o.hash, { estado: 'ficha_ok', erro: '', banco: prox, bancoStefany: prox, ficha: fx, dcPol1302: Date.now(), chk936: 0, t: Date.now() }); try { diario(o.nomeReal || o.nome || '', 'Daycoval: CPF fora da política de crédito → refazendo no ' + prox + ' (13.02)'); } catch (e) {} try { const m = [...document.querySelectorAll('a')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e))); if (m) m.click(); } catch (e) {} return; }
+          if (st.st === 'erro' && /pol[íi]tica de cr[ée]dito|fora da pol[íi]tica|pendente de aprova/i.test(String(st.erro || '') + ' ' + ((document.body && document.body.innerText) || '').slice(-3000)) && !o.dcPol1302) { const fp = o.ficha || {}; const mot15 = /pendente de aprova/i.test(String(st.erro || '')) ? 'CPF pendente de aprovação' : 'CPF fora da política de crédito'; const prox = proxBanco1315(o, 'DAYCOVAL');   /* 13.15: próximo da régua que ainda não recusou; pendente de aprovação = não passa no Daycoval */ try { fecharAlertas(); } catch (e) {} if (!prox) { poeAOd(o.hash, { estado: 'erro', erro: 'Daycoval: ' + mot15 + ' e nenhum outro banco da régua faz este cliente (13.15) → Stefany decide', bancosFalhos1315: [...(o.bancosFalhos1315 || []), 'DAYCOVAL'], dcPol1302: Date.now() }); return; } const fx = Object.assign({}, fp, { banco_ordem_stefany: prox, banco_destino: prox, recusa: '' }); poeAOd(o.hash, { estado: 'ficha_ok', erro: '', banco: prox, bancoStefany: prox, ficha: fx, dcPol1302: Date.now(), chk936: 0, t: Date.now(), bancosFalhos1315: [...(o.bancosFalhos1315 || []), 'DAYCOVAL'] }); try { diario(o.nomeReal || o.nome || '', 'Daycoval: ' + mot15 + ' → refazendo no ' + prox + ' (13.02/13.15)'); } catch (e) {} try { const m = [...document.querySelectorAll('a')].find(e => vis(e) && /^Simula[çc][ãa]o de Ofertas$/i.test(tx(e))); if (m) m.click(); } catch (e) {} return; }
           if (st.st === 'erro') throw new Error(st.erro || 'erro no portal');
           const f = o.ficha, so0 = x => String(x || '').replace(/\D/g, ''), bc = so0(f.banco).padStart(3, '0');
           const real = f.banco && so0(f.conta).length >= 3 && f.banco !== '000' && !/derivada|sem conta aqui/i.test(f.conta_origem || '');
