@@ -104,7 +104,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.21';
+  const VERSAO = '13.22';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -7342,9 +7342,9 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
           if (!lu || /^fechar_/.test(q) || (!q && !c.agentId && /01_I_|01k_|Sem_?margem|LoasSem|02_I|02_A|NaoIdentificado/i.test((c.tags || []).join('|'))) || (R[id] && R[id].humano924) || !jf || jf < ag + 2 * 60000 || /01.?D|FechouNeg|Sem_?margem|01_I_|01k_|LoasSem|NaoIdentificado/i.test(tg)) continue;
           // 9.23 (Stefany 19/11 17:05, Cléria e Sônia: "teve o primeiro follow-up; nesse segundo já é o encerramento — avisa que encerrou, se precisar chama, e fecha tagueada"):
           // 1 h depois do "ficou mais alguma dúvida?" sem resposta → aviso de encerramento + tag + fecha (sem CPF: fechar_01c; com CPF: fechar_so)
-          if (DV[id].t && !DV[id].enc && lu <= (+DV[id].t || 0) && ag - (+DV[id].t || 0) >= 60 * 60000) { try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa, é só chamar a gente aqui. Vai ser um prazer te atender!'); DV[id].enc = ag; n++;
-              const temCpf = !!(O[id] && O[id].cpf) || !!(c.variables && c.variables.CPF); const it9 = temCpf ? 'fechar_so' : 'fechar_01c'; let fe = '';
-              try { const ri = window.dinsBmIntent ? await window.dinsBmIntent(id, it9) : null; fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + ' + (temCpf ? 'fechou' : '01 C e fechou') + ' ✓' : ' — ⚠️ a intenção ' + it9 + ' não aceitou: fechar à mão'; } catch (e) {}
+          if (DV[id].t && !DV[id].enc && lu <= (+DV[id].t || 0) && ag >= globalThis.dia8_1322(+DV[id].t || 0)) { try { const fn23 = String((O[id] && O[id].nomeReal) || c.firstName || '').trim().split(/\s+/)[0] || ''; await bmEnviarTexto(id, globalThis.txtEnc1322(globalThis.__dinsNomeOk1308(fn23.length >= 3 ? fn23.charAt(0).toUpperCase() + fn23.slice(1).toLowerCase() : ''))); DV[id].enc = ag; n++;   /* 13.22: dia seguinte 8h, porta aberta, sem fechar */
+              const temCpf = !!(O[id] && O[id].cpf) || !!(c.variables && c.variables.CPF); const it9 = temCpf ? '' : 'so_tag_01c'; let fe = '';   /* 13.22: sem fechar — só a tag 01 C para quem não mandou CPF */
+              try { const ri = (it9 && window.dinsBmIntent) ? await window.dinsBmIntent(id, it9) : null; fe = !it9 ? ' (sem fechar)' : (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C (sem fechar) ✓' : ' — ⚠️ a intenção ' + it9 + ' não aceitou'; } catch (e) {}
               try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'follow-up de dúvida sem resposta em 1 h → encerrado (9.23)'); } catch (e) {}
               diario(String(c.firstName || id.slice(0, 5)), '👋 1 h sem resposta depois do "ficou dúvida?" → avisou o encerramento' + fe + ' (9.23)'); } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.23 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } continue; }
           if ((+DV[id].lu || 0) === lu || (+VM[id] || 0) > lu || (+PC[id] || 0) > lu) continue;   // já perguntamos depois desta mensagem dele · é caso de simulação padrão (9.05) · é pedido de CPF
@@ -7431,12 +7431,17 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
             if (etapa === 'd1') { await bmEnviarTexto(id, (nm ? nm + ', f' : 'F') + 'icou com alguma dúvida sobre a simulação? 😊 Se quiser, eu te explico o valor e as parcelas certinho. É só me responder aqui.'); st.d1 = ag; }
             else if (etapa === 'd2') { await bmEnviarTexto(id, saudAgora() + (nm ? ', ' + nm : '') + '! ☀️ Passando uma última vez sobre a sua simulação' + (val ? ' de *R$ ' + val + '*' : '') + '. Se ainda tiver interesse, é só me responder aqui que eu já preparo tudo para você 🤝'); st.d2 = ag; }
             else { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!'); st.enc = ag; st.fim = ag; let fe = '';
-              try { if (window.dinsBmIntent) { await window.dinsBmIntent(id, 'so_tag_01a'); const ri = await window.dinsBmIntent(id, 'fechar_so'); fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 A e fechou ✓' : ' — ⚠️ fechar_so não aceitou'; } } catch (e) {}
+              try { if (window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'so_tag_01a'); fe = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 A (sem fechar) ✓' : ' — ⚠️ so_tag_01a não aceitou'; } } catch (e) {}   /* 13.22: não fecha */
               try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, 'simulação < R$ 5 mil sem resposta → encerrado (10.30)'); } catch (e) {} st.mot = 'encerrado' + fe; }
             n++; diario(String(x.nomeReal || x.nome || id.slice(0, 5)), '🧾 simulação < R$ 5 mil sem resposta → ' + (etapa === 'd1' ? '"ficou com alguma dúvida?" (1 h)' : etapa === 'd2' ? 'último toque (manhã)' : 'encerramento ' + (st.mot || '')) + ' (10.30)');
           } catch (e) { diario(String(x.nomeReal || id.slice(0, 5)), '⚠️ follow-up 10.30 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
         for (const k in S) if (!O[k] || ag - (+S[k].d1 || +S[k].fim || ag) > 5 * 864e5) delete S[k]; GM_setValue('sim5k1030', S);
       } catch (e) {} finally { ocup1030 = false; } }, 5 * 60000); }
+    /* 13.22 (Stefany 28/11 18:10 'chamar no outro dia a partir das 8, deixar a porta aberta e avisar que encerrou, mas não fechar esses casos'):
+       os encerramentos (simulação padrão sem resposta, CPF pedido e não veio, "ficou dúvida?" sem resposta, simulação < R$ 5 mil) saem NO DIA SEGUINTE a partir das 8h,
+       com a porta aberta, e a conversa NÃO é fechada (só a tag). Janela de 24 h vencida → fica para a varredura, como antes. */
+    globalThis.dia8_1322 = t => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); };
+    globalThis.txtEnc1322 = nm => `${saudAgora()}${nm ? ', ' + nm : ''}! ☀️ Como não tivemos o seu retorno, vou encerrar o seu atendimento por aqui, tudo bem? Mas a porta continua aberta: quando quiser, é só me chamar aqui que eu te atendo na hora 😊`;
     // 9.05 (Stefany 19/11 14:47): SIMULAÇÃO PADRÃO sem CPF e o cliente não respondeu → 1 HORA depois: avisa que está encerrando o atendimento
     // ("se precisar de mais alguma coisa, é só chamar"), tag 01 C e fecha (intenção fechar_01c). Nada de ficar "aguardando o cliente" no caderno.
     { let ocup905 = false;
@@ -7446,13 +7451,13 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
         // 9.08 (Stefany 19/11 14:48 + 14:52 "pode avisar o cliente que tá encerrando e fecha"): PEDIMOS O CPF e não veio → 2 HORAS depois: aviso de encerramento + 01 C + fecha. Sem repetir o pedido.
         const PC908 = GM_getValue('pedir_cpf_feito', {}) || {}; const CAND = {}; for (const id in VM) CAND[id] = { t: +VM[id] || 0, lim: 60, mot: 'simulação padrão sem resposta há 1 h' };
         for (const id in PC908) { const tp = +PC908[id] || 0; if (tp > ((CAND[id] || {}).t || 0)) CAND[id] = { t: tp, lim: 120, mot: 'pedimos o CPF e não veio em 2 h' }; }
-        for (const id of Object.keys(CAND)) { const t = CAND[id].t; if ((EN[id] && (+EN[id].t || 0) > t) || ag - t < CAND[id].lim * 60000 || ag - t > 24 * 3600000 || protegido(id) || id === '__TESTE_LIBERADO_1022__' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
+        for (const id of Object.keys(CAND)) { const t = CAND[id].t; if ((EN[id] && (+EN[id].t || 0) > t) || ag < globalThis.dia8_1322(t) || ag - t > 40 * 3600000 || protegido(id) || id === '__TESTE_LIBERADO_1022__' || (O[id] && O[id].cpf)) continue; if (n >= 3) break;
           const g = await window.dinsBmGet('/chats/' + id); const c = g && g.http === 200 && g.j; if (!c) continue; const q = String(c.queueId || ''); const tg = (c.tags || []).join('|');
           const lu = Date.parse(c.lastUserMessageDatetime || '') || 0; const jf = Date.parse(c.whatsAppWindowCloseDatetime || '') || 0;
           if (/^fechar_/.test(q) || (!q && !c.agentId && /01_I_|01k_|Sem_?margem|LoasSem|02_I|02_A|NaoIdentificado/i.test((c.tags || []).join('|'))) || c.agentId || lu > t + 30000 || !jf || jf < ag + 2 * 60000 || /01.?A|01.?D|FechouNeg|SimulacaoEnviada/i.test(tg)) { EN[id] = { t: ag, pulou: 1 }; continue; }
-          try { await bmEnviarTexto(id, 'Como não tivemos o seu retorno, estou encerrando o seu atendimento por aqui, tudo bem? 😊\n\nSe precisar de mais alguma coisa ou quiser ver a sua simulação com calma, é só chamar a gente aqui. Vai ser um prazer te atender!');
+          try { const fn22 = String((O[id] && O[id].nomeReal) || c.firstName || '').trim().split(/\s+/)[0] || ''; const nm22 = globalThis.__dinsNomeOk1308(fn22.length >= 3 ? fn22.charAt(0).toUpperCase() + fn22.slice(1).toLowerCase() : ''); await bmEnviarTexto(id, globalThis.txtEnc1322(nm22));
             EN[id] = { t: ag }; n++; let fechou = '';
-            try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('fechar_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'fechar_01c'); fechou = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C e fechou ✓' : ' — ⚠️ a intenção fechar_01c não aceitou'; } else fechou = ' — ⚠️ intenção fechar_01c desligada: fechar à mão'; } catch (e) {}
+            try { const ON = GM_getValue('bm_intents_on', []) || []; if (ON.includes('so_tag_01c') && window.dinsBmIntent) { const ri = await window.dinsBmIntent(id, 'so_tag_01c');   /* 13.22: só a tag, sem fechar */ fechou = (ri && ri.http >= 200 && ri.http < 300) ? ' + 01 C (sem fechar) ✓' : ' — ⚠️ a intenção so_tag_01c não aceitou'; } else fechou = ' (sem tag: intenção so_tag_01c desligada)'; } catch (e) {}
             try { window.dinsReguaCancelar && window.dinsReguaCancelar(id, CAND[id].mot + ' → encerrado (9.05/9.08)'); } catch (e) {}
             diario(String(c.firstName || id.slice(0, 5)), '👋 ' + CAND[id].mot + ' → avisou o encerramento' + fechou + ' (9.05/9.08)');
           } catch (e) { diario(String(c.firstName || id.slice(0, 5)), '⚠️ encerramento 9.05 não saiu: ' + String((e && e.message) || e).slice(0, 90)); } }
