@@ -104,7 +104,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.20';
+  const VERSAO = '13.21';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -5812,16 +5812,21 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       'falta anuência': [
         n => `${n ? n + ', c' : 'C'}onseguiu fazer a confirmação no Meu INSS? 😊 Quando aparecer como feito, me manda um print aqui. Se travar, eu te ajudo.`,
         n => `${n ? n + ', f' : 'F'}alta só essa confirmação no Meu INSS para o banco liberar o seu dinheiro 🙏 Conseguiu fazer? Se precisar, te explico de novo.`,
-        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Só falta a confirmação no Meu INSS para o seu dinheiro ser liberado. Quer fazer agora comigo? Eu te acompanho por aqui.`,
-        n => `${n ? n + ', a' : 'A'} sua proposta está pronta, só esperando a confirmação no Meu INSS 💰 Se deu algum erro, me manda um print que eu resolvo com você.`
+        n => `${n ? n + ', a' : 'A'} sua proposta está pronta, só esperando a confirmação no Meu INSS 💰 Se deu algum erro, me manda um print que eu resolvo com você.`,
+        n => `Bom dia${n ? ', ' + n : ''}! ☀️ Só falta a confirmação no Meu INSS para o seu dinheiro ser liberado. Quer fazer agora comigo? Eu te acompanho por aqui.`   // 13.21: ordem nova — 30 min, +1 h, +2 h, dia seguinte 8h
       ]
     };
-    const quandoToque = (t0, n) => { const d0 = new Date(t0); if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 2 * 3600000;
+    /* 13.21 (Stefany 28/11 18:09): AVERBE JÁ (falta desbloquear) → cobra 30 min, 1 h depois e no outro dia a partir das 8h.
+       AGUARDA ANUÊNCIA → cobra 30 min, 1 h depois, 2 h depois e no outro dia a partir das 8h. (Cada tempo conta a partir da cobrança anterior.) */
+    const quandoToque = (t0, n, fase) => { const d0 = new Date(t0); const dia8 = () => { const a = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1); a.setHours(8, 0, 0, 0); return a.getTime(); };
+      if (fase === 'falta desbloquear') { if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 90 * 60000; if (n === 2) return dia8(); return Infinity; }
+      if (fase === 'falta anuência') { if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 90 * 60000; if (n === 2) return t0 + 210 * 60000; if (n === 3) return dia8(); return Infinity; }
+      if (n === 0) return t0 + 30 * 60000; if (n === 1) return t0 + 2 * 3600000;
       const amanha = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1);   // 10.65 (Stefany 22/11 10:45, Genevaldo assinou sábado e domingo ficou sem follow-up): atendimento é TODOS os dias — sem pular sábado/domingo
       if (n === 2) { amanha.setHours(9, 0, 0, 0); return amanha.getTime(); } if (n === 3) { amanha.setHours(15, 0, 0, 0); return amanha.getTime(); }
       if (n === 4 || n === 5) { const dd = new Date(amanha); dd.setDate(dd.getDate() + (n === 4 ? 1 : 2)); dd.setHours(10, 0, 0, 0); return dd.getTime(); }   // 7.49: D+2 e D+3 às 10h (só o desbloqueio tem 6 toques)
       return Infinity; };
-    window.dinsPrioridadeVer = () => Object.values(RG()).filter(x => x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita]).map(x => { const fe = faseEsteira(x); return { nome: x.nomeReal || x.nome, hash: x.hash, fase: x.faseFeita, agora: fe ? fe.fase : '?', real: fe ? fe.real : '', toques: x.faseToq || 0, prox: x.faseFeitaT ? new Date(quandoToque(x.faseFeitaT, x.faseToq || 0)).toLocaleString('pt-BR').slice(0, 17) : '—' }; });
+    window.dinsPrioridadeVer = () => Object.values(RG()).filter(x => x && x.link && x.faseFeita && TOQUES_FASE[x.faseFeita]).map(x => { const fe = faseEsteira(x); return { nome: x.nomeReal || x.nome, hash: x.hash, fase: x.faseFeita, agora: fe ? fe.fase : '?', real: fe ? fe.real : '', toques: x.faseToq || 0, prox: x.faseFeitaT ? new Date(quandoToque(x.faseFeitaT, x.faseToq || 0, x.faseFeita)).toLocaleString('pt-BR').slice(0, 17) : '—' }; });
     let prioRodando = false;
     async function olharPrioridade() {
       if (vigiaTrava() || prioRodando || faseRodando || fupRodando || rodando || localStorage.getItem('dins_ordem')) return;
@@ -5836,8 +5841,8 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
         // 10.65: assinado que saiu dos toques porque o cliente respondeu / estava com humano (faseToq 9) → 4 h depois VOLTA para os toques do ponto onde parou (prioridade total: ninguém fica sem follow-up)
         if (x.faseToq === 9 && !x.faseToq9T && !x.faseToq9Jan) { x.faseToq9T = Date.now(); x.faseToqAnt = 2; r[x.hash] = x; gravaRG(r); }   // 10.66: os que já estavam parados (9) antes da 10.65 também voltam em 4 h
         if (x.faseToq === 9 && x.faseToq9T && x.faseToqAnt != null && !x.faseToq9Jan && Date.now() - x.faseToq9T > 4 * 3600000) { x.faseToq = Math.min(x.faseToqAnt, TOQUES_FASE[x.faseFeita].length - 1); x.faseToq9T = 0; x.hist.push(hhmm(Date.now()) + ' 10.65: volta aos toques (estava parado há 4 h)'); r[x.hash] = x; gravaRG(r); }
-        const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n)) continue;
-        if (Date.now() - (+x.prioUltT || 0) < 3 * 3600000) continue;   // 10.65: toques atrasados saem um por vez, com 3 h entre eles (nada de rajada)
+        const n = x.faseToq || 0; if (n >= TOQUES_FASE[x.faseFeita].length || Date.now() < quandoToque(x.faseFeitaT, n, x.faseFeita)) continue;
+        if (Date.now() - (+x.prioUltT || 0) < 50 * 60000) continue;   // 13.21: entre uma cobrança e outra no mínimo 50 min (antes 3 h) · 10.65: toques atrasados saem um por vez, com 3 h entre eles (nada de rajada)
         const f = faseEsteira(x); if (!f || f.fase !== x.faseFeita) continue;   // a esteira andou → não cobra mais esta fase
         alvo = x; fe = f; break;
       }
