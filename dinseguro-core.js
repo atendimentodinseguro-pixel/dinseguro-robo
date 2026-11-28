@@ -97,7 +97,7 @@
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.05';
+  const VERSAO = '13.06';
   // 12.73 (27/11 10:10, Oscar 6SEVR: o pedido voltou sozinho de 'link' para 'digitando' e perdeu o registro do link; a linha '9.36' apareceu 17 vezes no histórico): as conferências 9.36 e 12.70 rodavam em TODAS
   // as abas (Botmaker x3, Zap, Multicorban, New Corban, bancos) — o filtro de papel não funcionava ali (meuPapel só existe mais abaixo) — e cada aba regravava a lista inteira de pedidos com a cópia dela,
   // às vezes velha, por cima da mudança de outra aba. Agora as duas só rodam na aba de ATENDIMENTO do Botmaker (ou na aba única 'tudo').
@@ -4106,12 +4106,13 @@
     window.dinsHhmm = t => hhmm(t);   // 9.44
     const dentroDoHorario = t => { const h = new Date(t).getHours(); return h >= 8 && h < 21; };
     const manhaSeguinte = t => { const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d.getTime(); };
+    // 13.06 (Stefany 28/11 08:35–08:37: 'encher o cliente de follow-up, textão e cobrança não funciona — humanizar' → 'sim' para UM lembrete só no Botmaker):
+    // a régua do link passa a ter UM toque: 40 min depois do link, curto e humano, com o link. Fora de 8h–21h ele vai para as 09:00 do dia seguinte. Sem /132 'será cancelada', sem manhã/tarde.
     const TOQUES = [
-      { tipo: '10', rotulo: '10 min — Conseguiu acessar?', dt: t => t + 10 * M },
-      { tipo: '60', rotulo: '60 min — /132', dt: t => t + 60 * M },
-      { tipo: 'manha', rotulo: 'toque 08:00', dt: t => manhaSeguinte(t) },
-      { tipo: 'tarde', rotulo: 'último toque 14:00 (7.32)', dt: t => manhaSeguinte(t) + 6 * H },   // 7.32 (Stefany 16/11 16:40: quem aceitou e não assinou tem muita intenção de compra)
+      { tipo: '10', rotulo: '40 min — lembrete único (13.06)', dt: t => t + 40 * M },
     ];
+    const MSG_LEMBRETE1306 = (nome, link) => { const h = new Date().getHours(); const dia = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; const manha = h < 11;
+      return (manha ? dia + (nome ? ', ' + nome : '') + '! 😊 ' : (nome ? nome + ', ' : '')) + (manha ? 'C' : 'c') + 'onseguiu abrir o link da sua proposta? Se travou em alguma parte, me fala que eu te ajudo 🙏' + (link ? '\n\n' + link : ''); };
     // 4.31 (Stefany 11/11 09:02, foto: "Bom dia, Alexsandrapereira292!" — "Ele chamou o cliente pelo nome de usuário. Isso aí
     // tá muito errado, não pode repetir."). Nome SÓ se for nome de verdade: primeiro o nome real das notas ([IA]/[robô] Nome…,
     // que vem da consulta) e, sem nota, o nome do contato apenas se parecer nome de pessoa (sem número, @, emoji, "Até R$"…,
@@ -4199,6 +4200,7 @@
       if ((+x.ultCliT || 0) > (+x.linkT || 0)) { x.estado = 'pausada'; x.motivo = 'cliente respondeu depois do link — atendimento humano (5.23)'; m1 = true; continue; }   // já conversou depois do link: sem toque automático
       if (Date.now() - (+x.linkT || 0) > 3 * 3600000) (x.toques || []).forEach(q => { if ((q.tipo === '10' || q.tipo === '60') && !q.feito) { q.feito = Date.now(); q.st = 'pulado (régua reaberta 5.21 — link antigo)'; m1 = true; } });
       x.motivo = 'reaberta (5.21/5.23): o link não encerra a régua'; m1 = true; } if (m1) gravaRG(r1); } catch (e) {}
+    try { const r13 = RG(); let m13 = false; for (const k in r13) { const x = r13[k]; if (!x || !Array.isArray(x.toques)) continue; x.toques.forEach(q => { if (!q.feito && ['60', 'manha', 'tarde'].includes(q.tipo)) { q.feito = Date.now(); q.st = 'pulado (13.06: lembrete único)'; m13 = true; } }); } if (m13) gravaRG(r13); } catch (e) {}   // 13.06
     window.dinsReguaCancelar = (hash, motivo) => { const r = RG(); if (r[hash] && r[hash].estado !== 'cancelada') { r[hash].estado = 'cancelada'; r[hash].motivo = motivo || 'manual'; r[hash].hist.push(hhmm(Date.now()) + ' cancelada: ' + (motivo || 'manual')); gravaRG(r); desenharRegua(); } return !!r[hash]; };
     // 4.59 (Stefany 13:22, caso Jairo): retomar a régua depois de reenviar o link disparava na hora o toque de 10 min que estava
     // vencido desde a manhã ("Conseguiu acessar?" 1 min depois do link). Agora retomar RECOMEÇA a contagem a partir de agora.
@@ -4244,6 +4246,7 @@
       const cand = Object.values(R).filter(x => x && x.hash && FE[x.hash] !== hoje && !x.assinouT && !x.comQuem && !x.humano924 && !['fechada', 'cancelada', 'concluída', 'encerrado', 'humano'].includes(x.estado)
         && +x.ultCliT >= iniHoje - 24 * H && +x.ultCliT < iniHoje && Date.now() - (+x.ultCliT) < 23 * H
         && O[x.hash] && /^(feito|link|link_enviado|com_margem|sim_enviada|sim_resp)$/.test(O[x.hash].estado || '') && !(O[x.hash].estado === 'com_margem' && (O[x.hash].proposta || O[x.hash].link)) && !(O[x.hash].estado === 'com_margem' && (!(+String(O[x.hash].liberado || '').replace(/\./g, '').replace(',', '.') > 0) || /VIGIA (decide|consulta)|n[ãa]o localizou|CESSADO/i.test(String(O[x.hash].resumo || ''))))   /* 12.28 (Adenevaldo Y1EGL5 26/11: benefício não localizado/CESSADO e recebeu 'sua proposta ainda está garantida') — com_margem sem simulação feita não recebe a manhã da negociação */   /* com_margem com proposta = caso do vigia (aprovado/desbloqueio), não é negociação */
+        && !(x.toques || []).some(q => q.tipo === '10' && q.enviadoT)   /* 13.06: já recebeu o lembrete único do link → sem mais cobrança */
         && !(x.link && ['ativa', 'respondido', 'acompanhando', 'pausada'].includes(x.estado) && (x.toques || []).some(q => !q.feito && +q.quando >= iniHoje && +q.quando < iniHoje + 24 * H))).sort(   /* 12.23 (Joarez MCCNP0 26/11): toque pendente numa régua SEM link nunca sai (o executor ignora) — não pode segurar o follow-up da manhã */(a, b) => (+a.ultCliT) - (+b.ultCliT));
       for (const x of cand.slice(0, 2)) { const h = x.hash; const o = O[h];
         const marca = st => { const F2 = GM_getValue('manha1222', {}) || {}; F2[h] = hoje; GM_setValue('manha1222', F2); const R2 = GM_getValue('regua', {}) || {}; if (R2[h]) { (R2[h].hist = R2[h].hist || []).push(new Date().toTimeString().slice(0, 5) + ' 12.22 manhã da negociação: ' + st); GM_setValue('regua', R2); } };
@@ -4260,8 +4263,8 @@
         const nm = (String(o.nomeReal || x.nome || '').trim().split(/\s+/)[0] || ''); const nome = nm.length >= 3 && /^[\p{L}]+$/u.test(nm) ? nm[0].toUpperCase() + nm.slice(1).toLowerCase() : '';
         const temLink = /^https?:\/\//.test(String(o.link || '')) && /^(feito|link|link_enviado)$/.test(o.estado || '');
         const txt = temLink
-          ? '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Passando para saber se ficou alguma dúvida sobre a sua proposta' + (o.liberado ? ' de *R$ ' + o.liberado + '*' + (o.prazo && o.parcela ? ' em ' + o.prazo + 'x de *R$ ' + o.parcela + '*' : '') : '') + '. Ela continua separada para você 🙏\n\n👉 É só tocar no link e concluir pelo celular:\n' + o.link + '\n\nPosso te ajudar em alguma coisa? É só me responder aqui 🤝'
-          : '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Ficou alguma dúvida sobre a simulação que te mandei ontem? Se quiser, já deixo a sua proposta pronta — é só me responder *SIM* 🤝';
+          ? '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Ficou alguma dúvida sobre a sua proposta? Se quiser, te ajudo a concluir 🙏\n\n' + o.link
+          : '[Dinseguro]\nBom dia' + (nome ? ', ' + nome : '') + '! 😊 Ficou alguma dúvida sobre a simulação de ontem? Se quiser, já deixo a proposta pronta pra você 🙏';   /* 13.06: curto e humano */
         const r = await window.dinsBmEnviar(h, txt, false);
         if (r && r.ok) { marca('enviado (' + (temLink ? 'link' : 'simulação') + ')'); try { diario(o.nomeReal || x.nome || h.slice(0, 5), 'follow-up da manhã da negociação de ontem (12.22)'); } catch (e) {} }
         else { const F3 = GM_getValue('manha1222_erro', {}) || {}; F3[h] = (F3[h] || 0) + 1; GM_setValue('manha1222_erro', F3); if (F3[h] >= 3) marca('erro: ' + String((r && r.erro) || '?').slice(0, 80)); }
@@ -5224,7 +5227,7 @@
       { const O38 = GM_getValue('auto_ordens', {}) || {}; const oA38 = O38[alvo.hash]; const aceitou = !!(alvo.aceite || (oA38 && oA38.aceite));
         if (!aceitou) { soAnalise904 = true;
           if (toque.tipo === 'tarde') { reg('pulado (só análise — 9.04: /132 em 2 h + dúvida na manhã seguinte)', true); estado('esgotada', 'follow-ups da análise feitos — varredura quando a janela vencer'); return; }
-          if (toque.tipo === '10') { reg('pulado (só análise — 9.04: /132 em 2 h + dúvida na manhã seguinte)', true); return; }
+          /* 13.06: o lembrete único também vale para quem recebeu proposta só para análise */
           if (toque.tipo === 'manha') { /* segue: sai com a mensagem de dúvida */ } else
           if (agora < (+alvo.linkT || 0) + 120 * M) { const r38 = RG(), x38 = r38[alvo.hash]; const q38 = x38 && x38.toques.find(k => k.tipo === '60'); if (q38) { q38.quando = (+alvo.linkT || agora) + 120 * M; gravaRG(r38); } return; } } }
       // fora do horário: 10/60 não saem (fica o da manhã); o da manhã nunca cai fora porque é às 08:00
@@ -5232,7 +5235,7 @@
          quem escreveu há menos de 60 min ainda recebe o toque (regra: fora de 8h–21h só para quem acabou de escrever). */
       if ((toque.tipo === '10' || toque.tipo === '60') && !dentroDoHorario(agora)) {
         let recente951 = false; try { if (window.dinsBmGet) { const c9 = await window.dinsBmGet('/chats/' + alvo.hash); const lu9 = Date.parse(((c9 && c9.j) || {}).lastUserMessageDatetime || 0); recente951 = lu9 > 0 && Date.now() - lu9 < 60 * M && !soAnalise904; } } catch (e) {}   /* só cliente que ACEITOU a simulação/proposta (alta intenção) — Stefany 23:31 */
-        if (!recente951) { reg('pulado (fora de 8h–21h)', true); return; } }
+        if (!recente951) { if (toque.tipo === '10') { const r13 = RG(), x13 = r13[alvo.hash]; const q13 = x13 && x13.toques.find(k => k.tipo === '10' && !k.feito); const d13 = new Date(agora); if (d13.getHours() >= 21) d13.setDate(d13.getDate() + 1); d13.setHours(9, 0, 0, 0); if (q13 && (+q13.quando || 0) < d13.getTime() - 60000) { q13.quando = d13.getTime(); gravaRG(r13); diario(alvo.nome, 'lembrete do link fora de 8h–21h → remarcado para 09:00 (13.06)'); return; } } reg('pulado (fora de 8h–21h)', true); return; } }
       if ((toque.tipo === 'manha' || toque.tipo === 'tarde') && !dentroDoHorario(agora)) return;
       // 4.18: cliente que já assinou (ou foi pago/recusado) não recebe "Conseguiu acessar?" / /132
       { const fe = faseEsteira(alvo); if (fe && !['não assinou', 'andamento'].includes(fe.fase)) { reg('pulado (esteira: ' + fe.fase + ')', true); return; } }
@@ -5271,7 +5274,7 @@
       // cliente falou depois do link → pausa (é atendimento). Sem o texto do atalho guardado ou erro na API → caminho antigo pela tela.
       if (bmApiLigada() && window.dinsBmGet && !protegido(alvo.hash)) { let feito896 = false; fupRodando = true;
         try { const ag = Date.now(); const RC = GM_getValue('rr_cache', {}) || {}; const at = toque.tipo === '10' ? String(GM_getValue('atalho_conseguiu', '/bot2')).trim().toLowerCase() : '/132';
-          const texto = (toque.tipo === 'manha' && soAnalise904) ? MSG_MANHA_DUV904(nomeDoAlvo(alvo)) : toque.tipo === 'manha' ? MSG_MANHA(nomeDoAlvo(alvo)) : toque.tipo === 'tarde' ? MSG_TARDE(nomeDoAlvo(alvo)) : ((RC[at] && RC[at].tx) || '');
+          const texto = toque.tipo === '10' ? MSG_LEMBRETE1306(nomeDoAlvo(alvo), /^https?:\/\//.test(String(alvo.link || '')) ? alvo.link : (((GM_getValue('auto_ordens', {}) || {})[alvo.hash] || {}).link || '')) : (toque.tipo === 'manha' && soAnalise904) ? MSG_MANHA_DUV904(nomeDoAlvo(alvo)) : toque.tipo === 'manha' ? MSG_MANHA(nomeDoAlvo(alvo)) : toque.tipo === 'tarde' ? MSG_TARDE(nomeDoAlvo(alvo)) : ((RC[at] && RC[at].tx) || '');
           if (texto) {
             const c = await window.dinsBmGet('/chats/' + alvo.hash); const cj = (c && c.j) || {}; const tg = (cj.tags || []).join('|');
             if (/01.?D|FechouNeg/i.test(tg)) { estado('concluída', 'cliente fechou (01 D) — visto pela API'); feito896 = true; }
@@ -5925,17 +5928,16 @@
       if (tipo === 'cpf') return [];   // 8.38: nada de cobrar CPF de novo (1 h / 08:00) — gera denúncia
       const manha = dias => { const d = new Date(t0); d.setDate(d.getDate() + dias); d.setHours(8, 0, 0, 0); return d.getTime(); };
       if (tipo === 'doc') return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }];
-      const seq = [{ q: '1h', quando: t0 + 60 * M, feito: 0 }, { q: '08h', quando: manha(1), feito: 0 }];
-      const qj = horaJanela(ultCliT); if (qj && qj > t0 + 90 * M) seq.push({ q: 'janela', quando: qj, feito: 0 });
-      return seq.sort((a, b) => a.quando - b.quando);
+      return [{ q: '1h', quando: t0 + 60 * M, feito: 0 }];   // 13.06 (Stefany 28/11): UM lembrete só — sem o das 08:00 e sem o aviso de fim de janela
     }
+    try { const E13 = GM_getValue('espera', {}) || {}; let m13 = false; for (const k in E13) { const e = E13[k]; if (!e || !Array.isArray(e.toques)) continue; e.toques.forEach(q => { if (!q.feito && ['08h', '08h2', '3h', 'janela'].includes(q.q)) { q.feito = Date.now(); q.st = 'pulado (13.06: lembrete único)'; m13 = true; } }); } if (m13) GM_setValue('espera', E13); } catch (e) {}   // 13.06
     const TXT_JANELA = n => `${n ? n + ', e' : 'E'}stou passando só para avisar de uma coisa daqui do sistema 😊\n\nO nosso atendimento por aqui se encerra automaticamente daqui a pouco, e depois disso eu não consigo mais te responder nesta conversa.\n\nSe ainda quiser tirar qualquer dúvida ou continuar, é só me mandar uma mensagem — qualquer palavra já mantém a conversa aberta.\n\nSe preferir deixar para depois, sem problema nenhum: eu te procuro pelo WhatsApp mais para a frente 💛`;
     const TXT_ESP = {
       cpf: { '1h': n => `${n ? n + ', t' : 'T'}udo bem? 😊 Ficou faltando só o número do seu CPF para eu consultar o valor que você consegue liberar. Pode me mandar aqui mesmo, só os números.`,
              '3h': n => `Oi${n ? ', ' + n : ''}! 😊 Ainda estou por aqui para te ajudar. Se você me mandar o seu CPF (só os números), em poucos minutos eu te passo quanto você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
              '08h2': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando uma última vez para saber se ainda posso te ajudar com o empréstimo. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝`,
              '08h': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para lembrar que a sua consulta ficou pendente só do CPF. Se ainda tiver interesse, me manda o número aqui que eu já te passo o valor certinho 🤝` },
-      link: { '1h': n => `Oi${n ? ', ' + n : ''}! 😊 Passando para saber se você conseguiu ver a sua proposta. Ela está no link que te mandei acima. Só reforçando: essa condição está garantida para hoje — amanhã o banco pode mudar a taxa e o valor pode ficar diferente. Se tiver qualquer dúvida sobre o valor, as parcelas ou como assinar, me chama aqui que eu te ajudo a finalizar agora. 🤝`,
+      link: { '1h': n => `${n ? n + ', c' : 'C'}onseguiu abrir o link da sua proposta? 😊 Se travou em alguma parte, me fala que eu te ajudo 🙏`,   // 13.06: curto e humano
               '08h': n => `${saudAgora()}${n ? ', ' + n : ''}! ☀️ A sua proposta ainda está no link que te mandei. Hoje eu confiro com o banco: se a taxa não mudou, seguimos com o mesmo valor. Para garantir, o ideal é finalizar ainda hoje — é só abrir o link e fazer a selfie de segurança. Se precisar de ajuda em qualquer etapa, me chama aqui 🤝` },
       duvida: { '1h': (n, l, a) => a && a.temCpf ? `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Estou por aqui para te ajudar a continuar. É só me responder.` : `${n ? n + ', f' : 'F'}icou mais alguma dúvida? 😊 Se quiser, me manda o seu CPF (só os números) que eu já consulto o valor que você consegue liberar, sem compromisso. 🔒 A Dinseguro nunca pede senha e não cobra nada adiantado.`,
                 '08h': (n, l, a) => a && a.temCpf ? `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Qualquer dúvida, é só me chamar aqui 🤝` : `${saudAgora()}${n ? ', ' + n : ''}! ☀️ Passando para saber se ainda posso te ajudar. Se quiser, é só me mandar o número do seu CPF que eu consulto na hora 🤝` },
