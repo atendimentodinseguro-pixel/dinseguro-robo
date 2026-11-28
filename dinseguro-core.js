@@ -98,7 +98,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.13';
+  const VERSAO = '13.14';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -2389,11 +2389,11 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
           if (!horaOk || fim - ag < 5 * 60000) continue; if (ag - tN < 60 * 60000) continue;
           const fx = FX[h] = FX[h] || {}; const chaveL = String(link).slice(-14); if (fx.link !== chaveL) { fx.link = chaveL; fx.n = 0; fx.t = 0; }
           const fechRecente = reais.some(k => k.from !== 'user' && FECH1077.test(txt1077(k)) && ag - Date.parse(k.creationTime) < 3 * 3600000);
-          const nHist = reais.filter(k => k.from !== 'user' && FECH1077.test(txt1077(k))).length; const ja2 = reais.some(k => k.from !== 'user' && /s[oó] para eu saber como te ajudar com a sua proposta/i.test(txt1077(k)));   /* 10.85 (José K80 e Oscar 6SEVR 22/11 20:57: o vigia já tinha mandado as opções às 17:57 e o robô mandou de novo) */
-          if (ja2 || nHist >= 2 || fechRecente || fx.n >= 2 || (fx.n === 1 && ag - fx.t < 3 * 3600000) || (tU && tU > fx.t && fx.n)) continue;
+          const nHist = reais.filter(k => k.from !== 'user' && FECH1077.test(txt1077(k))).length; const ja2 = reais.some(k => k.from !== 'user' && /s[oó] para eu saber como te ajudar com a sua proposta|Conseguiu abrir o link|ainda est[aá] te esperando/i.test(txt1077(k)));   /* 13.14: um toque só — se o lembrete do link (13.06) ou um fechamento já saiu, não manda outro */   /* 10.85 (José K80 e Oscar 6SEVR 22/11 20:57: o vigia já tinha mandado as opções às 17:57 e o robô mandou de novo) */
+          if (ja2 || nHist >= 1 || fechRecente || fx.n >= 1 || (fx.n === 1 && ag - fx.t < 3 * 3600000) || (tU && tU > fx.t && fx.n)) continue;
           const nm = primeiroNome(o.nomeReal || o.nome || '') || ''; const v = o.liberado ? 'R$ ' + o.liberado : '';
           const tx = fx.n === 0 && !reais.some(k => k.from !== 'user' && FECH1077.test(txt1077(k)))
-            ? (nm ? nm + ', ' : '') + saud1077() + ' Passando porque a sua proposta' + (v ? ' de *' + v + '*' : '') + ' ainda está te esperando, e eu não quero que você perca esse valor 🙏\n\n⚠️ Ela fica reservada por pouco tempo: se o link vencer, numa nova consulta o valor pode vir *menor* (a margem e as taxas mudam toda semana).\n\n✅ São só 3 minutinhos pelo celular: abrir o link, conferir e tirar a selfie. A liberação sai em até 60 minutos depois de tudo certo.\n\n🔒 Nada é feito sem a sua confirmação. Travou em alguma tela? Me manda um print que eu te guio 🤝'
+            ? (nm ? nm + ', tudo bem? 😊 ' : 'Tudo bem? 😊 ') + 'Passando porque a sua proposta' + (v ? ' de *' + v + '*' : '') + ' ainda está te esperando.\n\nConseguiu abrir o link? Se travou em alguma parte, me fala que eu te ajudo agora 🙏'   /* 13.14 (Stefany 28/11 15:36, Emivaldo: 'Botmaker segue robotizado') — curto e humano, sem textão nem pressão */
             : (nm ? nm + ', s' : 'S') + 'ó para eu saber como te ajudar com a sua proposta' + (v ? ' de *' + v + '*' : '') + ' 😊\n\n1️⃣ Quero finalizar agora, me ajuda\n2️⃣ Não consegui abrir o link\n3️⃣ Tenho uma dúvida\n4️⃣ Quero outro valor ou outra parcela\n\nÉ só responder com o número 🤝';
           if (seco) { prev.push((nome || '').split(' ')[0] + ' ' + h.slice(0, 6) + ' → ' + (/Passando porque/.test(tx) ? 'fech1' : 'fech2') + ' ' + v); continue; }
           try { await bmEnviarTexto(h, tx); fx.n = /Passando porque/.test(tx) ? 1 : 2; fx.t = ag; enviados++; aud1077(h, nome, fx.n === 1 ? 'fechamento_1' : 'fechamento_2', (o.banco || '') + ' ' + (o.proposta || '') + ' ' + v);
@@ -4212,12 +4212,9 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
     }
     // 10.75 (Stefany 22/11 14:51: "o objetivo é a VENDA — convencer, tranquilizar, escassez"): os toques do link deixam de ser "lembretes" e passam a FECHAR —
     // escassez honesta (o valor de hoje pode diminuir; o link vence), facilidade (3 minutinhos pelo celular), segurança e ação clara.
-    const MSG_TARDE = nome => `${nome ? nome + ', ' : ''}última chamada sobre a sua proposta 🙏\n\n⚠️ Ela fica reservada por pouco tempo: se o link vencer, numa nova consulta o valor pode vir *menor* (a margem e as taxas mudam toda semana).\n\n✅ Leva só *uns 3 minutinhos pelo celular*: abrir o link, conferir e tirar a selfie — e a liberação sai em até *60 minutos*.\n🔒 É tudo seguro: a Dinseguro não cobra nada antes e nada é feito sem a sua confirmação.\n\nVamos finalizar agora? Se travou em alguma parte, me manda um print que eu te guio na hora 🤝`;   // 7.32 → 10.75
-    const MSG_MANHA_DUV904 = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro. A proposta que te enviei continua com as condições de ontem — mas não consigo garantir esse valor por muito tempo, porque a margem e as taxas mudam. Ficou com alguma dúvida? Me fala que eu te explico e já deixo tudo certo para você 😊`;   // 9.04 → 10.75
-    const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Aqui é da Dinseguro.\n\n` +
-      'A sua proposta *ainda está garantida* no link que te mandei ontem — mas ela não fica reservada para sempre: se vencer, numa nova consulta o valor pode vir *menor*. ⚠️\n\n' +
-      'São só *uns 3 minutinhos pelo celular* (abrir, conferir e tirar a selfie) e a liberação sai em até *60 minutos*.\n\n' +
-      'Que tal fazer agora, enquanto o valor está garantido? Se tiver qualquer dificuldade, me chama aqui que eu te ajudo passo a passo 🤝';
+    const MSG_TARDE = nome => `${nome ? nome + ', ' : ''}deu certo com a sua proposta? 😊 Se travou em alguma parte, me fala que eu te ajudo agora 🙏`;   // 7.32 → 10.75 → 13.14 (Stefany 28/11: humanizado, sem textão nem pressão)
+    const MSG_MANHA_DUV904 = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ Ficou alguma dúvida sobre a sua proposta? Me fala que eu te explico 😊`;   // 9.04 → 10.75 → 13.14
+    const MSG_MANHA = nome => `${saudAgora()}${nome ? ', ' + nome : ''}! ☀️ A sua proposta continua aqui te esperando. Quer que eu te ajude a finalizar agora? 😊`;   // 13.14
 
     let CLS_CTX = null;   // 6.40: leitura pelo SERVIDOR em curso → as funções de leitura usam isto em vez da tela
     function nomeDoContato() { if (CLS_CTX) return CLS_CTX.nome || '';
