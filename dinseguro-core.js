@@ -98,7 +98,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.11';
+  const VERSAO = '13.12';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -3637,7 +3637,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
           const saiu = ms.filter(m => m.FROM === 'me' && T(m) >= desde && /Valor na conta|Novo Cr[ée]dito|cr[ée]dito dispon[íi]vel/i.test(tx(m)) && tx(m).includes(String(x.liberado))).sort((a, b) => T(a) - T(b)).pop();
           const O2 = GM_getValue('auto_ordens', {}) || {}; const y = O2[x.hash]; if (!y || y.estado !== 'simulada' || !(+y.api790T > 0) || Date.now() - (+y.api790T) < 5 * 60000) continue;   // o pedido andou enquanto eu lia a conversa
           const nm = y.nomeReal || y.nome || ''; const tA = hhmm(+y.api790T);
-          if (saiu) { Object.assign(y, { estado: 'sim_enviada', tSimEnv: T(saiu) || Date.now(), chkOkT: 0 }); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 13.11: a simulação já estava na conversa (' + hhmm(y.tSimEnv) + ') e o pedido tinha ficado em "simulada" → sim_enviada'); diario(nm, '🛟 simulação já estava na conversa → pedido volta a andar (toque 15 min / link 30 min) (13.11)'); }
+          if (saiu) { Object.assign(y, { estado: 'sim_enviada', tSimEnv: T(saiu) || Date.now(), chkOkT: Date.now() /* 13.12 (Fauze 28/11 14:17): a conversa ACABOU de ser lida aqui — com chkOkT zerado, simulação com mais de 2 h caía na hora no 'não deu para confirmar a resposta → vigia' (7.55) em vez de seguir para o link; a resposta do cliente continua sendo conferida pelo leitor (respLidaT não muda) e pelo respSync antes de digitar */ }); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 13.11: a simulação já estava na conversa (' + hhmm(y.tSimEnv) + ') e o pedido tinha ficado em "simulada" → sim_enviada'); diario(nm, '🛟 simulação já estava na conversa → pedido volta a andar (toque 15 min / link 30 min) (13.11)'); }
           else if ((+y.presa1311 || 0) >= 3) { Object.assign(y, { estado: 'erro', erro: '13.11: a simulação de R$ ' + y.liberado + ' não saiu depois de 3 tentativas (não aparece na conversa) → vigia manda a simulação' }); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 13.11: simulação não saiu em 3 tentativas → vigia'); diario(nm, '🔴 simulação não sai (3 tentativas) → vigia manda (13.11)'); }
           else { y.presa1311 = (+y.presa1311 || 0) + 1; simNova1311(y); (y.hist = y.hist || []).push(hhmm(Date.now()) + ' 13.11: simulação presa (envio marcado às ' + tA + ' e nada na conversa) → liberada para sair de novo (tentativa ' + y.presa1311 + ')'); diario(nm, '🛟 simulação estava presa desde ' + tA + ' → liberada para sair de novo (13.11)'); }
           GM_setValue('auto_ordens', O2); }
