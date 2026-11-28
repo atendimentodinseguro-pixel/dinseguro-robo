@@ -98,7 +98,7 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
       _gSet(k, v); if (SNAP.has(k)) { try { SNAP.set(k, J(v)); } catch (e) {} } };
   } catch (e) {}
 
-  const VERSAO = '13.15';
+  const VERSAO = '13.16';
   // 13.11 (Stefany 28/11 13:42 'nenhum desses recebeu link… quero que aja na causa… ajuste para ele mesmo reconhecer sozinho'): 16 pedidos ficaram em 'simulação enviada' de 1 a 5 h sem o toque dos 15 min e sem digitar/mandar o link dos 30 min.
   //   CAUSA: um pedido em 'simulada' com a marca de envio (api790T) de uma simulação ANTIGA (cliente pediu outro valor → simulou de novo; ou o envio pela API foi cortado no meio) nunca saía — a API só pega quem não tem a marca —
   //   e o bloco 7.55 dava 'return' nesse pedido A CADA VOLTA (11.19), então o laço logo abaixo (toque de 15 min e '30 min sem resposta → digita + link') nunca rodava para NINGUÉM.
@@ -1611,10 +1611,37 @@ try { globalThis.__dinsNomeOk1308 = p => { const s = String(p || '').trim(); con
   function zrCliRecente1256(chatId) { const p = zrPonte1251(chatId); return !!(p && +p.cliT && Date.now() - (+p.cliT) < 2 * 3600000); }
   function zrTrava1256(chatId, pz, texto, semNome) { try { const ag = Date.now(); const hh = new Date().getHours(); const cliT = +pz.cliT || 0; const tEnv = +pz.tEnv || 0;
       if ((hh < 8 || hh >= 21) && !(cliT && ag - cliT < 2 * 3600000)) return 'ponte Zap Responder: fora do horário (8h–21h) e o cliente não escreveu nas últimas 2 h (12.56)';
-      if (/ficou (com |mais )?alguma d[úu]vida|[úu]ltimo toque|passando (aqui )?(para|pra) (lembrar|saber)|ainda tem interesse|s[óo] (para|pra) (te )?lembrar/i.test(String(texto))) return 'ponte Zap Responder: sem follow-up neste número (12.56)';
-      const vez = cliT > tEnv ? 0 : (+pz.vez || 0); const mesma = tEnv && ag - tEnv < 5 * 60000 && cliT <= tEnv; if (!mesma && vez >= 3) return 'ponte Zap Responder: sem follow-up neste número — já foram 3 mensagens nossas sem resposta do cliente (12.56)';
+      const fu15 = !!(pz.fu1315 && zrFuDep1315(pz.sid));   /* 13.15: follow-up humanizado liberado só nos números da lista (Atendimento 5…); o do remarketing continua sem */
+      if (!fu15 && /ficou (com |mais )?alguma d[úu]vida|[úu]ltimo toque|passando (aqui )?(para|pra) (lembrar|saber)|ainda tem interesse|s[óo] (para|pra) (te )?lembrar/i.test(String(texto))) return 'ponte Zap Responder: sem follow-up neste número (12.56)';
+      const vez = cliT > tEnv ? 0 : (+pz.vez || 0); const mesma = tEnv && ag - tEnv < 5 * 60000 && cliT <= tEnv; if (!fu15 && !mesma && vez >= 3) return 'ponte Zap Responder: sem follow-up neste número — já foram 3 mensagens nossas sem resposta do cliente (12.56)';
       if (!semNome) { const x = (GM_getValue('auto_ordens', {}) || {})[chatId]; if (x && x.zr1251 && x.reverso && x.nomeReal && !nomeBate1256(x.nome, x.nomeReal)) return 'ponte Zap Responder: o CPF achado pelo telefone é de ' + String(x.nomeReal).split(' ')[0] + ' e o WhatsApp é de "' + String(x.nome || '?').slice(0, 20) + '" → não envio; pedir o CPF (12.56)'; }
     } catch (e) {} return ''; }
+  /* 13.15 (Stefany 28/11 15:07 'no atendimento 5 e os próximos que a gente for implementando pode fazer o follow-up humanizado, não o follow-up antigo'):
+     números do Zap Responder COM follow-up = lista GM 'zr_fu_deps' (departamento). Começa com o Atendimento 5. Para pôr um número novo: __R.dinsZrFollowup('<id do departamento>', 1).
+     O Atendimento (remarketing) NÃO entra. Regra (padrão 13.06): no máximo 1 toque 1 h depois da simulação sem resposta e 1 lembrete 40 min depois do link,
+     só das 8h às 21h, só com a janela de 24 h aberta, nunca para quem assinou ou desistiu. Textos curtos no jeito da nuvem. */
+  const ZR_FU_PADRAO1315 = ['aba62f5d-8fea-44f5-830a-131a49665d5b'];   // Atendimento 5 (15553874661)
+  function zrFuDep1315(sid) { try { const L = GM_getValue('zr_fu_deps', null) || ZR_FU_PADRAO1315; return !!sid && L.includes(String(sid)); } catch (e) { return false; } }
+  try { const W15 = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window; W15.dinsZrFollowup = (dep, on) => { const L = (GM_getValue('zr_fu_deps', null) || ZR_FU_PADRAO1315).slice(); if (dep) { const i = L.indexOf(String(dep)); if (on && i < 0) L.push(String(dep)); if (!on && on !== undefined && i >= 0) L.splice(i, 1); GM_setValue('zr_fu_deps', L); } return L; }; } catch (e) {}
+  try { if (/botmaker/.test(location.host)) setInterval(() => { try {
+      const pap = sessionStorage.getItem('dins_papel') || 'tudo'; if (/^(vigia|varredura)$/.test(pap)) return;
+      const hh = new Date().getHours(); if (hh < 8 || hh >= 21) return;
+      const ag = Date.now(); const AB = pap + '_' + (window.__ab1315 = window.__ab1315 || Math.random().toString(36).slice(2, 7)); const L = GM_getValue('fu1315_dono', null); if (L && L.aba !== AB && ag - (+L.t || 0) < 3 * 60000) return; GM_setValue('fu1315_dono', { aba: AB, t: ag });
+      const O = GM_getValue('auto_ordens', {}) || {}; const M = GM_getValue('zr_ponte', {}) || {};
+      for (const h in O) { const o = O[h]; if (!o || !o.zr1251) continue; const pz = zrPonte1251(h); if (!pz || !zrFuDep1315(pz.sid)) continue;
+        const cliT = +pz.cliT || 0, tEnv = +pz.tEnv || 0; if (!cliT || ag - cliT > 23 * 3600000) continue;   // janela de 24 h (com folga)
+        if (cliT >= tEnv) continue;   // o cliente falou por último → quem responde é a nuvem/ronda
+        if (/^(desfecho|desfecho_ok|encerrado|pago|humano|erro|alerta|pendente|cancelado)$/.test(String(o.estado || '')) || o.desistiu) continue;
+        try { if (typeof window.dinsJaAssinou === 'function' && window.dinsJaAssinou(h)) continue; } catch (e) {}
+        const nm0 = String(o.nomeReal || o.nome || '').replace(/[^A-Za-zÀ-ÿ ]/g, ' ').trim().split(/\s+/)[0] || ''; const n = globalThis.__dinsNomeOk1308(nm0.length >= 3 ? nm0.charAt(0).toUpperCase() + nm0.slice(1).toLowerCase() : '');
+        let tipo = '', txt = '';
+        if (o.estado === 'sim_enviada' && +o.tSimEnv && !o.fuSim1315 && ag - (+o.tSimEnv) >= 60 * 60000 && ag - (+o.tSimEnv) < 6 * 3600000 && cliT < +o.tSimEnv) { tipo = 'sim'; txt = (n ? n + ', c' : 'C') + 'onseguiu ver a simulação que te mandei? 😊 Se quiser, eu já deixo a sua proposta prontinha. Posso fazer?'; }
+        else if (/^https?:\/\//.test(String(o.link || '')) && /^(feito|link_enviado)$/.test(String(o.estado || '')) && !o.fuLink1315 && (+pz.vez || 0) >= 3 && ag - tEnv >= 40 * 60000 && ag - tEnv < 6 * 3600000)   /* só link recente (até 6 h): nada de cobrar link antigo */ { tipo = 'link'; txt = (n ? n + ', c' : 'C') + 'onseguiu abrir o link da sua proposta? Se travou em alguma parte, me fala que eu te ajudo 🙏\n\n' + o.link; }
+        if (!tipo) continue;
+        o[tipo === 'sim' ? 'fuSim1315' : 'fuLink1315'] = ag; (o.hist = o.hist || []).push(new Date(ag).toTimeString().slice(0, 5) + ' 13.15: follow-up humanizado (' + tipo + ') no Zap'); GM_setValue('auto_ordens', O);
+        zrEnviar1256(h, Object.assign({}, pz, { fu1315: 1 }), txt, false).then(() => { try { diario(o.nomeReal || o.nome || '', '💬 follow-up humanizado no Zap (' + (tipo === 'sim' ? '1 h depois da simulação' : '40 min depois do link') + ') — 13.15'); } catch (e) {} }).catch(e => { try { diario(o.nomeReal || o.nome || '', '⚠️ follow-up do Zap não saiu: ' + String(e.message || e).slice(0, 90)); } catch (e2) {} });
+        return; }   // um por volta
+    } catch (e) {} }, 60000); } catch (e) {}
   /* 12.92 (Stefany 27/11 16:13 'quando o cliente confirmar a simulação, ele tem que receber uma mensagem rapidinha que a gente já está fazendo a proposta'): aviso curto no aceite, pelo mesmo canal da conversa */
   function msgAceite1292(y) { try { if (!y || !y.hash) return ''; const nm = String(y.nomeReal || y.nome || '').replace(/[^A-Za-zÀ-ÿ ]/g, ' ').trim().split(/\s+/)[0] || ''; const n = globalThis.__dinsNomeOk1308(nm.length >= 3 ? nm.charAt(0).toUpperCase() + nm.slice(1).toLowerCase() : ''); const t = 'Perfeito' + (n ? ', ' + n : '') + '! 🙏\n\nJá estou fazendo a sua proposta. Em poucos minutos te mando o link para você assinar.';
     if (y.zr1251 && zrPonte1251(y.hash)) { zrEnviar1256(y.hash, zrPonte1251(y.hash), t, true).catch(() => {}); return 'zap'; }
